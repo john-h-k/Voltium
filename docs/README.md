@@ -13,7 +13,7 @@ Voltium is a DirectX 12 C# 3D render engine written purely in C#, with a focus o
 ### Code of Conduct
 
 Voltium and everyone contributing (this includes issues, pull requests, the
-wiki, etc) must abide by the [CODE_OF_CONDUCT](docs/CODE_OF_CONDUCT.md).
+wiki, etc) must abide by the [CODE_OF_CONDUCT](CODE_OF_CONDUCT.md).
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported by contacting the project team at admin@voltium.org.
 
