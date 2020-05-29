@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+      <TargetFramework>netcoreapp5.0</TargetFramework>
+      <LangVersion>preview</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Voltium.Common\Voltium.Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="PNG" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project>
+
+  <!--
+    Directory.Build.props is automatically picked up and imported by
+    Microsoft.Common.props. This file needs to exist, even if empty so that
+    files in the parent directory tree, with the same name, are not imported
+    instead. The import fairly early and only Sdk.props will have been imported
+    beforehand. We also don't need to add ourselves to MSBuildAllProjects, as
+    that is done by the file that imports us.
+  -->
+
+  <!-- Default settings that are used by other settings -->
+  <PropertyGroup>
+    <BaseArtifactsPath>$(MSBuildThisFileDirectory)artifacts/</BaseArtifactsPath>
+    <BaseArtifactsPathSuffix>$(ProjectCategory)/$(MSBuildProjectName)</BaseArtifactsPathSuffix>
+    <RepositoryUrl>https://github.com/john-h-k/Voltium</RepositoryUrl>
+  </PropertyGroup>
+
+  <!-- Default settings that explicitly differ from the Sdk.props defaults  -->
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <BaseIntermediateOutputPath>$(BaseArtifactsPath)obj/$(BaseArtifactsPathSuffix)/</BaseIntermediateOutputPath>
+    <DebugType>embedded</DebugType>
+    <EnableDefaultNoneItems>false</EnableDefaultNoneItems>
+    <Nullable>enable</Nullable>
+    <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+    <SignAssembly>false</SignAssembly>
+    <SuppressNETCoreSdkPreviewMessage>true</SuppressNETCoreSdkPreviewMessage>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <CheckForOverflowUnderflow>true</CheckForOverflowUnderflow>
+  </PropertyGroup>
+
+  <!-- Default settings that explicitly differ from the Sdk.targets defaults-->
+  <PropertyGroup>
+    <Authors>John Kelly and Contributors</Authors>
+    <BaseOutputPath>$(BaseArtifactsPath)bin/$(BaseArtifactsPathSuffix)/</BaseOutputPath>
+    <Company>JohnKelly</Company>
+    <PackageOutputPath>$(BaseArtifactsPath)pkg/$(BaseArtifactsPathSuffix)/$(Configuration)/</PackageOutputPath>
+    <Product>Voltium</Product>
+    <VersionPrefix>0.1.0</VersionPrefix>
+    <VersionSuffix>alpha</VersionSuffix>
+  </PropertyGroup>
+
+  <!-- Default settings that are otherwise undefined -->
+  <PropertyGroup>
+    <AssemblyOriginatorKeyFile>$(MSBuildThisFileDirectory)Voltium.snk</AssemblyOriginatorKeyFile>
+    <AssemblyOriginatorPublicKey>00240000048000009400000006020000002400005253413100040000010001007930f8e8a41652e9c8d9c721dedd2f47dc521eb85c9712da9ad2fc2addac27637ba299222eea82878236f4b08756777ad8c324303a614d04cbc212d8d2ba4ea1b5647069d63467ff250df08b07f32ed2dec6fb09de2db3257b47aad43a73227584aed721764ceb4d5784b35e7a6b829f6ca266cb5607a24d068bdbdf5e6b91cf</AssemblyOriginatorPublicKey>
+    <Copyright>Copyright © John Kelly and Contributors</Copyright>
+    <Description>$Description</Description>
+    <Features>strict</Features>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <HighEntropyVA>true</HighEntropyVA>
+    <LangVersion>preview</LangVersion>
+    <NeutralLanguage>en-US</NeutralLanguage>
+    <OverwriteReadOnlyFiles>true</OverwriteReadOnlyFiles>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>$(RepositoryUrl)</PackageProjectUrl>
+    <ProduceReferenceAssembly>true</ProduceReferenceAssembly>
+    <PublicSign>false</PublicSign>
+    <RepositoryType>git</RepositoryType>
+    <RestoreSources>
+      https://api.nuget.org/v3/index.json;
+      https://pkgs.terrafx.dev/nuget/v3/index.json;
+    </RestoreSources>
+    <UseSharedCompilation>true</UseSharedCompilation>
+  </PropertyGroup>
+
+  <!-- Package references which are consumed by all projects -->
+  <ItemGroup>
+    <!-- <PackageReference Include="Microsoft.Net.Compilers.Toolset" IsImplicitlyDefined="true" PrivateAssets="all" /> -->
+  </ItemGroup>
+
+</Project>
