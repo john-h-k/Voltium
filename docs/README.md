@@ -1,10 +1,6 @@
 # Contributing to Voltium
 
-$Description
-
-TODO: Link build status badges here
-
-TODO: Link social media channels here
+Voltium is a DirectX 12 C# 3D render engine written purely in C#, with a focus on performance and usability
 
 ## Table of Contents
 
