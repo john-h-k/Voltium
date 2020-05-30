@@ -19,8 +19,8 @@ reported by contacting the project team at admin@voltium.org.
 
 ### License
 
-Copyright © John Kelly and Contributors. Licensed under the MIT License
-(MIT). See [LICENSE](LICENSE.md) in the repository root for more information.
+Copyright © John Kelly and Contributors. Licensed under the AGPL v3 license
+(AGPL). See [LICENSE](LICENSE.md) in the repository root for more information.
 
 ### Contributing
 
