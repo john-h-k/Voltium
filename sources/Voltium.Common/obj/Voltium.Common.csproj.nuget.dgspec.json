@@ -1,0 +1,76 @@
+{
+  "format": 1,
+  "restore": {
+    "C:\\Users\\johnk\\source\\repos\\Voltium\\sources\\Voltium.Common\\Voltium.Common.csproj": {}
+  },
+  "projects": {
+    "C:\\Users\\johnk\\source\\repos\\Voltium\\sources\\Voltium.Common\\Voltium.Common.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "C:\\Users\\johnk\\source\\repos\\Voltium\\sources\\Voltium.Common\\Voltium.Common.csproj",
+        "projectName": "Voltium.Common",
+        "projectPath": "C:\\Users\\johnk\\source\\repos\\Voltium\\sources\\Voltium.Common\\Voltium.Common.csproj",
+        "packagesPath": "C:\\Users\\johnk\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\johnk\\source\\repos\\Voltium\\sources\\Voltium.Common\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\johnk\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+        ],
+        "originalTargetFrameworks": [
+          "net5.0"
+        ],
+        "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+          "https://api.nuget.org/v3/index.json": {},
+          "https://dotnet.myget.org/F/roslyn/api/v3/index.json": {},
+          "https://pkgs.dev.azure.com/tagoo/terrafx/_packaging/terrafx%40Local/nuget/v3/index.json": {}
+        },
+        "frameworks": {
+          "net5.0": {
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        }
+      },
+      "frameworks": {
+        "net5.0": {
+          "dependencies": {
+            "Microsoft.Extensions.Logging": {
+              "target": "Package",
+              "version": "[5.0.0-preview.4.20251.6, )"
+            },
+            "RaiiSharp.Annotations": {
+              "target": "Package",
+              "version": "[1.0.1, )"
+            },
+            "TerraFX.Interop.Windows": {
+              "target": "Package",
+              "version": "[10.0.19041-alpha-20200524.2, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\5.0.100-preview.4.20258.7\\RuntimeIdentifierGraph.json"
+        }
+      }
+    }
+  }
+}

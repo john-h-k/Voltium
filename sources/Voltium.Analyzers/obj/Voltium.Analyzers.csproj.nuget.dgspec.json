@@ -1,0 +1,75 @@
+{
+  "format": 1,
+  "restore": {
+    "C:\\Users\\johnk\\source\\repos\\Voltium\\sources\\Voltium.Analyzers\\Voltium.Analyzers.csproj": {}
+  },
+  "projects": {
+    "C:\\Users\\johnk\\source\\repos\\Voltium\\sources\\Voltium.Analyzers\\Voltium.Analyzers.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "C:\\Users\\johnk\\source\\repos\\Voltium\\sources\\Voltium.Analyzers\\Voltium.Analyzers.csproj",
+        "projectName": "Voltium.Analyzers",
+        "projectPath": "C:\\Users\\johnk\\source\\repos\\Voltium\\sources\\Voltium.Analyzers\\Voltium.Analyzers.csproj",
+        "packagesPath": "C:\\Users\\johnk\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\johnk\\source\\repos\\Voltium\\sources\\Voltium.Analyzers\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\johnk\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+        ],
+        "originalTargetFrameworks": [
+          "netstandard2.0"
+        ],
+        "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+          "https://api.nuget.org/v3/index.json": {},
+          "https://dotnet.myget.org/F/roslyn/api/v3/index.json": {},
+          "https://pkgs.dev.azure.com/tagoo/terrafx/_packaging/terrafx%40Local/nuget/v3/index.json": {}
+        },
+        "frameworks": {
+          "netstandard2.0": {
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        }
+      },
+      "frameworks": {
+        "netstandard2.0": {
+          "dependencies": {
+            "Microsoft.CodeAnalysis.Analyzers": {
+              "include": "Runtime, Build, Native, ContentFiles, Analyzers, BuildTransitive",
+              "suppressParent": "All",
+              "target": "Package",
+              "version": "[3.0.0, )"
+            },
+            "Microsoft.CodeAnalysis.CSharp.Workspaces": {
+              "target": "Package",
+              "version": "[3.7.0-1.final, )"
+            },
+            "NETStandard.Library": {
+              "suppressParent": "All",
+              "target": "Package",
+              "version": "[2.0.3, )",
+              "autoReferenced": true
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\5.0.100-preview.4.20258.7\\RuntimeIdentifierGraph.json"
+        }
+      }
+    }
+  }
+}

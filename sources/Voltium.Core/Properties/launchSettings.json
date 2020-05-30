@@ -1,8 +1,0 @@
-{
-  "profiles": {
-    "Voltium.Core": {
-      "commandName": "Project",
-      "nativeDebugging": true
-    }
-  }
-}
