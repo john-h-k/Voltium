@@ -224,7 +224,7 @@ namespace Voltium.Core.Managers
                 Format = _config.BackBufferFormat,
                 Height = _screenData.Height,
                 Width = _screenData.Width,
-                SampleDesc = _config.MultiSamplingStrategy,
+                SampleDesc = new DXGI_SAMPLE_DESC(_config.MultiSamplingStrategy.SampleCount, _config.MultiSamplingStrategy.QualityLevel),
                 Scaling = _config.ScalingStrategy,
                 Stereo = Windows.FALSE, // stereoscopic rendering, 2 images used to make it look 3D
                 SwapEffect = _config.SwapEffect

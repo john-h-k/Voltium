@@ -17,6 +17,6 @@ namespace Voltium.Core.Managers.Shaders
         /// <summary>
         /// The inputs to the shader
         /// </summary>
-        public ImmutableArray<ShaderInput> GetShaderInputs();
+        public ReadOnlyMemory<ShaderInput> GetShaderInputs();
     }
 }

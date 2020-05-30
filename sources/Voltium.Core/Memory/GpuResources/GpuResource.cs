@@ -83,6 +83,12 @@ namespace Voltium.Core.GpuResources
         /// </summary>
         public unsafe void* CpuAddress { get; private set; }
 
+        /// <summary>
+        /// A <see cref="Span{T}"/> encompassing the buffer data. This may be empty if the resource
+        /// is unmapped or not CPU accessible
+        /// </summary>
+        public Span<byte> CpuData => new Span<byte>(CpuAddress, (int)GetBufferSize());
+
         private GpuAllocator? _allocator;
         private AllocatorHeap _heap;
         private ulong _size;
@@ -97,6 +103,16 @@ namespace Voltium.Core.GpuResources
         /// The size of the allocation
         /// </summary>
         public ulong Size => _size;
+
+        /// <summary>
+        /// Retuns a <see cref="ScopedResourceMap"/> that allows a <see cref="Map"/> call to be scoped
+        /// </summary>
+        /// <param name="subresource">The subresource index to map</param>
+        public unsafe ScopedResourceMap MapScoped(uint subresource)
+        {
+            Map(subresource);
+            return new ScopedResourceMap(UnderlyingResource, subresource);
+        }
 
         /// <summary>
         /// If the resource is not currently mapped, maps the resource

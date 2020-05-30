@@ -1,4 +1,6 @@
+using System;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using TerraFX.Interop;
 using Voltium.Common;
 
@@ -19,6 +21,11 @@ namespace Voltium.Core.GpuResources
         /// The resource which contains the vertices
         /// </summary>
         public readonly GpuResource Resource;
+
+        /// <summary>
+        /// A <see cref="Span{T}"/> encompassing the indec data
+        /// </summary>
+        public Span<TIndex> Indices => MemoryMarshal.Cast<byte, TIndex>(Resource.CpuData);
 
         /// <summary>
         /// The view of this index buffer

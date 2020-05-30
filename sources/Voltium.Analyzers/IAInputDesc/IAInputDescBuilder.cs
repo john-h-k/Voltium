@@ -21,15 +21,15 @@ namespace Voltium.Analyzers
         public string ToString(INamedTypeSymbol type)
         {
             var template = @"
-using System.Collections.Immutable;
+using System;
 using Voltium.Core.Managers.Shaders;
 
 namespace {0}
 {{
     partial struct {1} : IBindableShaderType
     {{
-        ImmutableArray<ShaderInput> IBindableShaderType.GetShaderInputs() => Elements;
-        private static readonly ImmutableArray<ShaderInput> Elements = ImmutableArray.Create(new ShaderInput[] {{{2}}});
+        ReadOnlyMemory<ShaderInput> IBindableShaderType.GetShaderInputs() => Elements;
+        private static readonly ReadOnlyMemory<ShaderInput> Elements = new ShaderInput[] {{{2}}};
     }}
 }}
 ";
@@ -53,7 +53,7 @@ namespace {0}
                     builder.Append(", \n");
                 }
                 notFirst = true;
-                builder.Append($@"new ShaderInput(""{desc.Name}"", {desc.Type})");
+                builder.Append($@"new ShaderInput(""{desc.Name.ToUpper()}"", {desc.Type})");
             }
 
             return builder.ToString();

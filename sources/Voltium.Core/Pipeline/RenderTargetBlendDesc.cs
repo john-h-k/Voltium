@@ -11,56 +11,66 @@ namespace Voltium.Core.Pipeline
     /// <summary>
     /// Describes the blend operation for a render target
     /// </summary>
-    public readonly struct RenderTargetBlendDesc
+    public struct RenderTargetBlendDesc
     {
+        /// <summary>
+        /// The default <see cref="RenderTargetBlendDesc"/>
+        /// </summary>
+        public static RenderTargetBlendDesc Default { get; }
+
+        static RenderTargetBlendDesc()
+        {
+            Default = NoBlend;
+        }
+
         /// <summary>
         /// Indicates which blend function should be used during RGB blending, or <see cref="BlendFunc.None"/>
         /// to indicate RGB blending is disabled
         /// </summary>
-        public readonly BlendFunc BlendOp;
+        public BlendFunc BlendOp;
 
         /// <summary>
         /// Indicates which blend function should be used during RGB blending, or <see cref="BlendFunc.None"/>
         /// to indicate alpha blending is disabled. 
         /// </summary>
-        public readonly BlendFunc AlphaBlendOp;
+        public BlendFunc AlphaBlendOp;
 
         /// <summary>
         /// Indicates which logical blend function should be used during logical render target blending, or <see cref="BlendFuncLogical.None"/>
         /// to indicate alpha blending is disabled. It is invalid for this value to be anything other than <see cref="BlendFuncLogical.None"/> 
         /// if <see cref="BlendOp"/> or <see cref="AlphaBlendOp"/> are not both <see cref="BlendFunc.None"/>
         /// </summary>
-        public readonly BlendFuncLogical LogicalBlendOp;
+        public BlendFuncLogical LogicalBlendOp;
 
         /// <summary>
         /// The <see cref="BlendFactor"/> used as the source component in RGB blending
         /// </summary>
-        public readonly BlendFactor SrcBlend;
+        public BlendFactor SrcBlend;
 
         /// <summary>
         /// The <see cref="BlendFactor"/> used as the dest component in RGB blending
         /// </summary>
-        public readonly BlendFactor DestBlend;
+        public BlendFactor DestBlend;
 
         /// <summary>
         /// The <see cref="BlendFactor"/> used as the source component in alpha blending
         /// </summary>
-        public readonly BlendFactor SrcBlendAlpha;
+        public BlendFactor SrcBlendAlpha;
 
         /// <summary>
         /// The <see cref="BlendFactor"/> used as the dest component in alpha blending
         /// </summary>
-        public readonly BlendFactor DestBlendAlpha;
+        public BlendFactor DestBlendAlpha;
 
         /// <summary>
         /// The flags used to mask which RGBA channels are written to the render target
         /// </summary>
-        public readonly ColorWriteFlags RenderTargetWriteMask;
+        public ColorWriteFlags RenderTargetWriteMask;
 
         /// <summary>
         /// Represents a <see cref="RenderTargetBlendDesc"/> where RGBA and logical blending is disabled
         /// </summary>
-        public static RenderTargetBlendDesc NoBlend { get; } = new RenderTargetBlendDesc(
+        public static RenderTargetBlendDesc NoBlend { get; private set; } = new RenderTargetBlendDesc(
                                                                     ColorWriteFlags.All,
                                                                     blendOp: BlendFunc.None,
                                                                     alphaBlendOp: BlendFunc.None,

@@ -1,4 +1,5 @@
-﻿using TerraFX.Interop;
+using TerraFX.Interop;
+using Voltium.Core.Configuration.Graphics;
 
 namespace Voltium.Core.Managers
 {
@@ -30,7 +31,7 @@ namespace Voltium.Core.Managers
         /// <summary>
         /// The description of the multisampling state
         /// </summary>
-        public DXGI_SAMPLE_DESC MultiSamplingStrategy { get; set;  }
+        public MsaaDesc MultiSamplingStrategy { get; set;  }
 
         /// <summary>
         /// The scaling mode used

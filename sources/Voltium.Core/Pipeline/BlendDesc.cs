@@ -11,23 +11,38 @@ namespace Voltium.Core.Pipeline
     /// <summary>
     /// Describes the blend state of the GPU pipeline
     /// </summary>
-    public readonly struct BlendDesc
+    public struct BlendDesc
     {
+        /// <summary>
+        /// The default <see cref="BlendDesc"/>. This correspends
+        /// to <c>new CD3DX12_BLEND_DESC(DEFAULT)</c>
+        /// </summary>
+        public static BlendDesc Default { get; } = new BlendDesc
+        {
+            UseAlphaToCoverage = false,
+            UseIndependentBlend = false,
+            RenderTargetBlendDescs = new()
+            {
+                [0] = RenderTargetBlendDesc.Default
+            }
+        };
+
+
         /// <summary>
         /// Whether to use alpha-to-coverage AA
         /// </summary>
-        public readonly bool UseAlphaToCoverage;
+        public bool UseAlphaToCoverage;
 
         /// <summary>
         /// Whether each render target should use a seperate <see cref="RenderTargetBlendDesc"/>.
         /// If this is <see langword="false"/>, all render targets will use the first <see cref="RenderTargetBlendDesc"/>
         /// </summary>
-        public readonly bool UseIndependentBlend;
+        public bool UseIndependentBlend;
 
         /// <summary>
         /// The render target blend descriptions
         /// </summary>
-        public readonly RenderTargetBlendDescBuffer8 RenderTargetBlendDescs;
+        public RenderTargetBlendDescBuffer8 RenderTargetBlendDescs;
 
         /// <summary>
         /// A buffer of 8 <see cref="RenderTargetBlendDesc"/>s
@@ -38,7 +53,7 @@ namespace Voltium.Core.Pipeline
             /// Retrieves a <see cref="RenderTargetBlendDesc"/> by index
             /// </summary>
             /// <param name="index"></param>
-            public unsafe readonly ref readonly RenderTargetBlendDesc this[int index]
+            public unsafe ref RenderTargetBlendDesc this[int index]
             {
                 get
                 {
@@ -51,15 +66,15 @@ namespace Voltium.Core.Pipeline
             }
 
 #pragma warning disable 1591 // XML docs
-            public readonly RenderTargetBlendDesc RenderTarget0;
-            public readonly RenderTargetBlendDesc RenderTarget1;
-            public readonly RenderTargetBlendDesc RenderTarget2;
-            public readonly RenderTargetBlendDesc RenderTarget3;
-            public readonly RenderTargetBlendDesc RenderTarget4;
-            public readonly RenderTargetBlendDesc RenderTarget5;
-            public readonly RenderTargetBlendDesc RenderTarget6;
-            public readonly RenderTargetBlendDesc RenderTarget7;
-            public readonly RenderTargetBlendDesc RenderTarget8;
+            public RenderTargetBlendDesc RenderTarget0;
+            public RenderTargetBlendDesc RenderTarget1;
+            public RenderTargetBlendDesc RenderTarget2;
+            public RenderTargetBlendDesc RenderTarget3;
+            public RenderTargetBlendDesc RenderTarget4;
+            public RenderTargetBlendDesc RenderTarget5;
+            public RenderTargetBlendDesc RenderTarget6;
+            public RenderTargetBlendDesc RenderTarget7;
+            public RenderTargetBlendDesc RenderTarget8;
 #pragma warning restore 1591
         }
     }

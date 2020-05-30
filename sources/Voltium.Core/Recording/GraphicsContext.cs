@@ -73,6 +73,15 @@ namespace Voltium.Core
         }
 
         /// <summary>
+        /// Sets the stencil ref for the pipeline <see cref="BlendDesc"/>
+        /// </summary>
+        /// <param name="value">The value of the stencil ref</param>
+        public void SetStencilRef(uint value)
+        {
+            _list.Get()->OMSetStencilRef(value);
+        }
+
+        /// <summary>
         /// Copy an entire resource
         /// </summary>
         /// <param name="source">The resource to copy from</param>

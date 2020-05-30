@@ -7,15 +7,14 @@ using Voltium.Core;
 using Voltium.Core.Managers;
 using static TerraFX.Interop.D3D12_RESOURCE_STATES;
 using static TerraFX.Interop.DXGI_FORMAT;
-using static TerraFX.Interop.Windows;
-using static TerraFX.Interop.D3D12_PRIMITIVE_TOPOLOGY_TYPE;
-using static TerraFX.Interop.D3D12_ROOT_SIGNATURE_FLAGS;
 using static TerraFX.Interop.D3D12_INPUT_CLASSIFICATION;
 using ResourceManager = Voltium.Core.Managers.ResourceManager;
 using System.Numerics;
 using Voltium.Core.GpuResources;
+using Voltium.Core.Pipeline;
 using System.Runtime.CompilerServices;
 using Voltium.Core.Managers.Shaders;
+using Voltium.Core.Configuration.Graphics;
 using System;
 
 namespace Voltium.Interactive
@@ -68,7 +67,7 @@ namespace Voltium.Interactive
                 GpuAllocFlags.ForceAllocateComitted
             );
 
-            var cubeVertices = stackalloc Vertex[8]
+            Span<Vertex> cubeVertices = stackalloc Vertex[8]
             {
                 new Vertex(new Vector3(-0.5f, -0.5f, -0.5f), new Vector4(0.0f, 0.0f, 0.0f, 1.0f)),
                 new Vertex(new Vector3(-0.5f, -0.5f, 0.5f), new Vector4(0.0f, 0.0f, 1.0f, 1.0f)),
@@ -80,7 +79,7 @@ namespace Voltium.Interactive
                 new Vertex(new Vector3(0.5f, 0.5f, 0.5f), new Vector4(1.0f, 1.0f, 1.0f, 1.0f))
             };
 
-            var cubeIndices = stackalloc ushort[36]
+            Span<ushort> cubeIndices = stackalloc ushort[36]
             {
                 0,
                 2,
@@ -128,13 +127,15 @@ namespace Voltium.Interactive
             var vertices = _allocator.AllocateVertexBuffer<Vertex>(8, GpuMemoryType.CpuWriteOptimized, GpuAllocFlags.ForceAllocateComitted);
             var indices = _allocator.AllocateIndexBuffer<ushort>(36, GpuMemoryType.CpuWriteOptimized, GpuAllocFlags.ForceAllocateComitted);
 
-            vertices.Resource.Map(0);
-            Unsafe.CopyBlock(vertices.Resource.CpuAddress, cubeVertices, (uint)sizeof(Vertex) * 8);
-            vertices.Resource.Unmap(0);
+            using (vertices.Resource.MapScoped(0))
+            {
+                cubeVertices.CopyTo(vertices.Vertices);
+            }
 
-            indices.Resource.Map(0);
-            Unsafe.CopyBlock(indices.Resource.CpuAddress, cubeIndices, (uint)sizeof(ushort) * 36);
-            indices.Resource.Unmap(0);
+            using (indices.Resource.MapScoped(0))
+            {
+                cubeIndices.CopyTo(indices.Indices);
+            }
 
             _vertexBuffer = vertices;
             _indexBuffer = indices;
@@ -142,62 +143,28 @@ namespace Voltium.Interactive
             var objectConstants = RootParameter.CreateDescriptor(RootParameterType.ConstantBufferView, 0, 0);
             _rootSig = RootSignature.Create(device, new[] { objectConstants }, default);
 
-            var semanticName0 = stackalloc ulong[2] {
-                0x4E4F495449534F50,     // POSITION
-                0x0000000000000000,
-            };
-
-            var semanticName1 = stackalloc ulong[1] {
-                0x000000524F4C4F43,     // COLOR
-            };
-
-            var inputElementDescs = stackalloc D3D12_INPUT_ELEMENT_DESC[2] {
-                new D3D12_INPUT_ELEMENT_DESC
-                {
-                    SemanticName = (sbyte*)semanticName0,
-                    Format = DXGI_FORMAT_R32G32B32_FLOAT,
-                    InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-                },
-                new D3D12_INPUT_ELEMENT_DESC
-                {
-                    SemanticName = (sbyte*)semanticName1,
-                    Format = DXGI_FORMAT_R32G32B32A32_FLOAT,
-                    AlignedByteOffset = 12,
-                    InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-                },
-            };
-
             var vertexShader = ShaderManager.ReadCompiledShader("SimpleVertexShader.cso", ShaderType.Vertex);
             var pixelShader = ShaderManager.ReadCompiledShader("SimplePixelShader.cso", ShaderType.Pixel);
 
-            D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc;
-
-            fixed (byte* vs = vertexShader)
-            fixed (byte* ps = pixelShader)
+            GraphicsPipelineDesc psoDesc = new GraphicsPipelineDesc
             {
-                psoDesc = new()
+                ShaderSignature = _rootSig,
+                Blend = BlendDesc.Default,
+                Rasterizer = RasterizerDesc.Default,
+                DepthStencil = DepthStencilDesc.Default,
+                DepthStencilFormat = config.DepthStencilFormat,
+                Topology = TopologyClass.Triangle,
+                NumRenderTargets = 1,
+                Msaa = new MsaaDesc(1, 0),
+                RenderTargetFormats = new()
                 {
-                    InputLayout = new D3D12_INPUT_LAYOUT_DESC
-                    {
-                        pInputElementDescs = inputElementDescs,
-                        NumElements = 2,
-                    },
-                    pRootSignature = _rootSig.Value,
-                    VS = new D3D12_SHADER_BYTECODE(vs, (nuint)vertexShader.Length),
-                    PS = new D3D12_SHADER_BYTECODE(ps, (nuint)pixelShader.Length),
-                    RasterizerState = D3D12_RASTERIZER_DESC.DEFAULT,
-                    BlendState = D3D12_BLEND_DESC.DEFAULT,
-                    DepthStencilState = D3D12_DEPTH_STENCIL_DESC.DEFAULT,
-                    DSVFormat = config.DepthStencilFormat,
-                    SampleMask = uint.MaxValue,
-                    PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE,
-                    NumRenderTargets = 1,
-                    SampleDesc = new DXGI_SAMPLE_DESC(count: 1, quality: 0),
-                };
-                psoDesc.RTVFormats[0] = config.BackBufferFormat;
-            }
+                    [0] = config.BackBufferFormat
+                },
+                VertexShader = vertexShader,
+                PixelShader = pixelShader,
+            };
 
-            _pipelineManager.CreatePso("Default", psoDesc);
+            _pipelineManager.CreatePso<Vertex>("Default", psoDesc);
             _cachedPso = _pipelineManager.RetrievePso("Default").Move();
 
             _objectConstants = _allocator.Allocate(

@@ -9,6 +9,11 @@ namespace Voltium.Core.Managers
     public readonly unsafe struct CompiledShader
     {
         /// <summary>
+        /// Represents a <see cref="CompiledShader"/> containing no data
+        /// </summary>
+        public static CompiledShader Empty => default;
+
+        /// <summary>
         /// The pointer to the beginning of the shader data
         /// </summary>
         public readonly ReadOnlyMemory<byte> ShaderData;
