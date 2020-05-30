@@ -4,64 +4,132 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using static TerraFX.Interop.D3D12_LOGIC_OP;
-using static TerraFX.Interop.D3D12_BLEND_OP;
-using static TerraFX.Interop.D3D12_BLEND;
-
 
 
 namespace Voltium.Core.Pipeline
 {
-    //public readonly struct RenderTargetBlendDesc
-    //{
-    //}
+    /// <summary>
+    /// Describes the blend operation for a render target
+    /// </summary>
+    public readonly struct RenderTargetBlendDesc
+    {
+        /// <summary>
+        /// Indicates which blend function should be used during RGB blending, or <see cref="BlendFunc.None"/>
+        /// to indicate RGB blending is disabled
+        /// </summary>
+        public readonly BlendFunc BlendOp;
 
-    //public enum BlendFactor
-    //{
-    //    Zero = D3D12_BLEND_ZERO,
-    //    One = D3D12_BLEND_ONE,
-    //    SourceColor = D3D12_BLEND_SRC_COLOR,
-    //    InvertedSourceColor = D3D12_BLEND_INV_SRC_COLOR,
-    //    SourceAlpha = D3D12_BLEND_SRC_ALPHA,
-    //    InvertedSourceAlpha = D3D12_BLEND_INV_SRC_ALPHA,
-    //    DestAlpha = D3D12_BLEND_DEST_ALPHA,
-    //    InvertedDestAlpha = D3D12_BLEND_INV_DEST_ALPHA,
-    //    DestColor = D3D12_BLEND_DEST_COLOR,
-    //    InvertedDestColor = D3D12_BLEND_INV_DEST_COLOR,
-    //    SourceAlphaSatured = D3D12_BLEND_SRC_ALPHA_SAT,
-    //    BlendFactory = D3D12_BLEND_BLEND_FACTOR,
-    //    InvertedBlendFactor = D3D12_BLEND_INV_BLEND_FACTOR,
-    //    SRC1_COLOR = D3D12_BLEND_SRC1_COLOR,
-    //    INV_SRC1_COLOR = D3D12_BLEND_INV_SRC1_COLOR,
-    //    SRC1_ALPHA = D3D12_BLEND_SRC1_ALPHA,
-    //    INV_SRC1_ALPHA = D3D12_BLEND_INV_SRC1_ALPHA
-    //}
+        /// <summary>
+        /// Indicates which blend function should be used during RGB blending, or <see cref="BlendFunc.None"/>
+        /// to indicate alpha blending is disabled. 
+        /// </summary>
+        public readonly BlendFunc AlphaBlendOp;
 
-    //public enum BlendFunc
-    //{
-    //    Add = D3D12_BLEND_OP_ADD,
-    //    Subtract = D3D12_BLEND_OP_SUBTRACT,
-    //    ReverseSubtract = D3D12_BLEND_OP_REV_SUBTRACT,
-    //    Min = D3D12_BLEND_OP_MIN,
-    //    Max = D3D12_BLEND_OP_MAX
-    //}
+        /// <summary>
+        /// Indicates which logical blend function should be used during logical render target blending, or <see cref="BlendFuncLogical.None"/>
+        /// to indicate alpha blending is disabled. It is invalid for this value to be anything other than <see cref="BlendFuncLogical.None"/> 
+        /// if <see cref="BlendOp"/> or <see cref="AlphaBlendOp"/> are not both <see cref="BlendFunc.None"/>
+        /// </summary>
+        public readonly BlendFuncLogical LogicalBlendOp;
 
-    //public enum BlendLogicFunc
-    //{
-    //    Clear = D3D12_LOGIC_OP_CLEAR,
-    //    Set = D3D12_LOGIC_OP_SET,
-    //    Copy = D3D12_LOGIC_OP_COPY,
-    //    CopyInverted = D3D12_LOGIC_OP_COPY_INVERTED,
-    //    Nop = D3D12_LOGIC_OP_NOOP,
-    //    Invert = D3D12_LOGIC_OP_INVERT,
-    //    And = D3D12_LOGIC_OP_AND,
-    //    Nand = D3D12_LOGIC_OP_NAND,
-    //    Or = D3D12_LOGIC_OP_OR,
-    //    Nor = D3D12_LOGIC_OP_NOR,
-    //    Xor = D3D12_LOGIC_OP_XOR,
-    //    Equality = D3D12_LOGIC_OP_EQUIV,
-    //    AndReversed = D3D12_LOGIC_OP_AND_REVERSE,
-    //    AndInverted = D3D12_LOGIC_OP_AND_INVERTED,
-    //    OrReversedd = D3D12_LOGIC_OP_OR_REVERSE,
-    //    OrInverted = D3D12_LOGIC_OP_OR_INVERTED
-    //}
+        /// <summary>
+        /// The <see cref="BlendFactor"/> used as the source component in RGB blending
+        /// </summary>
+        public readonly BlendFactor SrcBlend;
+
+        /// <summary>
+        /// The <see cref="BlendFactor"/> used as the dest component in RGB blending
+        /// </summary>
+        public readonly BlendFactor DestBlend;
+
+        /// <summary>
+        /// The <see cref="BlendFactor"/> used as the source component in alpha blending
+        /// </summary>
+        public readonly BlendFactor SrcBlendAlpha;
+
+        /// <summary>
+        /// The <see cref="BlendFactor"/> used as the dest component in alpha blending
+        /// </summary>
+        public readonly BlendFactor DestBlendAlpha;
+
+        /// <summary>
+        /// The flags used to mask which RGBA channels are written to the render target
+        /// </summary>
+        public readonly ColorWriteFlags RenderTargetWriteMask;
+
+        /// <summary>
+        /// Represents a <see cref="RenderTargetBlendDesc"/> where RGBA and logical blending is disabled
+        /// </summary>
+        public static RenderTargetBlendDesc NoBlend { get; } = new RenderTargetBlendDesc(
+                                                                    ColorWriteFlags.All,
+                                                                    blendOp: BlendFunc.None,
+                                                                    alphaBlendOp: BlendFunc.None,
+                                                                    logicalBlendOp: BlendFuncLogical.None
+                                                                );
+
+        /// <summary>
+        /// Creates a new <see cref="RenderTargetBlendDesc"/> representing an RGB and alpha blend
+        /// </summary>
+        /// <param name="rgbBlendOp">The <see cref="BlendFunc"/> to use for RGB blending</param>
+        /// <param name="rgbBlendFactorSrc">The <see cref="BlendFactor"/> indicating the first source for the rgb blend</param>
+        /// <param name="rgbBlendFactorDest">The <see cref="BlendFactor"/> indicating the second source for the alpha blend</param>
+        /// <param name="alphaBlendOp">The <see cref="BlendFunc"/> to use for alpha blending</param>
+        /// <param name="alphaBlendFactorSrc">The <see cref="BlendFactor"/> indicating the first source for the rgb blend</param>
+        /// <param name="alphaBlendFactorDest">The <see cref="BlendFactor"/> indicating the second source for the alpha blend</param>
+        /// <param name="flags"><see cref="ColorWriteFlags"/> indicating which RGBA channels will be written to the render target</param>
+        /// <returns>A new <see cref="RenderTargetBlendDesc"/> representing an RGB and alpha blend</returns>
+        public static RenderTargetBlendDesc CreateBlend(
+            BlendFunc rgbBlendOp,
+            BlendFactor rgbBlendFactorSrc,
+            BlendFactor rgbBlendFactorDest,
+            BlendFunc alphaBlendOp,
+            BlendFactor alphaBlendFactorSrc,
+            BlendFactor alphaBlendFactorDest,
+            ColorWriteFlags flags = ColorWriteFlags.All
+        )
+            => new RenderTargetBlendDesc(
+                blendOp: rgbBlendOp,
+                srcBlend: rgbBlendFactorSrc,
+                destBlend: rgbBlendFactorDest,
+                alphaBlendOp: alphaBlendOp,
+                srcBlendAlpha: alphaBlendFactorSrc,
+                destBlendAlpha: alphaBlendFactorDest,
+                renderTargetWriteMask: flags
+            );
+
+        /// <summary>
+        /// Creates a new <see cref="RenderTargetBlendDesc"/> representing a logical blend
+        /// </summary>
+        /// <param name="logicalOp">The logical operation to use</param>
+        /// <param name="flags"><see cref="ColorWriteFlags"/> indicating which RGBA channels will be written to the render target</param>
+        /// <returns>A new <see cref="RenderTargetBlendDesc"/> representing a logical blend</returns>
+        public static RenderTargetBlendDesc CreateLogicalBlend(
+            BlendFuncLogical logicalOp,
+            ColorWriteFlags flags = ColorWriteFlags.All)
+            => new RenderTargetBlendDesc(
+                logicalBlendOp: logicalOp,
+                renderTargetWriteMask: flags
+            );
+
+        private RenderTargetBlendDesc(
+            ColorWriteFlags renderTargetWriteMask,
+            BlendFunc blendOp = BlendFunc.Add,
+            BlendFunc alphaBlendOp = BlendFunc.Add,
+            BlendFuncLogical logicalBlendOp = BlendFuncLogical.Nop,
+            BlendFactor srcBlend = BlendFactor.One,
+            BlendFactor destBlend = BlendFactor.Zero,
+            BlendFactor srcBlendAlpha = BlendFactor.One,
+            BlendFactor destBlendAlpha = BlendFactor.Zero
+        )
+        {
+            BlendOp = blendOp;
+            AlphaBlendOp = alphaBlendOp;
+            LogicalBlendOp = logicalBlendOp;
+            SrcBlend = srcBlend;
+            DestBlend = destBlend;
+            SrcBlendAlpha = srcBlendAlpha;
+            DestBlendAlpha = destBlendAlpha;
+            RenderTargetWriteMask = renderTargetWriteMask;
+        }
+    }
 }

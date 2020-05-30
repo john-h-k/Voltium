@@ -31,11 +31,12 @@ namespace Voltium.Interactive
             };
 
             DeviceManager.Initialize(config, data);
-            _renderer.Init(config, DeviceManager.Manager.Device);
+            _renderer.Init(config, in data, DeviceManager.Manager.Device);
         }
 
         public override void Update()
         {
+            _renderer.Update();
         }
 
         public override unsafe void Render()

@@ -140,6 +140,7 @@ namespace Voltium.Core.Managers
             GpuDispatchManager.Initialize(_device, _config);
             CreateSwapChain(factory.Get());
             InitializerGlobalManagers();
+
             Viewport = new Viewport(0.0f, 0.0f, _screenData.Width, _screenData.Height, 0.0f, 1.0f);
             Scissor = new Rectangle(0, 0, (int)_screenData.Width, (int)_screenData.Height);
         }

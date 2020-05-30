@@ -4,6 +4,7 @@ using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Common.Debugging;
 using Voltium.Core.GpuResources;
+using Voltium.Core.Pipeline;
 
 namespace Voltium.Core
 {
@@ -63,6 +64,15 @@ namespace Voltium.Core
         }
 
         /// <summary>
+        /// Sets the blend factor for the pipeline <see cref="BlendDesc"/>
+        /// </summary>
+        /// <param name="value">The value of the blend factor</param>
+        public void SetBlendFactor(RgbaColor value)
+        {
+            _list.Get()->OMSetBlendFactor(&value.R);
+        }
+
+        /// <summary>
         /// Copy an entire resource
         /// </summary>
         /// <param name="source">The resource to copy from</param>
@@ -73,6 +83,16 @@ namespace Voltium.Core
             // line below can error even if assertion isn't hit
 
             _list.Get()->CopyResource(source.UnderlyingResource, destination.UnderlyingResource);
+        }
+
+        /// <summary>
+        /// Sets a directly-bound constant buffer view descriptor to the graphics pipeline
+        /// </summary>
+        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
+        /// <param name="resource">The GPU address of the resource</param>
+        public void SetGraphicsConstantBufferDescriptor(uint paramIndex, GpuResource resource)
+        {
+            _list.Get()->SetGraphicsRootConstantBufferView(paramIndex, resource.GpuAddress);
         }
 
         /// <summary>
@@ -173,9 +193,9 @@ namespace Voltium.Core
         /// <param name="rtv">The render target to clear</param>
         /// <param name="color">The RGBA color to clear it to</param>
         /// <param name="rect">The rectangle representing the section to clear</param>
-        public void ClearRenderTarget(CpuHandle rtv, RgbaColor color, Rectangle rect)
+        public void ClearRenderTarget(DescriptorHandle rtv, RgbaColor color, Rectangle rect)
         {
-            _list.Get()->ClearRenderTargetView(rtv.Value, &color.R, 1, (RECT*)&rect);
+            _list.Get()->ClearRenderTargetView(rtv.CpuHandle.Value, &color.R, 1, (RECT*)&rect);
         }
 
         /// <summary>
@@ -183,12 +203,55 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="rtv">The render target to clear</param>
         /// <param name="color">The RGBA color to clear it to</param>
-        /// <param name="rect">The rectangles representing the sections to clear</param>
-        public void ClearRenderTarget(CpuHandle rtv, RgbaColor color, ReadOnlySpan<Rectangle> rect)
+        /// <param name="rect">The rectangles representing the sections to clear. By default, this will clear the entire resource</param>
+        public void ClearRenderTarget(DescriptorHandle rtv, RgbaColor color, ReadOnlySpan<Rectangle> rect = default)
         {
             fixed (Rectangle* p = rect)
             {
-                _list.Get()->ClearRenderTargetView(rtv.Value, &color.R, (uint)rect.Length, (RECT*)p);
+                _list.Get()->ClearRenderTargetView(rtv.CpuHandle.Value, &color.R, (uint)rect.Length, (RECT*)p);
+            }
+        }
+
+        /// <summary>
+        /// Clear the depth element of the depth stencil
+        /// </summary>
+        /// <param name="dsv">The depth stencil target to clear</param>
+        /// <param name="depth">The <see cref="float"/> value to set the depth resource to. By default, this is <c>1</c></param>
+        /// <param name="rect">The rectangles representing the sections to clear. By default, this will clear the entire resource</param>
+        public void ClearDepth(DescriptorHandle dsv, float depth = 1, ReadOnlySpan<Rectangle> rect = default)
+        {
+            fixed (Rectangle* p = rect)
+            {
+                _list.Get()->ClearDepthStencilView(dsv.CpuHandle.Value, D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH, depth, 0, (uint)rect.Length, (RECT*)p);
+            }
+        }
+
+        /// <summary>
+        /// Clear the render target
+        /// </summary>
+        /// <param name="dsv">The depth stencil target to clear</param>
+        /// <param name="stencil">The <see cref="byte"/> value to set the stencil resource to. By default, this is <c>0</c></param>
+        /// <param name="rect">The rectangles representing the sections to clear. By default, this will clear the entire resource</param>
+        public void ClearStencil(DescriptorHandle dsv, byte stencil = 0, ReadOnlySpan<Rectangle> rect = default)
+        {
+            fixed (Rectangle* p = rect)
+            {
+                _list.Get()->ClearDepthStencilView(dsv.CpuHandle.Value, D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_STENCIL, 0, stencil, (uint)rect.Length, (RECT*)p);
+            }
+        }
+
+        /// <summary>
+        /// Clear the render target
+        /// </summary>
+        /// <param name="dsv">The depth stencil target to clear</param>
+        /// <param name="depth">The <see cref="float"/> value to set the depth resource to. By default, this is <c>1</c></param>
+        /// <param name="stencil">The <see cref="byte"/> value to set the stencil resource to. By default, this is <c>0</c></param>
+        /// <param name="rect">The rectangles representing the sections to clear. By default, this will clear the entire resource</param>
+        public void ClearDepthStencil(DescriptorHandle dsv, float depth = 1, byte stencil = 0, ReadOnlySpan<Rectangle> rect = default)
+        {
+            fixed (Rectangle* p = rect)
+            {
+                _list.Get()->ClearDepthStencilView(dsv.CpuHandle.Value, D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_STENCIL | D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH, depth, stencil, (uint)rect.Length, (RECT*)p);
             }
         }
 

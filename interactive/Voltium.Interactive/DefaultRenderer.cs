@@ -16,9 +16,17 @@ using System.Numerics;
 using Voltium.Core.GpuResources;
 using System.Runtime.CompilerServices;
 using Voltium.Core.Managers.Shaders;
+using System;
 
 namespace Voltium.Interactive
 {
+    public partial struct ObjectConstants
+    {
+        public Matrix4x4 World;
+        public Matrix4x4 View;
+        public Matrix4x4 Projection;
+    }
+
     [ShaderInput]
     public partial struct Vertex
     {
@@ -39,9 +47,17 @@ namespace Voltium.Interactive
         private VertexBuffer<Vertex> _vertexBuffer;
         private IndexBuffer<ushort> _indexBuffer;
 
-        public override void Init(GraphicalConfiguration config, ID3D12Device* device)
+        public override void Init(GraphicalConfiguration config, in ScreenData screen, ID3D12Device* device)
         {
-           bool z = new RgbaColor() == new RgbaColor();
+            var aspectRatio = (float)screen.Width / screen.Height;
+            var fovAngleY = 70.0f * MathF.PI / 180.0f;
+            _constants = new ObjectConstants
+            {
+                World = Matrix4x4.Transpose(Matrix4x4.Identity),
+                View = Matrix4x4.Transpose(Matrix4x4.CreateLookAt(new Vector3(0.0f, 0.7f, 1.5f), new Vector3(0.0f, -0.1f, 0.0f), new Vector3(0.0f, 1.0f, 0.0f))),
+                Projection = Matrix4x4.Transpose(Matrix4x4.CreatePerspectiveFieldOfView(fovAngleY, aspectRatio, 0.001f, 100f))
+            };
+
             _pipelineManager = new PipelineManager(ComPtr<ID3D12Device>.CopyFromPointer(device));
             _allocator = new GpuAllocator(ComPtr<ID3D12Device>.CopyFromPointer(device));
 
@@ -51,24 +67,6 @@ namespace Voltium.Interactive
                 D3D12_RESOURCE_STATE_GENERIC_READ,
                 GpuAllocFlags.ForceAllocateComitted
             );
-
-            //var triangleVertices = stackalloc Vertex[3] {
-            //    new Vertex
-            //    {
-            //        Position = new Vector3(0.0f, 0.25f, 0.0f),
-            //        Color = new Vector4(1.0f, 0.0f, 0.0f, 1.0f)
-            //    },
-            //    new Vertex
-            //    {
-            //        Position = new Vector3(0.25f, -0.25f, 0.0f),
-            //        Color = new Vector4(0.0f, 1.0f, 0.0f, 1.0f)
-            //    },
-            //    new Vertex
-            //    {
-            //        Position = new Vector3(-0.25f, -0.25f, 0.0f),
-            //        Color = new Vector4(0.0f, 0.0f, 1.0f, 1.0f)
-            //    },
-            //};
 
             var cubeVertices = stackalloc Vertex[8]
             {
@@ -141,7 +139,8 @@ namespace Voltium.Interactive
             _vertexBuffer = vertices;
             _indexBuffer = indices;
 
-            _rootSig = RootSignature.Create(device, default, default);
+            var objectConstants = RootParameter.CreateDescriptor(RootParameterType.ConstantBufferView, 0, 0);
+            _rootSig = RootSignature.Create(device, new[] { objectConstants }, default);
 
             var semanticName0 = stackalloc ulong[2] {
                 0x4E4F495449534F50,     // POSITION
@@ -189,50 +188,118 @@ namespace Voltium.Interactive
                     RasterizerState = D3D12_RASTERIZER_DESC.DEFAULT,
                     BlendState = D3D12_BLEND_DESC.DEFAULT,
                     DepthStencilState = D3D12_DEPTH_STENCIL_DESC.DEFAULT,
+                    DSVFormat = config.DepthStencilFormat,
                     SampleMask = uint.MaxValue,
                     PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE,
                     NumRenderTargets = 1,
                     SampleDesc = new DXGI_SAMPLE_DESC(count: 1, quality: 0),
                 };
-                psoDesc.DepthStencilState = D3D12_DEPTH_STENCIL_DESC.DEFAULT;
                 psoDesc.RTVFormats[0] = config.BackBufferFormat;
             }
 
             _pipelineManager.CreatePso("Default", psoDesc);
             _cachedPso = _pipelineManager.RetrievePso("Default").Move();
+
+            _objectConstants = _allocator.Allocate(
+                new GpuResourceDesc(GpuResourceFormat.Buffer((ulong)sizeof(ObjectConstants)),
+                GpuMemoryType.CpuWriteOptimized,
+                D3D12_RESOURCE_STATE_GENERIC_READ,
+                GpuAllocFlags.ForceAllocateComitted)
+            );
+
+            _objectConstants.Map(0);
+
+            SetHueDegrees(MathF.PI / 200);
         }
 
-        private RgbaColor Color = default;
+        private RgbaColor Color = new RgbaColor(1, 0, 0, 1);
         private RootSignature _rootSig;
         private ComPtr<ID3D12PipelineState> _cachedPso;
+        private GpuResource _objectConstants = null!;
+        private ObjectConstants _constants;
+        private Matrix4x4 _perFrameRotation = Matrix4x4.CreateRotationY(0.001f) * Matrix4x4.CreateRotationX(0.001f);
+
+        public override void Update()
+        {
+            _constants.World *= _perFrameRotation;
+            Unsafe.Write(_objectConstants.CpuAddress, _constants);
+
+            Color = ChangeHue(Color);
+        }
 
         public override void Render(GraphicsContext recorder)
         {
             var renderTarget = ResourceManager.Manager.RenderTarget;
             var renderTargetView = ResourceManager.Manager.RenderTargetView;
+            var depthStencilView = ResourceManager.Manager.DepthStencilView;
 
             recorder.SetGraphicsRootSignature(_rootSig);
 
             recorder.ResourceTransition(renderTarget, D3D12_RESOURCE_STATE_RENDER_TARGET);
-            recorder.SetRenderTarget(renderTargetView.CpuHandle, 1);
-            recorder.ClearRenderTarget(renderTargetView.CpuHandle, Color, null);
 
-            recorder.SetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY.D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+            recorder.SetRenderTarget(renderTargetView.CpuHandle, 1, depthStencilView.CpuHandle);
+
+            recorder.ClearRenderTarget(renderTargetView, Color);
+            recorder.ClearDepth(depthStencilView);
 
             recorder.SetVertexBuffers(_vertexBuffer);
             recorder.SetIndexBuffer(_indexBuffer);
 
+            recorder.SetGraphicsConstantBufferDescriptor(0, _objectConstants);
+
             recorder.DrawIndexed(36);
 
             recorder.ResourceTransition(renderTarget, D3D12_RESOURCE_STATE_PRESENT);
-
-            Color = new RgbaColor(Color.R, Color.G, IncrementColor(Color.B), Color.A);
         }
 
         private static float IncrementColor(float val) => val > 0.999f ? 0f : val + 0.005f;
 
+        private void SetHueDegrees(float radians)
+        {
+            var cosA = MathF.Cos(radians);
+            var sinA = MathF.Sin(radians);
+
+            HueMatrix[0, 0] = cosA + ((1.0f - cosA) / 3.0f);
+            HueMatrix[0, 1] = (1.0f / 3.0f * (1.0f - cosA)) - (MathF.Sqrt(1.0f / 3.0f) * sinA);
+            HueMatrix[0, 2] = (1.0f / 3.0f * (1.0f - cosA)) + (MathF.Sqrt(1.0f / 3.0f) * sinA);
+            HueMatrix[1, 0] = (1.0f / 3.0f * (1.0f - cosA)) + (MathF.Sqrt(1.0f / 3.0f) * sinA);
+            HueMatrix[1, 1] = cosA + (1.0f / 3.0f * (1.0f - cosA));
+            HueMatrix[1, 2] = (1.0f / 3.0f * (1.0f - cosA)) - (MathF.Sqrt(1.0f / 3.0f) * sinA);
+            HueMatrix[2, 0] = (1.0f / 3.0f * (1.0f - cosA)) - (MathF.Sqrt(1.0f / 3.0f) * sinA);
+            HueMatrix[2, 1] = (1.0f / 3.0f * (1.0f - cosA)) + (MathF.Sqrt(1.0f / 3.0f) * sinA);
+            HueMatrix[2, 2] = cosA + (1.0f / 3.0f * (1.0f - cosA));
+        }
+
+        private float[,] HueMatrix = new float[3, 3];
+        private RgbaColor ChangeHue(RgbaColor color)
+        {
+            static int Clamp(float v)
+            {
+                if (v < 0)
+                {
+                    return 0;
+                }
+                if (v > 255)
+                {
+                    return 255;
+                }
+                return (int)(v + 0.5f);
+            }
+
+            var r0 = (byte)(color.R * 255);
+            var g0 = (byte)(color.G * 255);
+            var b0 = (byte)(color.B * 255);
+
+            var fr0 = (r0 * HueMatrix[0, 0]) + (g0 * HueMatrix[0, 1]) + (b0 * HueMatrix[0, 2]);
+            var fg0 = (r0 * HueMatrix[1, 0]) + (g0 * HueMatrix[1, 1]) + (b0 * HueMatrix[1, 2]);
+            var fb0 = (r0 * HueMatrix[2, 0]) + (g0 * HueMatrix[2, 1]) + (b0 * HueMatrix[2, 2]);
+
+            return new RgbaColor(Clamp(fr0) / 255f, Clamp(fg0) / 255f, Clamp(fb0) / 255f, 1);
+        }
+
         public override void Destroy()
         {
+            _objectConstants.Unmap(0);
             _rootSig.Dispose();
             DeviceManager.Manager.Dispose();
         }

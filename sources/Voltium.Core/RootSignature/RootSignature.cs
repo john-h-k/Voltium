@@ -25,6 +25,7 @@ namespace Voltium.Core
             using var rootParams = RentedArray<D3D12_ROOT_PARAMETER>.Create(rootParameters.Length);
             using var samplers = RentedArray<D3D12_STATIC_SAMPLER_DESC>.Create(staticSamplers.Length);
 
+            TranslateRootParameters(rootParameters, rootParams.Value);
             TranslateStaticSamplers(staticSamplers, samplers.Value);
 
             fixed (D3D12_ROOT_PARAMETER* pRootParams = rootParams.Value)
@@ -32,18 +33,24 @@ namespace Voltium.Core
             {
                 var desc = new D3D12_ROOT_SIGNATURE_DESC
                 {
-                    NumParameters = (uint)rootParams.Value.Length,
+                    NumParameters = (uint)rootParameters.Length,
                     pParameters = pRootParams,
-                    NumStaticSamplers = (uint)samplers.Value.Length,
+                    NumStaticSamplers = (uint)staticSamplers.Length,
                     pStaticSamplers = pSamplerDesc,
                     Flags = D3D12_ROOT_SIGNATURE_FLAGS.D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT // TODO provide finer grained control
                 };
 
+                var versionedDesc = new D3D12_VERSIONED_ROOT_SIGNATURE_DESC
+                {
+                    Version = D3D_ROOT_SIGNATURE_VERSION.D3D_ROOT_SIGNATURE_VERSION_1
+                };
+
+                versionedDesc.Anonymous.Desc_1_0 = desc;
+
                 ID3DBlob* pBlob = default;
                 ID3DBlob* pError = default;
-                int hr = Windows.D3D12SerializeRootSignature(
-                    &desc,
-                    D3D_ROOT_SIGNATURE_VERSION.D3D_ROOT_SIGNATURE_VERSION_1,
+                int hr = Windows.D3D12SerializeVersionedRootSignature(
+                    &versionedDesc,
                     &pBlob,
                     &pError
                 );
