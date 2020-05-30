@@ -242,6 +242,7 @@ namespace Voltium.Common
         public static void ThrowJsonException(string? message = null, Exception? inner = null) =>
             throw new JsonException(message, inner);
 
+#pragma warning disable CS8763
         [DebuggerHidden]
         [DoesNotReturn]
         public static void NeverReached()
@@ -250,6 +251,7 @@ namespace Voltium.Common
             throw new Exception("this should, never be reached");
 #endif
         }
+#pragma warning restore CS8763
 
         [DebuggerHidden]
         [DoesNotReturn]

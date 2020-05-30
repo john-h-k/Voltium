@@ -41,7 +41,12 @@ namespace Voltium.Core
 
                 ID3DBlob* pBlob = default;
                 ID3DBlob* pError = default;
-                int hr = Windows.D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION.D3D_ROOT_SIGNATURE_VERSION_1, &pBlob, &pError);
+                int hr = Windows.D3D12SerializeRootSignature(
+                    &desc,
+                    D3D_ROOT_SIGNATURE_VERSION.D3D_ROOT_SIGNATURE_VERSION_1,
+                    &pBlob,
+                    &pError
+                );
 
                 if (Windows.FAILED(hr))
                 {

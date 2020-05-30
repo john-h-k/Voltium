@@ -112,8 +112,9 @@ namespace Voltium.Common
             [CallerFilePath] string? filepath = default,
             [CallerMemberName] string? memberName = default,
             [CallerLineNumber] int lineNumber = default,
-            string? extraInfo = null)
 #endif
+            string? extraInfo = null
+        )
         {
             if (Windows.FAILED(hr))
             {
@@ -125,8 +126,8 @@ namespace Voltium.Common
                     $"info '{extraInfo}",
                         expression, memberName, lineNumber, filepath)
 #else
-                    $"Native code threw an exception with HR '0x{hr:X8}'. Additional " +
-                    $"info '{extraInfo}""
+                    $"Native code threw an exception with HR '0x{hr:X8}'" +
+                    $"Additional info provided '{extraInfo}'"
 #endif
                 );
             }
@@ -150,14 +151,16 @@ namespace Voltium.Common
         [MethodImpl(MethodTypes.Validates)]
         public static void Assert(
             bool condition,
-            string message = "",
+            string message = ""
 #if DEBUG || EXTENDED_ERROR_INFORMATION
+            ,
             [CallerArgumentExpression("condition")]
             string? expression = null,
             [CallerFilePath] string? filepath = default,
             [CallerMemberName] string? memberName = default,
-            [CallerLineNumber] int lineNumber = default)
+            [CallerLineNumber] int lineNumber = default
 #endif
+        )
         {
             {
                 if (!condition)
