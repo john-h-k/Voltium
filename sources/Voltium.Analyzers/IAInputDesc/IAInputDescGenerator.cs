@@ -56,7 +56,7 @@ namespace Voltium.Analyzers
 
         private static IEnumerable<(string Name, ITypeSymbol Symbol)> GetLayout(ITypeSymbol type)
             => type.GetMembers()
-                    .Where(member => !member.IsStatic && (member.Kind is SymbolKind.Field or SymbolKind.Property))
+                    .Where(member => !member.IsStatic && (member.Kind == SymbolKind.Field || member.Kind == SymbolKind.Property))
                     .Select(fieldOrProp => (fieldOrProp.Name, fieldOrProp is IFieldSymbol symbol ? symbol.Type : ((IPropertySymbol)fieldOrProp).Type));
 
         private static INamedTypeSymbol GetSymbolForType<T>(Compilation comp) => comp.GetTypeByMetadataName(typeof(T).FullName!) ?? throw new ArgumentException("Invalid type");
@@ -68,7 +68,7 @@ namespace Voltium.Analyzers
                 return;
             }
 
-            BasicTypes = new()
+            BasicTypes = new Dictionary<ITypeSymbol, string>()
             {
                 [GetSymbolForType<sbyte>(comp)] = "ShaderInputType.Int8",
                 [GetSymbolForType<byte>(comp)] = "ShaderInputType.UInt8",

@@ -13,7 +13,7 @@ namespace Voltium.Analyzers
         }
 
         private Func<T, bool>? _predicate;
-        public List<(SyntaxTree Tree, T Node)> SyntaxNodes = new();
+        public List<(SyntaxTree Tree, T Node)> SyntaxNodes = new List<(SyntaxTree Tree, T Node)>();
 
         public void OnVisitSyntaxNode(SyntaxNode syntaxNode)
         {

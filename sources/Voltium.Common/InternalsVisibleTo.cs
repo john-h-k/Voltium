@@ -12,8 +12,7 @@ namespace Voltium.Common
 {
     internal static class PublicKey
     {
-        public const string KeyDefinition = "";
-            // "PublicKey=" + Key;
+        public const string KeyDefinition = "";// "PublicKey=" + Key;
 
         public const string Key = "";
             // "00240000048000009400000006020000002400005253413100040000010001007930f8e8a41652e9" +

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.Reflection;
 using TerraFX.Interop;
@@ -15,7 +15,7 @@ namespace Voltium.Common
         public static void PossibleDeviceDisconnect(ID3D12Device* device)
         {
 #if !DEBUG
-            throw new Exception("This should never even be present in release builds. Use only for specific debug issues")
+            throw new Exception("This should never even be present in release builds. Use only for specific debug issues");
 #else
             var reason = device->GetDeviceRemovedReason();
             if (reason == Windows.S_OK)
