@@ -65,25 +65,27 @@ namespace Voltium.Core.Managers
         }
 
         private static ComPtr<IDxcCompiler3> Compiler;
-        private static ComPtr<IDxcIncludeHandler> DefaultIncludeHandler;
+        private static IncludeHandler DefaultIncludeHandler;
         private static ComPtr<IDxcUtils> Utils;
 
-        unsafe static ShaderManager()
+        static unsafe ShaderManager()
         {
             ComPtr<IDxcCompiler3> compiler = default;
             ComPtr<IDxcUtils> utils = default;
-            ComPtr<IDxcIncludeHandler> defaultIncludeHandler = default;
 
             Guid clsid = Windows.CLSID_DxcCompiler;
             Guard.ThrowIfFailed(Windows.DxcCreateInstance(&clsid, compiler.Guid, ComPtr.GetVoidAddressOf(&compiler)));
             clsid = Windows.CLSID_DxcUtils;
             Guard.ThrowIfFailed(Windows.DxcCreateInstance(&clsid, utils.Guid, ComPtr.GetVoidAddressOf(&utils)));
 
-            utils.Get()->CreateDefaultIncludeHandler(ComPtr.GetAddressOf(&defaultIncludeHandler));
+            //utils.Get()->CreateDefaultIncludeHandler(ComPtr.GetAddressOf(&defaultIncludeHandler));
 
             Compiler = compiler.Move();
             Utils = utils.Move();
-            DefaultIncludeHandler = defaultIncludeHandler.Move();
+            //DefaultIncludeHandler = defaultIncludeHandler.Move();
+
+            DefaultIncludeHandler = new IncludeHandler();
+            DefaultIncludeHandler.Init(Utils.Copy());
         }
 
         private const uint DXC_CP_UTF8 = 65001;
@@ -106,7 +108,7 @@ namespace Voltium.Core.Managers
             ReadOnlySpan<char> entrypoint = default
         )
         {
-            return CompileShader(filename, File.OpenText(filename), target, flags, entrypoint);
+            return CompileShader(filename, File.OpenText(filename), target, flags, entrypoint, new FileInfo(filename).DirectoryName!);
         }
 
         /// <summary>
@@ -118,13 +120,15 @@ namespace Voltium.Core.Managers
         /// <param name="flags">An array of <see cref="DxcCompileFlags.Flag"/> to pass to the compiler</param>
         /// <param name="entrypoint">The entrypoint to the shader, if it is not a <see cref="ShaderType.Library"/>,
         /// or 'main' by default</param>
+        /// <param name="shaderDir">Optionally, the directory to use when including shaders</param>
         /// <returns>A new <see cref="CompiledShader"/></returns>
         public static CompiledShader CompileShader(
             ReadOnlySpan<char> name,
             StreamReader stream,
             DxcCompileTarget target,
             DxcCompileFlags.Flag[] flags = null!,
-            ReadOnlySpan<char> entrypoint = default
+            ReadOnlySpan<char> entrypoint = default,
+            string shaderDir = ""
         )
         {
             var size = stream.BaseStream.Length;
@@ -138,7 +142,7 @@ namespace Voltium.Core.Managers
 
             stream.Read(buff);
 
-            return CompileShader(name, buff, target, flags, entrypoint);
+            return CompileShader(name, buff, target, flags, entrypoint, shaderDir);
         }
 
         /// <summary>
@@ -150,13 +154,15 @@ namespace Voltium.Core.Managers
         /// <param name="flags">An array of <see cref="DxcCompileFlags.Flag"/> to pass to the compiler</param>
         /// <param name="entrypoint">The entrypoint to the shader, if it is not a <see cref="ShaderType.Library"/>,
         /// or 'main' by default</param>
+        /// <param name="shaderDir">Optionally, the directory to use when including shaders</param>
         /// <returns>A new <see cref="CompiledShader"/></returns>
         public unsafe static CompiledShader CompileShader(
             ReadOnlySpan<char> name,
             ReadOnlySpan<char> shaderText,
             DxcCompileTarget target,
             DxcCompileFlags.Flag[] flags = null!,
-            ReadOnlySpan<char> entrypoint = default
+            ReadOnlySpan<char> entrypoint = default,
+            string shaderDir = ""
         )
         {
             if (target.Type == ShaderType.Library && !entrypoint.IsEmpty)
@@ -285,11 +291,15 @@ namespace Voltium.Core.Managers
 
             fixed (char* pText = shaderText)
             fixed (byte* ppFlags = rentedFlagBuff.Value)
+            // can't pin on managed type so gotta get it on the vtbl
+            fixed (void* pInclude = &DefaultIncludeHandler.Vtbl)
             {
                 DxcBuffer text;
                 text.Ptr = pText;
                 text.Size = (nuint)(shaderText.Length * sizeof(char));
                 text.Encoding = DXC_CP_UTF16;
+
+                DefaultIncludeHandler.SetShaderDirContext(shaderDir);
 
                 using ComPtr<IDxcResult> compileResult = default;
                 Guard.ThrowIfFailed(Compiler.Get()->Compile(
@@ -297,7 +307,7 @@ namespace Voltium.Core.Managers
                     (ushort**)ppFlags,
                     // account for target flag, and possible entrypoint flag
                     (uint)(flagPointerLength / sizeof(nuint)),
-                    DefaultIncludeHandler.Get(),
+                    (IDxcIncludeHandler*)pInclude,
                     compileResult.Guid,
                     ComPtr.GetVoidAddressOf(&compileResult)
                 ));
@@ -402,6 +412,111 @@ namespace Voltium.Core.Managers
             name = default;
 
             return false;
+        }
+    }
+
+    internal unsafe struct IncludeHandler : IDisposable
+    {
+        public IDxcIncludeHandler.Vtbl* Vtbl;
+        public string AppDirContext;
+        public string ShaderDirContext;
+        private ComPtr<IDxcUtils> _utils;
+
+        public void Init(ComPtr<IDxcUtils> utils)
+        {
+            Vtbl = (IDxcIncludeHandler.Vtbl*)Marshal.AllocHGlobal(sizeof(IDxcIncludeHandler.Vtbl));
+
+            Vtbl->AddRef = Marshal.GetFunctionPointerForDelegate((IDxcIncludeHandler._AddRef)_AddRef);
+            Vtbl->QueryInterface = Marshal.GetFunctionPointerForDelegate((IDxcIncludeHandler._QueryInterface)_QueryInterface);
+            Vtbl->Release = Marshal.GetFunctionPointerForDelegate((IDxcIncludeHandler._Release)_Release);
+            Vtbl->LoadSource = Marshal.GetFunctionPointerForDelegate((IDxcIncludeHandler._LoadSource)_LoadSource);
+
+            AppDirContext = Directory.GetCurrentDirectory();
+            _utils = utils.Move();
+        }
+
+        public void SetShaderDirContext(string dir) => ShaderDirContext = dir;
+
+        private static int _LoadSource(IDxcIncludeHandler* pThis, ushort* pFilename, IDxcBlob** ppIncludeSource)
+            => AsThis(pThis).LoadSource(pFilename, ppIncludeSource);
+
+        public int LoadSource(ushort* pFilename, IDxcBlob** ppIncludeSource)
+        {
+            if (pFilename == null || ppIncludeSource == null)
+            {
+                return Windows.E_POINTER;
+            }
+
+            try
+            {
+                var filename = new string((char*)pFilename);
+                var shaderLocalPath = Path.Combine(ShaderDirContext, filename);
+                var appLocalPath = Path.Combine(AppDirContext, filename);
+
+                FileInfo file;
+                if (File.Exists(shaderLocalPath))
+                {
+                    file = new FileInfo(shaderLocalPath);
+                }
+                else if (File.Exists(appLocalPath))
+                {
+                    file = new FileInfo(appLocalPath);
+                }
+                else
+                {
+                    return Windows.ERROR_FILE_NOT_FOUND;
+                }
+
+                IDxcBlob* blob = CreateBlob(file.Length).Get();
+
+                _ = file.OpenText().Read(new Span<char>(blob->GetBufferPointer(), (int)blob->GetBufferSize() / sizeof(char)));
+
+                *ppIncludeSource = blob;
+                return Windows.S_OK;
+            }
+            catch
+            {
+                return Windows.E_FAIL;
+            }
+        }
+
+        private ComPtr<IDxcBlob> CreateBlob(long size)
+        {
+            using ComPtr<IDxcBlobEncoding> encoding = default;
+            Guard.ThrowIfFailed(_utils.Get()->CreateBlob(null, (uint)size, 0, ComPtr.GetAddressOf(&encoding)));
+            return ComPtr.UpCast<IDxcBlobEncoding, IDxcBlob>(encoding.Move());
+        }
+
+        private static ref IncludeHandler AsThis(IDxcIncludeHandler* pThis) => ref Unsafe.As<IDxcIncludeHandler, IncludeHandler>(ref *pThis);
+
+        private static uint _AddRef(IDxcIncludeHandler* pThis)
+            => AsThis(pThis).AddRef();
+
+        public uint AddRef()
+        {
+            return default;
+        }
+
+        private static int _QueryInterface(IDxcIncludeHandler* pThis, Guid* riid, void** ppvObject)
+            => AsThis(pThis).QueryInterface(riid, ppvObject);
+
+        public int QueryInterface(Guid* riid, void** ppvObject)
+        {
+            ThrowHelper.ThrowNotSupportedException();
+            return default;
+        }
+
+        public static uint _Release(IDxcIncludeHandler* pThis)
+            => AsThis(pThis).Release();
+
+        public uint Release()
+        {
+            return default;
+        }
+
+        public void Dispose()
+        {
+            _utils.Dispose();
         }
     }
 }
