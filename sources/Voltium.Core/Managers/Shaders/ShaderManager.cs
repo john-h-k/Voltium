@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using TerraFX.Interop;
 using Voltium.Common;
+using Voltium.Core.Managers.Shaders;
 
 namespace Voltium.Core.Managers
 {
@@ -61,67 +62,78 @@ namespace Voltium.Core.Managers
             return new CompiledShader(data, type);
         }
 
-        //private static ComPtr<IDxcCompiler2> Compiler;
+        private static ComPtr<IDxcCompiler3> Compiler;
+        private static ComPtr<IDxcIncludeHandler> DefaultIncludeHandler;
+        private static ComPtr<IDxcUtils> Utils;
 
-        //unsafe static ShaderManager()
-        //{
-        //    ComPtr<IDxcCompiler2> compiler = default;
-        //    Guid clsid = Windows.CLSID_DxcCompiler;
-        //    Guard.ThrowIfFailed(Windows.DxcCreateInstance(&clsid, compiler.Guid, ComPtr.GetVoidAddressOf(&compiler)));
-        //    Compiler = compiler.Move();
-        //}
+        unsafe static ShaderManager()
+        {
+            ComPtr<IDxcCompiler3> compiler = default;
+            ComPtr<IDxcUtils> utils = default;
+            ComPtr<IDxcIncludeHandler> defaultIncludeHandler = default;
+
+            Guid clsid = Windows.CLSID_DxcCompiler;
+            Guard.ThrowIfFailed(Windows.DxcCreateInstance(&clsid, compiler.Guid, ComPtr.GetVoidAddressOf(&compiler)));
+            clsid = Windows.CLSID_DxcUtils;
+            Guard.ThrowIfFailed(Windows.DxcCreateInstance(&clsid, utils.Guid, ComPtr.GetVoidAddressOf(&utils)));
+
+            utils.Get()->CreateDefaultIncludeHandler(ComPtr.GetAddressOf(&defaultIncludeHandler));
+
+            Compiler = compiler.Move();
+            Utils = utils.Move();
+            DefaultIncludeHandler = defaultIncludeHandler.Move();
+        }
+
+        private const uint DXC_CP_UTF8 = 65001;
+        private const uint DXC_CP_UTF16 = 1200;
+        private const uint DXC_CP_AP = 0;
 
         internal unsafe static CompiledShader CompileShader(
-            ReadOnlySpan<byte> shaderTextAscii,
-            ReadOnlySpan<char> name,
+            ReadOnlySpan<char> shaderText,
             ReadOnlySpan<char> entrypoint,
-            ShaderCompilationOptions options
+            DxcCompileTarget target,
+            DxcCompileFlags.Flag[] flags = null!
         )
         {
-            fixed (byte* pData = shaderTextAscii)
-            fixed (byte* pName = ToAscii(name))
-            fixed (byte* pEntrypoint = ToAscii(entrypoint))
-            fixed (byte* pTarget = AsTargetString(options.Target))
-            fixed (D3D_SHADER_MACRO* pDefines = ToAsciiDefines(options.Defines.Span))
-            fixed (byte* pSecondaryData = options.SecondaryData.Span)
+            flags ??= Array.Empty<DxcCompileFlags.Flag>();
+
+            // TODO: POH pool
+
+            ushort** pFlags = null;
+
+            fixed (char* pText = shaderText)
             {
-                ID3DBlob* data = default;
-                ID3DBlob* error = default;
-                int hr = Windows.D3DCompile2(
-                    pData,
-                    (nuint)shaderTextAscii.Length,
-                    (sbyte*)pName,
-                    pDefines,
-                    (ID3DInclude*)Windows.D3D_COMPILE_STANDARD_FILE_INCLUDE,
-                    (sbyte*)pEntrypoint,
-                    (sbyte*)pTarget,
-                    D3DCompileFlagsExtensions.GetCompileFlags(options.Flags),
-                    0,
-                    D3DCompileFlagsExtensions.GetSecDataFlags(options.Flags),
-                    pSecondaryData,
-                    (nuint)options.SecondaryData.Length,
-                    &data,
-                    &error
+                DxcBuffer text;
+                text.Ptr = pText;
+                text.Size = (nuint)shaderText.Length;
+                text.Encoding = DXC_CP_UTF16;
+
+                using ComPtr<IDxcResult> compileResult = default;
+                int hr = Compiler.Get()->Compile(
+                    &text,
+                    pFlags,
+                    (uint)flags.Length,
+                    DefaultIncludeHandler.Get(),
+                    compileResult.Guid,
+                    ComPtr.GetVoidAddressOf(&compileResult)
                 );
 
-                return ConstructShaderFromDataAndError(hr, data, error);
+                int statusHr;
+                compileResult.Get()->GetStatus(&statusHr);
+                if (Windows.FAILED(hr) || Windows.FAILED(statusHr))
+                {
+                    using ComPtr<IDxcBlobUtf16> errors = default;
+                    using ComPtr<IDxcBlobUtf16> errorsBlobName = default;
+                    Guard.ThrowIfFailed(compileResult.Get()->GetOutput(
+                        DXC_OUT_KIND.DXC_OUT_ERRORS,
+                        errors.Guid,
+                        ComPtr.GetVoidAddressOf(&errors),
+                        ComPtr.GetAddressOf(&errorsBlobName)
+                    ));
+                }
             }
         }
 
-        internal static unsafe CompiledShader ConstructShaderFromDataAndError(int hr, ID3DBlob* data, ID3DBlob* error)
-        {
-            if (Windows.FAILED(hr))
-            {
-
-            }
-
-            throw null!;
-        }
-
-        private static unsafe byte[] AsTargetString(D3DCompileTarget target)
-        {
-            throw new NotImplementedException();
-        }
 
         internal static CompiledShader CompileShader(
             string shaderText,
@@ -130,72 +142,7 @@ namespace Voltium.Core.Managers
             ShaderCompilationOptions options
         )
         {
-            return CompileShader(ToAscii(shaderText), name, entrypoint, options);
-        }
-
-        [ThreadStatic]
-        private unsafe static byte* _pAsciiBuff;
-        [ThreadStatic]
-        private unsafe static nuint _szAsciiBuff;
-
-        private unsafe static void InitTlsMacroBuff()
-        {
-            if (_pAsciiBuff != null)
-            {
-                return;
-            }
-
-            nint sz = 1024 * 4;
-            _pAsciiBuff = (byte*)Marshal.AllocHGlobal(sz);
-            _szAsciiBuff = (nuint)sz;
-        }
-
-        private unsafe static void TlsMacroToPinnedAscii(ShaderDefine define, ref nuint bytesWritten, out byte* pName, out byte* pDef)
-        {
-            pName = WriteAsciiToBuffSafe(_pAsciiBuff, _szAsciiBuff, define.Name, ref bytesWritten);
-            pDef = WriteAsciiToBuffSafe(_pAsciiBuff, _szAsciiBuff, define.Definition, ref bytesWritten);
-        }
-
-        private unsafe static byte* WriteAsciiToBuffSafe(byte* pBuff, nuint buffSz, string str, ref nuint bytesWritten)
-        {
-            bytesWritten += (uint)Encoding.ASCII.GetBytes(str, new Span<byte>(pBuff + bytesWritten, (int)(buffSz - bytesWritten)));
-            pBuff[bytesWritten++] = 0;
-            return &pBuff[bytesWritten];
-        }
-
-        private unsafe static D3D_SHADER_MACRO[] ToAsciiDefines(ReadOnlySpan<ShaderDefine> defines)
-        {
-            var macros = new D3D_SHADER_MACRO[defines.Length];
-
-            InitTlsMacroBuff();
-            nuint asciiBuffOffset = 0;
-
-            for (var i = 0; i < defines.Length; i++)
-            {
-                var define = defines[i];
-                TlsMacroToPinnedAscii(define, ref asciiBuffOffset, out var pName, out var pDef);
-                macros[i] = new D3D_SHADER_MACRO { Name = (sbyte*)pName, Definition = (sbyte*)pDef };
-            }
-
-            return macros;
-        }
-
-        private unsafe static byte[] ToAscii(ReadOnlySpan<char> str)
-        {
-            var size = Encoding.ASCII.GetMaxByteCount(str.Length);
-
-            var buff = new byte[size];
-
-            Encoding.ASCII.GetBytes(str, buff);
-
-            return buff;
+            return CompileShader(shaderText, name, entrypoint, options);
         }
     }
-
-    // TODO COM interop this as a 'ID3DInclude'
-    //public sealed class ShaderIncluder
-    //{
-    //    private string[] _includeDirs;
-    //    private Dictionary<string, string> _fileToStrings;
-    //}
 }

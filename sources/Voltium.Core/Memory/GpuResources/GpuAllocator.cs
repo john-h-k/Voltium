@@ -85,6 +85,29 @@ namespace Voltium.Core.GpuResources
         /// Allocates a new <see cref="VertexBuffer{TVertex}"/>
         /// </summary>
         /// <typeparam name="TVertex">The type of each vertex</typeparam>
+        /// <param name="initialData">The initial vertices data, which will be copied to the resource</param>
+        /// <param name="type">The type of GPU memory to allocate in</param>
+        /// <param name="flags">Any additional allocation flags passed to the allocator</param>
+        /// <returns>A new <see cref="VertexBuffer{TVertex}"/></returns>
+        public VertexBuffer<TVertex> AllocateVertexBuffer<TVertex>(
+            ReadOnlySpan<TVertex> initialData,
+            GpuMemoryType type,
+            GpuAllocFlags flags = GpuAllocFlags.None
+        ) where TVertex : unmanaged
+        {
+            var resource = AllocateVertexBuffer<TVertex>((uint)initialData.Length, type, flags);
+
+            resource.Map();
+            initialData.CopyTo(resource.Vertices);
+            resource.Unmap();
+
+            return resource;
+        }
+
+        /// <summary>
+        /// Allocates a new <see cref="VertexBuffer{TVertex}"/>
+        /// </summary>
+        /// <typeparam name="TVertex">The type of each vertex</typeparam>
         /// <param name="vertexCount">The number of vertices</param>
         /// <param name="type">The type of GPU memory to allocate in</param>
         /// <param name="flags">Any additional allocation flags passed to the allocator</param>
@@ -105,6 +128,29 @@ namespace Voltium.Core.GpuResources
             );
 
             return new VertexBuffer<TVertex>(Allocate(desc));
+        }
+
+        /// <summary>
+        /// Allocates a new <see cref="IndexBuffer{TIndex}"/>
+        /// </summary>
+        /// <typeparam name="TIndex">The type of each index</typeparam>
+        /// <param name="initialData">The initial indices data, which will be copied to the resource</param>
+        /// <param name="type">The type of GPU memory to allocate in</param>
+        /// <param name="flags">Any additional allocation flags passed to the allocator</param>
+        /// <returns>A new <see cref="IndexBuffer{TIndex}"/></returns>
+        public IndexBuffer<TIndex> AllocateIndexBuffer<TIndex>(
+            ReadOnlySpan<TIndex> initialData,
+            GpuMemoryType type,
+            GpuAllocFlags flags = GpuAllocFlags.None
+        ) where TIndex : unmanaged
+        {
+            var resource = AllocateIndexBuffer<TIndex>((uint)initialData.Length, type, flags);
+
+            resource.Map();
+            initialData.CopyTo(resource.Indices);
+            resource.Unmap();
+
+            return resource;
         }
 
         /// <summary>

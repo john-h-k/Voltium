@@ -67,7 +67,7 @@ namespace Voltium.Interactive
                 GpuAllocFlags.ForceAllocateComitted
             );
 
-            Span<Vertex> cubeVertices = stackalloc Vertex[8]
+            ReadOnlySpan<Vertex> cubeVertices = stackalloc Vertex[8]
             {
                 new Vertex(new Vector3(-0.5f, -0.5f, -0.5f), new Vector4(0.0f, 0.0f, 0.0f, 1.0f)),
                 new Vertex(new Vector3(-0.5f, -0.5f, 0.5f), new Vector4(0.0f, 0.0f, 1.0f, 1.0f)),
@@ -79,7 +79,7 @@ namespace Voltium.Interactive
                 new Vertex(new Vector3(0.5f, 0.5f, 0.5f), new Vector4(1.0f, 1.0f, 1.0f, 1.0f))
             };
 
-            Span<ushort> cubeIndices = stackalloc ushort[36]
+            ReadOnlySpan<ushort> cubeIndices = stackalloc ushort[36]
             {
                 0,
                 2,
@@ -124,21 +124,8 @@ namespace Voltium.Interactive
                 5,
             };
 
-            var vertices = _allocator.AllocateVertexBuffer<Vertex>(8, GpuMemoryType.CpuWriteOptimized, GpuAllocFlags.ForceAllocateComitted);
-            var indices = _allocator.AllocateIndexBuffer<ushort>(36, GpuMemoryType.CpuWriteOptimized, GpuAllocFlags.ForceAllocateComitted);
-
-            using (vertices.Resource.MapScoped(0))
-            {
-                cubeVertices.CopyTo(vertices.Vertices);
-            }
-
-            using (indices.Resource.MapScoped(0))
-            {
-                cubeIndices.CopyTo(indices.Indices);
-            }
-
-            _vertexBuffer = vertices;
-            _indexBuffer = indices;
+            _vertexBuffer = _allocator.AllocateVertexBuffer(cubeVertices, GpuMemoryType.CpuWriteOptimized, GpuAllocFlags.ForceAllocateComitted);
+            _indexBuffer = _allocator.AllocateIndexBuffer(cubeIndices, GpuMemoryType.CpuWriteOptimized, GpuAllocFlags.ForceAllocateComitted);
 
             var objectConstants = RootParameter.CreateDescriptor(RootParameterType.ConstantBufferView, 0, 0);
             _rootSig = RootSignature.Create(device, new[] { objectConstants }, default);
@@ -164,8 +151,7 @@ namespace Voltium.Interactive
                 PixelShader = pixelShader,
             };
 
-            _pipelineManager.CreatePso<Vertex>("Default", psoDesc);
-            _cachedPso = _pipelineManager.RetrievePso("Default").Move();
+            _cachedPso = _pipelineManager.CreatePso<Vertex>("Default", psoDesc);
 
             _objectConstants = _allocator.Allocate(
                 new GpuResourceDesc(GpuResourceFormat.Buffer((ulong)sizeof(ObjectConstants)),
@@ -179,7 +165,7 @@ namespace Voltium.Interactive
             SetHueDegrees(MathF.PI / 200);
         }
 
-        private RgbaColor Color = new RgbaColor(1, 0, 0, 1);
+        private RgbaColor _color = new RgbaColor(1, 0, 0, 1);
         private RootSignature _rootSig;
         private ComPtr<ID3D12PipelineState> _cachedPso;
         private GpuResource _objectConstants = null!;
@@ -191,7 +177,7 @@ namespace Voltium.Interactive
             _constants.World *= _perFrameRotation;
             Unsafe.Write(_objectConstants.CpuAddress, _constants);
 
-            Color = ChangeHue(Color);
+            _color = ChangeHue(_color);
         }
 
         public override void Render(GraphicsContext recorder)
@@ -206,7 +192,7 @@ namespace Voltium.Interactive
 
             recorder.SetRenderTarget(renderTargetView.CpuHandle, 1, depthStencilView.CpuHandle);
 
-            recorder.ClearRenderTarget(renderTargetView, Color);
+            recorder.ClearRenderTarget(renderTargetView, _color);
             recorder.ClearDepth(depthStencilView);
 
             recorder.SetVertexBuffers(_vertexBuffer);

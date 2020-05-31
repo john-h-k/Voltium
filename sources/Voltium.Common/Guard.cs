@@ -149,7 +149,7 @@ namespace Voltium.Common
         }
 
         [MethodImpl(MethodTypes.Validates)]
-        public static void Assert(
+        public static void True(
             bool condition,
             string message = ""
 #if DEBUG || EXTENDED_ERROR_INFORMATION

@@ -55,7 +55,7 @@ namespace Voltium.Core.GpuResources.OldStyle
                 "optimizedClearValue cannot be used with D3D12_RESOURCE_DIMENSION_BUFFER");
 
             var sz = DXGISurfaceInfo.BitsPerPixel(resourceDesc.Format) / 8;
-            Guard.Assert(sz == ElementSize || ElementSize == 1, // 1 is untyped buffer
+            Guard.True(sz == ElementSize || ElementSize == 1, // 1 is untyped buffer
                 $"Invalid TElement {typeof(TElement)} (size: {ElementSize}) for DXGI_FORMAT {resourceDesc.Format} (size: {sz})");
         }
 

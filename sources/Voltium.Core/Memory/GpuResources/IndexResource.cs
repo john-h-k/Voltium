@@ -28,6 +28,17 @@ namespace Voltium.Core.GpuResources
         public Span<TIndex> Indices => MemoryMarshal.Cast<byte, TIndex>(Resource.CpuData);
 
         /// <summary>
+        /// If the resource is not currently mapped, maps the resource
+        /// </summary>
+        public void Map() => Resource.Map(0);
+
+
+        /// <summary>
+        /// If the resource is currently mapped, unmaps the resource
+        /// </summary>
+        public void Unmap() => Resource.Unmap(0);
+
+        /// <summary>
         /// The view of this index buffer
         /// </summary>
         public D3D12_INDEX_BUFFER_VIEW BufferView =>

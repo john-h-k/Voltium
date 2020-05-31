@@ -2,5 +2,5 @@
 
 float4 PixelMain(PixelFrag frag) : SV_TARGET
 {
-    return frag.color;
+    return COLOR(frag);
 }
