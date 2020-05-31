@@ -1,6 +1,6 @@
-#include "PixelFrag.hlsli"
+#include "Shaders/PixelFrag.hlsli"
 
-float4 PixelMain(PixelFrag frag) : SV_TARGET
+float4 main(PixelFrag frag) : SV_TARGET
 {
-    return COLOR(frag);
+    return frag.color;
 }

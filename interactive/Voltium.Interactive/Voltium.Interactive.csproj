@@ -15,16 +15,20 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="Shaders\PixelFrag.hlsli" />
-    <None Include="Shaders\SimplePixelShader.hlsl" />
-    <None Include="Shaders\SimpleVertexShader.hlsl" />
+    <None Include="Shaders\PixelFrag.hlsli">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="Shaders\SimplePixelShader.hlsl">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="Shaders\SimpleVertexShader.hlsl">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\sources\Voltium.Core\Voltium.Core.csproj" />
-    <ProjectReference Include="..\..\sources\Voltium.Analyzers\Voltium.Analyzers.csproj"
-                      OutputItemType="Analyzer"
-                      ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\sources\Voltium.Analyzers\Voltium.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>

@@ -200,19 +200,17 @@ namespace Voltium.Common
         /// <param name="comPtr">A pointer to the encapsulated pointer to take the address of</param>
         /// <typeparam name="T">The type of the underlying pointer</typeparam>
         /// <returns>A pointer to the underlying pointer</returns>
-        public static T** GetAddressOf<T>(ComPtr<T>* comPtr) where T : unmanaged =>
-            (T**)comPtr;
+        public static T** GetAddressOf<T>(ComPtr<T>* comPtr) where T : unmanaged
+            => (T**)comPtr;
 
         /// <summary>
         /// Returns the address of the underlying pointer in the <see cref="ComPtr{T}"/>.
-        /// This operation is only defined if <paramref name="comPtr"/> is pinned in memory for duration between the
-        /// invocation of this method and the final use of the return
         /// </summary>
         /// <param name="comPtr">A pointer to the encapsulated pointer to take the address of</param>
         /// <typeparam name="T">The type of the underlying pointer</typeparam>
         /// <returns>A pointer to the underlying pointer</returns>
-        public static void** GetVoidAddressOf<T>(ComPtr<T>* comPtr) where T : unmanaged =>
-            (void**)comPtr;
+        public static void** GetVoidAddressOf<T>(ComPtr<T>* comPtr) where T : unmanaged
+            => (void**)comPtr;
 
         /// <summary>
         /// Casts a <see cref="ComPtr{T}"/> to a <see cref="ComPtr{TUp}"/> without dynamic type checking

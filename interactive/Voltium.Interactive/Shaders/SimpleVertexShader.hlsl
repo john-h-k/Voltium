@@ -1,4 +1,4 @@
- #include "PixelFrag.hlsli"
+#include "Shaders/PixelFrag.hlsli"
 
 struct ObjectConstants
 {
@@ -9,7 +9,7 @@ struct ObjectConstants
 
 ConstantBuffer<ObjectConstants> PerObjectConstants : register(b0);
 
-PixelFrag VertexMain(float3 position : POSITION, float4 color : COLOR)
+PixelFrag main(float3 position : POSITION, float4 color : COLOR)
 {
     PixelFrag result;
 

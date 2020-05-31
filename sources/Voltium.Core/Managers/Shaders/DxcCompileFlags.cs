@@ -8,36 +8,44 @@ namespace Voltium.Core.Managers
     /// </summary>
     public static partial class DxcCompileFlags
     {
+        /// <summary>
+        /// The type used to represent a DXC flags
+        /// </summary>
         public readonly struct Flag
         {
-            internal Flag(string value) => Value = value;
-            internal readonly string Value;
+            internal Flag(string value)
+            {
+                Value = value.ToCharArray();
+                var trim = value.AsSpan().Trim();
+                int count = 0;
+                for (var i = 0;i < trim.Length; i++)
+                {
+                    if (trim[i] == ' ')
+                    {
+                        count++;
+                    }
+                }
+                ArgCount = count;
+            }
 
+            internal readonly char[] Value;
+            internal readonly int ArgCount;
+
+#pragma warning disable CS1591
             public static implicit operator Flag(string val) => new Flag(val);
+#pragma warning restore CS1591
         }
-
-        public static Flag DontWarnUnusedArgs { get; } = "-Qunused-arguments";
-
-        public static Flag AllResourcesBound { get; } = "-all-resources-bound";
-
-        public static Flag PreferFlowControl { get; } = "-Gfp";
-        public static Flag AvoidFlowControl { get; } = "-Gfa";
-
-        public static Flag DisableValidation { get; } = "-Vd";
-
-        public static Flag ResourcesMayAlias { get; } = "-res-may-alias";
-        
-
-        public static Flag CreateDefine(string name, string value)
-            => name + "=" + value;
     }
 
-    public enum OptimisationLevel
-    {
-        OptimizationLevel0,
-        OptimizationLevel1,
-        OptimizationLevel2,
-        OptimizationLevel3,
-        Default = OptimizationLevel3
-    }
+    ///// <summary>
+    ///// Defines the optimisation level to use when compiling a shader
+    ///// </summary>
+    //public enum OptimisationLevel
+    //{
+    //    OptimizationLevel0,
+    //    OptimizationLevel1,
+    //    OptimizationLevel2,
+    //    OptimizationLevel3,
+    //    Default = OptimizationLevel3
+    //}
 }

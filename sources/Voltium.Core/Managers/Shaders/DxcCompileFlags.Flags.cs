@@ -178,7 +178,7 @@ namespace Voltium.Core.Managers
         /// Set auto binding space - enables auto resource binding in libraries
         /// </summary>
 
-        public static Flag AutoBindingSpace(object value) => $"-auto-binding-space=\"{value}\"";
+        public static Flag AutoBindingSpace(object value) => $"-auto-binding-space \"{value}\"";
         /// <summary>
         /// Output color coded assembly listings
         /// </summary>
@@ -187,17 +187,17 @@ namespace Voltium.Core.Managers
         /// Set default linkage for non-shader functions when compiling or linking to a library target(internal, external)
         /// </summary>
 
-        public static Flag DefaultLinkage(string value) => $"-default-linkage=\"{value}\"";
+        public static Flag DefaultLinkage(string value) => $"-default-linkage \"{value}\"";
 
         /// <summary>
         /// select denormal value options(any, preserve, ftz). any is the default.
         /// </summary>
-        public static Flag Denorm(ShaderDenormBehaviour value) => $"-denorm=\"{value.ToDxcArg()}\"";
+        public static Flag Denorm(ShaderDenormBehaviour value) => $"-denorm \"{value.ToDxcArg()}\"";
         /// <summary>
         /// Define macro
         /// </summary>
 
-        public static Flag DefineMacro(string value) => $"-D=\"{value}\"";
+        public static Flag DefineMacro(string value) => $"-D \"{value}\"";
         /// <summary>
         /// Enable 16bit types and disable min precision types.Available in HLSL 2018 and shader model 6.2
         /// </summary>
@@ -206,7 +206,7 @@ namespace Voltium.Core.Managers
         /// Set default encoding for text outputs(utf8|utf16) default=utf8
         /// </summary>
 
-        public static Flag Encoding(OutputEncoding value) => $"-encoding=\"{value.ToDxcArg()}\"";
+        public static Flag Encoding(OutputEncoding value) => $"-encoding \"{value.ToDxcArg()}\"";
         /// <summary>
         /// Only export shaders when compiling a library
         /// </summary>
@@ -215,12 +215,12 @@ namespace Voltium.Core.Managers
         /// Specify exports when compiling a library: export1[[, export1_clone, ...]=internal_name][;...]
         /// </summary>
 
-        public static Flag Exports(string value) => $"-exports=\"{value}\"";
+        public static Flag Exports(string value) => $"-exports \"{value}\"";
         /// <summary>
         /// Entry point name
         /// </summary>
 
-        public static Flag OutputAssemblyCodeListingFile(string file) => $"-Fc=\"{file}\"";
+        public static Flag OutputAssemblyCodeListingFile(string file) => $"-Fc \"{file}\"";
         /// <summary>
         /// Print option name with mappable diagnostics
         /// </summary>
@@ -229,17 +229,17 @@ namespace Voltium.Core.Managers
         /// Write debug information to the given file, or automatically named file in directory when ending in ''
         /// </summary>
 
-        public static Flag WriteDebugInformationToFile(string file = "/") => $"-Fd=\"{file}\"";
+        public static Flag WriteDebugInformationToFile(string file = "/") => $"-Fd \"{file}\"";
         /// <summary>
         /// Output warnings and errors to the given file
         /// </summary>
 
-        public static Flag OutputWarningsAndErrorsToFile(string file) => $"-Fe=\"{file}\"";
+        public static Flag OutputWarningsAndErrorsToFile(string file) => $"-Fe \"{file}\"";
         /// <summary>
         /// Output header file containing object code
         /// </summary>
 
-        public static Flag OutputHeaderFileContainingObjectCode(string file) => $"-Fh=\"{file}\"";
+        public static Flag OutputHeaderFileContainingObjectCode(string file) => $"-Fh \"{file}\"";
         /// <summary>
         /// Expand the operands before performing token-pasting operation(fxc behavior)
         /// </summary>
@@ -256,27 +256,27 @@ namespace Voltium.Core.Managers
         /// force root signature version (rootsig_1_1 if omitted)
         /// </summary>
         // should probs custom enum this
-        public static Flag ForceRootsigVer(D3D_ROOT_SIGNATURE_VERSION profile) => $"-force-rootsig-ver=\"{profile.ToString().Replace(nameof(D3D_ROOT_SIGNATURE_VERSION), "rootsig")}\"";
+        public static Flag ForceRootsigVer(D3D_ROOT_SIGNATURE_VERSION profile) => $"-force-rootsig-ver \"{profile.ToString().Replace(nameof(D3D_ROOT_SIGNATURE_VERSION), "rootsig")}\"";
         /// <summary>
         /// Output object file
         /// </summary>
 
-        public static Flag OutputObjectFile(string file) => $"-Fo=\"{file}\"";
+        public static Flag OutputObjectFile(string file) => $"-Fo \"{file}\"";
         /// <summary>
         /// Output reflection to the given file
         /// </summary>
 
-        public static Flag OutputReflectionToFile(string file) => $"-Fre=\"{file}\"";
+        public static Flag OutputReflectionToFile(string file) => $"-Fre \"{file}\"";
         /// <summary>
         /// Output root signature to the given file
         /// </summary>
 
-        public static Flag OutputRootSignatureToFile(string file) => $"-Frs=\"{file}\"";
+        public static Flag OutputRootSignatureToFile(string file) => $"-Frs \"{file}\"";
         /// <summary>
         /// Output shader hash to the given file
         /// </summary>
 
-        public static Flag OutputShaderHashToFile(string file) => $"-Fsh=\"{file}\"";
+        public static Flag OutputShaderHashToFile(string file) => $"-Fsh \"{file}\"";
         /// <summary>
         /// Enable backward compatibility mode
         /// </summary>
@@ -301,7 +301,7 @@ namespace Voltium.Core.Managers
         /// HLSL version(2016, 2017, 2018). Default is 2018
         /// </summary>
 
-        public static Flag HlslVersion(string value = "2018") => $"-HV=\"{value}\"";
+        public static Flag HlslVersion(string value = "2018") => $"-HV \"{value}\"";
         /// <summary>
         /// Show header includes and nesting depth
         /// </summary>
@@ -314,7 +314,7 @@ namespace Voltium.Core.Managers
         /// Add directory to include search path
         /// </summary>
 
-        public static Flag AddDirectoryToIncludeSearchPath(string value) => $"-I=\"{value}\"";
+        public static Flag AddDirectoryToIncludeSearchPath(string value) => $"-I \"{value}\"";
         /// <summary>
         /// Output hexadecimal literals
         /// </summary>
@@ -363,7 +363,7 @@ namespace Voltium.Core.Managers
         /// <summary>
         /// Read root signature from a
         /// </summary>
-        public static Flag RootsigDefine(string value) => $"-rootsig-define=\"{value}\"";
+        public static Flag RootsigDefine(string value) => $"-rootsig-define \"{value}\"";
 
         /// <summary>
         /// Disable validation
@@ -377,7 +377,7 @@ namespace Voltium.Core.Managers
         /// Use name as variable name in header file
         /// </summary>
 
-        public static Flag UseNameAsVariableNameInHeaderFile(string name) => $"-Vn=\"{name}\"";
+        public static Flag UseNameAsVariableNameInHeaderFile(string name) => $"-Vn \"{name}\"";
         /// <summary>
         /// Treat warnings as errors
         /// </summary>
@@ -435,12 +435,12 @@ namespace Voltium.Core.Managers
         /// Specify whitelist of debug info category (file -  source -  line, tool)
         /// </summary>
 
-        public static Flag FspvDebug(string value) => $"-fspv-debug=\"{value}\"";
+        public static Flag FspvDebug(string value) => $"-fspv-debug \"{value}\"";
         /// <summary>
         /// Specify SPIR-V extension permitted to use
         /// </summary>
 
-        public static Flag FspvExtension(string value) => $"-fspv-extension=\"{value}\"";
+        public static Flag FspvExtension(string value) => $"-fspv-extension \"{value}\"";
         /// <summary>
         /// Flatten arrays of resources so each array element takes one binding number
         /// </summary>
@@ -453,7 +453,7 @@ namespace Voltium.Core.Managers
         /// Specify the target environment: vulkan1.0 (default) or vulkan1.1
         /// </summary>
 
-        public static Flag FspvTargetEnv(string value) => $"-fspv-target-env=\"{value}\"";
+        public static Flag FspvTargetEnv(string value) => $"-fspv-target-env \"{value}\"";
         /// <summary>
         /// Specify Vulkan binding number shift for b-type register
         /// </summary>
@@ -508,7 +508,7 @@ namespace Voltium.Core.Managers
         /// <summary>
         /// Specify a comma-separated list of SPIRV-Tools passes to customize optimization configuration(see http:// khr.io/hlsl2spirv#optimization)
         /// </summary>
-        public static Flag Config(object value) => $"-Oconfig=\"{value}\"";
+        public static Flag Config(object value) => $"-Oconfig \"{value}\"";
         /// <summary>
         /// Generate SPIR-V code
         /// </summary>
@@ -526,13 +526,13 @@ namespace Voltium.Core.Managers
         /// Save private data from shader blob
         /// </summary>
 
-        public static Flag SavePrivateDataToFile(string file) => $"-getprivate=\"{file}\"";
+        public static Flag SavePrivateDataToFile(string file) => $"-getprivate \"{file}\"";
 
         /// <summary>
         /// Preprocess to file(must be used alone)
         /// </summary>
 
-        public static Flag PreprocessToFile(string file) => $"-P=\"{file}\"";
+        public static Flag PreprocessToFile(string file) => $"-P \"{file}\"";
         /// <summary>
         /// Embed PDB in shader container(must be used with /Zi)
         /// </summary>
@@ -557,17 +557,17 @@ namespace Voltium.Core.Managers
         /// Private data to add to compiled shader blob
         /// </summary>
 
-        public static Flag Setprivate(object file) => $"-setprivate=\"{file}\"";
+        public static Flag Setprivate(object file) => $"-setprivate \"{file}\"";
         /// <summary>
         /// Attach root signature to shader bytecode
         /// </summary>
 
-        public static Flag Setrootsignature(object file) => $"-setrootsignature=\"{file}\"";
+        public static Flag Setrootsignature(object file) => $"-setrootsignature \"{file}\"";
         /// <summary>
         /// Verify shader bytecode with root signature
         /// </summary>
 
-        public static Flag Verifyrootsignature(object file) => $"-verifyrootsignature=\"{file}\"";
+        public static Flag Verifyrootsignature(object file) => $"-verifyrootsignature \"{file}\"";
 
         /// <summary>
         /// Enable the specified warning

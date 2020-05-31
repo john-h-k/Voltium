@@ -88,7 +88,7 @@ namespace Voltium.Core.Managers.Shaders
              // e.g vs_4_0 or lib_6_3
              => $"{ShaderNameMap[Type]}_{Major}_{Minor}";
 
-        private static readonly Dictionary<ShaderType, string> ShaderNameMap = new()
+        internal static readonly Dictionary<ShaderType, string> ShaderNameMap = new()
         {
             [ShaderType.Vertex] = "vs",
             [ShaderType.Pixel] = "ps",
