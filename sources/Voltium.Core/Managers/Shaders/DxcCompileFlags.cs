@@ -16,27 +16,30 @@ namespace Voltium.Core.Managers
             internal Flag(string value)
             {
                 Value = new char[value.Length + 1]; // null char (already there)
-                value.AsSpan().CopyTo(Value);
 
-                var trim = Value.AsSpan().Trim();
+                // Copy over the contents, replacing spaces with nulls
+                var trim = value.AsSpan().Trim();
                 int count = 0;
                 for (var i = 0;i < trim.Length; i++)
                 {
                     if (trim[i] == ' ')
                     {
-                        trim[i] = '\0';
+                        Value[i] = '\0';
                         count++;
+                    }
+                    else
+                    {
+                        Value[i] = trim[i];
                     }
                 }
                 ArgCount = count;
             }
 
+            // the value, which is actually more like 'string[][]', or really, 'wchar**',
+            // because it is several strings with null chars between them
+            // this is for interop and because those strings are seperate to IDxcCompiler3
             internal readonly char[] Value;
             internal readonly int ArgCount;
-
-#pragma warning disable CS1591
-            public static implicit operator Flag(string val) => new Flag(val);
-#pragma warning restore CS1591
         }
     }
 

@@ -166,6 +166,16 @@ namespace Voltium.Core.Managers
 
             flags ??= Array.Empty<DxcCompileFlags.Flag>();
 
+            // ok i am irrationally scared of the marshaller so for some reason i marshalled this by hand
+            // we need to pass a 'wchar**' to 'IDxcCompiler3', where it is an array of strings, and each string
+            // correspends to a flag or a flag arg. e.g '-Od' (disable opts), or, say you have the flag '-E Foo', we
+            // pass that as '-E', 'Foo'. Or '-fvk-bind-register 1 2 3 4', is '-fvk-bind-register', '1', '2', '3', '4'
+
+            // the Flag type handles a bunch of the work, by making the string value of flag seperated by nulls instead of spaces
+            // our job is to then provide the pointers to these strings
+            // we allocate space for all the strings and the pointers in one array, for efficiency
+            // then the first sizeof(ptr) * numStrings bytes of it are used to store the pointers to the actual strings
+
             // biggest target possible (althought invalid) would be "-T lib_255_255", 14 chars (15 with null char)
             // entrypoint is 0 if empty, else "-E " + length of entrypoint + null char
             int targetAndEntrypointLength = (14 + 1 + (entrypoint.IsEmpty ? 0 : entrypoint.Length + 3 + 1)) * sizeof(char);
