@@ -281,13 +281,6 @@ namespace Voltium.Core.Managers
                 text.Size = (nuint)(shaderText.Length * sizeof(char));
                 text.Encoding = DXC_CP_UTF16;
 
-                string debugView = new Span<char>(ppFlags, flagPointerLength + flagLength + targetAndEntrypointLength).ToString();
-                string derefFirstArg = new string(*(char**)ppFlags);
-                string derefSeconddArg = new string(*((char**)ppFlags + 1));
-                string derefThirdArg = new string(*((char**)ppFlags + 2));
-                string derefFourthArg = new string(*((char**)ppFlags + 3));
-                string derefFifthArg = new string(*((char**)ppFlags + 4));
-
                 using ComPtr<IDxcResult> compileResult = default;
                 Guard.ThrowIfFailed(Compiler.Get()->Compile(
                     &text,
