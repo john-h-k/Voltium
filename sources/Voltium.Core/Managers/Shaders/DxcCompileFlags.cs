@@ -15,13 +15,16 @@ namespace Voltium.Core.Managers
         {
             internal Flag(string value)
             {
-                Value = value.ToCharArray();
-                var trim = value.AsSpan().Trim();
+                Value = new char[value.Length + 1]; // null char (already there)
+                value.AsSpan().CopyTo(Value);
+
+                var trim = Value.AsSpan().Trim();
                 int count = 0;
                 for (var i = 0;i < trim.Length; i++)
                 {
                     if (trim[i] == ' ')
                     {
+                        trim[i] = '\0';
                         count++;
                     }
                 }

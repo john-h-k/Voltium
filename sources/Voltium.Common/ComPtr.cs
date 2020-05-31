@@ -38,7 +38,7 @@ namespace Voltium.Common
         /// <summary>
         /// Whether the current instance is not null
         /// </summary>
-        public bool Exists => this != null;
+        public bool Exists => _ptr != null;
 
         /// <summary>
         /// Create a new ComPtr from an unmanaged pointer

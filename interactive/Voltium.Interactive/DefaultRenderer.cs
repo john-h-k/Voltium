@@ -130,8 +130,10 @@ namespace Voltium.Interactive
             var objectConstants = RootParameter.CreateDescriptor(RootParameterType.ConstantBufferView, 0, 0);
             _rootSig = RootSignature.Create(device, new[] { objectConstants }, default);
 
-            var vertexShader = ShaderManager.CompileShader("Shaders/SimpleVertexShader.hlsl", DxcCompileTarget.Vs_6_0);
-            var pixelShader = ShaderManager.CompileShader("Shaders/SimplePixelShader.hlsl", DxcCompileTarget.Ps_6_0);
+            var compilationFlags = new[] { DxcCompileFlags.DisableOptimizations, DxcCompileFlags.DefineMacro("COLOR(x)=x.color") };
+
+            var vertexShader = ShaderManager.CompileShader("Shaders/SimpleVertexShader.hlsl", DxcCompileTarget.Vs_6_0, compilationFlags);
+            var pixelShader = ShaderManager.CompileShader("Shaders/SimplePixelShader.hlsl", DxcCompileTarget.Ps_6_0, compilationFlags);
 
             GraphicsPipelineDesc psoDesc = new GraphicsPipelineDesc
             {

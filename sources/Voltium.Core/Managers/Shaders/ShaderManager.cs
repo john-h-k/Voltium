@@ -179,7 +179,7 @@ namespace Voltium.Core.Managers
                 flagPointerLength += (1 + flag.ArgCount) * sizeof(nuint);
             }
 
-            flagPointerLength += (entrypoint.IsEmpty ? 2 : 4) *sizeof(nuint);
+            flagPointerLength += (entrypoint.IsEmpty ? 2 : 4) * sizeof(nuint);
 
             // rent as short term usage TODO: POH pool
             using var rentedFlagBuff = RentedArray<byte>.Create(flagPointerLength + flagLength + targetAndEntrypointLength);
@@ -248,6 +248,8 @@ namespace Voltium.Core.Managers
 
             foreach (var flag in flags)
             {
+                // flag ctor handles nulls for us
+
                 // we know it is pinned. this is where the string is written
                 flagPointerBuff[0] = (nuint)Unsafe.AsPointer(ref MemoryMarshal.GetReference(flagBuff));
                 flagPointerBuff = flagPointerBuff.Slice(1);
@@ -255,22 +257,20 @@ namespace Voltium.Core.Managers
                 var len = flag.Value.Length;
 
                 var argPtr = flag.Value.AsSpan();
-                var argIndex = argPtr.IndexOf(' ');
-                argPtr = argPtr.Slice(argIndex);
-                MemoryMarshal.GetReference(argPtr) = '\0';
+                var argIndex = argPtr.IndexOf('\0');
+                argPtr = argPtr.Slice(argIndex + 1);
+
                 for (var i = 0; i < flag.ArgCount; i++)
                 {
-                    flagPointerBuff[0] = (nuint)Unsafe.AsPointer(ref MemoryMarshal.GetReference(flagBuff.Slice(argIndex - 1)));
+                    flagPointerBuff[0] = (nuint)Unsafe.AsPointer(ref MemoryMarshal.GetReference(flagBuff.Slice(argIndex + 1)));
                     flagPointerBuff = flagPointerBuff.Slice(1);
-                    argIndex = argPtr.IndexOf(' ');
-                    argPtr = argPtr.Slice(argIndex);
-                    MemoryMarshal.GetReference(argPtr) = '\0';
+                    argIndex = argPtr.IndexOf('\0');
+                    argPtr = argPtr.Slice(argIndex + 1);
                 }
 
                 flag.Value.AsSpan().CopyTo(flagBuff);
-                flagBuff[len] = '\0';
 
-                flagBuff = flagBuff.Slice(len + 1);
+                flagBuff = flagBuff.Slice(len);
             }
 
             fixed (char* pText = shaderText)
@@ -284,7 +284,10 @@ namespace Voltium.Core.Managers
                 string debugView = new Span<char>(ppFlags, flagPointerLength + flagLength + targetAndEntrypointLength).ToString();
                 string derefFirstArg = new string(*(char**)ppFlags);
                 string derefSeconddArg = new string(*((char**)ppFlags + 1));
-                
+                string derefThirdArg = new string(*((char**)ppFlags + 2));
+                string derefFourthArg = new string(*((char**)ppFlags + 3));
+                string derefFifthArg = new string(*((char**)ppFlags + 4));
+
                 using ComPtr<IDxcResult> compileResult = default;
                 Guard.ThrowIfFailed(Compiler.Get()->Compile(
                     &text,
