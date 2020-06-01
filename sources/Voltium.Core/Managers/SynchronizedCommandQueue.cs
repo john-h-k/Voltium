@@ -52,8 +52,7 @@ namespace Voltium.Core.Managers
 
             if (insertFence)
             {
-                _marker++;
-                Guard.ThrowIfFailed(_queue.Get()->Signal(_fence.Get(), _marker.FenceValue));
+                InsertNextFence();
             }
         }
 
@@ -66,9 +65,14 @@ namespace Voltium.Core.Managers
 
         internal GpuDispatchSynchronizer GetSynchronizerForIdle()
         {
+            InsertNextFence();
+            return GetSynchronizer(_marker);
+        }
+
+        private void InsertNextFence()
+        {
             _marker++;
             Guard.ThrowIfFailed(_queue.Get()->Signal(_fence.Get(), _marker.FenceValue));
-            return GetSynchronizer(_marker);
         }
 
         internal GpuDispatchSynchronizer GetSynchronizer(FenceMarker fenceMarker)

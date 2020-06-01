@@ -112,10 +112,8 @@ namespace Voltium.Core
         /// <summary>
         /// Ticks the timer, indicating a single frame has elapsed
         /// </summary>
-        /// <param name="update">The callback to use when the desired timestep is reached,
         /// in fixed timestep mode, or immediately, in variable timestep mode
-        /// </param>
-        public void Tick(Action update)
+        public void Tick(/*Action update*/)
         {
             TryQueryPerformanceCounter(out LARGE_INTEGER currentTime);
 
@@ -150,7 +148,7 @@ namespace Voltium.Core
                     _leftOverTicks -= _targetElapsedTicks;
                     _frameCount++;
 
-                    update();
+                    //update();
                 }
             }
             else
@@ -160,7 +158,7 @@ namespace Voltium.Core
                 _leftOverTicks = 0;
                 _frameCount++;
 
-                update();
+                //update();
             }
 
             if (_frameCount != lastFrameCount)

@@ -12,6 +12,8 @@ namespace Voltium.Interactive
         public abstract void Render();
         public abstract void Destroy();
 
+
+        public abstract void OnResize(ScreenData newScreenData);
         public abstract void OnKeyDown(byte key);
         public abstract void OnKeyUp(byte key);
     }

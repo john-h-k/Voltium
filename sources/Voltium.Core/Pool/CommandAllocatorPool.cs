@@ -36,7 +36,9 @@ namespace Voltium.Core.Managers
                 ComPtr.GetVoidAddressOf(&allocator)
             ));
 
-            DirectXHelpers.SetObjectName(allocator.Get(), $"Pooled allocator #{_allocatorCount++}");
+            Logger.LogDebug($"New command allocator allocated (this is the #{_allocatorCount++} allocator)");
+
+            DirectXHelpers.SetObjectName(allocator.Get(), $"Pooled allocator #{_allocatorCount}");
 
             return allocator.Move();
         }
@@ -53,7 +55,7 @@ namespace Voltium.Core.Managers
 
         protected override void ManageReturn(ref ComPtr<ID3D12CommandAllocator> state)
         {
-            state.Get()->Reset();
+            Guard.ThrowIfFailed(state.Get()->Reset());
         }
     }
 }

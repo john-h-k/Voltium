@@ -23,21 +23,17 @@ namespace Voltium.Common
 
         static D3D12DebugShim()
         {
-            var env = Environment.GetEnvironmentVariable(EnvVars.IsD3D12ShimEnabled) ?? "false";
-            IsEnabled = env.ToLowerInvariant() == "true" || env == "1";
         }
-
-        public static readonly bool IsEnabled;
 
         public static void Initialize(ComPtr<ID3D12InfoQueue> infoQueue)
         {
-            if (!IsEnabled)
+            if (!EnvVars.IsD3D12ShimEnabled)
             {
                 return;
             }
 
             Debug.Assert(infoQueue.Exists);
-            _infoQueue = infoQueue;
+            _infoQueue = infoQueue.Move();
 
             // we deny retrieving anything that isn't an error/warning/corruption
             var deniedSeverities = stackalloc D3D12_MESSAGE_SEVERITY[2]
@@ -51,7 +47,7 @@ namespace Voltium.Common
                 DenyList = new D3D12_INFO_QUEUE_FILTER_DESC {NumSeverities = 2, pSeverityList = deniedSeverities}
             };
 
-            infoQueue.Get()->AddRetrievalFilterEntries(&filter);
+            Guard.ThrowIfFailed(_infoQueue.Get()->AddRetrievalFilterEntries(&filter));
 
             // this causes an SEH exception to be thrown every time a DX error or corruption occurs
 #if THROW_ON_D3D12_ERROR
@@ -65,7 +61,7 @@ namespace Voltium.Common
 
         public static void WriteAllMessages()
         {
-            if (!IsEnabled)
+            if (!EnvVars.IsD3D12ShimEnabled)
             {
                 return;
             }

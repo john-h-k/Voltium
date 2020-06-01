@@ -21,6 +21,7 @@ namespace Voltium.Core.Managers
         private static ComPtr<ID3D12Device> _device;
         private static Adapter _adapter;
         private static ComPtr<IDXGIDebug1> _debugLayer;
+        private static ComPtr<IDXGIFactory2> _factory;
         private static ComPtr<IDXGISwapChain3> _swapChain;
         private static uint _syncInterval;
         internal static ulong TotalFramesRendered = 0;
@@ -28,9 +29,10 @@ namespace Voltium.Core.Managers
         private static DescriptorHeap _depthStencilViewHeap;
         private static GpuResource[] _renderTargets = null!;
         private static GpuResource _depthStencil = null!;
-        private static uint _resourceIndex;
+        private static uint _backBufferIndex;
         private static readonly object Lock = new object();
         private static GraphicalConfiguration _config = null!;
+        private static uint _tearFlags = 0;
 
         /// <summary>
         /// The <see cref="ScreenData"/> for the output
@@ -60,7 +62,7 @@ namespace Voltium.Core.Managers
             ScreenData = screenData;
 
             EnableDebugLayer();
-            //EnableDeviceRemovedExtendedDataLayer();
+            EnableDeviceRemovedExtendedDataLayer();
 
             using ComPtr<IDXGIFactory2> factory = default;
 
@@ -69,7 +71,9 @@ namespace Voltium.Core.Managers
                 ComPtr.GetVoidAddressOf(&factory)
             ));
 
-            foreach (Adapter adapter in Adapter.EnumerateAdapters(factory))
+            _factory = factory.Move();
+
+            foreach (Adapter adapter in Adapter.EnumerateAdapters(_factory))
             {
                 if (adapter.IsSoftware)
                 {
@@ -79,7 +83,7 @@ namespace Voltium.Core.Managers
                 if (TryCreateNewDevice(adapter, config.RequiredDirect3DLevel, out _device))
                 {
                     _adapter = adapter;
-                    Logger.LogInformation("New ID3D12Device created: {}", adapter);
+                    Logger.LogInformation($"New ID3D12Device created: {adapter.Description}");
                     break;
                 }
             }
@@ -108,8 +112,10 @@ namespace Voltium.Core.Managers
 
             InitializeDescriptorSizes();
             GpuDispatchManager.Initialize(_device, _config);
-            CreateSwapChain(factory.Get());
-            CreateRenderTargets();
+
+            CreateSwapChain();
+            CreateRtvAndDsvDescriptorHeaps();
+            Resize(ScreenData);
 
             Viewport = new Viewport(0.0f, 0.0f, ScreenData.Width, ScreenData.Height, 0.0f, 1.0f);
             Scissor = new Rectangle(0, 0, (int)ScreenData.Width, (int)ScreenData.Height);
@@ -149,7 +155,7 @@ namespace Voltium.Core.Managers
         {
             _currentFrame++;
             GpuDispatchManager.Manager.MoveToNextFrame();
-            _resourceIndex = (_resourceIndex + 1) % FrameCount;
+            _backBufferIndex = (_backBufferIndex + 1) % BackBufferCount;
         }
 
         /// <summary>
@@ -166,7 +172,7 @@ namespace Voltium.Core.Managers
         /// <summary>
         /// The render target view for the current frame
         /// </summary>
-        public static DescriptorHandle RenderTargetView => _renderTargetViewHeap.FirstDescriptor + (int)_resourceIndex;
+        public static DescriptorHandle RenderTargetView => _renderTargetViewHeap.FirstDescriptor + (int)_backBufferIndex;
 
         /// <summary>
         /// The depth stencil view for the current frame
@@ -176,7 +182,7 @@ namespace Voltium.Core.Managers
         /// <summary>
         /// The <see cref="GpuResource"/> for the current render target resource
         /// </summary>
-        public static GpuResource RenderTarget => _renderTargets[_resourceIndex];
+        public static GpuResource RenderTarget => _renderTargets[_backBufferIndex];
 
         /// <summary>
         /// The <see cref="GpuResource"/> for the current depth stencil resource
@@ -186,7 +192,7 @@ namespace Voltium.Core.Managers
         /// <summary>
         /// The number of CPU buffered resources
         /// </summary>
-        public static uint FrameCount => _config.SwapChainBufferCount;
+        public static uint BackBufferCount => _config.SwapChainBufferCount;
 
         /// <summary>
         /// The size of a descriptor of type <see cref="D3D12_DESCRIPTOR_HEAP_TYPE.D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV"/>
@@ -229,20 +235,20 @@ namespace Voltium.Core.Managers
             };
         }
 
-        private static void CreateSwapChain(IDXGIFactory2* factory)
+        private static void CreateSwapChain()
         {
             var desc = new DXGI_SWAP_CHAIN_DESC1
             {
                 AlphaMode = DXGI_ALPHA_MODE.DXGI_ALPHA_MODE_IGNORE, // todo document
                 BufferCount = _config.SwapChainBufferCount,
                 BufferUsage = (int)DXGI_USAGE_RENDER_TARGET_OUTPUT, // this is the output chain
-                Flags = (uint)DXGI_SWAP_CHAIN_FLAG.DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH,
+                Flags = (uint)(DXGI_SWAP_CHAIN_FLAG.DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH) | _tearFlags,
                 Format = _config.BackBufferFormat,
                 Height = ScreenData.Height,
                 Width = ScreenData.Width,
                 SampleDesc = new DXGI_SAMPLE_DESC(_config.MultiSamplingStrategy.SampleCount, _config.MultiSamplingStrategy.QualityLevel),
                 Scaling = _config.ScalingStrategy,
-                Stereo = FALSE, // stereoscopic rendering, 2 images used to make it look 3D
+                Stereo = FALSE, // stereoscopic rendering, 2 images, e.g VR or 3D holo
                 SwapEffect = _config.SwapEffect
             };
 
@@ -255,7 +261,7 @@ namespace Voltium.Core.Managers
             };
 
             using ComPtr<IDXGISwapChain1> swapChain = default;
-            Guard.ThrowIfFailed(factory->CreateSwapChainForHwnd(
+            Guard.ThrowIfFailed(_factory.Get()->CreateSwapChainForHwnd(
                 (IUnknown*)GpuDispatchManager.Manager.GetGraphicsQueue(),
                 ScreenData.Handle,
                 &desc,
@@ -272,6 +278,38 @@ namespace Voltium.Core.Managers
             _swapChain = swapChain3.Move();
 
             // TODO rotation
+        }
+
+        private static void ResizeSwapChain()
+        {
+            for (var i = 0; i < (_renderTargets?.Length ?? 0); i++)
+            {
+                _renderTargets![i].Dispose();
+            }
+
+            Guard.ThrowIfFailed(_swapChain.Get()->ResizeBuffers(
+                _config.SwapChainBufferCount,
+                ScreenData.Width,
+                ScreenData.Height,
+                _config.BackBufferFormat,
+                (uint)(DXGI_SWAP_CHAIN_FLAG.DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH) | _tearFlags
+            ));
+
+            _backBufferIndex = _swapChain.Get()->GetCurrentBackBufferIndex();
+        }
+
+        /// <summary>
+        /// Resize the render resources
+        /// </summary>
+        /// <param name="newScreenData">The <see cref="ScreenData"/> indicating the size to resize to</param>
+        public static void Resize(ScreenData newScreenData)
+        {
+            ScreenData = newScreenData;
+
+            GpuDispatchManager.Manager.BlockForGraphicsIdle();
+
+            ResizeSwapChain();
+            CreateRenderTargets();
         }
 
         internal static bool ReportLiveObjects(bool internalObjects = false)
@@ -291,7 +329,7 @@ namespace Voltium.Core.Managers
         {
             GpuDispatchManager.Manager.ExecuteSubmissions(insertFence: true);
 
-            var hr = _swapChain.Get()->Present(_syncInterval, 0);
+            var hr = _swapChain.Get()->Present(_syncInterval, _tearFlags);
             TotalFramesRendered++;
 
             if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET)
@@ -310,12 +348,13 @@ namespace Voltium.Core.Managers
         {
             // we don't cache DRED state. we could, as this is the only class that should
             // change DRED state, but this isn't a fast path so there is no point
-            // i know some people dislike this using (var) pattern but personally i find it clear -↓↓↓↓↓
             if (_device.TryQueryInterface(out ComPtr<ID3D12DeviceRemovedExtendedData> dred))
+            {
                 using (dred)
                 {
                     OnDeviceRemovedWithDred(dred.Get());
                 }
+            }
 
             Logger.LogError(
                 "Device removed, no DRED present. Enable DEBUG or D3D12_DRED for enhanced device removed information");
@@ -328,8 +367,8 @@ namespace Voltium.Core.Managers
             D3D12_DRED_AUTO_BREADCRUMBS_OUTPUT breadcrumbs;
             D3D12_DRED_PAGE_FAULT_OUTPUT pageFault;
 
-            dred->GetAutoBreadcrumbsOutput(&breadcrumbs);
-            dred->GetPageFaultAllocationOutput(&pageFault);
+            Guard.ThrowIfFailed(dred->GetAutoBreadcrumbsOutput(&breadcrumbs));
+            Guard.ThrowIfFailed(dred->GetPageFaultAllocationOutput(&pageFault));
 
             // TODO dred logging
         }
@@ -337,7 +376,6 @@ namespace Voltium.Core.Managers
         private static void CreateRenderTargets()
         {
             CreateRtvAndDsvResources();
-            CreateRtvAndDsvDescriptorHeaps();
             CreateRtvAndDsvViews();
         }
 
@@ -411,7 +449,7 @@ namespace Voltium.Core.Managers
 
         private static void CreateRtvAndDsvResources()
         {
-            _renderTargets = new GpuResource[FrameCount];
+            _renderTargets = new GpuResource[BackBufferCount];
 
             for (uint i = 0; i < _renderTargets.Length; i++)
             {
@@ -426,6 +464,8 @@ namespace Voltium.Core.Managers
 
                 _renderTargets[i] = GpuResource.FromRenderTarget(renderTarget.Move());
             }
+
+            _depthStencil?.Dispose();
 
             var desc = new GpuResourceDesc(
                 GpuResourceFormat.DepthStencil(_config.DepthStencilFormat, ScreenData.Width, ScreenData.Height),
@@ -449,7 +489,7 @@ namespace Voltium.Core.Managers
         private static void CreateRtvAndDsvViews()
         {
             /* TODO */ //var desc = CreateRenderTargetViewDesc();
-            var handle = RenderTargetView;
+            var handle = _renderTargetViewHeap.FirstDescriptor;
             for (uint i = 0; i < _renderTargets.Length; i++)
             {
                 Device->CreateRenderTargetView(_renderTargets[i].UnderlyingResource, null /* TODO */, handle.CpuHandle.Value);

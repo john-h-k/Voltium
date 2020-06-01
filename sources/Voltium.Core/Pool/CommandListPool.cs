@@ -78,7 +78,7 @@ namespace Voltium.Core.Pool
 
         protected override void ManageRent(ref ComPtr<ID3D12GraphicsCommandList> value, ListCreationParams state)
         {
-            value.Get()->Reset(state.Allocator, state.Pso);
+            Guard.ThrowIfFailed(value.Get()->Reset(state.Allocator, state.Pso));
         }
 
         protected override void ManageReturn(ref ComPtr<ID3D12GraphicsCommandList> value)

@@ -16,4 +16,25 @@ namespace Voltium.Core.GpuResources
         }
     }
 
+    internal struct HeapContentSet<T>
+    {
+        public T Tex;
+        public T RtOrDs;
+        public T Buffer;
+
+        public T this[GpuResourceType context]
+        {
+            get => Unsafe.Add(ref Tex, (int)context - 1);
+
+            set => Unsafe.Add(ref Tex, (int)context - 1) = value;
+        }
+    }
+
+    internal enum GpuResourceType
+    {
+        Meaningless = 0,
+        Tex = 1,
+        RtOrDs = 2,
+        Buffer = 3
+    }
 }

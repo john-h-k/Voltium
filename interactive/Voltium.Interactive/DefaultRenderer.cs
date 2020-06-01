@@ -43,12 +43,37 @@ namespace Voltium.Interactive
 
     public unsafe class DefaultRenderer : Renderer
     {
-        private PipelineManager _pipelineManager = null!;
         private GpuAllocator _allocator = null!;
         private VertexBuffer<Vertex> _vertexBuffer;
         private IndexBuffer<ushort> _indexBuffer;
 
         public override void Init(GraphicalConfiguration config, in ScreenData screen, ID3D12Device* device)
+        {
+            _allocator = DeviceManager.Allocator;
+
+            var cube = GemeotryGenerator.CreateCube(0.5f);
+
+            _vertexBuffer = _allocator.AllocateVertexBuffer(cube.Vertices, GpuMemoryType.CpuUpload, GpuAllocFlags.ForceAllocateComitted);
+            _indexBuffer = _allocator.AllocateIndexBuffer(cube.Indices, GpuMemoryType.CpuUpload, GpuAllocFlags.ForceAllocateComitted);
+
+            _rootSig = RootSignature.Create(device, new[] { RootParameter.CreateDescriptor(RootParameterType.ConstantBufferView, 0, 0) }, default);
+
+            var compilationFlags = new[] { DxcCompileFlags.DisableOptimizations, DxcCompileFlags.DefineMacro("COLOR(x)", "x.color") };
+
+            var vertexShader = ShaderManager.CompileShader("Shaders/SimpleVertexShader.hlsl", DxcCompileTarget.Vs_6_0, compilationFlags);
+            var pixelShader = ShaderManager.CompileShader("Shaders/SimplePixelShader.hlsl", DxcCompileTarget.Ps_6_0, compilationFlags);
+
+            GraphicsPipelineDesc psoDesc = new(_rootSig, config.BackBufferFormat, config.DepthStencilFormat, vertexShader, pixelShader);
+            DrawPso = PipelineManager.CreatePso<Vertex>("Default", psoDesc);
+
+            _objectConstants = _allocator.AllocateConstantBuffer<ObjectConstants>(1, GpuMemoryType.CpuUpload, GpuAllocFlags.ForceAllocateComitted);
+
+            _objectConstants.Map();
+
+            SetHueDegrees(MathF.PI / 200);
+        }
+
+        public override void Resize(ScreenData screen)
         {
             var aspectRatio = (float)screen.Width / screen.Height;
             var fovAngleY = 70.0f * MathF.PI / 180.0f;
@@ -58,56 +83,15 @@ namespace Voltium.Interactive
                 View = Matrix4x4.CreateLookAt(new Vector3(0.0f, 0.7f, 1.5f), new Vector3(0.0f, -0.1f, 0.0f), new Vector3(0.0f, 1.0f, 0.0f)),
                 Projection = Matrix4x4.CreatePerspectiveFieldOfView(fovAngleY, aspectRatio, 0.001f, 100f)
             };
-
-            _pipelineManager = new PipelineManager(ComPtr<ID3D12Device>.CopyFromPointer(device));
-            _allocator = new GpuAllocator(ComPtr<ID3D12Device>.CopyFromPointer(device));
-
-            var cube = GemeotryGenerator.CreateCube(0.5f);
-
-            _vertexBuffer = _allocator.AllocateVertexBuffer(cube.Vertices, GpuMemoryType.CpuUpload, GpuAllocFlags.ForceAllocateComitted);
-            _indexBuffer = _allocator.AllocateIndexBuffer(cube.Indices, GpuMemoryType.CpuUpload, GpuAllocFlags.ForceAllocateComitted);
-
-            var objectConstants = RootParameter.CreateDescriptor(RootParameterType.ConstantBufferView, 0, 0);
-            _rootSig = RootSignature.Create(device, new[] { objectConstants }, default);
-
-            var compilationFlags = new[] { DxcCompileFlags.DisableOptimizations, DxcCompileFlags.DefineMacro("COLOR(x)", "x.color") };
-
-            var vertexShader = ShaderManager.CompileShader("Shaders/SimpleVertexShader.hlsl", DxcCompileTarget.Vs_6_0, compilationFlags);
-            var pixelShader = ShaderManager.CompileShader("Shaders/SimplePixelShader.hlsl", DxcCompileTarget.Ps_6_0, compilationFlags);
-
-            GraphicsPipelineDesc psoDesc = new GraphicsPipelineDesc
-            {
-                ShaderSignature = _rootSig,
-                Blend = BlendDesc.Default,
-                Rasterizer = RasterizerDesc.Default,
-                DepthStencil = DepthStencilDesc.Default,
-                DepthStencilFormat = config.DepthStencilFormat,
-                Topology = TopologyClass.Triangle,
-                NumRenderTargets = 1,
-                Msaa = new MsaaDesc(1, 0),
-                RenderTargetFormats = new()
-                {
-                    [0] = config.BackBufferFormat
-                },
-                VertexShader = vertexShader,
-                PixelShader = pixelShader,
-            };
-
-            _cachedPso = _pipelineManager.CreatePso<Vertex>("Default", psoDesc);
-
-            _objectConstants = _allocator.AllocateConstantBuffer<ObjectConstants>(1, GpuMemoryType.CpuUpload, GpuAllocFlags.ForceAllocateComitted);
-
-            _objectConstants.Map();
-
-            SetHueDegrees(MathF.PI / 200);
         }
 
         private RgbaColor _color = new RgbaColor(1, 0, 0, 1);
-        private RootSignature _rootSig;
-        private ComPtr<ID3D12PipelineState> _cachedPso;
+        private RootSignature _rootSig = null!;
+        private PipelineStateObject DrawPso = null!;
         private ConstantBuffer<ObjectConstants> _objectConstants;
         private ObjectConstants _constants;
         private Matrix4x4 _perFrameRotation = Matrix4x4.CreateRotationY(0.001f) * Matrix4x4.CreateRotationX(0.001f);
+        private int _totalCount = 0;
 
         public override void Update(ApplicationTimer timer)
         {
@@ -126,6 +110,11 @@ namespace Voltium.Interactive
             _color = ChangeHue(_color);
         }
 
+        public override PipelineStateObject GetInitialPso()
+        {
+            return DrawPso;
+        }
+
         public override void Render(GraphicsContext recorder)
         {
             var renderTarget = DeviceManager.RenderTarget;
@@ -138,7 +127,7 @@ namespace Voltium.Interactive
 
             recorder.SetRenderTarget(renderTargetView.CpuHandle, 1, depthStencilView.CpuHandle);
 
-            recorder.ClearRenderTarget(renderTargetView, _color);
+            recorder.ClearRenderTarget(renderTargetView, (_totalCount++ % 100) < 50 ? RgbaColor.White : RgbaColor.Black);
             recorder.ClearDepth(depthStencilView);
 
             recorder.SetVertexBuffers(_vertexBuffer);
@@ -146,6 +135,7 @@ namespace Voltium.Interactive
 
             recorder.SetGraphicsConstantBufferDescriptor(0, _objectConstants, 0);
 
+            recorder.SetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY.D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
             recorder.DrawIndexed(36);
 
             recorder.ResourceTransition(renderTarget, D3D12_RESOURCE_STATE_PRESENT);
@@ -199,11 +189,6 @@ namespace Voltium.Interactive
             _objectConstants.Unmap();
             _rootSig.Dispose();
             DeviceManager.Dispose();
-        }
-
-        public override ComPtr<ID3D12PipelineState> GetInitialPso()
-        {
-            return _cachedPso.Copy();
         }
     }
 }

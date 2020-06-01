@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Common.Strings;
@@ -14,21 +15,10 @@ namespace Voltium.Core.Managers
     /// In charge of creation, storing, and retrieving pipeline state objects (PSOs)
     /// </summary>
     [ThreadSafe]
-    public unsafe sealed class PipelineManager : IDisposable
+    public unsafe static class PipelineManager
     {
         //private ComPtr<ID3D12PipelineLibrary> _psoLibrary;
-        private Dictionary<string, ComPtr<ID3D12PipelineState>> _psos = new(16, new FastStringComparer());
-        private ComPtr<ID3D12Device> _device;
-
-        /// <summary>
-        /// Creates a new <see cref="PipelineManager"/>
-        /// </summary>
-        /// <param name="device">The <see cref="ID3D12Device"/> to be associated with the pipeline states</param>
-        public PipelineManager(ComPtr<ID3D12Device> device)
-        {
-            _device = device.Move();
-        }
-
+        private static Dictionary<string, PipelineStateObject> _psos = new(16, new FastStringComparer());
 
         /// <summary>
         /// Creates a new named pipeline state object and registers it in the library for retrieval with
@@ -36,9 +26,28 @@ namespace Voltium.Core.Managers
         /// </summary>
         /// <param name="name">The name of the pipeline state</param>
         /// <param name="graphicsDesc">The descriptor for the pipeline state</param>
-        public ComPtr<ID3D12PipelineState> CreatePso<TShaderInput>(string name, GraphicsPipelineDesc graphicsDesc) where TShaderInput : unmanaged, IBindableShaderType
+        public static GraphicsPso CreatePso<TShaderInput>(string name, GraphicsPipelineDesc graphicsDesc) where TShaderInput : unmanaged, IBindableShaderType
         {
-            graphicsDesc.Inputs = ((IBindableShaderType)default(TShaderInput)).GetShaderInputs();
+            try
+            {
+                graphicsDesc.Inputs = default(TShaderInput).GetShaderInputs();
+            }
+            catch (Exception e)
+            {
+                // if this happens when ShaderInputAttribute is applied, our generator is bugged
+                bool hasGenAttr = typeof(TShaderInput).GetCustomAttribute<ShaderInputAttribute>() is object;
+
+                const string hasGenAttrMessage = "This appears to be a failure with the" +
+                    "IA input type generator ('Voltium.Analyzers.IAInputDescGenerator'. Please file a bug";
+
+                const string noGenAttrMessage = "You appear to have manually implemented the IA input methods. Ensure they do not throw when called on a defaulted struct" +
+                    "('default(TShaderInput).GetShaderInputs()')";
+
+                ThrowHelper.ThrowArgumentException(
+                    $"IA input type '{typeof(TShaderInput).Name}' threw an exception of type '{e.GetType().Name}'. " +
+                    $"Inspect InnerException to view this exception. {(hasGenAttr ? hasGenAttrMessage : noGenAttrMessage)}", e);
+            }
+
             return CreatePso(name, graphicsDesc);
         }
 
@@ -49,7 +58,7 @@ namespace Voltium.Core.Managers
         /// </summary>
         /// <param name="name">The name of the pipeline state</param>
         /// <param name="graphicsDesc">The descriptor for the pipeline state</param>
-        public ComPtr<ID3D12PipelineState> CreatePso(string name, in GraphicsPipelineDesc graphicsDesc)
+        public static GraphicsPso CreatePso(string name, in GraphicsPipelineDesc graphicsDesc)
         {
             TranslateGraphicsPipelineDescriptionWithoutShadersOrShaderInputLayoutElements(graphicsDesc, out D3D12_GRAPHICS_PIPELINE_STATE_DESC desc);
 
@@ -74,7 +83,7 @@ namespace Voltium.Core.Managers
                 desc.InputLayout = new D3D12_INPUT_LAYOUT_DESC { NumElements = (uint)graphicsDesc.Inputs.Length, pInputElementDescs = pDesc };
 
                 using ComPtr<ID3D12PipelineState> pso = default;
-                Guard.ThrowIfFailed(_device.Get()->CreateGraphicsPipelineState(
+                Guard.ThrowIfFailed(DeviceManager.Device->CreateGraphicsPipelineState(
                     &desc,
                     pso.Guid,
                     ComPtr.GetVoidAddressOf(&pso)
@@ -82,9 +91,39 @@ namespace Voltium.Core.Managers
 
                 GC.KeepAlive(strBuff);
 
-                DirectXHelpers.SetObjectName(pso.Get(), $"Pipeline state object '{name}'");
+                DirectXHelpers.SetObjectName(pso.Get(), $"Graphics pipeline state object '{name}'");
 
-                return pso.Move();
+                return new GraphicsPso(pso.Move(), graphicsDesc);
+            }
+        }
+
+
+        /// <summary>
+        /// Creates a new named pipeline state object and registers it in the library for retrieval with
+        /// <see cref="RetrievePso(string)"/>
+        /// </summary>
+        /// <param name="name">The name of the pipeline state</param>
+        /// <param name="computeDesc">The descriptor for the pipeline state</param>
+        public static ComputePso CreatePso(string name, in ComputePipelineDesc computeDesc)
+        {
+            fixed (byte* vs = computeDesc.ComputeShader)
+            {
+                D3D12_COMPUTE_PIPELINE_STATE_DESC desc = new()
+                {
+                    CS = new D3D12_SHADER_BYTECODE(vs, (uint)computeDesc.ComputeShader.Length),
+                    pRootSignature = computeDesc.ShaderSignature.Value
+                };
+
+                using ComPtr<ID3D12PipelineState> pso = default;
+                Guard.ThrowIfFailed(DeviceManager.Device->CreateComputePipelineState(
+                    &desc,
+                    pso.Guid,
+                    ComPtr.GetVoidAddressOf(&pso)
+                ));
+
+                DirectXHelpers.SetObjectName(pso.Get(), $"Compute pipeline state object '{name}'");
+
+                return new ComputePso(pso.Move(), computeDesc);
             }
         }
 
@@ -93,9 +132,9 @@ namespace Voltium.Core.Managers
         /// </summary>
         /// <param name="name">The name of the PSO to retrieve</param>
         /// <returns>The PSO stored with the name</returns>
-        public ComPtr<ID3D12PipelineState> RetrievePso(string name)
+        public static PipelineStateObject RetrievePso(string name)
         {
-            return _psos[name].Copy();
+            return _psos[name];
         }
 
         /// <summary>
@@ -104,7 +143,7 @@ namespace Voltium.Core.Managers
         /// <param name="name"></param>
         /// <param name="pso"></param>
         /// <param name="overwrite"></param>
-        public void StorePso(string name, ComPtr<ID3D12PipelineState> pso, bool overwrite = false)
+        public static void StorePso(string name, PipelineStateObject pso, bool overwrite = false)
         {
             if (overwrite)
             {
@@ -121,14 +160,15 @@ namespace Voltium.Core.Managers
         }
 
         /// <inheritdoc/>
-        public void Dispose()
+        public static void Dispose()
         {
-            foreach (var value in _psos.Values)
+            lock (_psos)
             {
-                value.Dispose();
+                foreach (var value in _psos.Values)
+                {
+                    value.Dispose();
+                }
             }
-            _device.Dispose();
-            //_psoLibrary.Dispose();
         }
     }
 }

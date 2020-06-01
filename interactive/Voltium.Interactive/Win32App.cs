@@ -13,8 +13,14 @@ namespace Voltium.Interactive
         private static readonly WNDPROC WndProc = (hwnd, message, wParam, lParam) => WindowProc(hwnd, message, wParam, lParam);
         private static readonly IntPtr WindowProcHandle = Marshal.GetFunctionPointerForDelegate(WndProc);
 
+        private static bool _isResizing = false;
+        //private static bool _isPaused = false;
+        //private static bool _isMaximized = false;
+
         public static readonly int Height = 1080 / 2, Width = 1920 / 2;
         public static HWND Hwnd { get; private set; }
+
+        private static ScreenData _screenData;
 
         public static int Run(Application application, HINSTANCE hInstance, int nCmdShow)
         {
@@ -58,8 +64,9 @@ namespace Voltium.Interactive
                 );
             }
 
+            _screenData = new ScreenData(height, width, Hwnd);
             // Initialize the sample. OnInit is defined in each child-implementation of DXSample.
-            application.Init(new ScreenData(height, width, Hwnd));
+            application.Init(_screenData);
 
             _ = ShowWindow(Hwnd, nCmdShow);
 
@@ -67,6 +74,8 @@ namespace Voltium.Interactive
             MSG msg;
 
             _timer = ApplicationTimer.StartNew();
+            _timer.SetFixedTimeStep(true);
+            _timer.SetTargetElapsedSeconds(1 / 60d);
 
             do
             {
@@ -100,8 +109,8 @@ namespace Voltium.Interactive
                     // Save the Application* passed in to CreateWindow.
                     var pCreateStruct = (CREATESTRUCTW*)lParam;
                     _ = SetWindowLongPtrW(hWnd, GWLP_USERDATA, (IntPtr)pCreateStruct->lpCreateParams);
+                    return IntPtr.Zero;
                 }
-                return IntPtr.Zero;
 
                 case WM_KEYDOWN:
                 {
@@ -115,15 +124,38 @@ namespace Voltium.Interactive
                     return IntPtr.Zero;
                 }
 
+                case WM_ENTERSIZEMOVE:
+                {
+                    _isResizing = true;
+                    return IntPtr.Zero;
+                }
+
+                case WM_EXITSIZEMOVE:
+                {
+                    _isResizing = false;
+                    goto case WM_SIZE;
+                }
+
+                case WM_SIZE:
+                {
+                    var sz = (uint)lParam;
+                    _screenData = new ScreenData(HIWORD(sz), LOWORD(sz), hWnd);
+
+                    if (_isResizing)
+                    {
+                        return IntPtr.Zero;
+                    }
+
+                    pSample?.OnResize(_screenData);
+                    return IntPtr.Zero;
+                }
+
                 case WM_PAINT:
                 {
                     if (pSample != null)
                     {
-                        _timer.Tick(() =>
-                        {
-                            pSample.Update(_timer);
-                        }
-                        );
+                        _timer.Tick();
+                        pSample.Update(_timer);
                         pSample.Render();
                     }
 

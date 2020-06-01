@@ -27,6 +27,6 @@ namespace Voltium.Common.Debugging
         /// for improved DirectX debugging in an environment where
         /// native debugging output is not supported
         /// </summary>
-        public const string IsD3D12ShimEnabled = "ENABLE_DX_DEBUG_SHIM";
+        public static readonly bool IsD3D12ShimEnabled = Environment.GetEnvironmentVariable("DISABLE_D3D12_SHIM") is not "1";
     }
 }

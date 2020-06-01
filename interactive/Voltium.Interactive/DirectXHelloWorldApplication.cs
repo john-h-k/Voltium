@@ -34,6 +34,8 @@ namespace Voltium.Interactive
 
             DeviceManager.Initialize(config, data);
             _renderer.Init(config, in data, DeviceManager.Device);
+
+            _renderer.Resize(data);
         }
 
         public override void Update(ApplicationTimer timer)
@@ -43,7 +45,7 @@ namespace Voltium.Interactive
 
         public override unsafe void Render()
         {
-            using var commandList = GpuDispatchManager.Manager.BeginGraphicsContext(_renderer.GetInitialPso().Move());
+            using var commandList = GpuDispatchManager.Manager.BeginGraphicsContext(_renderer.GetInitialPso());
 
             commandList.SetViewportAndScissor(DeviceManager.ScreenData);
             _renderer.Render(commandList);
@@ -56,6 +58,12 @@ namespace Voltium.Interactive
         public override void Destroy()
         {
             DeviceManager.Dispose();
+        }
+
+        public override void OnResize(ScreenData newScreenData)
+        {
+            DeviceManager.Resize(newScreenData);
+            _renderer.Resize(newScreenData);
         }
 
         public override void OnKeyDown(byte key)

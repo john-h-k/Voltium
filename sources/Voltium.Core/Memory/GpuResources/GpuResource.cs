@@ -30,7 +30,10 @@ namespace Voltium.Core.GpuResources
             _heap = heap;
             _allocator = allocator;
 
-            GpuAddress = UnderlyingResource->GetGPUVirtualAddress();
+            if (desc.ResourceFormat.D3D12ResourceDesc.Dimension == D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_BUFFER)
+            {
+                GpuAddress = UnderlyingResource->GetGPUVirtualAddress();
+            }
         }
 
         private GpuResource() { }
@@ -157,7 +160,14 @@ namespace Voltium.Core.GpuResources
         /// <inheritdoc cref="IDisposable"/>
         public void Dispose()
         {
-            _allocator?.Return(this);
+            if (_allocator is object)
+            {
+                _allocator.Return(this);
+            }
+            else
+            {
+                _value.Dispose();
+            }
             GC.SuppressFinalize(this);
         }
 

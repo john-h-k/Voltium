@@ -17,6 +17,33 @@ namespace Voltium.Core.Pipeline
     public struct GraphicsPipelineDesc
     {
         /// <summary>
+        /// Creates a new <see cref="GraphicsPipelineDesc"/>
+        /// </summary>
+        public GraphicsPipelineDesc(
+            in RootSignature sig,
+            DXGI_FORMAT backBufferFormat,
+            DXGI_FORMAT depthStencilFormat,
+            CompiledShader vertexShader,
+            CompiledShader pixelShader
+            ) : this()
+        {
+            ShaderSignature = sig;
+            Blend = BlendDesc.Default;
+            Rasterizer = RasterizerDesc.Default;
+            DepthStencil = DepthStencilDesc.Default;
+            DepthStencilFormat = depthStencilFormat;
+            Topology = TopologyClass.Triangle;
+            NumRenderTargets = 1;
+            Msaa = new MsaaDesc(1, 0);
+            RenderTargetFormats = new()
+            {
+                [0] = backBufferFormat
+            };
+            VertexShader = vertexShader;
+            PixelShader = pixelShader;
+        }
+
+        /// <summary>
         /// The root signature for the pipeline
         /// </summary>
         public RootSignature ShaderSignature;

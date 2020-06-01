@@ -67,43 +67,43 @@ namespace Voltium.Common
 
         // TODO
 
-        [Conditional("LOG")]
+        //[Conditional("LOG")]
         public static void Log(LogLevel level, string format, params object[] objects)
         {
             Default.ZLog(level, format);
         }
 
-        [Conditional("LOG")]
+        //[Conditional("LOG")]
         public static void LogTrace(string format, params object[] objects)
         {
             Default.ZLogTrace(format);
         }
 
-        [Conditional("LOG")]
+        //[Conditional("LOG")]
         public static void LogDebug(string format, params object[] objects)
         {
             Default.ZLogDebug(format);
         }
 
-        //[Conditional("LOG")]
+        ////[Conditional("LOG")]
         public static void LogInformation(string format, params object[] objects)
         {
             Default.ZLogInformation(format);
         }
 
-        [Conditional("LOG")]
+        //[Conditional("LOG")]
         public static void LogWarning(string format, params object[] objects)
         {
             Default.ZLogWarning(format);
         }
 
-        [Conditional("LOG")]
+        //[Conditional("LOG")]
         public static void LogCritical(string format, params object[] objects)
         {
             Default.ZLogCritical(format);
         }
 
-        [Conditional("LOG")]
+        //[Conditional("LOG")]
         public static void LogError(string format, params object[] objects)
         {
             Default.ZLogError(format);

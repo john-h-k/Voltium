@@ -12,21 +12,15 @@ namespace Voltium.Core.Pipeline
     /// <summary>
     /// A pipeline state object
     /// </summary>
-    public unsafe abstract class Pipeline : IDisposable
+    public unsafe abstract class PipelineStateObject : IDisposable
     {
         private ComPtr<ID3D12PipelineState> _pso;
 
-        internal ID3D12PipelineState* GetPipeline() => _pso.Get();
+        internal ID3D12PipelineState* GetPso() => _pso.Get();
 
-        /// <summary>
-        /// The type of the pipeline
-        /// </summary>
-        public PipelineType Type { get;  }
-
-        internal Pipeline(ComPtr<ID3D12PipelineState> pso, PipelineType type)
+        internal PipelineStateObject(ComPtr<ID3D12PipelineState> pso)
         {
             _pso = pso.Move();
-            Type = type;
         }
 
         /// <inheritdoc/>
@@ -34,5 +28,16 @@ namespace Voltium.Core.Pipeline
         {
             _pso.Dispose();
         }
+
+#if TRACE_DISPOSABLES || DEBUG
+        /// <summary>
+        /// no :)
+        /// </summary>
+        ~PipelineStateObject()
+        {
+            Guard.MarkDisposableFinalizerEntered();
+            ThrowHelper.NeverReached();
+        }
+#endif
     }
 }

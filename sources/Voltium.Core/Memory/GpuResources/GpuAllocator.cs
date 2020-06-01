@@ -7,6 +7,7 @@ using static TerraFX.Interop.D3D12_RESOURCE_STATES;
 using Voltium.Common;
 using Voltium.Core.Memory.GpuResources.ResourceViews;
 using System.Runtime.InteropServices;
+using Voltium.Core.Managers;
 
 namespace Voltium.Core.GpuResources
 {
@@ -15,10 +16,11 @@ namespace Voltium.Core.GpuResources
     /// </summary>
     public unsafe sealed class GpuAllocator : IDisposable
     {
-        private static readonly ulong InitialHeapSize = 1024 * 1024 * 256; // 256mb
-        private HeapTypeSet<List<AllocatorHeap>> _heaps;
+        private List<AllocatorHeap>[] _heapPools = null!;
         private ComPtr<ID3D12Device> _device;
         private const ulong HighestRequiredAlign = 1024 * 1024 * 4; // 4mb
+
+        private bool _hasMergedHeapSupport;
 
         /// <summary>
         /// Creates a new allocator
@@ -29,28 +31,127 @@ namespace Voltium.Core.GpuResources
             Debug.Assert(device.Exists);
             _device = device.Move();
 
-            _heaps[GpuMemoryType.CpuReadback] = new();
-            _heaps[GpuMemoryType.CpuUpload] = new();
-            _heaps[GpuMemoryType.GpuOnly] = new();
+            _hasMergedHeapSupport = CheckMergedHeapSupport(_device.Get());
 
-            CreateNewHeap(GpuMemoryType.CpuReadback);
-            CreateNewHeap(GpuMemoryType.CpuUpload);
-            CreateNewHeap(GpuMemoryType.GpuOnly);
+            CreateOriginalHeaps();
         }
 
-        private AllocatorHeap CreateNewHeap(GpuMemoryType type)
+        private bool CheckMergedHeapSupport(ID3D12Device* device)
         {
-            D3D12_HEAP_PROPERTIES props = new((D3D12_HEAP_TYPE)type);
-            D3D12_HEAP_DESC desc = new(InitialHeapSize, props);
+            D3D12_FEATURE_DATA_D3D12_OPTIONS levels;
+
+            Guard.ThrowIfFailed(device->CheckFeatureSupport(
+                D3D12_FEATURE.D3D12_FEATURE_D3D12_OPTIONS,
+                &levels,
+                (uint)sizeof(D3D12_FEATURE_DATA_D3D12_OPTIONS)
+            ));
+
+            return levels.ResourceHeapTier == D3D12_RESOURCE_HEAP_TIER.D3D12_RESOURCE_HEAP_TIER_2;
+        }
+
+        private void CreateOriginalHeaps()
+        {
+            if (_hasMergedHeapSupport)
+            {
+                // one for each memory type (default, upload, readback)
+                _heapPools = new List<AllocatorHeap>[3];
+            }
+            else
+            {
+                // three for each memory type (default, upload, readback),
+                // - where those three are for buffers, render targets/depth stencils, and textures
+                _heapPools = new List<AllocatorHeap>[9];
+            }
+
+            for (var i = GpuMemoryType.GpuOnly; i <= GpuMemoryType.CpuReadback; i++)
+            {
+                if (_hasMergedHeapSupport)
+                {
+                    ref var list = ref _heapPools[GetHeapIndex(i, GpuResourceType.Meaningless)];
+                    list = new(1);
+                    list.Add(CreateNewHeap(i, GpuResourceType.Meaningless));
+                }
+                else
+                {
+                    for (var j = GpuResourceType.Tex; j <= GpuResourceType.Buffer; j++)
+                    {
+                        ref var list = ref _heapPools[GetHeapIndex(i, j)];
+                        list = new(1);
+                        list.Add(CreateNewHeap(i, j));
+                    }
+                }
+            }
+        }
+
+        private void GetHeapType(int index, out GpuMemoryType mem, out GpuResourceType res)
+        {
+            if (_hasMergedHeapSupport)
+            {
+                mem = (GpuMemoryType)index + 1;
+                res = GpuResourceType.Meaningless;
+                return;
+            }
+
+            mem = (GpuMemoryType)(index / 3) + 1;
+            res = GpuResourceType.Meaningless;
+        }
+
+        private int GetHeapIndex(GpuMemoryType mem, GpuResourceType res)
+        {
+            if (_hasMergedHeapSupport)
+            {
+                return (int)(mem - 1);
+            }
+
+            var ind = (((int)mem - 1) * 3) + (int)(res - 1);
+            return ind;
+        }
+
+        private AllocatorHeap CreateNewHeap(GpuMemoryType mem, GpuResourceType res)
+        {
+            D3D12_HEAP_FLAGS flags = default;
+
+            if (!_hasMergedHeapSupport)
+            {
+                flags = res switch
+                {
+                    GpuResourceType.Meaningless => (D3D12_HEAP_FLAGS)0, // shouldn't be reached
+                    GpuResourceType.Tex => D3D12_HEAP_FLAGS.D3D12_HEAP_FLAG_DENY_RT_DS_TEXTURES | D3D12_HEAP_FLAGS.D3D12_HEAP_FLAG_DENY_BUFFERS,
+                    GpuResourceType.RtOrDs => D3D12_HEAP_FLAGS.D3D12_HEAP_FLAG_DENY_NON_RT_DS_TEXTURES | D3D12_HEAP_FLAGS.D3D12_HEAP_FLAG_DENY_BUFFERS,
+                    GpuResourceType.Buffer => D3D12_HEAP_FLAGS.D3D12_HEAP_FLAG_DENY_NON_RT_DS_TEXTURES | D3D12_HEAP_FLAGS.D3D12_HEAP_FLAG_DENY_RT_DS_TEXTURES,
+                    _ => (D3D12_HEAP_FLAGS)0, // shouldn't be reached
+                };
+            }
+
+            D3D12_HEAP_PROPERTIES props = new((D3D12_HEAP_TYPE)mem);
+            D3D12_HEAP_DESC desc = new(GetNewHeapSize(mem, res), props, flags: flags);
 
             ComPtr<ID3D12Heap> heap = default;
-            _device.Get()->CreateHeap(&desc, heap.Guid, ComPtr.GetVoidAddressOf(&heap));
+            Guard.ThrowIfFailed(_device.Get()->CreateHeap(&desc, heap.Guid, ComPtr.GetVoidAddressOf(&heap)));
 
             var allocatorHeap = new AllocatorHeap { Heap = heap.Move(), FreeBlocks = new() };
-            allocatorHeap.FreeBlocks.Add(new HeapBlock { Offset = 0, Size = desc.SizeInBytes });
-            _heaps[type].Add(allocatorHeap);
+            bool result = allocatorHeap.FreeBlocks.Add(new HeapBlock { Offset = 0, Size = desc.SizeInBytes });
+            Debug.Assert(result);
+            _ = result;
 
             return allocatorHeap;
+        }
+
+        private ulong GetNewHeapSize(GpuMemoryType mem, GpuResourceType res)
+        {
+            const ulong megabyte = 1024 * 1024;
+            //const ulong kilobyte = 1024;
+
+            var guess = res switch
+            {
+                GpuResourceType.Meaningless => 256 * megabyte , // shouldn't be reached
+                GpuResourceType.Tex => 64 * megabyte,
+                GpuResourceType.RtOrDs => 64 * megabyte,
+                GpuResourceType.Buffer => 64 * megabyte,
+                _ => ulong.MaxValue, // shouldn't be reached
+            };
+
+            return guess;
         }
 
         internal void Return(GpuResource gpuAllocation)
@@ -382,8 +483,9 @@ namespace Voltium.Core.GpuResources
 
         private GpuResource AllocatePlacedFromHeap(GpuResourceDesc desc, D3D12_RESOURCE_ALLOCATION_INFO info)
         {
+            var resType = GetResType(desc);
             GpuResource allocation;
-            var heapList = _heaps[desc.GpuMemoryType];
+            var heapList = _heapPools[GetHeapIndex(desc.GpuMemoryType, resType)];
             for (var i = 0; i < heapList.Count; i++)
             {
                 if (TryAllocateFromHeap(desc, info, heapList[i], out allocation))
@@ -393,10 +495,31 @@ namespace Voltium.Core.GpuResources
             }
 
             // No free blocks available anywhere. Create a new heap
-            var newHeap = CreateNewHeap(desc.GpuMemoryType);
+            var newHeap = CreateNewHeap(desc.GpuMemoryType, resType);
             var result = TryAllocateFromHeap(desc, info, newHeap, out allocation);
             Debug.Assert(result);
             return allocation;
+        }
+
+        private GpuResourceType GetResType(GpuResourceDesc desc)
+        {
+            const D3D12_RESOURCE_FLAGS rtOrDsFlags =
+                D3D12_RESOURCE_FLAGS.D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL | D3D12_RESOURCE_FLAGS.D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+
+            if (_hasMergedHeapSupport)
+            {
+                return GpuResourceType.Meaningless;
+            }
+
+            if (desc.ResourceFormat.D3D12ResourceDesc.Dimension == D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_BUFFER)
+            {
+                return GpuResourceType.Buffer;
+            }
+            if ((desc.ResourceFormat.D3D12ResourceDesc.Flags & rtOrDsFlags) != 0)
+            {
+                return GpuResourceType.RtOrDs;
+            }
+            return GpuResourceType.Tex;
         }
 
         private GpuResource CreatePlaced(GpuResourceDesc desc, D3D12_RESOURCE_ALLOCATION_INFO allocInfo, AllocatorHeap heap, HeapBlock block)

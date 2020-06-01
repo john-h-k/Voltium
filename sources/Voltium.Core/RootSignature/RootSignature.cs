@@ -11,7 +11,7 @@ namespace Voltium.Core
     /// <summary>
     /// Defines a root signature
     /// </summary>
-    public unsafe struct RootSignature : IDisposable
+    public sealed unsafe class RootSignature : IDisposable
     {
         /// <summary>
         /// Creates a new <see cref="RootSignature"/>
@@ -171,7 +171,7 @@ namespace Voltium.Core
         /// <summary>
         /// The underlying value of the root signature
         /// </summary>
-        public /* does this need to be public? */ ID3D12RootSignature* Value => _value.Get();
+        internal /* does this need to be public? */ ID3D12RootSignature* Value => _value.Get();
 
         /// <summary>
         /// The <see cref="RootParameter"/>s for this root signature, in order
@@ -195,5 +195,16 @@ namespace Voltium.Core
             Parameters = parameters;
             StaticSamplers = staticSamplers;
         }
+
+#if TRACE_DISPOSABLES || DEBUG
+        /// <summary>
+        /// 🖕
+        /// </summary>
+        ~RootSignature()
+        {
+            Guard.MarkDisposableFinalizerEntered();
+            ThrowHelper.NeverReached();
+        }
+#endif
     }
 }

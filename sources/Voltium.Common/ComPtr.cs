@@ -116,7 +116,7 @@ namespace Voltium.Common
             var p = (IUnknown*)_ptr;
             TInterface* pResult;
 
-            int hr = p->QueryInterface(Guid, (void**)&pResult);
+            int hr = p->QueryInterface(ComPtr<TInterface>.PointerToCachedGuid, (void**)&pResult);
             result = pResult;
             return hr;
         }

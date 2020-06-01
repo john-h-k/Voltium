@@ -9,6 +9,7 @@ using Voltium.Common;
 using Voltium.Common.Debugging;
 using Voltium.Common.Threading;
 using Voltium.Core.D3D12;
+using Voltium.Core.Pipeline;
 using Voltium.Core.Pool;
 using static TerraFX.Interop.D3D12_COMMAND_LIST_TYPE;
 using static TerraFX.Interop.D3D12_COMMAND_QUEUE_PRIORITY;
@@ -207,6 +208,8 @@ namespace Voltium.Core.Managers
 
         internal unsafe void MoveToNextFrame()
         {
+            _frameMarker++;
+            
             _graphics.Signal(_frameFence.Get(), _frameMarker);
 
             FenceMarker lastFrame;
@@ -226,7 +229,6 @@ namespace Voltium.Core.Managers
 
             ReturnFinishedAllocators();
 
-            _frameMarker++;
         }
 
         private void ReturnFinishedAllocators()
@@ -248,6 +250,8 @@ namespace Voltium.Core.Managers
         internal void BlockForGraphicsIdle()
         {
             _graphics.GetSynchronizerForIdle().Block();
+
+            _frameMarker++;
         }
 
         internal void BlockForGpuIdle()
@@ -255,6 +259,8 @@ namespace Voltium.Core.Managers
             _graphics.GetSynchronizerForIdle().Block();
             _compute.GetSynchronizerForIdle().Block();
             _copy.GetSynchronizerForIdle().Block();
+
+            _frameMarker++;
         }
 
         private unsafe ComPtr<ID3D12GraphicsCommandList> GetCommandList(
@@ -332,10 +338,10 @@ namespace Voltium.Core.Managers
         /// Returns a <see cref="GraphicsContext"/> used for recording graphical commands
         /// </summary>
         /// <returns>A new <see cref="GraphicsContext"/></returns>
-        public unsafe GraphicsContext BeginGraphicsContext(ComPtr<ID3D12PipelineState> defaultPso = default)
+        public unsafe GraphicsContext BeginGraphicsContext(PipelineStateObject? defaultPso = null)
         {
             using var allocator = _allocatorPool.Rent(ExecutionContext.Graphics);
-            using var list = _listPool.Rent(ExecutionContext.Graphics, allocator.Get(), defaultPso.Get());
+            using var list = _listPool.Rent(ExecutionContext.Graphics, allocator.Get(), defaultPso is null ? null :defaultPso.GetPso());
 
             using var ctx = new GraphicsContext(list.Move(), allocator.Move());
             return ctx.Move();
