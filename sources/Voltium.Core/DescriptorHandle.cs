@@ -1,4 +1,4 @@
-﻿using TerraFX.Interop;
+using TerraFX.Interop;
 using Voltium.Core.Managers;
 
 namespace Voltium.Core
@@ -52,7 +52,7 @@ namespace Voltium.Core
         {
             CpuHandle = cpuHandle;
             GpuHandle = gpuHandle;
-            IncrementSize = DeviceManager.Manager.GetDescriptorSizeForType(type);
+            IncrementSize = DeviceManager.GetDescriptorSizeForType(type);
         }
     }
 }

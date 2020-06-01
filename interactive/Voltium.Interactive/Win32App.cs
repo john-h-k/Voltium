@@ -66,6 +66,8 @@ namespace Voltium.Interactive
             // Main sample loop.
             MSG msg;
 
+            _timer = ApplicationTimer.StartNew();
+
             do
             {
                 // Process any messages in the queue.
@@ -82,6 +84,8 @@ namespace Voltium.Interactive
             // Return this part of the WM_QUIT message to Windows.
             return (int)msg.wParam;
         }
+
+        private static ApplicationTimer _timer = null!;
 
         // Main message handler for the sample
         private static IntPtr WindowProc(HWND hWnd, uint message, UIntPtr wParam, IntPtr lParam)
@@ -115,7 +119,11 @@ namespace Voltium.Interactive
                 {
                     if (pSample != null)
                     {
-                        pSample.Update();
+                        _timer.Tick(() =>
+                        {
+                            pSample.Update(_timer);
+                        }
+                        );
                         pSample.Render();
                     }
 

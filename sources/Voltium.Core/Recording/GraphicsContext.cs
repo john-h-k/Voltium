@@ -4,6 +4,8 @@ using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Common.Debugging;
 using Voltium.Core.GpuResources;
+using Voltium.Core.Managers;
+using Voltium.Core.Memory.GpuResources.ResourceViews;
 using Voltium.Core.Pipeline;
 
 namespace Voltium.Core
@@ -64,6 +66,16 @@ namespace Voltium.Core
         }
 
         /// <summary>
+        /// Sets the viewport and scissor rectangle to encompass the entire screen
+        /// </summary>
+        /// <param name="fullscreen">The <see cref="ScreenData"/> representing the screen</param>
+        public void SetViewportAndScissor(in ScreenData fullscreen)
+        {
+            SetViewports(new Viewport(0, 0, fullscreen.Width, fullscreen.Height, 0, 1));
+            SetScissorRectangles(new Rectangle(0, 0, (int)fullscreen.Width, (int)fullscreen.Height));
+        }
+
+        /// <summary>
         /// Sets the blend factor for the pipeline <see cref="BlendDesc"/>
         /// </summary>
         /// <param name="value">The value of the blend factor</param>
@@ -98,10 +110,12 @@ namespace Voltium.Core
         /// Sets a directly-bound constant buffer view descriptor to the graphics pipeline
         /// </summary>
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
-        /// <param name="resource">The GPU address of the resource</param>
-        public void SetGraphicsConstantBufferDescriptor(uint paramIndex, GpuResource resource)
+        /// <param name="cbuffer">The <see cref="ConstantBuffer{TBuffer}"/> containing the buffer to add</param>
+        /// <param name="cbufferIndex">The index into <paramref name="cbuffer"/> where the buffer is located</param>
+        public void SetGraphicsConstantBufferDescriptor<TBuffer>(uint paramIndex, ConstantBuffer<TBuffer> cbuffer, uint cbufferIndex)
+            where TBuffer : unmanaged
         {
-            _list.Get()->SetGraphicsRootConstantBufferView(paramIndex, resource.GpuAddress);
+            _list.Get()->SetGraphicsRootConstantBufferView(paramIndex, cbuffer.Resource.GpuAddress + (cbufferIndex * (uint)ConstantBuffer<TBuffer>.ElementSize));
         }
 
         /// <summary>
@@ -351,7 +365,6 @@ namespace Voltium.Core
             _list.Get()->IASetIndexBuffer(&desc);
         }
 
-
         /// <summary>
         /// Submits a draw call
         /// </summary>
@@ -396,7 +409,6 @@ namespace Voltium.Core
         {
             _list.Dispose();
             _allocator.Dispose();
-            Logger.LogInformation("CommandContext disposed");
         }
     }
 

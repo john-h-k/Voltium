@@ -1,6 +1,7 @@
 #if DEBUG || DEBUG_LOG
 #define DEBUG_OUTPUT_CONSOLE
 #define LOG_LEVEL_DEBUG
+#define LOG
 #endif
 
 #if RELEASE
@@ -11,16 +12,15 @@ using System;
 using System.Diagnostics;
 using System.Text;
 using Microsoft.Extensions.Logging;
-#if ZLOGGER
 using ZLogger;
 using ZLogger.Providers;
-#endif
 
 namespace Voltium.Common
 {
 
     internal static class Logger
     {
+        private static ILogger Default;
         private const string LogFile = "log.txt";
 
         public static LogLevel MinimumLogLevel
@@ -49,63 +49,64 @@ namespace Voltium.Common
 
         static Logger()
          {
-//             var factory = LoggerFactory.Create(builder => {
-//                 builder.ClearProviders();
-//                 builder.SetMinimumLevel(MinimumLogLevel);
-//
-// #if DEBUG_OUTPUT_CONSOLE && ZLOGGER
-//                 builder.AddZLoggerConsole();
-// #endif
-// #if DEBUG_OUTPUT_FILE
-//                 builder.AddZLoggerFile(LogFile);
-// #endif
-//             });
-//
-//             Default = factory.CreateLogger("DefaultLogContext");
+            var factory = LoggerFactory.Create(builder =>
+            {
+                builder.ClearProviders();
+                builder.SetMinimumLevel(MinimumLogLevel);
+
+#if DEBUG_OUTPUT_CONSOLE
+                 builder.AddZLoggerConsole();
+#endif
+#if DEBUG_OUTPUT_FILE
+                 builder.AddZLoggerFile(LogFile);
+#endif
+            });
+
+            Default = factory.CreateLogger("DefaultLogContext");
         }
 
         // TODO
 
         [Conditional("LOG")]
-        public static void Log(LogLevel level, ReadOnlySpan<char> format, params object[] objects)
+        public static void Log(LogLevel level, string format, params object[] objects)
         {
-
+            Default.ZLog(level, format);
         }
 
         [Conditional("LOG")]
-        public static void LogTrace(ReadOnlySpan<char> format, params object[] objects)
+        public static void LogTrace(string format, params object[] objects)
         {
-
+            Default.ZLogTrace(format);
         }
 
         [Conditional("LOG")]
-        public static void LogDebug(ReadOnlySpan<char> format, params object[] objects)
+        public static void LogDebug(string format, params object[] objects)
         {
+            Default.ZLogDebug(format);
+        }
 
+        //[Conditional("LOG")]
+        public static void LogInformation(string format, params object[] objects)
+        {
+            Default.ZLogInformation(format);
         }
 
         [Conditional("LOG")]
-        public static void LogInformation(ReadOnlySpan<char> format, params object[] objects)
+        public static void LogWarning(string format, params object[] objects)
         {
-
+            Default.ZLogWarning(format);
         }
 
         [Conditional("LOG")]
-        public static void LogWarning(ReadOnlySpan<char> format, params object[] objects)
+        public static void LogCritical(string format, params object[] objects)
         {
-
+            Default.ZLogCritical(format);
         }
 
         [Conditional("LOG")]
-        public static void LogCritical(ReadOnlySpan<char> format, params object[] objects)
+        public static void LogError(string format, params object[] objects)
         {
-
-        }
-
-        [Conditional("LOG")]
-        public static void LogError(ReadOnlySpan<char> format, params object[] objects)
-        {
-
+            Default.ZLogError(format);
         }
     }
 }

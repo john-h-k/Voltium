@@ -19,7 +19,7 @@ namespace Voltium.Core
         /// <summary>
         /// Creates a new <see cref="ApplicationTimer"/> and starts measuring elapsed time
         /// </summary>
-        public static void StartNew()
+        public static ApplicationTimer StartNew()
         {
             var timer = new ApplicationTimer();
 
@@ -28,6 +28,8 @@ namespace Voltium.Core
             TryQueryPerformanceCounter(out timer._qpcLastTime);
 
             timer._qpcMaxDelta = (ulong)(timer._qpcFrequency.QuadPart / 10);
+
+            return timer;
         }
 
         /// <summary>

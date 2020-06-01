@@ -7,6 +7,7 @@ using static TerraFX.Interop.Windows;
 using static TerraFX.Interop.D3D12_PRIMITIVE_TOPOLOGY_TYPE;
 using static TerraFX.Interop.D3D12_INPUT_CLASSIFICATION;
 using Voltium.Core.Configuration.Graphics;
+using System;
 
 namespace Voltium.Interactive
 {
@@ -32,30 +33,29 @@ namespace Voltium.Interactive
             };
 
             DeviceManager.Initialize(config, data);
-            _renderer.Init(config, in data, DeviceManager.Manager.Device);
+            _renderer.Init(config, in data, DeviceManager.Device);
         }
 
-        public override void Update()
+        public override void Update(ApplicationTimer timer)
         {
-            _renderer.Update();
+            _renderer.Update(timer);
         }
 
         public override unsafe void Render()
         {
             using var commandList = GpuDispatchManager.Manager.BeginGraphicsContext(_renderer.GetInitialPso().Move());
 
-            commandList.SetViewports(DeviceManager.Manager.Viewport);
-            commandList.SetScissorRectangles(DeviceManager.Manager.Scissor);
+            commandList.SetViewportAndScissor(DeviceManager.ScreenData);
             _renderer.Render(commandList);
 
             GpuDispatchManager.Manager.End(commandList.Move());
 
-            DeviceManager.Manager.Present();
+            DeviceManager.Present();
         }
 
         public override void Destroy()
         {
-            DeviceManager.Manager.Dispose();
+            DeviceManager.Dispose();
         }
 
         public override void OnKeyDown(byte key)

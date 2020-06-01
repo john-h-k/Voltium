@@ -16,6 +16,6 @@ namespace Voltium.Interactive
 
         public abstract void Destroy();
 
-        public abstract void Update();
+        public abstract void Update(ApplicationTimer timer);
     }
 }

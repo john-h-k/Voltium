@@ -28,10 +28,14 @@ namespace Voltium.Core.GpuResources
         public Span<TIndex> Indices => MemoryMarshal.Cast<byte, TIndex>(Resource.CpuData);
 
         /// <summary>
+        /// Retuns a <see cref="ScopedResourceMap"/> that allows a <see cref="Map"/> call to be scoped
+        /// </summary>
+        public ScopedResourceMap MapScoped() => Resource.MapScoped(0);
+
+        /// <summary>
         /// If the resource is not currently mapped, maps the resource
         /// </summary>
         public void Map() => Resource.Map(0);
-
 
         /// <summary>
         /// If the resource is currently mapped, unmaps the resource

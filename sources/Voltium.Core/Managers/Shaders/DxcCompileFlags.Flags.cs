@@ -198,6 +198,12 @@ namespace Voltium.Core.Managers
         /// </summary>
 
         public static Flag DefineMacro(string value) => new Flag($"-D {value}");
+
+        /// <summary>
+        /// Define macro
+        /// </summary>
+        public static Flag DefineMacro(string name, string value) => new Flag($"-D {name}={value}");
+
         /// <summary>
         /// Enable 16bit types and disable min precision types.Available in HLSL 2018 and shader model 6.2
         /// </summary>

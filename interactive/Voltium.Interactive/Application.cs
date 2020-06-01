@@ -1,4 +1,5 @@
-﻿using Voltium.Core.Managers;
+using Voltium.Core;
+using Voltium.Core.Managers;
 
 namespace Voltium.Interactive
 {
@@ -7,7 +8,7 @@ namespace Voltium.Interactive
         public abstract string Title { get; }
 
         public abstract void Init(ScreenData data);
-        public abstract void Update();
+        public abstract void Update(ApplicationTimer timer);
         public abstract void Render();
         public abstract void Destroy();
 

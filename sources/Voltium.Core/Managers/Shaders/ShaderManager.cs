@@ -78,19 +78,16 @@ namespace Voltium.Core.Managers
             clsid = Windows.CLSID_DxcUtils;
             Guard.ThrowIfFailed(Windows.DxcCreateInstance(&clsid, utils.Guid, ComPtr.GetVoidAddressOf(&utils)));
 
-            //utils.Get()->CreateDefaultIncludeHandler(ComPtr.GetAddressOf(&defaultIncludeHandler));
-
             Compiler = compiler.Move();
             Utils = utils.Move();
-            //DefaultIncludeHandler = defaultIncludeHandler.Move();
 
             DefaultIncludeHandler = new IncludeHandler();
             DefaultIncludeHandler.Init(Utils.Copy());
         }
 
-        private const uint DXC_CP_UTF8 = 65001;
-        private const uint DXC_CP_UTF16 = 1200;
-        private const uint DXC_CP_AP = 0;
+        internal const uint DXC_CP_UTF8 = 65001;
+        internal const uint DXC_CP_UTF16 = 1200;
+        internal const uint DXC_CP_AP = 0;
 
         /// <summary>
         /// Compiles a new <see cref="CompiledShader"/> from a file
@@ -292,8 +289,12 @@ namespace Voltium.Core.Managers
             fixed (char* pText = shaderText)
             fixed (byte* ppFlags = rentedFlagBuff.Value)
             // can't pin on managed type so gotta get it on the vtbl
-            fixed (void* pInclude = &DefaultIncludeHandler.Vtbl)
+            fixed (IDxcIncludeHandler.Vtbl** pInclude = &DefaultIncludeHandler.Vtbl)
             {
+                var realPInclude = Unsafe.AsPointer(ref DefaultIncludeHandler);
+
+                Debug.Assert(pInclude == realPInclude);
+
                 DxcBuffer text;
                 text.Ptr = pText;
                 text.Size = (nuint)(shaderText.Length * sizeof(char));
@@ -334,7 +335,7 @@ namespace Voltium.Core.Managers
                     }
                 }
 
-                if (TryGetOutput(compileResult.Get(), DXC_OUT_KIND.DXC_OUT_PDB, out var pdb, out var pdbName))
+                if (TryGetOutputUtf8(compileResult.Get(), DXC_OUT_KIND.DXC_OUT_PDB, out var pdb, out var pdbName))
                 {
                     using (pdb)
                     using (pdbName)
@@ -352,7 +353,7 @@ namespace Voltium.Core.Managers
             }
         }
 
-        private static unsafe void HandlePdb(IDxcBlobUtf16* pdb, IDxcBlobUtf16* pdbName)
+        private static unsafe void HandlePdb(IDxcBlobUtf8* pdb, IDxcBlobUtf16* pdbName)
         {
             throw new NotImplementedException();
         }
@@ -366,7 +367,7 @@ namespace Voltium.Core.Managers
         private static unsafe ReadOnlySpan<char> FromBlob(IDxcBlobUtf16* pBlob)
             => new ReadOnlySpan<char>(pBlob->GetBufferPointer(), (int)pBlob->GetBufferSize());
 
-        private static unsafe bool TryGetOutput(IDxcResult* result, DXC_OUT_KIND kind, out ComPtr<IDxcBlobUtf16> data, out ComPtr<IDxcBlobUtf16> name)
+        private static unsafe bool TryGetOutputUtf16(IDxcResult* result, DXC_OUT_KIND kind, out ComPtr<IDxcBlobUtf16> data, out ComPtr<IDxcBlobUtf16> name)
         {
             if (result->HasOutput(kind) == Windows.TRUE)
             {
@@ -415,11 +416,20 @@ namespace Voltium.Core.Managers
         }
     }
 
+    // LayoutKind.Sequential is ignored when the type contains references
+    // This type is safe because we pin it during its time in native code,
+    // and the native code never accesses the references
+    // but we must make it explicit layout so it works
+    [StructLayout(LayoutKind.Explicit)]
     internal unsafe struct IncludeHandler : IDisposable
     {
+        [FieldOffset(0)]
         public IDxcIncludeHandler.Vtbl* Vtbl;
+        [FieldOffset(8)]
         public string AppDirContext;
+        [FieldOffset(16)]
         public string ShaderDirContext;
+        [FieldOffset(24)]
         private ComPtr<IDxcUtils> _utils;
 
         public void Init(ComPtr<IDxcUtils> utils)
@@ -467,9 +477,8 @@ namespace Voltium.Core.Managers
                     return Windows.ERROR_FILE_NOT_FOUND;
                 }
 
-                IDxcBlob* blob = CreateBlob(file.Length).Get();
-
-                _ = file.OpenText().Read(new Span<char>(blob->GetBufferPointer(), (int)blob->GetBufferSize() / sizeof(char)));
+                var includeText = File.ReadAllText(file.FullName);
+                IDxcBlob* blob = CreateBlob(includeText).Get();
 
                 *ppIncludeSource = blob;
                 return Windows.S_OK;
@@ -480,10 +489,13 @@ namespace Voltium.Core.Managers
             }
         }
 
-        private ComPtr<IDxcBlob> CreateBlob(long size)
+        private ComPtr<IDxcBlob> CreateBlob(ReadOnlySpan<char> data)
         {
             using ComPtr<IDxcBlobEncoding> encoding = default;
-            Guard.ThrowIfFailed(_utils.Get()->CreateBlob(null, (uint)size, 0, ComPtr.GetAddressOf(&encoding)));
+            fixed (char* pData = data)
+            {
+                Guard.ThrowIfFailed(_utils.Get()->CreateBlob(pData, (uint)(data.Length * sizeof(char)), ShaderManager.DXC_CP_UTF16, ComPtr.GetAddressOf(&encoding)));
+            }
             return ComPtr.UpCast<IDxcBlobEncoding, IDxcBlob>(encoding.Move());
         }
 

@@ -5,6 +5,8 @@ using System.Runtime.Loader;
 using TerraFX.Interop;
 using static TerraFX.Interop.D3D12_RESOURCE_STATES;
 using Voltium.Common;
+using Voltium.Core.Memory.GpuResources.ResourceViews;
+using System.Runtime.InteropServices;
 
 namespace Voltium.Core.GpuResources
 {
@@ -27,12 +29,12 @@ namespace Voltium.Core.GpuResources
             Debug.Assert(device.Exists);
             _device = device.Move();
 
-            _heaps[GpuMemoryType.CpuReadOptimized] = new();
-            _heaps[GpuMemoryType.CpuWriteOptimized] = new();
+            _heaps[GpuMemoryType.CpuReadback] = new();
+            _heaps[GpuMemoryType.CpuUpload] = new();
             _heaps[GpuMemoryType.GpuOnly] = new();
 
-            CreateNewHeap(GpuMemoryType.CpuReadOptimized);
-            CreateNewHeap(GpuMemoryType.CpuWriteOptimized);
+            CreateNewHeap(GpuMemoryType.CpuReadback);
+            CreateNewHeap(GpuMemoryType.CpuUpload);
             CreateNewHeap(GpuMemoryType.GpuOnly);
         }
 
@@ -81,6 +83,23 @@ namespace Voltium.Core.GpuResources
             return _device.Get()->GetResourceAllocationInfo(0 /* TODO: MULTI-GPU */, 1, &desc.ResourceFormat.D3D12ResourceDesc);
         }
 
+        /// <inheritdoc cref="AllocateVertexBuffer{TVertex}(ReadOnlySpan{TVertex}, GpuMemoryType, GpuAllocFlags)" />
+        public VertexBuffer<TVertex> AllocateVertexBuffer<TVertex>(
+            TVertex[] initialData,
+            GpuMemoryType type,
+            GpuAllocFlags flags = GpuAllocFlags.None
+        ) where TVertex : unmanaged
+            => AllocateVertexBuffer(initialData.AsSpan(), type, flags);
+
+
+        /// <inheritdoc cref="AllocateVertexBuffer{TVertex}(ReadOnlySpan{TVertex}, GpuMemoryType, GpuAllocFlags)" />
+        public VertexBuffer<TVertex> AllocateVertexBuffer<TVertex>(
+            Span<TVertex> initialData,
+            GpuMemoryType type,
+            GpuAllocFlags flags = GpuAllocFlags.None
+        ) where TVertex : unmanaged
+            => AllocateVertexBuffer((ReadOnlySpan<TVertex>)initialData, type, flags);
+
         /// <summary>
         /// Allocates a new <see cref="VertexBuffer{TVertex}"/>
         /// </summary>
@@ -118,17 +137,35 @@ namespace Voltium.Core.GpuResources
             GpuAllocFlags flags = GpuAllocFlags.None
         ) where TVertex : unmanaged
         {
-            Debug.Assert(type != GpuMemoryType.CpuReadOptimized);
+            Debug.Assert(type != GpuMemoryType.CpuReadback);
 
             var desc = new GpuResourceDesc(
                 GpuResourceFormat.Buffer((uint)sizeof(TVertex) * vertexCount),
                 type,
-                type == GpuMemoryType.CpuWriteOptimized ? D3D12_RESOURCE_STATE_GENERIC_READ : D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
+                type == GpuMemoryType.CpuUpload ? D3D12_RESOURCE_STATE_GENERIC_READ : D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
                 flags
             );
 
             return new VertexBuffer<TVertex>(Allocate(desc));
         }
+
+
+        /// <inheritdoc cref="AllocateIndexBuffer{TIndex}(ReadOnlySpan{TIndex}, GpuMemoryType, GpuAllocFlags)" />
+        public IndexBuffer<TIndex> AllocateIndexBuffer<TIndex>(
+            TIndex[] initialData,
+            GpuMemoryType type,
+            GpuAllocFlags flags = GpuAllocFlags.None
+        ) where TIndex : unmanaged
+            => AllocateIndexBuffer(initialData.AsSpan(), type, flags);
+
+
+        /// <inheritdoc cref="AllocateIndexBuffer{TIndex}(ReadOnlySpan{TIndex}, GpuMemoryType, GpuAllocFlags)" />
+        public IndexBuffer<TIndex> AllocateIndexBuffer<TIndex>(
+            Span<TIndex> initialData,
+            GpuMemoryType type,
+            GpuAllocFlags flags = GpuAllocFlags.None
+        ) where TIndex : unmanaged
+            => AllocateIndexBuffer((ReadOnlySpan<TIndex>)initialData, type, flags);
 
         /// <summary>
         /// Allocates a new <see cref="IndexBuffer{TIndex}"/>
@@ -167,17 +204,100 @@ namespace Voltium.Core.GpuResources
             GpuAllocFlags flags = GpuAllocFlags.None
         ) where TIndex : unmanaged
         {
-            Debug.Assert(type != GpuMemoryType.CpuReadOptimized);
+            Debug.Assert(type != GpuMemoryType.CpuReadback);
 
             var desc = new GpuResourceDesc(
                 GpuResourceFormat.Buffer((uint)sizeof(TIndex) * indexCount),
                 type,
-                type == GpuMemoryType.CpuWriteOptimized ? D3D12_RESOURCE_STATE_GENERIC_READ : D3D12_RESOURCE_STATE_INDEX_BUFFER,
+                type == GpuMemoryType.CpuUpload ? D3D12_RESOURCE_STATE_GENERIC_READ : D3D12_RESOURCE_STATE_INDEX_BUFFER,
                 flags
             );
 
             return new IndexBuffer<TIndex>(Allocate(desc));
         }
+
+        /// <inheritdoc cref="AllocateConstantBuffer{TBuffer}(ReadOnlySpan{TBuffer}, GpuMemoryType, GpuAllocFlags)" />
+        public ConstantBuffer<TBuffer> AllocateConstantBuffer<TBuffer>(
+            TBuffer[] initialData,
+            GpuMemoryType type,
+            GpuAllocFlags flags = GpuAllocFlags.None
+        ) where TBuffer : unmanaged
+            => AllocateConstantBuffer(initialData.AsSpan(), type, flags);
+
+
+        /// <inheritdoc cref="AllocateConstantBuffer{TBuffer}(ReadOnlySpan{TBuffer}, GpuMemoryType, GpuAllocFlags)" />
+        public ConstantBuffer<TBuffer> AllocateConstantBuffer<TBuffer>(
+            Span<TBuffer> initialData,
+            GpuMemoryType type,
+            GpuAllocFlags flags = GpuAllocFlags.None
+        ) where TBuffer : unmanaged
+            => AllocateConstantBuffer((ReadOnlySpan<TBuffer>)initialData, type, flags);
+
+        /// <summary>
+        /// Allocates a new <see cref="IndexBuffer{TBuffer}"/>
+        /// </summary>
+        /// <typeparam name="TBuffer">The type of each constant buffer</typeparam>
+        /// <param name="initialData">The initial buffer data, which will be copied to the resource</param>
+        /// <param name="type">The type of GPU memory to allocate in</param>
+        /// <param name="flags">Any additional allocation flags passed to the allocator</param>
+        /// <returns>A new <see cref="IndexBuffer{TBuffer}"/></returns>
+        public ConstantBuffer<TBuffer> AllocateConstantBuffer<TBuffer>(
+            ReadOnlySpan<TBuffer> initialData,
+            GpuMemoryType type,
+            GpuAllocFlags flags = GpuAllocFlags.None
+        ) where TBuffer : unmanaged
+        {
+            var resource = AllocateConstantBuffer<TBuffer>((uint)initialData.Length, type, flags);
+
+            resource.Map();
+
+            if (sizeof(TBuffer) % 256 == 0)
+            {
+                // the types are blittable in memory and we can directly copy
+                initialData.CopyTo(MemoryMarshal.Cast<byte, TBuffer>(resource.Buffers.GetUntypedData()));
+            }
+            else
+            {
+                var buffers = resource.Buffers;
+                for (var i = 0; i < initialData.Length; i++)
+                {
+                    buffers[i] = initialData[i];
+                }
+            }    
+
+            resource.Unmap();
+
+            return resource;
+        }
+
+        /// <summary>
+        /// Allocates a new <see cref="ConstantBuffer{TBuffer}"/>
+        /// </summary>
+        /// <typeparam name="TBuffer">The type of each buffer</typeparam>
+        /// <param name="indexCount">The number of buffers</param>
+        /// <param name="type">The type of GPU memory to allocate in</param>
+        /// <param name="flags">Any additional allocation flags passed to the allocator</param>
+        /// <returns>A new <see cref="ConstantBuffer{TBuffer}"/></returns>
+        public ConstantBuffer<TBuffer> AllocateConstantBuffer<TBuffer>(
+            uint indexCount,
+            GpuMemoryType type,
+            GpuAllocFlags flags = GpuAllocFlags.None
+        ) where TBuffer : unmanaged
+        {
+            Debug.Assert(type != GpuMemoryType.CpuReadback);
+
+            var desc = new GpuResourceDesc(
+                GpuResourceFormat.Buffer(CalculateConstantBufferSize(sizeof(TBuffer)) * indexCount),
+                type,
+                type == GpuMemoryType.CpuUpload ? D3D12_RESOURCE_STATE_GENERIC_READ : D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
+                flags
+            );
+
+            return new ConstantBuffer<TBuffer>(Allocate(desc));
+        }
+
+        private static uint CalculateConstantBufferSize(int size)
+            => (uint)((size + 255) & ~255);
 
         /// <summary>
         /// Allocates a new region of GPU memory

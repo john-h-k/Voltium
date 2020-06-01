@@ -11,7 +11,7 @@ namespace Voltium.Core.Managers
         /// <summary>
         /// The number of buffers (usually 2 or 3) used by the swapchain
         /// </summary>
-        public uint BufferCount => 2;
+        public uint SwapChainBufferCount => 2;
 
         /// <summary>
         /// The format of the back buffer

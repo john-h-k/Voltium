@@ -134,7 +134,7 @@ namespace Voltium.Core.Managers
         {
             _device = device.Move();
 
-            _maxGpuFrameCount = config.BufferCount;
+            _maxGpuFrameCount = config.SwapChainBufferCount;
             _frameFence = CreateFence();
 
             _allocatorPool = new CommandAllocatorPool(_device.Copy());
@@ -340,6 +340,11 @@ namespace Voltium.Core.Managers
             using var ctx = new GraphicsContext(list.Move(), allocator.Move());
             return ctx.Move();
         }
+
+        //public unsafe void PrepareForRender()
+        //{
+
+        //}
 
         /// <inheritdoc cref="IDisposable.Dispose"/>
         public void Dispose()

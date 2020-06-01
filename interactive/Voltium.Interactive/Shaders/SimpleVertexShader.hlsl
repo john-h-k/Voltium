@@ -1,4 +1,4 @@
-#include "Shaders/PixelFrag.hlsli"
+#include "PixelFrag.hlsli"
 
 struct ObjectConstants
 {

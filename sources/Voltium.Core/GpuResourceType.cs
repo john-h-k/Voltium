@@ -17,12 +17,12 @@ namespace Voltium.Core
         /// A resource optimized for writing to the GPU by the CPU.
         /// Otherwise known as an upload buffer
         /// </summary>
-        CpuWriteOptimized = D3D12_HEAP_TYPE.D3D12_HEAP_TYPE_UPLOAD,
+        CpuUpload = D3D12_HEAP_TYPE.D3D12_HEAP_TYPE_UPLOAD,
 
         /// <summary>
         /// A resource optimized for reading from the GPU by the CPU.
         /// Otherwise known as a readback buffer
         /// </summary>
-        CpuReadOptimized = D3D12_HEAP_TYPE.D3D12_HEAP_TYPE_READBACK
+        CpuReadback = D3D12_HEAP_TYPE.D3D12_HEAP_TYPE_READBACK
     }
 }
