@@ -27,8 +27,9 @@ namespace Voltium.Core.Managers
         {
             Vtbl = (IDxcIncludeHandler.Vtbl*)Marshal.AllocHGlobal(sizeof(IDxcIncludeHandler.Vtbl));
 
+            // these should be stdcall in the future
             delegate*<IDxcIncludeHandler*, uint> pAddRef = &_AddRef;
-            delegate*< IDxcIncludeHandler*, uint > pRelease = &_Release;
+            delegate*<IDxcIncludeHandler*, uint> pRelease = &_Release;
             delegate*<IDxcIncludeHandler*, Guid*, void**, int> pQueryInterface = &_QueryInterface;
             delegate*<IDxcIncludeHandler*, ushort*, IDxcBlob**, int> pLoadSource = &_LoadSource;
 
