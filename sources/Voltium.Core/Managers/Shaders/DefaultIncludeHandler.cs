@@ -15,7 +15,7 @@ namespace Voltium.Core.Managers
     internal unsafe struct IncludeHandler : IDisposable
     {
         [FieldOffset(0)]
-        public IDxcIncludeHandler.Vtbl* Vtbl;
+        private IDxcIncludeHandler.Vtbl* _pVtbl;
         [FieldOffset(8)]
         public string AppDirContext;
         [FieldOffset(16)]
@@ -23,10 +23,14 @@ namespace Voltium.Core.Managers
         [FieldOffset(24)]
         private ComPtr<IDxcUtils> _utils;
 
-        public void Init(ComPtr<IDxcUtils> utils)
-        {
-            Vtbl = (IDxcIncludeHandler.Vtbl*)Marshal.AllocHGlobal(sizeof(IDxcIncludeHandler.Vtbl));
+        private static readonly IntPtr Heap;
+        private static IDxcIncludeHandler.Vtbl* Vtbl;
 
+        static IncludeHandler()
+        {
+            Heap = Windows.GetProcessHeap();
+            Vtbl = (IDxcIncludeHandler.Vtbl*)Windows.HeapAlloc(Heap, 0, (uint)sizeof(IDxcIncludeHandler.Vtbl));
+            
             // these should be stdcall in the future
             delegate*<IDxcIncludeHandler*, uint> pAddRef = &_AddRef;
             delegate*<IDxcIncludeHandler*, uint> pRelease = &_Release;
@@ -34,9 +38,14 @@ namespace Voltium.Core.Managers
             delegate*<IDxcIncludeHandler*, ushort*, IDxcBlob**, int> pLoadSource = &_LoadSource;
 
             Vtbl->AddRef = (IntPtr)pAddRef;
-            Vtbl->QueryInterface = (IntPtr)pRelease;
-            Vtbl->Release = (IntPtr)pQueryInterface;
+            Vtbl->QueryInterface = (IntPtr)pQueryInterface;
+            Vtbl->Release = (IntPtr)pRelease;
             Vtbl->LoadSource = (IntPtr)pLoadSource;
+        }
+
+        public void Init(ComPtr<IDxcUtils> utils)
+        {
+            _pVtbl = Vtbl;
 
             AppDirContext = Directory.GetCurrentDirectory();
             _utils = utils.Move();
@@ -71,7 +80,7 @@ namespace Voltium.Core.Managers
                 }
                 else
                 {
-                    return Windows.ERROR_FILE_NOT_FOUND;
+                    return Windows.E_FAIL;
                 }
 
                 var includeText = File.ReadAllText(file.FullName);
@@ -126,6 +135,7 @@ namespace Voltium.Core.Managers
         public void Dispose()
         {
             _utils.Dispose();
+            Marshal.FreeHGlobal((IntPtr)Vtbl);
         }
     }
 }
