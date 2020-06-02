@@ -29,7 +29,7 @@ namespace Voltium.Interactive
                 MultiSamplingStrategy = new MsaaDesc(1, 0),
                 RequiredDirect3DLevel = D3D_FEATURE_LEVEL.D3D_FEATURE_LEVEL_11_1,
                 ScalingStrategy = DXGI_SCALING.DXGI_SCALING_NONE,
-                SwapEffect = DXGI_SWAP_EFFECT.DXGI_SWAP_EFFECT_FLIP_DISCARD
+                SwapEffect = DXGI_SWAP_EFFECT.DXGI_SWAP_EFFECT_SEQUENTIAL
             };
 
             DeviceManager.Initialize(config, data);

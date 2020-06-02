@@ -91,7 +91,7 @@ namespace Voltium.Interactive
         private ConstantBuffer<ObjectConstants> _objectConstants;
         private ObjectConstants _constants;
         private Matrix4x4 _perFrameRotation = Matrix4x4.CreateRotationY(0.001f) * Matrix4x4.CreateRotationX(0.001f);
-        private int _totalCount = 0;
+        //private int _totalCount = 0;
 
         public override void Update(ApplicationTimer timer)
         {
@@ -127,7 +127,7 @@ namespace Voltium.Interactive
 
             recorder.SetRenderTarget(renderTargetView.CpuHandle, 1, depthStencilView.CpuHandle);
 
-            recorder.ClearRenderTarget(renderTargetView, (_totalCount++ % 100) < 50 ? RgbaColor.White : RgbaColor.Black);
+            recorder.ClearRenderTarget(renderTargetView, _color);
             recorder.ClearDepth(depthStencilView);
 
             recorder.SetVertexBuffers(_vertexBuffer);

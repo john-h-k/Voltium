@@ -32,7 +32,6 @@ namespace Voltium.Core.Managers
         private static uint _backBufferIndex;
         private static readonly object Lock = new object();
         private static GraphicalConfiguration _config = null!;
-        private static uint _tearFlags = 0;
 
         /// <summary>
         /// The <see cref="ScreenData"/> for the output
@@ -226,8 +225,7 @@ namespace Voltium.Core.Managers
 
             return type switch
             {
-                D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV =>
-                ConstantBufferOrShaderResourceOrUnorderedAccessViewDescriptorSize,
+                D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV => ConstantBufferOrShaderResourceOrUnorderedAccessViewDescriptorSize,
                 D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER => SamplerDescriptorSize,
                 D3D12_DESCRIPTOR_HEAP_TYPE_RTV => RenderTargetViewDescriptorSize,
                 D3D12_DESCRIPTOR_HEAP_TYPE_DSV => DepthStencilViewDescriptorSize,
@@ -242,7 +240,7 @@ namespace Voltium.Core.Managers
                 AlphaMode = DXGI_ALPHA_MODE.DXGI_ALPHA_MODE_IGNORE, // todo document
                 BufferCount = _config.SwapChainBufferCount,
                 BufferUsage = (int)DXGI_USAGE_RENDER_TARGET_OUTPUT, // this is the output chain
-                Flags = (uint)(DXGI_SWAP_CHAIN_FLAG.DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH) | _tearFlags,
+                Flags = (uint)(DXGI_SWAP_CHAIN_FLAG.DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH),
                 Format = _config.BackBufferFormat,
                 Height = ScreenData.Height,
                 Width = ScreenData.Width,
@@ -292,7 +290,7 @@ namespace Voltium.Core.Managers
                 ScreenData.Width,
                 ScreenData.Height,
                 _config.BackBufferFormat,
-                (uint)(DXGI_SWAP_CHAIN_FLAG.DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH) | _tearFlags
+                (uint)(DXGI_SWAP_CHAIN_FLAG.DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH)
             ));
 
             _backBufferIndex = _swapChain.Get()->GetCurrentBackBufferIndex();
@@ -329,7 +327,7 @@ namespace Voltium.Core.Managers
         {
             GpuDispatchManager.Manager.ExecuteSubmissions(insertFence: true);
 
-            var hr = _swapChain.Get()->Present(_syncInterval, _tearFlags);
+            var hr = _swapChain.Get()->Present(_syncInterval, 0);
             TotalFramesRendered++;
 
             if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET)
