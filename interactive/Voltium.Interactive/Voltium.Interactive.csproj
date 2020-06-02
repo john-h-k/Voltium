@@ -3,6 +3,7 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>netcoreapp5.0</TargetFramework>
+    <LangVersion>preview</LangVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
@@ -15,6 +16,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Include="Shaders\Lighting.hlsl">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include="Shaders\PixelFrag.hlsli">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
@@ -29,6 +33,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\sources\Voltium.Core\Voltium.Core.csproj" />
     <ProjectReference Include="..\..\sources\Voltium.Analyzers\Voltium.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\sources\Voltium.ModelLoader\Voltium.ModelLoading.csproj" />
+    <ProjectReference Include="..\..\sources\Voltium.TextureLoading\Voltium.TextureLoading.csproj" />
   </ItemGroup>
 
   <ItemGroup>

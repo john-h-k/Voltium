@@ -16,5 +16,7 @@ namespace Voltium.Interactive
         public abstract void OnResize(ScreenData newScreenData);
         public abstract void OnKeyDown(byte key);
         public abstract void OnKeyUp(byte key);
+
+        public abstract void OnMouseScroll(int scroll);
     }
 }

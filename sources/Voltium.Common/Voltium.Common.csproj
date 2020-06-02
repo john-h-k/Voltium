@@ -13,7 +13,7 @@
 
     <ItemGroup>
       <PackageReference Include="Microsoft.Extensions.Logging" Version="5.0.0-preview.4.20251.6" />
-      <PackageReference Include="TerraFX.Interop.Windows" Version="10.0.19041-alpha-20200530.2" />
+      <PackageReference Include="TerraFX.Interop.Windows" Version="10.0.19041-alpha-20200602.1" />
       <PackageReference Include="RaiiSharp.Annotations" Version="1.0.1" />
       <PackageReference Include="ZLogger" Version="1.2.1" />
     </ItemGroup>

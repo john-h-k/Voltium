@@ -20,5 +20,7 @@ namespace Voltium.Interactive
         public virtual void Resize(ScreenData newScreenData) { }
 
         public abstract void Update(ApplicationTimer timer);
+
+        public abstract void OnMouseScroll(int scroll);
     }
 }

@@ -46,15 +46,18 @@ namespace Voltium.Interactive
         private GpuAllocator _allocator = null!;
         private VertexBuffer<Vertex> _vertexBuffer;
         private IndexBuffer<ushort> _indexBuffer;
+        private int _zoomLevel;
+        private Geometry _object;
 
         public override void Init(GraphicalConfiguration config, in ScreenData screen, ID3D12Device* device)
         {
             _allocator = DeviceManager.Allocator;
 
-            var cube = GemeotryGenerator.CreateCube(0.5f);
+            _object = GemeotryGenerator.LoadSingleModel("logo.obj", RgbaColor.Gray);
+            //_object = GemeotryGenerator.CreateCube(0.5f);
 
-            _vertexBuffer = _allocator.AllocateVertexBuffer(cube.Vertices, GpuMemoryType.CpuUpload, GpuAllocFlags.ForceAllocateComitted);
-            _indexBuffer = _allocator.AllocateIndexBuffer(cube.Indices, GpuMemoryType.CpuUpload, GpuAllocFlags.ForceAllocateComitted);
+            _vertexBuffer = _allocator.AllocateVertexBuffer(_object.Vertices, GpuMemoryType.CpuUpload, GpuAllocFlags.ForceAllocateComitted);
+            _indexBuffer = _allocator.AllocateIndexBuffer(_object.Indices, GpuMemoryType.CpuUpload, GpuAllocFlags.ForceAllocateComitted);
 
             _rootSig = RootSignature.Create(device, new[] { RootParameter.CreateDescriptor(RootParameterType.ConstantBufferView, 0, 0) }, default);
 
@@ -95,21 +98,28 @@ namespace Voltium.Interactive
 
         public override void Update(ApplicationTimer timer)
         {
-            var total = timer.TotalSeconds;
-
             // rotate a small amount each frame
             _constants.World *= _perFrameRotation;
 
             // scale between 0 and 5 seconds
-            var scale = Matrix4x4.CreateScale((float)(Math.Abs((total % 10) - 5)) / 5);
+            //var scale = Matrix4x4.CreateScale((float)(Math.Abs((total % 10) - 5)) / 5);u
 
-            _objectConstants.Buffers[0].World = Matrix4x4.Transpose(_constants.World * scale);
+            float scale = _zoomLevel;
+
+            if (scale < 0)
+            {
+                scale = 1 / Math.Abs(scale);
+            }
+            else if (scale == 0)
+            {
+                scale = 1;
+            }
+
+            _objectConstants.Buffers[0].World = Matrix4x4.Transpose(_constants.World * Matrix4x4.CreateScale(scale));
             _objectConstants.Buffers[0].View = Matrix4x4.Transpose(_constants.View);
             _objectConstants.Buffers[0].Projection = Matrix4x4.Transpose(_constants.Projection);
 
             _color = ChangeHue(_color);
-
-            //Console.WriteLine(timer.ElapsedSeconds * 1000);
         }
 
         public override PipelineStateObject GetInitialPso()
@@ -138,7 +148,7 @@ namespace Voltium.Interactive
             recorder.SetGraphicsConstantBufferDescriptor(0, _objectConstants, 0);
 
             recorder.SetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY.D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-            recorder.DrawIndexed(36);
+            recorder.DrawIndexed((uint)_object.Indices.Length);
 
             recorder.ResourceTransition(renderTarget, D3D12_RESOURCE_STATE_PRESENT);
         }
@@ -160,6 +170,7 @@ namespace Voltium.Interactive
         }
 
         private float[,] HueMatrix = new float[3, 3];
+
         private RgbaColor ChangeHue(RgbaColor color)
         {
             static int Clamp(float v)
@@ -191,6 +202,11 @@ namespace Voltium.Interactive
             _objectConstants.Unmap();
             _rootSig.Dispose();
             DeviceManager.Dispose();
+        }
+
+        public override void OnMouseScroll(int scroll)
+        {
+            _zoomLevel += scroll;
         }
     }
 }

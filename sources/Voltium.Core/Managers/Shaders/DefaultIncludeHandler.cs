@@ -23,29 +23,19 @@ namespace Voltium.Core.Managers
         [FieldOffset(24)]
         private ComPtr<IDxcUtils> _utils;
 
-
-        [FieldOffset(32)]
-        private IDxcIncludeHandler._AddRef _addRef;
-        [FieldOffset(40)]
-        private IDxcIncludeHandler._QueryInterface _queryInterface;
-        [FieldOffset(48)]
-        private IDxcIncludeHandler._LoadSource _loadSource;
-        [FieldOffset(56)]
-        private IDxcIncludeHandler._Release _release;
-
         public void Init(ComPtr<IDxcUtils> utils)
         {
             Vtbl = (IDxcIncludeHandler.Vtbl*)Marshal.AllocHGlobal(sizeof(IDxcIncludeHandler.Vtbl));
 
-            _addRef = _AddRef;
-            _queryInterface = _QueryInterface;
-            _loadSource = _LoadSource;
-            _release = _Release;
+            delegate*<IDxcIncludeHandler*, uint> pAddRef = &_AddRef;
+            delegate*< IDxcIncludeHandler*, uint > pRelease = &_Release;
+            delegate*<IDxcIncludeHandler*, Guid*, void**, int> pQueryInterface = &_QueryInterface;
+            delegate*<IDxcIncludeHandler*, ushort*, IDxcBlob**, int> pLoadSource = &_LoadSource;
 
-            Vtbl->AddRef = Marshal.GetFunctionPointerForDelegate(_addRef);
-            Vtbl->QueryInterface = Marshal.GetFunctionPointerForDelegate(_queryInterface);
-            Vtbl->Release = Marshal.GetFunctionPointerForDelegate(_release);
-            Vtbl->LoadSource = Marshal.GetFunctionPointerForDelegate(_loadSource);
+            Vtbl->AddRef = (IntPtr)pAddRef;
+            Vtbl->QueryInterface = (IntPtr)pRelease;
+            Vtbl->Release = (IntPtr)pQueryInterface;
+            Vtbl->LoadSource = (IntPtr)pLoadSource;
 
             AppDirContext = Directory.GetCurrentDirectory();
             _utils = utils.Move();

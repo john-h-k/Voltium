@@ -77,5 +77,10 @@ namespace Voltium.Interactive
         {
 
         }
+
+        public override void OnMouseScroll(int scroll)
+        {
+            _renderer.OnMouseScroll(scroll);
+        }
     }
 }

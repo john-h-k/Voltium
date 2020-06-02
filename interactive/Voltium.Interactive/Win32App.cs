@@ -122,6 +122,13 @@ namespace Voltium.Interactive
                     return IntPtr.Zero;
                 }
 
+                case WM_MOUSEWHEEL:
+                {
+                    var delta = GET_WHEEL_DELTA_WPARAM(wParam) / 120;
+                    pSample?.OnMouseScroll(delta);
+                    return IntPtr.Zero;
+                }
+
                 case WM_ENTERSIZEMOVE:
                 {
                     _isResizing = true;
@@ -144,7 +151,10 @@ namespace Voltium.Interactive
                         return IntPtr.Zero;
                     }
 
-                    pSample?.OnResize(_screenData);
+                    if (sz != 0) // why do we sometimes get zero size wParams?
+                    {
+                        pSample?.OnResize(_screenData);
+                    }
                     return IntPtr.Zero;
                 }
 
