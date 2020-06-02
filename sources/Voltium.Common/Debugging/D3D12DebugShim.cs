@@ -25,6 +25,7 @@ namespace Voltium.Common
         {
         }
 
+        [Conditional("DEBUG")]
         public static void Initialize(ComPtr<ID3D12InfoQueue> infoQueue)
         {
             if (!EnvVars.IsD3D12ShimEnabled)
@@ -59,6 +60,7 @@ namespace Voltium.Common
 #endif
         }
 
+        [Conditional("DEBUG")]
         public static void WriteAllMessages()
         {
             if (!EnvVars.IsD3D12ShimEnabled)

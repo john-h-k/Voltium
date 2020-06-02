@@ -9,6 +9,7 @@ using static TerraFX.Interop.D3D12_DESCRIPTOR_HEAP_TYPE;
 using static Voltium.Common.DirectXHelpers;
 using static TerraFX.Interop.D3D12_DRED_ENABLEMENT;
 using static TerraFX.Interop.DXGI_DEBUG_RLO_FLAGS;
+using static TerraFX.Interop.DXGI_SWAP_CHAIN_FLAG;
 using Voltium.Common.Debugging;
 
 namespace Voltium.Core.Managers
@@ -29,7 +30,7 @@ namespace Voltium.Core.Managers
         private static DescriptorHeap _depthStencilViewHeap;
         private static GpuResource[] _renderTargets = null!;
         private static GpuResource _depthStencil = null!;
-        private static uint _backBufferIndex;
+        internal static uint BackBufferIndex;
         private static readonly object Lock = new object();
         private static GraphicalConfiguration _config = null!;
 
@@ -61,7 +62,6 @@ namespace Voltium.Core.Managers
             ScreenData = screenData;
 
             EnableDebugLayer();
-            EnableDeviceRemovedExtendedDataLayer();
 
             using ComPtr<IDXGIFactory2> factory = default;
 
@@ -104,6 +104,7 @@ namespace Voltium.Core.Managers
 
             D3D12DebugShim.Initialize(infoQueue);
 #endif
+            //EnableDeviceRemovedExtendedDataLayer();
 
             // TODO WARP support
 
@@ -144,17 +145,14 @@ namespace Voltium.Core.Managers
         /// </summary>
         public static ID3D12Device* Device => _device.Get();
 
-        private static uint _currentFrame = 0;
-
 
         /// <summary>
         /// Move to the next frame's set of resources
         /// </summary>
         public static void MoveToNextFrame()
         {
-            _currentFrame++;
             GpuDispatchManager.Manager.MoveToNextFrame();
-            _backBufferIndex = (_backBufferIndex + 1) % BackBufferCount;
+            BackBufferIndex = (BackBufferIndex + 1) % BackBufferCount;
         }
 
         /// <summary>
@@ -171,7 +169,7 @@ namespace Voltium.Core.Managers
         /// <summary>
         /// The render target view for the current frame
         /// </summary>
-        public static DescriptorHandle RenderTargetView => _renderTargetViewHeap.FirstDescriptor + (int)_backBufferIndex;
+        public static DescriptorHandle RenderTargetView => _renderTargetViewHeap.FirstDescriptor + (int)BackBufferIndex;
 
         /// <summary>
         /// The depth stencil view for the current frame
@@ -181,7 +179,7 @@ namespace Voltium.Core.Managers
         /// <summary>
         /// The <see cref="GpuResource"/> for the current render target resource
         /// </summary>
-        public static GpuResource RenderTarget => _renderTargets[_backBufferIndex];
+        public static GpuResource RenderTarget => _renderTargets[BackBufferIndex];
 
         /// <summary>
         /// The <see cref="GpuResource"/> for the current depth stencil resource
@@ -240,7 +238,7 @@ namespace Voltium.Core.Managers
                 AlphaMode = DXGI_ALPHA_MODE.DXGI_ALPHA_MODE_IGNORE, // todo document
                 BufferCount = _config.SwapChainBufferCount,
                 BufferUsage = (int)DXGI_USAGE_RENDER_TARGET_OUTPUT, // this is the output chain
-                Flags = (uint)(DXGI_SWAP_CHAIN_FLAG.DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH),
+                Flags = (uint)(DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH),
                 Format = _config.BackBufferFormat,
                 Height = ScreenData.Height,
                 Width = ScreenData.Width,
@@ -290,10 +288,10 @@ namespace Voltium.Core.Managers
                 ScreenData.Width,
                 ScreenData.Height,
                 _config.BackBufferFormat,
-                (uint)(DXGI_SWAP_CHAIN_FLAG.DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH)
+                (uint)(DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH)
             ));
 
-            _backBufferIndex = _swapChain.Get()->GetCurrentBackBufferIndex();
+            BackBufferIndex = _swapChain.Get()->GetCurrentBackBufferIndex();
         }
 
         /// <summary>

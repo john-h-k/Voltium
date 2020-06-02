@@ -22,7 +22,7 @@ namespace Voltium.Common.Debugging
 #endif
 
         /// <summary>
-        /// If <code>true</code> or <code>1</code>,
+        /// If true or 1,
         /// the <see cref="D3D12DebugShim"/> internal helper type is enabled,
         /// for improved DirectX debugging in an environment where
         /// native debugging output is not supported

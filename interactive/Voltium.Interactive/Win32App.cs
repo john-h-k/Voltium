@@ -74,8 +74,6 @@ namespace Voltium.Interactive
             MSG msg;
 
             _timer = ApplicationTimer.StartNew();
-            _timer.SetFixedTimeStep(true);
-            _timer.SetTargetElapsedSeconds(1 / 60d);
 
             do
             {

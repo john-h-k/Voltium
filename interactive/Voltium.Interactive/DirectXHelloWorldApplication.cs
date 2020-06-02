@@ -29,7 +29,8 @@ namespace Voltium.Interactive
                 MultiSamplingStrategy = new MsaaDesc(1, 0),
                 RequiredDirect3DLevel = D3D_FEATURE_LEVEL.D3D_FEATURE_LEVEL_11_1,
                 ScalingStrategy = DXGI_SCALING.DXGI_SCALING_NONE,
-                SwapEffect = DXGI_SWAP_EFFECT.DXGI_SWAP_EFFECT_SEQUENTIAL
+                SwapEffect = DXGI_SWAP_EFFECT.DXGI_SWAP_EFFECT_FLIP_DISCARD,
+                SwapChainBufferCount = 3
             };
 
             DeviceManager.Initialize(config, data);
@@ -43,6 +44,7 @@ namespace Voltium.Interactive
             _renderer.Update(timer);
         }
 
+        private Stopwatch watch = Stopwatch.StartNew();
         public override unsafe void Render()
         {
             using var commandList = GpuDispatchManager.Manager.BeginGraphicsContext(_renderer.GetInitialPso());

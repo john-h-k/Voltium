@@ -78,8 +78,6 @@ namespace Voltium.Core.Managers
         private SynchronizedCommandQueue _compute;
         private SynchronizedCommandQueue _copy;
 
-        private uint _maxGpuFrameCount;
-
         private ComPtr<ID3D12Device> _device;
         private const int DefaultListBufferSize = 4;
 
@@ -135,7 +133,6 @@ namespace Voltium.Core.Managers
         {
             _device = device.Move();
 
-            _maxGpuFrameCount = config.SwapChainBufferCount;
             _frameFence = CreateFence();
 
             _allocatorPool = new CommandAllocatorPool(_device.Copy());
@@ -209,26 +206,26 @@ namespace Voltium.Core.Managers
         internal unsafe void MoveToNextFrame()
         {
             _frameMarker++;
-            
+
             _graphics.Signal(_frameFence.Get(), _frameMarker);
 
             FenceMarker lastFrame;
-            if (_frameMarker.FenceValue < _maxGpuFrameCount)
+            if (_frameMarker.FenceValue < DeviceManager.BackBufferCount)
             {
                 lastFrame = default;
             }
             else
             {
-                lastFrame = _frameMarker - _maxGpuFrameCount;
+                lastFrame = _frameMarker - DeviceManager.BackBufferCount;
             }
 
-            if (_graphics.GetReachedFence().IsBefore(lastFrame))
+            if (_frameFence.Get()->GetCompletedValue() < _frameMarker.FenceValue)
             {
-                _graphics.GetSynchronizer(lastFrame).Block();
+                using var sync = new GpuDispatchSynchronizer(_frameFence.Copy(), lastFrame);
+                sync.Block();
             }
 
             ReturnFinishedAllocators();
-
         }
 
         private void ReturnFinishedAllocators()
@@ -324,7 +321,7 @@ namespace Voltium.Core.Managers
         private void ExecuteAndClearList(ref SynchronizedCommandQueue queue, List<GpuCommandSet> lists, bool insertFence)
         {
             queue.Execute(CollectionsMarshal.AsSpan(lists), insertFence);
-            
+
             for (var i = 0; i < lists.Count; i++)
             {
                 _listPool.Return(lists[i].List.Move());
@@ -341,7 +338,7 @@ namespace Voltium.Core.Managers
         public unsafe GraphicsContext BeginGraphicsContext(PipelineStateObject? defaultPso = null)
         {
             using var allocator = _allocatorPool.Rent(ExecutionContext.Graphics);
-            using var list = _listPool.Rent(ExecutionContext.Graphics, allocator.Get(), defaultPso is null ? null :defaultPso.GetPso());
+            using var list = _listPool.Rent(ExecutionContext.Graphics, allocator.Get(), defaultPso is null ? null : defaultPso.GetPso());
 
             using var ctx = new GraphicsContext(list.Move(), allocator.Move());
             return ctx.Move();

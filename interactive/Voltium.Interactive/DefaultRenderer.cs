@@ -108,6 +108,8 @@ namespace Voltium.Interactive
             _objectConstants.Buffers[0].Projection = Matrix4x4.Transpose(_constants.Projection);
 
             _color = ChangeHue(_color);
+
+            //Console.WriteLine(timer.ElapsedSeconds * 1000);
         }
 
         public override PipelineStateObject GetInitialPso()
