@@ -289,7 +289,7 @@ namespace Voltium.Core.Managers
             fixed (char* pText = shaderText)
             fixed (byte* ppFlags = rentedFlagBuff.Value)
             // can't pin on managed type so gotta get it on the vtbl
-            fixed (IDxcIncludeHandler.Vtbl** pInclude = &DefaultIncludeHandler.Vtbl)
+            fixed (IDxcIncludeHandler* pInclude = DefaultIncludeHandler)
             {
                 var realPInclude = Unsafe.AsPointer(ref DefaultIncludeHandler);
 
@@ -308,7 +308,7 @@ namespace Voltium.Core.Managers
                     (ushort**)ppFlags,
                     // account for target flag, and possible entrypoint flag
                     (uint)(flagPointerLength / sizeof(nuint)),
-                    (IDxcIncludeHandler*)pInclude,
+                    pInclude,
                     compileResult.Guid,
                     ComPtr.GetVoidAddressOf(&compileResult)
                 ));

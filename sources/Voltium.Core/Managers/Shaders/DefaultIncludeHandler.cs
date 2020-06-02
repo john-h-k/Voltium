@@ -138,4 +138,10 @@ namespace Voltium.Core.Managers
             Marshal.FreeHGlobal((IntPtr)Vtbl);
         }
     }
+
+    internal static unsafe class DefaultIncludeHandlerExtensions
+    {
+        public static ref IDxcIncludeHandler GetPinnableReference(ref this IncludeHandler handler)
+            => ref Unsafe.As<IncludeHandler, IDxcIncludeHandler>(ref handler);
+    }
 }

@@ -53,8 +53,8 @@ namespace Voltium.Interactive
         {
             _allocator = DeviceManager.Allocator;
 
-            _object = GemeotryGenerator.LoadSingleModel("logo.obj", RgbaColor.Gray);
-            //_object = GemeotryGenerator.CreateCube(0.5f);
+            //_object = GemeotryGenerator.LoadSingleModel("logo.obj", RgbaColor.Gray);
+            _object = GemeotryGenerator.CreateCube(0.5f);
 
             _vertexBuffer = _allocator.AllocateVertexBuffer(_object.Vertices, GpuMemoryType.CpuUpload, GpuAllocFlags.ForceAllocateComitted);
             _indexBuffer = _allocator.AllocateIndexBuffer(_object.Indices, GpuMemoryType.CpuUpload, GpuAllocFlags.ForceAllocateComitted);
@@ -73,7 +73,7 @@ namespace Voltium.Interactive
 
             _objectConstants.Map();
 
-            SetHueDegrees(MathF.PI / 200);
+            SetHueDegrees(MathF.PI / 500);
         }
 
         public override void Resize(ScreenData screen)

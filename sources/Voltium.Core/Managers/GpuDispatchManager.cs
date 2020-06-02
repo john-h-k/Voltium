@@ -210,16 +210,16 @@ namespace Voltium.Core.Managers
             _graphics.Signal(_frameFence.Get(), _frameMarker);
 
             FenceMarker lastFrame;
-            if (_frameMarker.FenceValue < DeviceManager.BackBufferCount)
+            if (_frameMarker.FenceValue < (DeviceManager.BackBufferCount))
             {
                 lastFrame = default;
             }
             else
             {
-                lastFrame = _frameMarker - DeviceManager.BackBufferCount;
+                lastFrame = _frameMarker - (DeviceManager.BackBufferCount);
             }
 
-            if (_frameFence.Get()->GetCompletedValue() < _frameMarker.FenceValue)
+            if (_frameFence.Get()->GetCompletedValue() < lastFrame.FenceValue)
             {
                 using var sync = new GpuDispatchSynchronizer(_frameFence.Copy(), lastFrame);
                 sync.Block();
