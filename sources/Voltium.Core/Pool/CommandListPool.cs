@@ -62,7 +62,9 @@ namespace Voltium.Core.Pool
                 ComPtr.GetVoidAddressOf(&list)
             ));
 
-            DirectXHelpers.SetObjectName(list.Get(), $"Pooled list #{_listCount++}");
+            Logger.LogDebug($"New command list allocated (this is the #{_listCount++} list)");
+
+            DirectXHelpers.SetObjectName(list.Get(), $"Pooled list #{_listCount}");
 
             // 'ManageRent' expects closed list
             Guard.ThrowIfFailed(list.Get()->Close());

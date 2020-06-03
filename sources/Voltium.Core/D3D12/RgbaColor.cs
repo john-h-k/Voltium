@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Numerics;
 using System.Runtime.CompilerServices;
 using TerraFX.Interop;
 using Voltium.Common;
@@ -46,6 +47,19 @@ namespace Voltium.Core
             B = b;
             A = a;
         }
+
+        /// <summary>
+        /// Converts <paramref name="color"/> to an RGB <see cref="Vector3"/>
+        /// </summary>
+        /// <param name="color">The <see cref="RgbaColor"/> to convert</param>
+        public static explicit operator Vector3(RgbaColor color) => Unsafe.As<RgbaColor, Vector3>(ref color);
+
+
+        /// <summary>
+        /// Converts <paramref name="color"/> to an RGBA <see cref="Vector4"/>
+        /// </summary>
+        /// <param name="color">The <see cref="RgbaColor"/> to convert</param>
+        public static explicit operator Vector4(RgbaColor color) => Unsafe.As<RgbaColor, Vector4>(ref color);
 
         // you can pass a length, say, of a span, and get a free lil bit of validation
         internal static unsafe RgbaColor FromPointer(float* p, uint length = 4)

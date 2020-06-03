@@ -112,7 +112,8 @@ namespace Voltium.Core
             Constants = constants;
         }
 
-        internal readonly D3D12_DESCRIPTOR_RANGE[]? DescriptorTable;
+        internal readonly Memory<D3D12_DESCRIPTOR_RANGE> DescriptorTable;
+
         internal readonly D3D12_ROOT_DESCRIPTOR Descriptor;
         internal readonly D3D12_ROOT_CONSTANTS Constants;
     }

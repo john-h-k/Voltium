@@ -43,8 +43,6 @@ namespace Voltium.Interactive
         {
             _renderer.Update(timer);
         }
-
-        private Stopwatch watch = Stopwatch.StartNew();
         public override unsafe void Render()
         {
             using var commandList = GpuDispatchManager.Manager.BeginGraphicsContext(_renderer.GetInitialPso());

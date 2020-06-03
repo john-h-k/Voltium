@@ -30,17 +30,13 @@ namespace Voltium.Core.Managers
         {
             Heap = Windows.GetProcessHeap();
             Vtbl = (IDxcIncludeHandler.Vtbl*)Windows.HeapAlloc(Heap, 0, (uint)sizeof(IDxcIncludeHandler.Vtbl));
-            
-            // these should be stdcall in the future
-            delegate*<IDxcIncludeHandler*, uint> pAddRef = &_AddRef;
-            delegate*<IDxcIncludeHandler*, uint> pRelease = &_Release;
-            delegate*<IDxcIncludeHandler*, Guid*, void**, int> pQueryInterface = &_QueryInterface;
-            delegate*<IDxcIncludeHandler*, ushort*, IDxcBlob**, int> pLoadSource = &_LoadSource;
 
-            Vtbl->AddRef = (IntPtr)pAddRef;
-            Vtbl->QueryInterface = (IntPtr)pQueryInterface;
-            Vtbl->Release = (IntPtr)pRelease;
-            Vtbl->LoadSource = (IntPtr)pLoadSource;
+            // these should be stdcall in the future
+
+            Vtbl->AddRef = (IntPtr)(delegate*<IDxcIncludeHandler*, uint>)&_AddRef;
+            Vtbl->QueryInterface = (IntPtr)(delegate*<IDxcIncludeHandler*, Guid*, void**, int>)&_QueryInterface;
+            Vtbl->Release = (IntPtr)(delegate*<IDxcIncludeHandler*, uint>)&_Release;
+            Vtbl->LoadSource = (IntPtr)(delegate*<IDxcIncludeHandler*, ushort*, IDxcBlob**, int>)&_LoadSource;
         }
 
         public void Init(ComPtr<IDxcUtils> utils)

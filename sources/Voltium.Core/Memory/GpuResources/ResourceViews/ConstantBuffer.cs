@@ -21,7 +21,13 @@ namespace Voltium.Core.Memory.GpuResources.ResourceViews
         internal ConstantBuffer(GpuResource buffer)
         {
             Resource = buffer;
+            LocalCopy = default;
         }
+
+        /// <summary>
+        /// A local copy of the buffer for modification
+        /// </summary>
+        public TBuffer LocalCopy;
 
         /// <summary>
         /// The size of a constant buffer in GPU memory. This is the same as the size of <typeparamref name="TBuffer"/>,

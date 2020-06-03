@@ -335,7 +335,7 @@ namespace Voltium.Core.Managers
                     }
                 }
 
-                if (TryGetOutputUtf8(compileResult.Get(), DXC_OUT_KIND.DXC_OUT_PDB, out var pdb, out var pdbName))
+                if (TryGetOutput(compileResult.Get(), DXC_OUT_KIND.DXC_OUT_PDB, out var pdb, out var pdbName))
                 {
                     using (pdb)
                     using (pdbName)
@@ -353,25 +353,26 @@ namespace Voltium.Core.Managers
             }
         }
 
-        private static unsafe void HandlePdb(IDxcBlobUtf8* pdb, IDxcBlobUtf16* pdbName)
+        private static unsafe void HandlePdb(IDxcBlob* pdb, IDxcBlobUtf16* pdbName)
         {
-            throw new NotImplementedException();
+            using var file = File.OpenWrite(FromBlob(pdbName).ToString());
+            file.Write(FromBlob(pdb));
         }
 
         private static unsafe ReadOnlySpan<byte> FromBlob(IDxcBlob* pBlob)
             => new ReadOnlySpan<byte>(pBlob->GetBufferPointer(), (int)pBlob->GetBufferSize());
 
         private static unsafe ReadOnlySpan<char> FromBlob(IDxcBlobUtf8* pBlob)
-            => Encoding.ASCII.GetString(new ReadOnlySpan<byte>(pBlob->GetBufferPointer(), (int)pBlob->GetBufferSize()));
+            => Encoding.ASCII.GetString(new ReadOnlySpan<byte>(pBlob->GetStringPointer(), (int)pBlob->GetStringLength()));
 
         private static unsafe ReadOnlySpan<char> FromBlob(IDxcBlobUtf16* pBlob)
-            => new ReadOnlySpan<char>(pBlob->GetBufferPointer(), (int)pBlob->GetBufferSize());
+            => new ReadOnlySpan<char>(pBlob->GetStringPointer(), (int)pBlob->GetStringLength());
 
-        private static unsafe bool TryGetOutputUtf16(IDxcResult* result, DXC_OUT_KIND kind, out ComPtr<IDxcBlobUtf16> data, out ComPtr<IDxcBlobUtf16> name)
+        private static unsafe bool TryGetOutput(IDxcResult* result, DXC_OUT_KIND kind, out ComPtr<IDxcBlob> data, out ComPtr<IDxcBlobUtf16> name)
         {
             if (result->HasOutput(kind) == Windows.TRUE)
             {
-                fixed (ComPtr<IDxcBlobUtf16>* pData = &data)
+                fixed (ComPtr<IDxcBlob>* pData = &data)
                 fixed (ComPtr<IDxcBlobUtf16>* pName = &name)
                 {
                     Guard.ThrowIfFailed(result->GetOutput(

@@ -16,22 +16,40 @@ namespace Voltium.Core.Managers
     /// <summary>
     /// A pool of <see cref="ID3D12CommandAllocator"/>s
     /// </summary>
-    internal unsafe sealed class CommandAllocatorPool : ThreadSafeComPool<ID3D12CommandAllocator, ExecutionContext>
+    internal unsafe sealed class CommandAllocatorPool : ThreadSafeComPool<ID3D12CommandAllocator>
     {
         private ComPtr<ID3D12Device> _device;
+        private ExecutionContext _type;
 
-        public CommandAllocatorPool(ComPtr<ID3D12Device> device)
+        public CommandAllocatorPool(ComPtr<ID3D12Device> device, ExecutionContext type)
         {
             Debug.Assert(device.Exists);
             _device = device.Move();
+            _type = type;
         }
 
         private int _allocatorCount = 0;
-        protected override ComPtr<ID3D12CommandAllocator> Create(ExecutionContext state)
+        protected override ComPtr<ID3D12CommandAllocator> Create()
         {
             using ComPtr<ID3D12CommandAllocator> allocator = default;
             Guard.ThrowIfFailed(_device.Get()->CreateCommandAllocator(
-                (D3D12_COMMAND_LIST_TYPE)state,
+                (D3D12_COMMAND_LIST_TYPE)_type,
+                allocator.Guid,
+                ComPtr.GetVoidAddressOf(&allocator)
+            ));
+
+            Logger.LogDebug($"New command allocator allocated (this is the #{_allocatorCount++} allocator)");
+
+            DirectXHelpers.SetObjectName(allocator.Get(), $"Pooled allocator #{_allocatorCount}");
+
+            return allocator.Move();
+        }
+
+        public ComPtr<ID3D12CommandAllocator> ForceCreate()
+        {
+            using ComPtr<ID3D12CommandAllocator> allocator = default;
+            Guard.ThrowIfFailed(_device.Get()->CreateCommandAllocator(
+                (D3D12_COMMAND_LIST_TYPE)_type,
                 allocator.Guid,
                 ComPtr.GetVoidAddressOf(&allocator)
             ));
@@ -49,7 +67,7 @@ namespace Voltium.Core.Managers
             _device.Dispose();
         }
 
-        protected override void ManageRent(ref ComPtr<ID3D12CommandAllocator> value, ExecutionContext state)
+        protected override void ManageRent(ref ComPtr<ID3D12CommandAllocator> value)
         {
         }
 

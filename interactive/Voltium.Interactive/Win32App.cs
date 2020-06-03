@@ -74,6 +74,8 @@ namespace Voltium.Interactive
             MSG msg;
 
             _timer = ApplicationTimer.StartNew();
+            _timer.SetFixedTimeStep(true);
+            _timer.SetTargetElapsedSeconds(1 / 100d);
 
             do
             {
@@ -162,9 +164,13 @@ namespace Voltium.Interactive
                 {
                     if (pSample != null)
                     {
-                        _timer.Tick();
-                        pSample.Update(_timer);
-                        pSample.Render();
+
+                        _timer.Tick(() =>
+                            {
+                                pSample.Update(_timer);
+                                pSample.Render();
+                            }
+                        );
                     }
 
                     return IntPtr.Zero;

@@ -119,7 +119,7 @@ namespace Voltium.Core.Pool
                     var pair = _usedAllocators[i];
 
                     // if we have reached the fence at or after the one the allocator can be recycled at, reuse it
-                    if (marker.IsAtOrAfter(pair.Fence))
+                    if (marker >= pair.Fence)
                     {
                         using (_allocatorsLock.EnterScoped())
                         {

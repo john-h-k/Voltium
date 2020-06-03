@@ -1,23 +1,15 @@
 #include "PixelFrag.hlsli"
 
-struct ObjectConstants
-{
-    float4x4 World;
-    float4x4 View;
-    float4x4 Projection;
-};
-
-ConstantBuffer<ObjectConstants> PerObjectConstants : register(b0);
-
-PixelFrag main(float3 position : POSITION, float4 color : COLOR)
+PixelFrag main(float3 position : POSITION, float3 normal : NORMAL)
 {
     PixelFrag result;
 
-    result.position = float4(position, 1.0f);
-    result.position = mul(result.position, PerObjectConstants.World);
-    result.position = mul(result.position, PerObjectConstants.View);
-    result.position = mul(result.position, PerObjectConstants.Projection);
-    result.color = color;
+    result.WorldPosition = mul(float4(position, 1), Object.World);
+
+    result.Position = mul(result.WorldPosition, Frame.View);
+    result.Position = mul(result.Position, Frame.Projection);
+
+    result.Normal = mul(normal, (float3x3)Object.World);
 
     return result;
 }

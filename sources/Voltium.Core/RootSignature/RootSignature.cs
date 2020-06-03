@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using TerraFX.Interop;
 using Voltium.Common;
+using Voltium.Core.Managers;
 
 namespace Voltium.Core
 {
@@ -13,6 +14,36 @@ namespace Voltium.Core
     /// </summary>
     public sealed unsafe class RootSignature : IDisposable
     {
+        /// <summary>
+        /// Creates a new <see cref="RootSignature"/> from a <see cref="CompiledShader"/>
+        /// </summary>
+        /// <param name="device">The <see cref="ID3D12Device"/> used to create the root signature</param>
+        /// <param name="rootSignatureShader"></param>
+        /// <param name="deserialize"></param>
+        /// <returns>A new <see cref="RootSignature"/></returns>
+        public static RootSignature Create(ID3D12Device* device, CompiledShader rootSignatureShader, bool deserialize = false)
+        {
+            fixed (byte* pSignature = rootSignatureShader)
+            {
+                using ComPtr<ID3D12RootSignature> rootSig = default;
+                Guard.ThrowIfFailed(device->CreateRootSignature(
+                    0 /* TODO: MULTI-GPU */,
+                    pSignature,
+                    (uint)rootSignatureShader.Length,
+                    rootSig.Guid,
+                    ComPtr.GetVoidAddressOf(&rootSig)
+                ));
+
+                if (deserialize)
+                {
+                    RootSignatureDeserializer.DeserializeSignature(device, pSignature, rootSignatureShader.Length);
+                }
+
+                return new RootSignature(rootSig.Move(), null, null);
+            }
+        }
+
+
         /// <summary>
         /// Creates a new <see cref="RootSignature"/>
         /// </summary>
@@ -73,9 +104,10 @@ namespace Voltium.Core
             }
         }
 
-        private static void TranslateRootParameters(ReadOnlyMemory<RootParameter> rootParameters, D3D12_ROOT_PARAMETER[] outRootParams)
+        private static void TranslateRootParameters(ReadOnlyMemory<RootParameter> rootParameters, Memory<D3D12_ROOT_PARAMETER> outRootParams)
         {
             var span = rootParameters.Span;
+            var outSpan = outRootParams.Span;
             for (var i = 0; i < span.Length; i++)
             {
                 var inRootParam = span[i];
@@ -91,7 +123,8 @@ namespace Voltium.Core
                         {
                             NumDescriptorRanges = (uint)inRootParam.DescriptorTable!.Length,
                             // IMPORTANT: we *know* this is pinned, because it can only come from RootParameter.CreateDescriptorTable, which strictly makes sure it is pinned
-                            pDescriptorRanges = (D3D12_DESCRIPTOR_RANGE*)Unsafe.AsPointer(ref MemoryMarshal.GetArrayDataReference(inRootParam.DescriptorTable))
+                            pDescriptorRanges = (D3D12_DESCRIPTOR_RANGE*)Unsafe.AsPointer(
+                                ref MemoryMarshal.GetReference(inRootParam.DescriptorTable.Span))
                         };
                         break;
 
@@ -106,13 +139,14 @@ namespace Voltium.Core
                         break;
                 }
 
-                outRootParams[i] = outRootParam;
+                outSpan[i] = outRootParam;
             }
         }
 
-        private static void TranslateStaticSamplers(ReadOnlyMemory<StaticSampler> staticSamplers, D3D12_STATIC_SAMPLER_DESC[] samplers)
+        private static void TranslateStaticSamplers(ReadOnlyMemory<StaticSampler> staticSamplers, Memory<D3D12_STATIC_SAMPLER_DESC> samplers)
         {
             var span = staticSamplers.Span;
+            var outSpan = samplers.Span;
             for (var i = 0; i < span.Length; i++)
             {
                 var staticSampler = span[i];
@@ -156,7 +190,7 @@ namespace Voltium.Core
                     ShaderVisibility = (D3D12_SHADER_VISIBILITY)staticSampler.Visibility
                 };
 
-                samplers[i] = sampler;
+                outSpan[i] = sampler;
             }
         }
 

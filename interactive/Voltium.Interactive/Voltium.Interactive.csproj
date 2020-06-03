@@ -16,7 +16,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="Shaders\Lighting.hlsl">
+    <None Include="Shaders\Lighting.hlsli">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="Shaders\PixelFrag.hlsli">

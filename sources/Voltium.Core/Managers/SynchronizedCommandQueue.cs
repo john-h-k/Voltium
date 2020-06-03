@@ -4,18 +4,48 @@ using System.Diagnostics;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.D3D12;
+using Voltium.Core.Pool;
 
 namespace Voltium.Core.Managers
 {
     internal unsafe struct SynchronizedCommandQueue : IDisposable
     {
+        private struct ExecutingAllocator : IDisposable
+        {
+            public ComPtr<ID3D12CommandAllocator> Allocator;
+            public FenceMarker Marker;
+
+            public ExecutingAllocator Move()
+            {
+                var copy = this;
+                copy.Allocator = Allocator.Move();
+                return copy;
+            }
+
+            public ExecutingAllocator Copy()
+            {
+                var copy = this;
+                copy.Allocator = Allocator.Copy();
+                return copy;
+            }
+
+            public void Dispose()
+            {
+                Allocator.Dispose();
+            }
+        }
+
         private ComPtr<ID3D12CommandQueue> _queue;
         private ComPtr<ID3D12Fence> _fence;
+        private ExecutionContext _type;
         private FenceMarker _marker;
+        private Queue<ExecutingAllocator> _executingAllocators;
+        private CommandAllocatorPool _allocatorPool;
 
         public ID3D12CommandQueue* GetQueue() => _queue.Get();
 
         public SynchronizedCommandQueue(
+            ComPtr<ID3D12Device> device,
             ExecutionContext context,
             ComPtr<ID3D12CommandQueue> queue,
             ComPtr<ID3D12Fence> fence
@@ -23,16 +53,39 @@ namespace Voltium.Core.Managers
         {
             Debug.Assert(queue.Exists);
             Debug.Assert(fence.Exists);
+            Debug.Assert(device.Exists);
 
+            _type = context;
             _queue = queue;
             _fence = fence;
-            _marker = new FenceMarker(FenceMarker.GetFirstFenceForExecutionContext(context), context);
-            _queue.Get()->Signal(_fence.Get(), _marker.FenceValue);
+            _marker = new FenceMarker(DeviceManager.BackBufferCount);
+            _executingAllocators = new();
+            Guard.ThrowIfFailed(_queue.Get()->Signal(_fence.Get(), _marker.FenceValue));
+            _allocatorPool = new(device.Copy(), context);
+        }
+
+        public ComPtr<ID3D12CommandAllocator> RentAllocator()
+        {
+            //return _allocatorPool.ForceCreate();
+
+            // if the pool has nothing left and we have in flight allocators
+            if (_allocatorPool.IsEmpty && _executingAllocators.Count != 0)
+            {
+                var currentReachedFence = GetReachedFence();
+
+                // try and give back any allocators we have
+                while (_executingAllocators.Count != 0 && currentReachedFence >= _executingAllocators.Peek().Marker)
+                {
+                    _allocatorPool.Return(_executingAllocators.Dequeue().Allocator.Move());
+                }
+            }
+
+            return _allocatorPool.Rent().Move();
         }
 
         public void Execute(
             ReadOnlySpan<GpuCommandSet> lists,
-            bool insertFence
+            out FenceMarker completion
         )
         {
             // TODO make the lists blittable to elide this copy
@@ -41,19 +94,19 @@ namespace Voltium.Core.Managers
             for (var i = 0; i < lists.Length; i++)
             {
                 pLists[i] = lists[i].List.Move();
+                _executingAllocators.Enqueue(new ExecutingAllocator { Allocator = lists[i].Allocator.Move(), Marker = _marker + 1 });
             }
 
             if (lists.IsEmpty)
             {
+                completion = GetReachedFence();
                 return;
             }
 
             _queue.Get()->ExecuteCommandLists((uint)lists.Length, (ID3D12CommandList**)pLists);
 
-            if (insertFence)
-            {
-                InsertNextFence();
-            }
+            InsertNextFence();
+            completion = _marker;
         }
 
         internal FenceMarker GetReachedFence()
@@ -61,7 +114,7 @@ namespace Voltium.Core.Managers
             return new FenceMarker(_fence.Get()->GetCompletedValue());
         }
 
-        internal FenceMarker GetFenceForIdle() => _marker;
+        internal FenceMarker GetNextFence() => _marker;
 
         internal GpuDispatchSynchronizer GetSynchronizerForIdle()
         {
@@ -89,11 +142,12 @@ namespace Voltium.Core.Managers
         {
             _queue.Dispose();
             _fence.Dispose();
+            _allocatorPool.Dispose();
         }
 
         internal bool IsIdle()
         {
-            return GetReachedFence().IsAtOrAfter(_marker);
+            return GetReachedFence() >= _marker;
         }
     }
 }

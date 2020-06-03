@@ -323,9 +323,10 @@ namespace Voltium.Core.Managers
         /// </summary>
         public static void Present()
         {
-            GpuDispatchManager.Manager.ExecuteSubmissions(insertFence: true);
+            GpuDispatchManager.Manager.ExecuteSubmissions();
 
             var hr = _swapChain.Get()->Present(_syncInterval, 0);
+
             TotalFramesRendered++;
 
             if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET)

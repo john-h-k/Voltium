@@ -24,21 +24,63 @@ namespace Voltium.Interactive
     public partial struct ObjectConstants
     {
         public Matrix4x4 World;
+        public Material Material;
+    }
+
+    [StructLayout(LayoutKind.Sequential, Size = 256)]
+    public partial struct FrameConstants
+    {
         public Matrix4x4 View;
         public Matrix4x4 Projection;
+        public Vector4 AmbientLight;
+        public Vector3 CameraPosition;
     }
+
+    [StructLayout(LayoutKind.Sequential, Size = 256)]
+    public struct LightConstants
+    {
+        public DirectionalLight Light0;
+        public DirectionalLight Light1;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public partial struct DirectionalLight
+    {
+        public Vector3 Strength;
+        private float _pad0;
+        public Vector3 Direction;
+        private float _pad1;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public partial struct Material
+    {
+        public Vector4 DiffuseAlbedo;
+        public Vector4 ReflectionFactor;
+        public float Shininess;
+    };
 
     [ShaderInput]
     public partial struct Vertex
     {
-        public Vertex(Vector3 position, Vector4 color)
+        public Vertex(Vector3 position, Vector3 normal)
         {
             Position = position;
-            Color = color;
+            Normal = normal;
+        }
+
+        public Vertex(
+            float vertexX, float vertexY, float vertexZ,
+            float normalX, float normalY, float normalZ,
+            float tangentX, float tangentY, float tangentZ,
+            float texU, float texV)
+        {
+            Position = new(vertexX, vertexY, vertexZ);
+            Normal = new(normalX, normalY, normalZ);
         }
 
         public Vector3 Position;
-        public Vector4 Color;
+        public Vector3 Normal;
     }
 
     public unsafe class DefaultRenderer : Renderer
@@ -53,25 +95,43 @@ namespace Voltium.Interactive
         {
             _allocator = DeviceManager.Allocator;
 
-            //_object = GemeotryGenerator.LoadSingleModel("logo.obj", RgbaColor.Gray);
-            _object = GemeotryGenerator.CreateCube(0.5f);
+            _object = GemeotryGenerator.LoadSingleModel("logo.obj");
+            //_object = GemeotryGenerator.CreateCube(0.5f);
 
             _vertexBuffer = _allocator.AllocateVertexBuffer(_object.Vertices, GpuMemoryType.CpuUpload, GpuAllocFlags.ForceAllocateComitted);
             _indexBuffer = _allocator.AllocateIndexBuffer(_object.Indices, GpuMemoryType.CpuUpload, GpuAllocFlags.ForceAllocateComitted);
 
-            _rootSig = RootSignature.Create(device, new[] { RootParameter.CreateDescriptor(RootParameterType.ConstantBufferView, 0, 0) }, default);
+            var rootParams = new[]
+            {
+                RootParameter.CreateDescriptor(RootParameterType.ConstantBufferView, 0, 0),
+                RootParameter.CreateDescriptor(RootParameterType.ConstantBufferView, 1, 0),
+                RootParameter.CreateDescriptor(RootParameterType.ConstantBufferView, 2, 0)
+            };
 
-            var compilationFlags = new[] { DxcCompileFlags.DisableOptimizations, DxcCompileFlags.DefineMacro("COLOR(x)", "x.color") };
+            _rootSig = RootSignature.Create(device, rootParams, default);
+
+            var compilationFlags = new[]
+            {
+                DxcCompileFlags.DisableOptimizations,
+                DxcCompileFlags.EnableDebugInformation,
+                DxcCompileFlags.WriteDebugInformationToFile(),
+                DxcCompileFlags.PackMatricesInRowMajorOrder
+            };
 
             var vertexShader = ShaderManager.CompileShader("Shaders/SimpleVertexShader.hlsl", DxcCompileTarget.Vs_6_0, compilationFlags);
             var pixelShader = ShaderManager.CompileShader("Shaders/SimplePixelShader.hlsl", DxcCompileTarget.Ps_6_0, compilationFlags);
 
             GraphicsPipelineDesc psoDesc = new(_rootSig, config.BackBufferFormat, config.DepthStencilFormat, vertexShader, pixelShader);
+            psoDesc.Rasterizer.FaceCullMode = CullMode.None;
             DrawPso = PipelineManager.CreatePso<Vertex>("Default", psoDesc);
 
             _objectConstants = _allocator.AllocateConstantBuffer<ObjectConstants>(1, GpuMemoryType.CpuUpload, GpuAllocFlags.ForceAllocateComitted);
+            _frameConstants = _allocator.AllocateConstantBuffer<FrameConstants>(1, GpuMemoryType.CpuUpload, GpuAllocFlags.ForceAllocateComitted);
+            _sceneLight = _allocator.AllocateConstantBuffer<LightConstants>(1, GpuMemoryType.CpuUpload, GpuAllocFlags.ForceAllocateComitted);
 
             _objectConstants.Map();
+            _frameConstants.Map();
+            _sceneLight.Map();
 
             SetHueDegrees(MathF.PI / 500);
         }
@@ -80,26 +140,59 @@ namespace Voltium.Interactive
         {
             var aspectRatio = (float)screen.Width / screen.Height;
             var fovAngleY = 70.0f * MathF.PI / 180.0f;
-            _constants = new ObjectConstants
+
+            _objectConstants.LocalCopy = new ObjectConstants
             {
                 World = Matrix4x4.Identity,
-                View = Matrix4x4.CreateLookAt(new Vector3(0.0f, 0.7f, 1.5f), new Vector3(0.0f, -0.1f, 0.0f), new Vector3(0.0f, 1.0f, 0.0f)),
-                Projection = Matrix4x4.CreatePerspectiveFieldOfView(fovAngleY, aspectRatio, 0.001f, 100f)
+                Material = new Material
+                {
+                    DiffuseAlbedo = (Vector4)RgbaColor.WhiteSmoke,
+                    ReflectionFactor = new(0.3f),
+                    Shininess = 1f
+                }
             };
+
+            _frameConstants.LocalCopy = new FrameConstants
+            {
+                View = Matrix4x4.CreateLookAt(
+                    new Vector3(0.0f, 0.7f, 1.5f),
+                    new Vector3(0.0f, -0.1f, 0.0f),
+                    new Vector3(0.0f, 1.0f, 0.0f)
+                ),
+                Projection = Matrix4x4.CreatePerspectiveFieldOfView(fovAngleY, aspectRatio, 0.001f, 100f),
+                AmbientLight = new Vector4(0.25f, 0.25f, 0.25f, 1.0f) / 2,
+                CameraPosition = new Vector3(0.0f, 0.7f, 1.5f),
+            };
+
+            _sceneLight.LocalCopy.Light0 = new DirectionalLight
+            {
+                Strength = new Vector3(1, 1, 1),
+                Direction = new Vector3(0, -1, 0)
+            };
+
+            //_sceneLight.LocalCopy.Light1 = new DirectionalLight
+            //{
+            //    Strength = new Vector3(0.8f),
+            //    Color = new Vector3(1, 1, 0),
+            //    Direction = new Vector3(-0.57735f, 0.57735f, -0.57735f)
+            //};
         }
 
         private RgbaColor _color = new RgbaColor(1, 0, 0, 1);
         private RootSignature _rootSig = null!;
         private PipelineStateObject DrawPso = null!;
+
         private ConstantBuffer<ObjectConstants> _objectConstants;
-        private ObjectConstants _constants;
-        private Matrix4x4 _perFrameRotation = Matrix4x4.CreateRotationY(0.001f) * Matrix4x4.CreateRotationX(0.001f);
+        private ConstantBuffer<FrameConstants> _frameConstants;
+        private ConstantBuffer<LightConstants> _sceneLight;
+
+        private Matrix4x4 _perFrameRotation = Matrix4x4.CreateRotationY(0.001f)/* * Matrix4x4.CreateRotationX(0.001f)*/;
         //private int _totalCount = 0;
 
         public override void Update(ApplicationTimer timer)
         {
             // rotate a small amount each frame
-            _constants.World *= _perFrameRotation;
+            _objectConstants.LocalCopy.World *= _perFrameRotation;
 
             // scale between 0 and 5 seconds
             //var scale = Matrix4x4.CreateScale((float)(Math.Abs((total % 10) - 5)) / 5);u
@@ -115,11 +208,14 @@ namespace Voltium.Interactive
                 scale = 1;
             }
 
-            _objectConstants.Buffers[0].World = Matrix4x4.Transpose(_constants.World * Matrix4x4.CreateScale(scale));
-            _objectConstants.Buffers[0].View = Matrix4x4.Transpose(_constants.View);
-            _objectConstants.Buffers[0].Projection = Matrix4x4.Transpose(_constants.Projection);
+            _objectConstants.Buffers[0].World = _objectConstants.LocalCopy.World * Matrix4x4.CreateScale(scale);
+            _objectConstants.Buffers[0].Material = _objectConstants.LocalCopy.Material;
 
-            _color = ChangeHue(_color);
+            _frameConstants.Buffers[0] = _frameConstants.LocalCopy;
+
+            _sceneLight.Buffers[0] = _sceneLight.LocalCopy;
+
+            //_color = ChangeHue(_color);
         }
 
         public override PipelineStateObject GetInitialPso()
@@ -139,13 +235,15 @@ namespace Voltium.Interactive
 
             recorder.SetRenderTarget(renderTargetView.CpuHandle, 1, depthStencilView.CpuHandle);
 
-            recorder.ClearRenderTarget(renderTargetView, _color);
+            recorder.ClearRenderTarget(renderTargetView, RgbaColor.White);
             recorder.ClearDepth(depthStencilView);
 
             recorder.SetVertexBuffers(_vertexBuffer);
             recorder.SetIndexBuffer(_indexBuffer);
 
             recorder.SetGraphicsConstantBufferDescriptor(0, _objectConstants, 0);
+            recorder.SetGraphicsConstantBufferDescriptor(1, _frameConstants, 0);
+            recorder.SetGraphicsConstantBufferDescriptor(2, _sceneLight, 0);
 
             recorder.SetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY.D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
             recorder.DrawIndexed((uint)_object.Indices.Length);

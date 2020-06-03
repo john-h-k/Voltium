@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using TerraFX.Interop;
@@ -146,7 +146,7 @@ namespace Voltium.Core.DXGI
             DXGI_ADAPTER_DESC1 desc;
             Guard.ThrowIfFailed(p->GetDesc1(&desc));
 
-            var descText = new ReadOnlySpan<char>(desc.Description, 128).ToString();
+            var descText = new string((char*)desc.Description);
 
             return new Adapter(
                 dxgiAdapter,

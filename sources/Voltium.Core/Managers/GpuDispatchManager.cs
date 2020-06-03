@@ -44,31 +44,6 @@ namespace Voltium.Core.Managers
         }
     }
 
-    internal struct AllocatorAndMarker : IDisposable
-    {
-        public ComPtr<ID3D12CommandAllocator> Allocator;
-        public FenceMarker Marker;
-
-        public AllocatorAndMarker Move()
-        {
-            var copy = this;
-            copy.Allocator = Allocator.Move();
-            return copy;
-        }
-
-        public AllocatorAndMarker Copy()
-        {
-            var copy = this;
-            copy.Allocator = Allocator.Copy();
-            return copy;
-        }
-
-        public void Dispose()
-        {
-            Allocator.Dispose();
-        }
-    }
-
     /// <summary>
     /// In charge of managing submission of command lists, bundled, and queries, to a GPU
     /// </summary>
@@ -87,9 +62,6 @@ namespace Voltium.Core.Managers
         private readonly List<GpuCommandSet> _computeLists = new(DefaultListBufferSize);
         private readonly List<GpuCommandSet> _copyLists = new(DefaultListBufferSize);
 
-        private readonly List<AllocatorAndMarker> _inFlightAllocators = new(DefaultListBufferSize);
-
-        private CommandAllocatorPool _allocatorPool = null!;
         private CommandListPool _listPool = null!;
 
         private static bool _initialized;
@@ -134,8 +106,8 @@ namespace Voltium.Core.Managers
             _device = device.Move();
 
             _frameFence = CreateFence();
+            _frameMarker = new FenceMarker(config.SwapChainBufferCount - 1);
 
-            _allocatorPool = new CommandAllocatorPool(_device.Copy());
             _listPool = new CommandListPool(_device.Copy());
 
             _graphics = CreateSynchronizedCommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT);
@@ -185,7 +157,7 @@ namespace Voltium.Core.Managers
                 ComPtr.GetVoidAddressOf(&p)
             ));
 
-            return new SynchronizedCommandQueue((ExecutionContext)type, p, CreateFence());
+            return new SynchronizedCommandQueue(_device.Copy(), (ExecutionContext)type, p, CreateFence());
         }
 
         /// <summary>
@@ -205,44 +177,20 @@ namespace Voltium.Core.Managers
 
         internal unsafe void MoveToNextFrame()
         {
-            _frameMarker++;
+            // currently we let IDXGISwapChain::Present implicitly sync for us
 
-            _graphics.Signal(_frameFence.Get(), _frameMarker);
+            //_frameMarker++;
 
-            FenceMarker lastFrame;
-            if (_frameMarker.FenceValue < (DeviceManager.BackBufferCount))
-            {
-                lastFrame = default;
-            }
-            else
-            {
-                lastFrame = _frameMarker - (DeviceManager.BackBufferCount);
-            }
+            //_graphics.Signal(_frameFence.Get(), _frameMarker);
 
-            if (_frameFence.Get()->GetCompletedValue() < lastFrame.FenceValue)
-            {
-                using var sync = new GpuDispatchSynchronizer(_frameFence.Copy(), lastFrame);
-                sync.Block();
-            }
+            //FenceMarker lastFrame = _frameMarker - DeviceManager.BackBufferCount;
 
-            ReturnFinishedAllocators();
+            //if (_frameFence.Get()->GetCompletedValue() <= lastFrame.FenceValue)
+            //{
+            //    using var sync = new GpuDispatchSynchronizer(_frameFence.Copy(), _frameMarker);
+            //    sync.Block();
+            //}
         }
-
-        private void ReturnFinishedAllocators()
-        {
-            for (var i = 0; i < _inFlightAllocators.Count; i++)
-            {
-                var allocator = _inFlightAllocators[i];
-                if (_graphics.GetReachedFence().IsAtOrAfter(allocator.Marker))
-                {
-                    _allocatorPool.Return(allocator.Allocator.Move());
-                    _inFlightAllocators.RemoveAt(i);
-                }
-            }
-        }
-
-        internal bool IsGpuIdle()
-            => _graphics.IsIdle() && _compute.IsIdle() && _copy.IsIdle();
 
         internal void BlockForGraphicsIdle()
         {
@@ -250,6 +198,9 @@ namespace Voltium.Core.Managers
 
             _frameMarker++;
         }
+
+        internal bool IsGpuIdle()
+            => _graphics.IsIdle() && _compute.IsIdle() && _copy.IsIdle();
 
         internal void BlockForGpuIdle()
         {
@@ -307,25 +258,24 @@ namespace Voltium.Core.Managers
         /// <summary>
         /// Executes all recorded submissions
         /// </summary>
-        public void ExecuteSubmissions(bool insertFence)
+        public void ExecuteSubmissions()
         {
             // is this necessary
             using (_listAccessLock.EnterScoped())
             {
-                ExecuteAndClearList(ref _graphics, _graphicsLists, insertFence);
-                ExecuteAndClearList(ref _compute, _computeLists, insertFence);
-                ExecuteAndClearList(ref _copy, _copyLists, insertFence);
+                ExecuteAndClearList(ref _graphics, _graphicsLists);
+                ExecuteAndClearList(ref _compute, _computeLists);
+                ExecuteAndClearList(ref _copy, _copyLists);
             }
         }
 
-        private void ExecuteAndClearList(ref SynchronizedCommandQueue queue, List<GpuCommandSet> lists, bool insertFence)
+        private void ExecuteAndClearList(ref SynchronizedCommandQueue queue, List<GpuCommandSet> lists)
         {
-            queue.Execute(CollectionsMarshal.AsSpan(lists), insertFence);
+            queue.Execute(CollectionsMarshal.AsSpan(lists), out _);
 
             for (var i = 0; i < lists.Count; i++)
             {
                 _listPool.Return(lists[i].List.Move());
-                _inFlightAllocators.Add(new AllocatorAndMarker { Allocator = lists[i].Allocator.Move(), Marker = _frameMarker + 1 });
             }
 
             lists.Clear();
@@ -337,7 +287,7 @@ namespace Voltium.Core.Managers
         /// <returns>A new <see cref="GraphicsContext"/></returns>
         public unsafe GraphicsContext BeginGraphicsContext(PipelineStateObject? defaultPso = null)
         {
-            using var allocator = _allocatorPool.Rent(ExecutionContext.Graphics);
+            using var allocator = _graphics.RentAllocator();
             using var list = _listPool.Rent(ExecutionContext.Graphics, allocator.Get(), defaultPso is null ? null : defaultPso.GetPso());
 
             using var ctx = new GraphicsContext(list.Move(), allocator.Move());
@@ -358,11 +308,12 @@ namespace Voltium.Core.Managers
             }
 
             _device.Dispose();
+
             _graphics.Dispose();
             _compute.Dispose();
             _copy.Dispose();
+
             _frameFence.Dispose();
-            _allocatorPool.Dispose();
             _listPool.Dispose();
         }
 
