@@ -74,7 +74,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Voltium.ModelLoading", "sou
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Voltium.Interactive", "interactive\Voltium.Interactive\Voltium.Interactive.csproj", "{D3E13E29-10A7-41FF-AF56-2B389A28D35A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Voltium.Analyzers", "sources\Voltium.Analyzers\Voltium.Analyzers.csproj", "{3EBF640E-8062-41FD-8BF0-211FCE022DA1}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Voltium.Analyzers", "sources\Voltium.Analyzers\Voltium.Analyzers.csproj", "{3EBF640E-8062-41FD-8BF0-211FCE022DA1}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Voltium.RenderEngine", "sources\Voltium.RenderEngine\Voltium.RenderEngine.csproj", "{4B85A9DD-248D-4A6C-96BF-68B8902FA68C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -194,6 +196,18 @@ Global
 		{3EBF640E-8062-41FD-8BF0-211FCE022DA1}.Release|x64.Build.0 = Release|Any CPU
 		{3EBF640E-8062-41FD-8BF0-211FCE022DA1}.Release|x86.ActiveCfg = Release|Any CPU
 		{3EBF640E-8062-41FD-8BF0-211FCE022DA1}.Release|x86.Build.0 = Release|Any CPU
+		{4B85A9DD-248D-4A6C-96BF-68B8902FA68C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4B85A9DD-248D-4A6C-96BF-68B8902FA68C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4B85A9DD-248D-4A6C-96BF-68B8902FA68C}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{4B85A9DD-248D-4A6C-96BF-68B8902FA68C}.Debug|x64.Build.0 = Debug|Any CPU
+		{4B85A9DD-248D-4A6C-96BF-68B8902FA68C}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{4B85A9DD-248D-4A6C-96BF-68B8902FA68C}.Debug|x86.Build.0 = Debug|Any CPU
+		{4B85A9DD-248D-4A6C-96BF-68B8902FA68C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4B85A9DD-248D-4A6C-96BF-68B8902FA68C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4B85A9DD-248D-4A6C-96BF-68B8902FA68C}.Release|x64.ActiveCfg = Release|Any CPU
+		{4B85A9DD-248D-4A6C-96BF-68B8902FA68C}.Release|x64.Build.0 = Release|Any CPU
+		{4B85A9DD-248D-4A6C-96BF-68B8902FA68C}.Release|x86.ActiveCfg = Release|Any CPU
+		{4B85A9DD-248D-4A6C-96BF-68B8902FA68C}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -208,6 +222,7 @@ Global
 		{3FC2A51F-E7D6-4911-9398-5CF68CD9D70A} = {DD29EA8F-B1A6-45AA-8D2E-B38DA56D9EF6}
 		{D3E13E29-10A7-41FF-AF56-2B389A28D35A} = {E702C502-A472-4F05-A868-0802C0B707B7}
 		{3EBF640E-8062-41FD-8BF0-211FCE022DA1} = {DD29EA8F-B1A6-45AA-8D2E-B38DA56D9EF6}
+		{4B85A9DD-248D-4A6C-96BF-68B8902FA68C} = {DD29EA8F-B1A6-45AA-8D2E-B38DA56D9EF6}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {78D2CF6A-60A1-43E3-837B-00B73C9DA384}

@@ -6,6 +6,7 @@ using Voltium.Common;
 [assembly: InternalsVisibleTo("Voltium.TextureLoading" + PublicKey.KeyDefinition)]
 [assembly: InternalsVisibleTo("Voltium.PIX" + PublicKey.KeyDefinition)]
 [assembly: InternalsVisibleTo("Voltium.ModelLoading" + PublicKey.KeyDefinition)]
+[assembly: InternalsVisibleTo("Voltium.RenderEngine" + PublicKey.KeyDefinition)]
 [module: SkipLocalsInit]
 
 namespace Voltium.Common
