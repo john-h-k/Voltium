@@ -95,7 +95,7 @@ namespace Voltium.Interactive
         {
             _allocator = DeviceManager.Allocator;
 
-            _object = GemeotryGenerator.LoadSingleModel("logo.obj");
+            _object = GemeotryGenerator.LoadSingleModel("nativedependencies/logo.obj");
             //_object = GemeotryGenerator.CreateCube(0.5f);
 
             _vertexBuffer = _allocator.AllocateVertexBuffer(_object.Vertices, GpuMemoryType.CpuUpload, GpuAllocFlags.ForceAllocateComitted);
