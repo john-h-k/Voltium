@@ -58,6 +58,14 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "interactive", "interactive"
 		interactive\Directory.Build.targets = interactive\Directory.Build.targets
 	EndProjectSection
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "nativedependencies", "nativedependencies", "{3828ad0e-29f4-4ef4-bb78-d2ea41995e06}"
+ProjectSection(SolutionItems) = preProject
+		nativedependencies\dxc.exe = nativedependencies\dxc.exe
+		nativedependencies\dxcompiler.dll = nativedependencies\dxcompiler.dll
+		nativedependencies\dxil.dll = nativedependencies\dxil.dll
+		nativedependencies\Directory.Build.targets = nativedependencies\Directory.Build.targets
+	EndProjectSection
+EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Voltium.Core", "sources\Voltium.Core\Voltium.Core.csproj", "{76F747A6-D971-4162-BF35-A226177FCA08}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Voltium.Core.UnitTests", "tests\Voltium.Core.UnitTests\Voltium.Core.UnitTests.csproj", "{600D712C-4ABF-44C4-96C3-B1DEE1F38298}"

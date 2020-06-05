@@ -77,8 +77,16 @@ namespace Voltium.Interactive
             return new Geometry(cubeVertices, CubeIndices);
         }
 
-        private static ObjLoaderFactory _factory = new();
-        private static ThreadLocal<IObjLoader> _loader = new(() => { lock (_factory) { return _factory.Create(); } });
+        private const string AssetsFolder = "Assets";
+
+        private sealed class AssetsProvider : IMaterialStreamProvider
+        {
+            public Stream Open(string materialFilePath) => File.OpenRead(AssetsFolder + materialFilePath);
+        }
+
+        private static readonly ObjLoaderFactory _factory = new();
+        private static readonly IMaterialStreamProvider _assetsProvider = new AssetsProvider();
+        private static ThreadLocal<IObjLoader> _loader = new(() => { lock (_factory) { return _factory.Create(_assetsProvider); } });
 
         public static Geometry LoadSingleModel(string filename, Material material = default)
         {
