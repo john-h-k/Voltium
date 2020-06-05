@@ -24,9 +24,10 @@ namespace Voltium.Core.Managers
         /// Creates a new named pipeline state object and registers it in the library for retrieval with
         /// <see cref="RetrievePso(string)"/>
         /// </summary>
+        /// <param name="device">The device to use when creating the pipeline state</param>
         /// <param name="name">The name of the pipeline state</param>
         /// <param name="graphicsDesc">The descriptor for the pipeline state</param>
-        public static GraphicsPso CreatePso<TShaderInput>(string name, GraphicsPipelineDesc graphicsDesc) where TShaderInput : unmanaged, IBindableShaderType
+        public static GraphicsPso CreatePso<TShaderInput>(GraphicsDevice device, string name, GraphicsPipelineDesc graphicsDesc) where TShaderInput : unmanaged, IBindableShaderType
         {
             try
             {
@@ -48,7 +49,7 @@ namespace Voltium.Core.Managers
                     $"Inspect InnerException to view this exception. {(hasGenAttr ? hasGenAttrMessage : noGenAttrMessage)}", e);
             }
 
-            return CreatePso(name, graphicsDesc);
+            return CreatePso(device, name, graphicsDesc);
         }
 
 
@@ -56,9 +57,10 @@ namespace Voltium.Core.Managers
         /// Creates a new named pipeline state object and registers it in the library for retrieval with
         /// <see cref="RetrievePso(string)"/>
         /// </summary>
+        /// <param name="device">The device to use when creating the pipeline state</param>
         /// <param name="name">The name of the pipeline state</param>
         /// <param name="graphicsDesc">The descriptor for the pipeline state</param>
-        public static GraphicsPso CreatePso(string name, in GraphicsPipelineDesc graphicsDesc)
+        public static GraphicsPso CreatePso(GraphicsDevice device, string name, in GraphicsPipelineDesc graphicsDesc)
         {
             TranslateGraphicsPipelineDescriptionWithoutShadersOrShaderInputLayoutElements(graphicsDesc, out D3D12_GRAPHICS_PIPELINE_STATE_DESC desc);
 
@@ -83,7 +85,7 @@ namespace Voltium.Core.Managers
                 desc.InputLayout = new D3D12_INPUT_LAYOUT_DESC { NumElements = (uint)graphicsDesc.Inputs.Length, pInputElementDescs = pDesc };
 
                 using ComPtr<ID3D12PipelineState> pso = default;
-                Guard.ThrowIfFailed(DeviceManager.Device->CreateGraphicsPipelineState(
+                Guard.ThrowIfFailed(device.Device->CreateGraphicsPipelineState(
                     &desc,
                     pso.Guid,
                     ComPtr.GetVoidAddressOf(&pso)
@@ -102,9 +104,10 @@ namespace Voltium.Core.Managers
         /// Creates a new named pipeline state object and registers it in the library for retrieval with
         /// <see cref="RetrievePso(string)"/>
         /// </summary>
+        /// <param name="device">The device to use when creating the pipeline state</param>
         /// <param name="name">The name of the pipeline state</param>
         /// <param name="computeDesc">The descriptor for the pipeline state</param>
-        public static ComputePso CreatePso(string name, in ComputePipelineDesc computeDesc)
+        public static ComputePso CreatePso(GraphicsDevice device, string name, in ComputePipelineDesc computeDesc)
         {
             fixed (byte* vs = computeDesc.ComputeShader)
             {
@@ -115,7 +118,7 @@ namespace Voltium.Core.Managers
                 };
 
                 using ComPtr<ID3D12PipelineState> pso = default;
-                Guard.ThrowIfFailed(DeviceManager.Device->CreateComputePipelineState(
+                Guard.ThrowIfFailed(device.Device->CreateComputePipelineState(
                     &desc,
                     pso.Guid,
                     ComPtr.GetVoidAddressOf(&pso)

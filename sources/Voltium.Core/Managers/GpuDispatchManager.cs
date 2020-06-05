@@ -53,7 +53,7 @@ namespace Voltium.Core.Managers
         private SynchronizedCommandQueue _compute;
         private SynchronizedCommandQueue _copy;
 
-        private ComPtr<ID3D12Device> _device;
+        private GraphicsDevice _device = null!;
         private const int DefaultListBufferSize = 4;
 
         private SpinLock _listAccessLock = new(EnvVars.IsDebug);
@@ -89,7 +89,7 @@ namespace Voltium.Core.Managers
         /// </summary>
         /// <param name="device">The device used to initialize the type</param>
         /// <param name="config"></param>
-        public static void Initialize(ComPtr<ID3D12Device> device, GraphicalConfiguration config)
+        public static void Initialize(GraphicsDevice device, GraphicalConfiguration config)
         {
             // TODO could probably use CAS/System.Threading.LazyInitializer
             lock (Lock)
@@ -101,14 +101,14 @@ namespace Voltium.Core.Managers
             }
         }
 
-        private unsafe void CoreInitialize(ComPtr<ID3D12Device> device, GraphicalConfiguration config)
+        private unsafe void CoreInitialize(GraphicsDevice device, GraphicalConfiguration config)
         {
-            _device = device.Move();
+            _device = device;
 
             _frameFence = CreateFence();
             _frameMarker = new FenceMarker(config.SwapChainBufferCount - 1);
 
-            _listPool = new CommandListPool(_device.Copy());
+            _listPool = new CommandListPool(device);
 
             _graphics = CreateSynchronizedCommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT);
             DirectXHelpers.SetObjectName(_graphics.GetQueue(), "Graphics queue");
@@ -126,7 +126,7 @@ namespace Voltium.Core.Managers
         {
             ComPtr<ID3D12Fence> fence = default;
 
-            Guard.ThrowIfFailed(_device.Get()->CreateFence(
+            Guard.ThrowIfFailed(_device.Device->CreateFence(
                 0,
                 DefaultFenceFlags,
                 fence.Guid,
@@ -151,13 +151,13 @@ namespace Voltium.Core.Managers
 
             ComPtr<ID3D12CommandQueue> p = default;
 
-            Guard.ThrowIfFailed(_device.Get()->CreateCommandQueue(
+            Guard.ThrowIfFailed(_device.Device->CreateCommandQueue(
                 &desc,
                 p.Guid,
                 ComPtr.GetVoidAddressOf(&p)
             ));
 
-            return new SynchronizedCommandQueue(_device.Copy(), (ExecutionContext)type, p, CreateFence());
+            return new SynchronizedCommandQueue(_device, (ExecutionContext)type, p, CreateFence());
         }
 
         /// <summary>

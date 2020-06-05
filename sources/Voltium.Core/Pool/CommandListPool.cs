@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using TerraFX.Interop;
 using Voltium.Common;
+using Voltium.Core.Managers;
 
 namespace Voltium.Core.Pool
 {
@@ -14,12 +15,12 @@ namespace Voltium.Core.Pool
     /// </summary>
     internal unsafe sealed class CommandListPool : ThreadSafeComPool<ID3D12GraphicsCommandList, CommandListPool.ListCreationParams>
     {
-        private ComPtr<ID3D12Device> _device;
+        private GraphicsDevice _device;
 
-        public CommandListPool(ComPtr<ID3D12Device> device)
+        public CommandListPool(GraphicsDevice device)
         {
-            Debug.Assert(device.Exists);
-            _device = device.Move();
+            Debug.Assert(device is object);
+            _device = device;
         }
 
         public struct ListCreationParams
@@ -53,7 +54,7 @@ namespace Voltium.Core.Pool
         protected override ComPtr<ID3D12GraphicsCommandList> Create(ListCreationParams state)
         {
             using ComPtr<ID3D12GraphicsCommandList> list = default;
-            Guard.ThrowIfFailed(_device.Get()->CreateCommandList(
+            Guard.ThrowIfFailed(_device.Device->CreateCommandList(
                 0, // TODO: MULTI-GPU
                 state.Type,
                 state.Allocator,

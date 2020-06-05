@@ -90,12 +90,14 @@ namespace Voltium.Interactive
         private IndexBuffer<ushort> _indexBuffer;
         private int _zoomLevel;
         private Geometry _object;
+        private GraphicsDevice _device = null!;
 
-        public override void Init(GraphicalConfiguration config, in ScreenData screen, ID3D12Device* device)
+        public override void Init(GraphicsDevice device, GraphicalConfiguration config, in ScreenData screen)
         {
-            _allocator = DeviceManager.Allocator;
+            _device = device;
+            _allocator = _device.Allocator;
 
-            _object = GemeotryGenerator.LoadSingleModel("nativedependencies/logo.obj");
+            _object = GemeotryGenerator.LoadSingleModel("logo.obj");
             //_object = GemeotryGenerator.CreateCube(0.5f);
 
             _vertexBuffer = _allocator.AllocateVertexBuffer(_object.Vertices, GpuMemoryType.CpuUpload, GpuAllocFlags.ForceAllocateComitted);
@@ -108,7 +110,7 @@ namespace Voltium.Interactive
                 RootParameter.CreateDescriptor(RootParameterType.ConstantBufferView, 2, 0)
             };
 
-            _rootSig = RootSignature.Create(device, rootParams, default);
+            _rootSig = RootSignature.Create(device.Device, rootParams, default);
 
             var compilationFlags = new[]
             {
@@ -123,7 +125,7 @@ namespace Voltium.Interactive
 
             GraphicsPipelineDesc psoDesc = new(_rootSig, config.BackBufferFormat, config.DepthStencilFormat, vertexShader, pixelShader);
             psoDesc.Rasterizer.FaceCullMode = CullMode.None;
-            DrawPso = PipelineManager.CreatePso<Vertex>("Default", psoDesc);
+            DrawPso = PipelineManager.CreatePso<Vertex>(_device, "Default", psoDesc);
 
             _objectConstants = _allocator.AllocateConstantBuffer<ObjectConstants>(1, GpuMemoryType.CpuUpload, GpuAllocFlags.ForceAllocateComitted);
             _frameConstants = _allocator.AllocateConstantBuffer<FrameConstants>(1, GpuMemoryType.CpuUpload, GpuAllocFlags.ForceAllocateComitted);
@@ -225,9 +227,9 @@ namespace Voltium.Interactive
 
         public override void Render(GraphicsContext recorder)
         {
-            var renderTarget = DeviceManager.RenderTarget;
-            var renderTargetView = DeviceManager.RenderTargetView;
-            var depthStencilView = DeviceManager.DepthStencilView;
+            var renderTarget = _device.RenderTarget;
+            var renderTargetView = _device.RenderTargetView;
+            var depthStencilView = _device.DepthStencilView;
 
             recorder.SetGraphicsRootSignature(_rootSig);
 
@@ -299,7 +301,7 @@ namespace Voltium.Interactive
         {
             _objectConstants.Unmap();
             _rootSig.Dispose();
-            DeviceManager.Dispose();
+            _device.Dispose();
         }
 
         public override void OnMouseScroll(int scroll)

@@ -17,40 +17,40 @@ namespace Voltium.Core.Managers
     /// <summary>
     /// The top-level manager for application resources
     /// </summary>
-    public static unsafe class DeviceManager
+    public unsafe class GraphicsDevice
     {
-        private static ComPtr<ID3D12Device> _device;
-        private static Adapter _adapter;
-        private static ComPtr<IDXGIDebug1> _debugLayer;
-        private static ComPtr<IDXGIFactory2> _factory;
-        private static ComPtr<IDXGISwapChain3> _swapChain;
-        private static uint _syncInterval;
-        internal static ulong TotalFramesRendered = 0;
-        private static DescriptorHeap _renderTargetViewHeap;
-        private static DescriptorHeap _depthStencilViewHeap;
-        private static GpuResource[] _renderTargets = null!;
-        private static GpuResource _depthStencil = null!;
-        internal static uint BackBufferIndex;
-        private static readonly object Lock = new object();
-        private static GraphicalConfiguration _config = null!;
+        private ComPtr<ID3D12Device> _device;
+        private Adapter _adapter;
+        private ComPtr<IDXGIDebug1> _debugLayer;
+        private ComPtr<IDXGIFactory2> _factory;
+        private ComPtr<IDXGISwapChain3> _swapChain;
+        private uint _syncInterval;
+        internal ulong TotalFramesRendered = 0;
+        private DescriptorHeap _renderTargetViewHeap;
+        private DescriptorHeap _depthStencilViewHeap;
+        private GpuResource[] _renderTargets = null!;
+        private GpuResource _depthStencil = null!;
+        internal uint BackBufferIndex;
+        private GraphicalConfiguration _config = null!;
 
         /// <summary>
         /// The <see cref="ScreenData"/> for the output
         /// </summary>
-        public static ScreenData ScreenData { get; private set; }
+        public ScreenData ScreenData { get; private set; }
+
+        private GraphicsDevice() { }
 
         /// <summary>
         /// Initialize the single instance of this type
         /// </summary>
-        public static void Initialize(GraphicalConfiguration config, in ScreenData screenData)
+        public static GraphicsDevice Create(GraphicalConfiguration config, in ScreenData screenData)
         {
-            lock (Lock)
-            {
-                CoreInitialize(config, in screenData);
-            }
+            var device = new GraphicsDevice();
+            device.InternalCreate(config, in screenData);
+            return device;
         }
 
-        private static void CoreInitialize(GraphicalConfiguration config, in ScreenData screenData)
+        private void InternalCreate(GraphicalConfiguration config, in ScreenData screenData)
         {
             Guard.NotNull(config);
 
@@ -104,14 +104,14 @@ namespace Voltium.Core.Managers
 
             D3D12DebugShim.Initialize(infoQueue);
 #endif
-            //EnableDeviceRemovedExtendedDataLayer();
+            EnableDeviceRemovedExtendedDataLayer();
 
             // TODO WARP support
 
-            Allocator = new GpuAllocator(_device.Copy());
+            Allocator = new GpuAllocator(this);
 
             InitializeDescriptorSizes();
-            GpuDispatchManager.Initialize(_device, _config);
+            GpuDispatchManager.Initialize(this, _config);
 
             CreateSwapChain();
             CreateRtvAndDsvDescriptorHeaps();
@@ -124,9 +124,9 @@ namespace Voltium.Core.Managers
         /// <summary>
         /// The default allocator for the device
         /// </summary>
-        public static GpuAllocator Allocator { get; private set; } = null!;
+        public GpuAllocator Allocator { get; private set; } = null!;
 
-        private static void InitializeDescriptorSizes()
+        private void InitializeDescriptorSizes()
         {
             ConstantBufferOrShaderResourceOrUnorderedAccessViewDescriptorSize =
                 (int)Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
@@ -143,13 +143,13 @@ namespace Voltium.Core.Managers
         /// <summary>
         /// Gets the <see cref="ID3D12Device"/> used by this application
         /// </summary>
-        public static ID3D12Device* Device => _device.Get();
+        public ID3D12Device* Device => _device.Get();
 
 
         /// <summary>
         /// Move to the next frame's set of resources
         /// </summary>
-        public static void MoveToNextFrame()
+        public void MoveToNextFrame()
         {
             GpuDispatchManager.Manager.MoveToNextFrame();
             BackBufferIndex = (BackBufferIndex + 1) % BackBufferCount;
@@ -158,66 +158,66 @@ namespace Voltium.Core.Managers
         /// <summary>
         /// The viewport for the entire screen
         /// </summary>
-        public static Viewport Viewport;
+        public Viewport Viewport;
 
 
         /// <summary>
         /// The scissor for the entire screen
         /// </summary>
-        public static Rectangle Scissor;
+        public Rectangle Scissor;
 
         /// <summary>
         /// The render target view for the current frame
         /// </summary>
-        public static DescriptorHandle RenderTargetView => _renderTargetViewHeap.FirstDescriptor + (int)BackBufferIndex;
+        public DescriptorHandle RenderTargetView => _renderTargetViewHeap.FirstDescriptor + (int)BackBufferIndex;
 
         /// <summary>
         /// The depth stencil view for the current frame
         /// </summary>
-        public static DescriptorHandle DepthStencilView => _depthStencilViewHeap.FirstDescriptor;
+        public DescriptorHandle DepthStencilView => _depthStencilViewHeap.FirstDescriptor;
 
         /// <summary>
         /// The <see cref="GpuResource"/> for the current render target resource
         /// </summary>
-        public static GpuResource RenderTarget => _renderTargets[BackBufferIndex];
+        public GpuResource RenderTarget => _renderTargets[BackBufferIndex];
 
         /// <summary>
         /// The <see cref="GpuResource"/> for the current depth stencil resource
         /// </summary>
-        public static GpuResource DepthStencil => _depthStencil;
+        public GpuResource DepthStencil => _depthStencil;
 
         /// <summary>
         /// The number of CPU buffered resources
         /// </summary>
-        public static uint BackBufferCount => _config.SwapChainBufferCount;
+        public uint BackBufferCount => _config.SwapChainBufferCount;
 
         /// <summary>
         /// The size of a descriptor of type <see cref="D3D12_DESCRIPTOR_HEAP_TYPE.D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV"/>
         /// </summary>
         // why the fuck did i call it this
-        public static int ConstantBufferOrShaderResourceOrUnorderedAccessViewDescriptorSize { get; private set; }
+        public int ConstantBufferOrShaderResourceOrUnorderedAccessViewDescriptorSize { get; private set; }
 
         /// <summary>
         /// The size of a descriptor of type <see cref="D3D12_DESCRIPTOR_HEAP_TYPE.D3D12_DESCRIPTOR_HEAP_TYPE_RTV"/>
         /// </summary>
-        public static int RenderTargetViewDescriptorSize { get; private set; }
+        public int RenderTargetViewDescriptorSize { get; private set; }
 
         /// <summary>
         /// The size of a descriptor of type <see cref="D3D12_DESCRIPTOR_HEAP_TYPE.D3D12_DESCRIPTOR_HEAP_TYPE_DSV"/>
         /// </summary>
-        public static int DepthStencilViewDescriptorSize { get; private set; }
+        public int DepthStencilViewDescriptorSize { get; private set; }
 
         /// <summary>
         /// The size of a descriptor of type <see cref="D3D12_DESCRIPTOR_HEAP_TYPE.D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER"/>
         /// </summary>
-        public static int SamplerDescriptorSize { get; private set; }
+        public int SamplerDescriptorSize { get; private set; }
 
         /// <summary>
         /// Gets the size of a descriptor for a given <see cref="D3D12_DESCRIPTOR_HEAP_TYPE"/>
         /// </summary>
         /// <param name="type">The type of the descriptor</param>
         /// <returns>The size of the descriptor, in bytes</returns>
-        public static int GetDescriptorSizeForType(D3D12_DESCRIPTOR_HEAP_TYPE type)
+        public int GetDescriptorSizeForType(D3D12_DESCRIPTOR_HEAP_TYPE type)
         {
             Debug.Assert(type > 0 && type < D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES);
 
@@ -231,7 +231,7 @@ namespace Voltium.Core.Managers
             };
         }
 
-        private static void CreateSwapChain()
+        private void CreateSwapChain()
         {
             var desc = new DXGI_SWAP_CHAIN_DESC1
             {
@@ -276,7 +276,7 @@ namespace Voltium.Core.Managers
             // TODO rotation
         }
 
-        private static void ResizeSwapChain()
+        private void ResizeSwapChain()
         {
             for (var i = 0; i < (_renderTargets?.Length ?? 0); i++)
             {
@@ -298,7 +298,7 @@ namespace Voltium.Core.Managers
         /// Resize the render resources
         /// </summary>
         /// <param name="newScreenData">The <see cref="ScreenData"/> indicating the size to resize to</param>
-        public static void Resize(ScreenData newScreenData)
+        public void Resize(ScreenData newScreenData)
         {
             ScreenData = newScreenData;
 
@@ -308,12 +308,15 @@ namespace Voltium.Core.Managers
             CreateRenderTargets();
         }
 
-        internal static bool ReportLiveObjects(bool internalObjects = false)
+        internal bool ReportLiveObjects(bool internalObjects = false)
         {
-            Guard.ThrowIfFailed(_debugLayer.Get()->ReportLiveObjects(
-                DXGI_DEBUG_ALL,
-                DXGI_DEBUG_RLO_DETAIL | (internalObjects ? DXGI_DEBUG_RLO_ALL : DXGI_DEBUG_RLO_IGNORE_INTERNAL)
-            ));
+            if (_debugLayer.Exists)
+            {
+                Guard.ThrowIfFailed(_debugLayer.Get()->ReportLiveObjects(
+                    DXGI_DEBUG_ALL,
+                    DXGI_DEBUG_RLO_DETAIL | (internalObjects ? DXGI_DEBUG_RLO_ALL : DXGI_DEBUG_RLO_IGNORE_INTERNAL)
+                ));
+            }
 
             return true;
         }
@@ -321,7 +324,7 @@ namespace Voltium.Core.Managers
         /// <summary>
         /// Present the next frame
         /// </summary>
-        public static void Present()
+        public void Present()
         {
             GpuDispatchManager.Manager.ExecuteSubmissions();
 
@@ -341,7 +344,7 @@ namespace Voltium.Core.Managers
             }
         }
 
-        private static void OnDeviceRemoved()
+        private void OnDeviceRemoved()
         {
             // we don't cache DRED state. we could, as this is the only class that should
             // change DRED state, but this isn't a fast path so there is no point
@@ -357,7 +360,7 @@ namespace Voltium.Core.Managers
                 "Device removed, no DRED present. Enable DEBUG or D3D12_DRED for enhanced device removed information");
         }
 
-        private static void OnDeviceRemovedWithDred(ID3D12DeviceRemovedExtendedData* dred)
+        private void OnDeviceRemovedWithDred(ID3D12DeviceRemovedExtendedData* dred)
         {
             Debug.Assert(dred != null);
 
@@ -370,7 +373,7 @@ namespace Voltium.Core.Managers
             // TODO dred logging
         }
 
-        private static void CreateRenderTargets()
+        private void CreateRenderTargets()
         {
             CreateRtvAndDsvResources();
             CreateRtvAndDsvViews();
@@ -378,7 +381,7 @@ namespace Voltium.Core.Managers
 
         [Conditional("DEBUG")]
         [Conditional("D3D12_DEBUG_LAYER")]
-        private static void EnableDebugLayer()
+        private void EnableDebugLayer()
         {
             using ComPtr<ID3D12Debug> debugLayer = default;
 
@@ -407,20 +410,26 @@ namespace Voltium.Core.Managers
 
         [Conditional("DEBUG")]
         [Conditional("DXGI_DRED")]
-        private static void EnableDeviceRemovedExtendedDataLayer()
+        private void EnableDeviceRemovedExtendedDataLayer()
         {
             using ComPtr<ID3D12DeviceRemovedExtendedDataSettings> dredLayer = default;
 
-            Guard.ThrowIfFailed(D3D12GetDebugInterface(
+            int hr = D3D12GetDebugInterface(
                 dredLayer.Guid,
                 ComPtr.GetVoidAddressOf(&dredLayer)
-            ));
+            );
+
+            if (FAILED(hr) || !dredLayer.Exists)
+            {
+                Logger.LogWarning("DRED could not be initialized");
+                return;
+            }
 
             dredLayer.Get()->SetAutoBreadcrumbsEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
             dredLayer.Get()->SetPageFaultEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
         }
 
-        private static bool TryCreateNewDevice(
+        private bool TryCreateNewDevice(
             Adapter adapter,
             D3D_FEATURE_LEVEL requiredLevel,
             out ComPtr<ID3D12Device> device
@@ -444,7 +453,7 @@ namespace Voltium.Core.Managers
             return success;
         }
 
-        private static void CreateRtvAndDsvResources()
+        private void CreateRtvAndDsvResources()
         {
             _renderTargets = new GpuResource[BackBufferCount];
 
@@ -477,13 +486,13 @@ namespace Voltium.Core.Managers
             SetObjectName(_depthStencil.UnderlyingResource, nameof(_depthStencil));
         }
 
-        private static void CreateRtvAndDsvDescriptorHeaps()
+        private void CreateRtvAndDsvDescriptorHeaps()
         {
-            _renderTargetViewHeap = DescriptorHeap.CreateRenderTargetViewHeap(Device, _config.SwapChainBufferCount);
-            _depthStencilViewHeap = DescriptorHeap.CreateDepthStencilViewHeap(Device);
+            _renderTargetViewHeap = DescriptorHeap.CreateRenderTargetViewHeap(this, _config.SwapChainBufferCount);
+            _depthStencilViewHeap = DescriptorHeap.CreateDepthStencilViewHeap(this, 1);
         }
 
-        private static void CreateRtvAndDsvViews()
+        private void CreateRtvAndDsvViews()
         {
             /* TODO */ //var desc = CreateRenderTargetViewDesc();
             var handle = _renderTargetViewHeap.FirstDescriptor;
@@ -512,13 +521,13 @@ namespace Voltium.Core.Managers
             SetObjectName(_depthStencil.UnderlyingResource, nameof(_depthStencil));
         }
 
-        private static D3D12_RENDER_TARGET_VIEW_DESC CreateRenderTargetViewDesc()
+        private D3D12_RENDER_TARGET_VIEW_DESC CreateRenderTargetViewDesc()
         {
             throw new NotImplementedException();
         }
 
         /// <inheritdoc cref="IDisposable"/>
-        public static void Dispose()
+        public void Dispose()
         {
             ReportLiveObjects();
 

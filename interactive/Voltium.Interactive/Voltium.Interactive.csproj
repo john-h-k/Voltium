@@ -16,18 +16,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="Shaders\Lighting.hlsli">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="Shaders\PixelFrag.hlsli">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="Shaders\SimplePixelShader.hlsl">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="Shaders\SimpleVertexShader.hlsl">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+    <None Include="Shaders\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
@@ -38,8 +28,21 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PixelShader Include="Shaders\SimplePixelShader.hlsl" />
-    <VertexShader Include="Shaders\SimpleVertexShader.hlsl" />
+    <None Include="Assets\cube.obj" />
+    <None Include="Assets\logo.mtl" />
+    <None Include="Assets\logo.obj" />
+    <None Include="Shaders\dxc.exe" />
+    <None Include="Shaders\dxcompiler.dll" />
+    <None Include="Shaders\dxil.dll" />
+    <None Include="Shaders\foo.cso" />
+    <None Include="Shaders\Lighting.hlsli" />
+    <None Include="Shaders\PixelFrag.hlsli" />
+    <None Include="Shaders\SimplePixelShader.hlsl" />
+    <None Include="Shaders\SimpleVertexShader.hlsl" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.DotNet.ILCompiler" Version="1.0.0-alpha-*" />
   </ItemGroup>
 
 </Project>

@@ -9,7 +9,7 @@ namespace Voltium.Interactive
 {
     public abstract unsafe class Renderer
     {
-        public abstract void Init(GraphicalConfiguration config, in ScreenData screen, ID3D12Device* device);
+        public abstract void Init(GraphicsDevice device, GraphicalConfiguration config, in ScreenData screen);
 
         public abstract PipelineStateObject GetInitialPso();
 

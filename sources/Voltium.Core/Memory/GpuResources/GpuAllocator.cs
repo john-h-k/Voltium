@@ -17,7 +17,7 @@ namespace Voltium.Core.GpuResources
     public unsafe sealed class GpuAllocator : IDisposable
     {
         private List<AllocatorHeap>[] _heapPools = null!;
-        private ComPtr<ID3D12Device> _device;
+        private GraphicsDevice _device;
         private const ulong HighestRequiredAlign = 1024 * 1024 * 4; // 4mb
 
         private bool _hasMergedHeapSupport;
@@ -26,12 +26,12 @@ namespace Voltium.Core.GpuResources
         /// Creates a new allocator
         /// </summary>
         /// <param name="device">The <see cref="ID3D12Device"/> to allocate on</param>
-        public GpuAllocator(ComPtr<ID3D12Device> device)
+        public GpuAllocator(GraphicsDevice device)
         {
-            Debug.Assert(device.Exists);
-            _device = device.Move();
+            Debug.Assert(device is object);
+            _device = device;
 
-            _hasMergedHeapSupport = CheckMergedHeapSupport(_device.Get());
+            _hasMergedHeapSupport = CheckMergedHeapSupport(_device.Device);
 
             CreateOriginalHeaps();
         }
@@ -127,7 +127,7 @@ namespace Voltium.Core.GpuResources
             D3D12_HEAP_DESC desc = new(GetNewHeapSize(mem, res), props, flags: flags);
 
             ComPtr<ID3D12Heap> heap = default;
-            Guard.ThrowIfFailed(_device.Get()->CreateHeap(&desc, heap.Guid, ComPtr.GetVoidAddressOf(&heap)));
+            Guard.ThrowIfFailed(_device.Device->CreateHeap(&desc, heap.Guid, ComPtr.GetVoidAddressOf(&heap)));
 
             var allocatorHeap = new AllocatorHeap { Heap = heap.Move(), FreeBlocks = new() };
             bool result = allocatorHeap.FreeBlocks.Add(new HeapBlock { Offset = 0, Size = desc.SizeInBytes });
@@ -181,7 +181,7 @@ namespace Voltium.Core.GpuResources
         private D3D12_RESOURCE_ALLOCATION_INFO GetAllocationInfo(GpuResourceDesc desc)
         {
             // TODO use ID3D12Device4::GetResourceAllocationInfo1 for doing all our computations in one go
-            return _device.Get()->GetResourceAllocationInfo(0 /* TODO: MULTI-GPU */, 1, &desc.ResourceFormat.D3D12ResourceDesc);
+            return _device.Device->GetResourceAllocationInfo(0 /* TODO: MULTI-GPU */, 1, &desc.ResourceFormat.D3D12ResourceDesc);
         }
 
         /// <inheritdoc cref="AllocateVertexBuffer{TVertex}(ReadOnlySpan{TVertex}, GpuMemoryType, GpuAllocFlags)" />
@@ -436,15 +436,13 @@ namespace Voltium.Core.GpuResources
 
         private GpuResource AllocateCommitted(GpuResourceDesc desc, D3D12_RESOURCE_ALLOCATION_INFO allocInfo)
         {
-            using var device = _device.Copy();
-
             var heapProperties = GetHeapProperties(desc);
 
             var clearVal = desc.ClearValue.GetValueOrDefault();
 
             using ComPtr<ID3D12Resource> resource = default;
 
-            Guard.ThrowIfFailed(device.Get()->CreateCommittedResource(
+            Guard.ThrowIfFailed(_device.Device->CreateCommittedResource(
                  &heapProperties,
                  desc.HeapFlags,
                  &desc.ResourceFormat.D3D12ResourceDesc,
@@ -524,13 +522,11 @@ namespace Voltium.Core.GpuResources
 
         private GpuResource CreatePlaced(GpuResourceDesc desc, D3D12_RESOURCE_ALLOCATION_INFO allocInfo, AllocatorHeap heap, HeapBlock block)
         {
-            using var device = _device.Copy();
-
             var clearVal = desc.ClearValue.GetValueOrDefault();
 
             using ComPtr<ID3D12Resource> resource = default;
 
-            Guard.ThrowIfFailed(device.Get()->CreatePlacedResource(
+            Guard.ThrowIfFailed(_device.Device->CreatePlacedResource(
                  heap.Heap.Get(),
                  block.Offset,
                  &desc.ResourceFormat.D3D12ResourceDesc,

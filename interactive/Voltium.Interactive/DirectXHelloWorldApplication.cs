@@ -8,6 +8,7 @@ using static TerraFX.Interop.D3D12_PRIMITIVE_TOPOLOGY_TYPE;
 using static TerraFX.Interop.D3D12_INPUT_CLASSIFICATION;
 using Voltium.Core.Configuration.Graphics;
 using System;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Voltium.Interactive
 {
@@ -16,9 +17,12 @@ namespace Voltium.Interactive
         public override string Title => "Hello DirectX!";
         private Renderer _renderer = new DefaultRenderer();
 
+        private GraphicsDevice _device = null!;
+
+        [MemberNotNull(nameof(_device))]
         public override unsafe void Init(ScreenData data)
         {
-            GraphicalConfiguration config = new GraphicalConfiguration
+            var config = new GraphicalConfiguration
             {
                 ForceFullscreenAsWindowed = false,
                 ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER.DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED,
@@ -33,9 +37,9 @@ namespace Voltium.Interactive
                 SwapChainBufferCount = 3
             };
 
-            DeviceManager.Initialize(config, data);
-            _renderer.Init(config, in data, DeviceManager.Device);
+            _device = GraphicsDevice.Create(config, data);
 
+            _renderer.Init(_device, config, data);
             _renderer.Resize(data);
         }
 
@@ -47,22 +51,22 @@ namespace Voltium.Interactive
         {
             using var commandList = GpuDispatchManager.Manager.BeginGraphicsContext(_renderer.GetInitialPso());
 
-            commandList.SetViewportAndScissor(DeviceManager.ScreenData);
+            commandList.SetViewportAndScissor(_device.ScreenData);
             _renderer.Render(commandList);
 
             GpuDispatchManager.Manager.End(commandList.Move());
 
-            DeviceManager.Present();
+            _device.Present();
         }
 
         public override void Destroy()
         {
-            DeviceManager.Dispose();
+            _device.Dispose();
         }
 
         public override void OnResize(ScreenData newScreenData)
         {
-            DeviceManager.Resize(newScreenData);
+            _device.Resize(newScreenData);
             _renderer.Resize(newScreenData);
         }
 

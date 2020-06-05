@@ -45,7 +45,7 @@ namespace Voltium.Core.Managers
         public ID3D12CommandQueue* GetQueue() => _queue.Get();
 
         public SynchronizedCommandQueue(
-            ComPtr<ID3D12Device> device,
+            GraphicsDevice device,
             ExecutionContext context,
             ComPtr<ID3D12CommandQueue> queue,
             ComPtr<ID3D12Fence> fence
@@ -53,15 +53,15 @@ namespace Voltium.Core.Managers
         {
             Debug.Assert(queue.Exists);
             Debug.Assert(fence.Exists);
-            Debug.Assert(device.Exists);
+            Debug.Assert(device is object);
 
             _type = context;
             _queue = queue;
             _fence = fence;
-            _marker = new FenceMarker(DeviceManager.BackBufferCount);
+            _marker = new FenceMarker(device.BackBufferCount);
             _executingAllocators = new();
             Guard.ThrowIfFailed(_queue.Get()->Signal(_fence.Get(), _marker.FenceValue));
-            _allocatorPool = new(device.Copy(), context);
+            _allocatorPool = new(ComPtr<ID3D12Device>.CopyFromPointer(device.Device), context);
         }
 
         public ComPtr<ID3D12CommandAllocator> RentAllocator()

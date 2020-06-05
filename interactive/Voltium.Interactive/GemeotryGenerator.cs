@@ -77,7 +77,7 @@ namespace Voltium.Interactive
             return new Geometry(cubeVertices, CubeIndices);
         }
 
-        private const string AssetsFolder = "Assets";
+        private const string AssetsFolder = "Assets/";
 
         private sealed class AssetsProvider : IMaterialStreamProvider
         {
@@ -90,7 +90,7 @@ namespace Voltium.Interactive
 
         public static Geometry LoadSingleModel(string filename, Material material = default)
         {
-            var model = _loader.Value!.Load(File.OpenRead(filename));
+            var model = _loader.Value!.Load(File.OpenRead(AssetsFolder + filename));
 
             var indexCount = model.Groups
                 .Aggregate(0, (val, group) => val += group.Faces

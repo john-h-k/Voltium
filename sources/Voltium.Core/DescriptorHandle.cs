@@ -48,11 +48,11 @@ namespace Voltium.Core
         /// <summary>
         /// Creates a new <see cref="DescriptorHandle"/>
         /// </summary>
-        public DescriptorHandle(CpuHandle cpuHandle, GpuHandle gpuHandle, D3D12_DESCRIPTOR_HEAP_TYPE type)
+        public DescriptorHandle(GraphicsDevice device, CpuHandle cpuHandle, GpuHandle gpuHandle, D3D12_DESCRIPTOR_HEAP_TYPE type)
         {
             CpuHandle = cpuHandle;
             GpuHandle = gpuHandle;
-            IncrementSize = DeviceManager.GetDescriptorSizeForType(type);
+            IncrementSize = device.GetDescriptorSizeForType(type);
         }
     }
 }

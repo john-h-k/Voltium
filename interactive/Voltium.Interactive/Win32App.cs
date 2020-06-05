@@ -27,7 +27,7 @@ namespace Voltium.Interactive
             uint height;
             uint width;
 
-            fixed (char* lpszClassName = "DXSampleClass")
+            fixed (char* lpszClassName = "Voltium.Interactive")
             fixed (char* lpWindowName = application.Title)
             {
                 // Initialize the window class.
