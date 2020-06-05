@@ -10,8 +10,8 @@ namespace Voltium.Interactive
 {
     public static unsafe class Win32Application
     {
-        private static readonly WNDPROC WndProc = (hwnd, message, wParam, lParam) => WindowProc(hwnd, message, wParam, lParam);
-        private static readonly IntPtr WindowProcHandle = Marshal.GetFunctionPointerForDelegate(WndProc);
+        private static readonly delegate* stdcall<IntPtr, uint, nuint, nint, nint> WindowProcHandle =
+            (delegate* stdcall<IntPtr, uint, nuint, nint, nint>)(delegate*<IntPtr, uint, nuint, nint, nint>)&WindowProc;
 
         private static bool _isResizing = false;
         //private static bool _isPaused = false;
@@ -97,7 +97,7 @@ namespace Voltium.Interactive
         private static ApplicationTimer _timer = null!;
 
         // Main message handler for the sample
-        private static IntPtr WindowProc(HWND hWnd, uint message, UIntPtr wParam, IntPtr lParam)
+        private static nint WindowProc(IntPtr hWnd, uint message, nuint wParam, nint lParam)
         {
             var handle = GetWindowLongPtrW(hWnd, GWLP_USERDATA);
             var pSample = (handle != IntPtr.Zero) ? (Application?)GCHandle.FromIntPtr(handle).Target : null;
@@ -109,32 +109,32 @@ namespace Voltium.Interactive
                     // Save the Application* passed in to CreateWindow.
                     var pCreateStruct = (CREATESTRUCTW*)lParam;
                     _ = SetWindowLongPtrW(hWnd, GWLP_USERDATA, (IntPtr)pCreateStruct->lpCreateParams);
-                    return IntPtr.Zero;
+                    return 0;
                 }
 
                 case WM_KEYDOWN:
                 {
                     pSample?.OnKeyDown((byte)wParam);
-                    return IntPtr.Zero;
+                    return 0;
                 }
 
                 case WM_KEYUP:
                 {
                     pSample?.OnKeyUp((byte)wParam);
-                    return IntPtr.Zero;
+                    return 0;
                 }
 
                 case WM_MOUSEWHEEL:
                 {
                     var delta = GET_WHEEL_DELTA_WPARAM(wParam) / 120;
                     pSample?.OnMouseScroll(delta);
-                    return IntPtr.Zero;
+                    return 0;
                 }
 
                 case WM_ENTERSIZEMOVE:
                 {
                     _isResizing = true;
-                    return IntPtr.Zero;
+                    return 0;
                 }
 
                 case WM_EXITSIZEMOVE:
@@ -150,14 +150,14 @@ namespace Voltium.Interactive
 
                     if (_isResizing)
                     {
-                        return IntPtr.Zero;
+                        return 0;
                     }
 
                     if (sz != 0) // why do we sometimes get zero size wParams?
                     {
                         pSample?.OnResize(_screenData);
                     }
-                    return IntPtr.Zero;
+                    return 0;
                 }
 
                 case WM_PAINT:
@@ -173,13 +173,13 @@ namespace Voltium.Interactive
                         );
                     }
 
-                    return IntPtr.Zero;
+                    return 0;
                 }
 
                 case WM_DESTROY:
                 {
                     PostQuitMessage(0);
-                    return IntPtr.Zero;
+                    return 0;
                 }
             }
 

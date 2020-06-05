@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
@@ -11,9 +12,7 @@ namespace Voltium.Common.Debugging
 {
     internal unsafe static class D3D12DeletionNotification
     {
-        public delegate void DeletionCallback(IntPtr pData);
-
-        public static void RegisterForDeletionCallback<T>(ComPtr<T> ptr, DeletionCallback callback, object? data = null) where T : unmanaged
+        public static void RegisterForDeletionCallback<T>(ComPtr<T> ptr, delegate* stdcall<void*, void> callback, object? data = null) where T : unmanaged
         {
             if (!ptr.TryQueryInterface<ID3DDestructionNotifier>(out var notifier))
             {
@@ -22,15 +21,13 @@ namespace Voltium.Common.Debugging
 
             using (notifier)
             {
-                var nativeCallback = Marshal.GetFunctionPointerForDelegate(callback);
-
                 var handle = default(IntPtr);
                 if (data is object)
                 {
                     handle = GCHandle.ToIntPtr(GCHandle.Alloc(handle));
                 }
 
-                notifier.Get()->RegisterDestructionCallback(nativeCallback, (void*)handle, null);
+                Guard.ThrowIfFailed(notifier.Get()->RegisterDestructionCallback(callback, (void*)handle, null));
             }
         }
 
@@ -41,7 +38,7 @@ namespace Voltium.Common.Debugging
                 data = $"'{typeof(T).Name} with name '{DirectXHelpers.GetObjectName(ptr.Get())}' is being deleted";
             }
 
-            RegisterForDeletionCallback(ptr, BreakOnDeletion, data);
+            RegisterForDeletionCallback(ptr, (delegate* stdcall<void*, void>)(delegate* <IntPtr, void>)&BreakOnDeletion, data);
         }
 
         private static void BreakOnDeletion(IntPtr data)

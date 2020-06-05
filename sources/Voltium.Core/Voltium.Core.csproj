@@ -4,6 +4,7 @@
   <PropertyGroup>
       <TargetFramework>netcoreapp5.0</TargetFramework>
       <LangVersion>preview</LangVersion>
+      <PackageLicenseExpression>AGPLV3</PackageLicenseExpression>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -39,6 +40,18 @@
 
   <ItemGroup>
     <Content Include="Shaders\PresentPS.hlsl" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="nativedependencies\dxc.exe">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="nativedependencies\dxcompiler.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="nativedependencies\dxil.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>

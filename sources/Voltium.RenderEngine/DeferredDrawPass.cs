@@ -6,8 +6,7 @@ using System.Threading.Tasks;
 
 namespace Voltium.RenderEngine
 {
-    public class DeferredLightDrawPass
-    {
-        public List<R>
-    }
+    //public class DeferredLightDrawPass
+    //{
+    //}
 }

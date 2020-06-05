@@ -36,15 +36,4 @@ namespace Voltium.Core
         /// </summary>
         Patrick = 0xFFFFFFFFFFFFFFFF,
     }
-
-    internal class ExecutionContextExtensions
-    {
-        public const int NumSupportedExecutionContexts = 4;
-        public const ulong FenceSegmentSize = ulong.MaxValue / NumSupportedExecutionContexts;
-
-        internal static bool InSegment(ulong fenceValue, ExecutionContext executionContext)
-        {
-            return fenceValue / FenceSegmentSize == (ulong)executionContext;
-        }
-    }
 }

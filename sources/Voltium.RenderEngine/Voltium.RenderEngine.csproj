@@ -4,4 +4,12 @@
     <TargetFramework>net5.0</TargetFramework>
   </PropertyGroup>
 
+  <ItemGroup>
+    <None Include="Jobs\FibreRoutines.asm" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Voltium.Core\Voltium.Core.csproj" />
+  </ItemGroup>
+
 </Project>

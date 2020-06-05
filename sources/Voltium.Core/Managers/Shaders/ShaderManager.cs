@@ -288,13 +288,8 @@ namespace Voltium.Core.Managers
 
             fixed (char* pText = shaderText)
             fixed (byte* ppFlags = rentedFlagBuff.Value)
-            // can't pin on managed type so gotta get it on the vtbl
             fixed (IDxcIncludeHandler* pInclude = DefaultIncludeHandler)
             {
-                var realPInclude = Unsafe.AsPointer(ref DefaultIncludeHandler);
-
-                Debug.Assert(pInclude == realPInclude);
-
                 DxcBuffer text;
                 text.Ptr = pText;
                 text.Size = (nuint)(shaderText.Length * sizeof(char));

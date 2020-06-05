@@ -15,7 +15,7 @@ namespace Voltium.Core.Managers
     internal unsafe struct IncludeHandler : IDisposable
     {
         [FieldOffset(0)]
-        private IDxcIncludeHandler.Vtbl* _pVtbl;
+        private void** _pVtbl;
         [FieldOffset(8)]
         public string AppDirContext;
         [FieldOffset(16)]
@@ -24,19 +24,25 @@ namespace Voltium.Core.Managers
         private ComPtr<IDxcUtils> _utils;
 
         private static readonly IntPtr Heap;
-        private static IDxcIncludeHandler.Vtbl* Vtbl;
+        private static void** Vtbl;
 
         static IncludeHandler()
         {
             Heap = Windows.GetProcessHeap();
-            Vtbl = (IDxcIncludeHandler.Vtbl*)Windows.HeapAlloc(Heap, 0, (uint)sizeof(IDxcIncludeHandler.Vtbl));
+            Vtbl = (void**)Windows.HeapAlloc(Heap, 0, (uint)sizeof(nuint) * 4);
 
             // these should be stdcall in the future
 
-            Vtbl->AddRef = (IntPtr)(delegate*<IDxcIncludeHandler*, uint>)&_AddRef;
-            Vtbl->QueryInterface = (IntPtr)(delegate*<IDxcIncludeHandler*, Guid*, void**, int>)&_QueryInterface;
-            Vtbl->Release = (IntPtr)(delegate*<IDxcIncludeHandler*, uint>)&_Release;
-            Vtbl->LoadSource = (IntPtr)(delegate*<IDxcIncludeHandler*, ushort*, IDxcBlob**, int>)&_LoadSource;
+            // Native vtable layout
+            // - QueryInterface
+            // - AddRef
+            // - Release
+            // - LoadSource
+
+            Vtbl[0] = (delegate*<IDxcIncludeHandler*, Guid*, void**, int>)&_QueryInterface;
+            Vtbl[1] = (delegate*<IDxcIncludeHandler*, uint>)&_AddRef;
+            Vtbl[2] = (delegate*<IDxcIncludeHandler*, uint>)&_Release;
+            Vtbl[3] = (delegate*<IDxcIncludeHandler*, ushort*, IDxcBlob**, int>)&_LoadSource;
         }
 
         public void Init(ComPtr<IDxcUtils> utils)

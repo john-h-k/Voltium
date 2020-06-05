@@ -68,4 +68,12 @@ namespace Voltium.RenderEngine.Jobs
             return 0xFFFFFFFF;
         }
     }
+
+    internal class LockedSynchronizationContext : SynchronizationContext
+    {
+        public override void Post(SendOrPostCallback d, object? state)
+        {
+            //LockedThreadPool.QueueJob(d, state);
+        }
+    }
 }
