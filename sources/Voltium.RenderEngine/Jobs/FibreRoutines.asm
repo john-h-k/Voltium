@@ -1,2 +1,2 @@
-// fibres dont work in .NET :(
-// i cri every day
+; fibres dont work in .NET :(
+; i cri every day
