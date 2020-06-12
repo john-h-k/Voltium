@@ -10,7 +10,7 @@ namespace Voltium.Common
     /// <summary>
     /// A wrapper struct that encapsulates a pointer to an unmanaged COM object
     /// </summary>
-    /// <typeparam name="T"></typeparam>
+    /// <typeparam name="T">The type of the underlying COM object</typeparam>
     [RaiiOwnershipType]
     public unsafe struct ComPtr<T> : IDisposable, IEquatable<ComPtr<T>> /*, IComType*/ where T : unmanaged
     {
@@ -20,7 +20,9 @@ namespace Voltium.Common
             Debug.Assert(ComPtr.GetAddressOf(&p) == &p._ptr);
 
             // *probably* not a valid COM type without a GUID
+#if REFLECTION
             Debug.Assert(typeof(T).GetCustomAttribute(typeof(GuidAttribute)) != null);
+#endif
             CachedGuidHandle = GCHandle.Alloc(CachedGuid, GCHandleType.Pinned);
             PointerToCachedGuid = (Guid*)CachedGuidHandle.AddrOfPinnedObject();
         }
@@ -58,7 +60,12 @@ namespace Voltium.Common
         // https://github.com/dotnet/runtime/issues/36272
         public readonly Guid* Guid => PointerToCachedGuid;
 
-        private static readonly Guid CachedGuid = typeof(T).GUID;
+        private static readonly Guid CachedGuid =
+#if REFLECTION
+            typeof(T).GUID;
+#else
+            default;
+#endif
 
         // ReSharper disable twice StaticMemberInGenericType
         private static readonly Guid* PointerToCachedGuid;
@@ -88,10 +95,26 @@ namespace Voltium.Common
 
             if (p != null)
             {
-                p->Release();
+                _ = p->Release();
             }
 
             _ptr = null;
+        }
+
+        internal uint? RefCount
+        {
+            get
+            {
+                var p = (IUnknown*)_ptr;
+
+                if (p != null)
+                {
+                    _ = p->AddRef();
+                    uint count = p->Release();
+                    return count;
+                }
+                return null;
+            }
         }
 
         private readonly void AddRef()
@@ -100,7 +123,7 @@ namespace Voltium.Common
 
             if (p != null)
             {
-                p->AddRef();
+                _ = p->AddRef();
             }
         }
 
@@ -203,6 +226,23 @@ namespace Voltium.Common
         /// <returns>A pointer to the underlying pointer</returns>
         public static T** GetAddressOf<T>(ComPtr<T>* comPtr) where T : unmanaged
             => (T**)comPtr;
+
+        /// <summary>
+        /// Try and cast <typeparamref name="T"/> to <typeparamref name="TInterface"/>
+        /// </summary>
+        /// <param name="ptr"></param>
+        /// <param name="result">A <see cref="ComPtr{T}"/> that encapsulates the casted pointer, if succeeded</param>
+        /// <typeparam name="T">The type of the underlying COM object</typeparam>
+        /// <typeparam name="TInterface">The type to cast to</typeparam>
+        /// <returns><code>true</code> if the cast succeeded, else <code>false</code></returns>
+        public static bool TryQueryInterface<T, TInterface>(T* ptr, out TInterface* result)
+            where T : unmanaged
+            where TInterface : unmanaged
+        {
+            var success = new ComPtr<T>(ptr).TryQueryInterface<TInterface>(out var comPtr);
+            result = comPtr.Get();
+            return success;
+        }
 
         /// <summary>
         /// Returns the address of the underlying pointer in the <see cref="ComPtr{T}"/>.

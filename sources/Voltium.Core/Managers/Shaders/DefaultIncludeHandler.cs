@@ -55,6 +55,7 @@ namespace Voltium.Core.Managers
 
         public void SetShaderDirContext(string dir) => ShaderDirContext = dir;
 
+        [UnmanagedCallersOnly]
         private static int _LoadSource(IDxcIncludeHandler* pThis, ushort* pFilename, IDxcBlob** ppIncludeSource)
             => AsThis(pThis).LoadSource(pFilename, ppIncludeSource);
 
@@ -109,6 +110,7 @@ namespace Voltium.Core.Managers
 
         private static ref IncludeHandler AsThis(IDxcIncludeHandler* pThis) => ref Unsafe.As<IDxcIncludeHandler, IncludeHandler>(ref *pThis);
 
+        [UnmanagedCallersOnly]
         private static uint _AddRef(IDxcIncludeHandler* pThis)
             => AsThis(pThis).AddRef();
 
@@ -117,6 +119,7 @@ namespace Voltium.Core.Managers
             return default;
         }
 
+        [UnmanagedCallersOnly]
         private static int _QueryInterface(IDxcIncludeHandler* pThis, Guid* riid, void** ppvObject)
             => AsThis(pThis).QueryInterface(riid, ppvObject);
 
@@ -126,6 +129,7 @@ namespace Voltium.Core.Managers
             return default;
         }
 
+        [UnmanagedCallersOnly]
         public static uint _Release(IDxcIncludeHandler* pThis)
             => AsThis(pThis).Release();
 

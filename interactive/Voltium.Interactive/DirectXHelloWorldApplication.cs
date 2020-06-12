@@ -27,8 +27,8 @@ namespace Voltium.Interactive
                 ForceFullscreenAsWindowed = false,
                 ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER.DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED,
                 VSyncCount = 0,
-                BackBufferFormat = DXGI_FORMAT_R8G8B8A8_UNORM,
-                DepthStencilFormat = DXGI_FORMAT_D32_FLOAT,
+                BackBufferFormat = DataFormat.R8G8B8A8UnsignedNormalized,
+                DepthStencilFormat = DataFormat.D32Single,
                 FullscreenScalingStrategy = DXGI_MODE_SCALING.DXGI_MODE_SCALING_UNSPECIFIED,
                 MultiSamplingStrategy = new MsaaDesc(1, 0),
                 RequiredDirect3DLevel = D3D_FEATURE_LEVEL.D3D_FEATURE_LEVEL_11_1,
@@ -49,12 +49,12 @@ namespace Voltium.Interactive
         }
         public override unsafe void Render()
         {
-            using var commandList = GpuDispatchManager.Manager.BeginGraphicsContext(_renderer.GetInitialPso());
+            using var commandList = _device.BeginGraphicsContext(_renderer.GetInitialPso());
 
             commandList.SetViewportAndScissor(_device.ScreenData);
             _renderer.Render(commandList);
 
-            GpuDispatchManager.Manager.End(commandList.Move());
+            _device.End(commandList.Move());
 
             _device.Present();
         }

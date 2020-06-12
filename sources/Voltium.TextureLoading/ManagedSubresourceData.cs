@@ -48,7 +48,6 @@ namespace Voltium.TextureLoading
         public readonly nuint SlicePitch;
 
         /// <inheritdoc/>
-        public override string ToString()
-            => StringHelper.DefaultToString(this);
+        public override string ToString() => ""; // TODO
     }
 }

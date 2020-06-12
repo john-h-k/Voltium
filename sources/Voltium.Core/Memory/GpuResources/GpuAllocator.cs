@@ -242,8 +242,8 @@ namespace Voltium.Core.GpuResources
 
             var desc = new GpuResourceDesc(
                 GpuResourceFormat.Buffer((uint)sizeof(TVertex) * vertexCount),
-                type,
-                type == GpuMemoryType.CpuUpload ? D3D12_RESOURCE_STATE_GENERIC_READ : D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
+                type,   
+                type == GpuMemoryType.CpuUpload ? ResourceState.GenericRead : ResourceState.VertexBuffer,
                 flags
             );
 
@@ -310,7 +310,7 @@ namespace Voltium.Core.GpuResources
             var desc = new GpuResourceDesc(
                 GpuResourceFormat.Buffer((uint)sizeof(TIndex) * indexCount),
                 type,
-                type == GpuMemoryType.CpuUpload ? D3D12_RESOURCE_STATE_GENERIC_READ : D3D12_RESOURCE_STATE_INDEX_BUFFER,
+                type == GpuMemoryType.CpuUpload ? ResourceState.GenericRead : ResourceState.IndexBuffer,
                 flags
             );
 
@@ -335,13 +335,13 @@ namespace Voltium.Core.GpuResources
             => AllocateConstantBuffer((ReadOnlySpan<TBuffer>)initialData, type, flags);
 
         /// <summary>
-        /// Allocates a new <see cref="IndexBuffer{TBuffer}"/>
+        /// Allocates a new <see cref="ConstantBuffer{TBuffer}"/>
         /// </summary>
         /// <typeparam name="TBuffer">The type of each constant buffer</typeparam>
         /// <param name="initialData">The initial buffer data, which will be copied to the resource</param>
         /// <param name="type">The type of GPU memory to allocate in</param>
         /// <param name="flags">Any additional allocation flags passed to the allocator</param>
-        /// <returns>A new <see cref="IndexBuffer{TBuffer}"/></returns>
+        /// <returns>A new <see cref="ConstantBuffer{TBuffer}"/></returns>
         public ConstantBuffer<TBuffer> AllocateConstantBuffer<TBuffer>(
             ReadOnlySpan<TBuffer> initialData,
             GpuMemoryType type,
@@ -375,12 +375,12 @@ namespace Voltium.Core.GpuResources
         /// Allocates a new <see cref="ConstantBuffer{TBuffer}"/>
         /// </summary>
         /// <typeparam name="TBuffer">The type of each buffer</typeparam>
-        /// <param name="indexCount">The number of buffers</param>
+        /// <param name="bufferCount">The number of buffers</param>
         /// <param name="type">The type of GPU memory to allocate in</param>
         /// <param name="flags">Any additional allocation flags passed to the allocator</param>
         /// <returns>A new <see cref="ConstantBuffer{TBuffer}"/></returns>
         public ConstantBuffer<TBuffer> AllocateConstantBuffer<TBuffer>(
-            uint indexCount,
+            uint bufferCount,
             GpuMemoryType type,
             GpuAllocFlags flags = GpuAllocFlags.None
         ) where TBuffer : unmanaged
@@ -388,9 +388,9 @@ namespace Voltium.Core.GpuResources
             Debug.Assert(type != GpuMemoryType.CpuReadback);
 
             var desc = new GpuResourceDesc(
-                GpuResourceFormat.Buffer(CalculateConstantBufferSize(sizeof(TBuffer)) * indexCount),
+                GpuResourceFormat.Buffer(CalculateConstantBufferSize(sizeof(TBuffer)) * bufferCount),
                 type,
-                type == GpuMemoryType.CpuUpload ? D3D12_RESOURCE_STATE_GENERIC_READ : D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
+                type == GpuMemoryType.CpuUpload ? ResourceState.GenericRead : ResourceState.ConstantBuffer,
                 flags
             );
 
@@ -446,7 +446,7 @@ namespace Voltium.Core.GpuResources
                  &heapProperties,
                  desc.HeapFlags,
                  &desc.ResourceFormat.D3D12ResourceDesc,
-                 desc.InitialState,
+                 (D3D12_RESOURCE_STATES)desc.InitialState,
                  desc.ClearValue is null ? null : &clearVal,
                  resource.Guid,
                  ComPtr.GetVoidAddressOf(&resource)
@@ -530,7 +530,7 @@ namespace Voltium.Core.GpuResources
                  heap.Heap.Get(),
                  block.Offset,
                  &desc.ResourceFormat.D3D12ResourceDesc,
-                 desc.InitialState,
+                 (D3D12_RESOURCE_STATES)desc.InitialState,
                  desc.ClearValue is null ? null : &clearVal,
                  resource.Guid,
                  ComPtr.GetVoidAddressOf(&resource)

@@ -35,6 +35,7 @@ namespace Voltium.Core.Managers
             }
             catch (Exception e)
             {
+#if REFLECTION
                 // if this happens when ShaderInputAttribute is applied, our generator is bugged
                 bool hasGenAttr = typeof(TShaderInput).GetCustomAttribute<ShaderInputAttribute>() is object;
 
@@ -47,6 +48,11 @@ namespace Voltium.Core.Managers
                 ThrowHelper.ThrowArgumentException(
                     $"IA input type '{typeof(TShaderInput).Name}' threw an exception of type '{e.GetType().Name}'. " +
                     $"Inspect InnerException to view this exception. {(hasGenAttr ? hasGenAttrMessage : noGenAttrMessage)}", e);
+#else
+                ThrowHelper.ThrowArgumentException(
+                    $"IA input type '{nameof(TShaderInput)}' threw an exception. " +
+                    $"Inspect InnerException to view this exception. Reflection is disabled so no further information could be gathered", e);
+#endif
             }
 
             return CreatePso(device, name, graphicsDesc);

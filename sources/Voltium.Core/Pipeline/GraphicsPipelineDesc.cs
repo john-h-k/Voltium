@@ -21,8 +21,8 @@ namespace Voltium.Core.Pipeline
         /// </summary>
         public GraphicsPipelineDesc(
             in RootSignature sig,
-            DXGI_FORMAT backBufferFormat,
-            DXGI_FORMAT depthStencilFormat,
+            DataFormat backBufferFormat,
+            DataFormat depthStencilFormat,
             CompiledShader vertexShader,
             CompiledShader pixelShader
             ) : this()
@@ -117,7 +117,7 @@ namespace Voltium.Core.Pipeline
         /// <summary>
         /// The format of the depth stencil
         /// </summary>
-        public DXGI_FORMAT DepthStencilFormat;
+        public DataFormat DepthStencilFormat;
 
         /* public TODO: MULTI-GPU */
         internal uint NodeMask;
@@ -125,21 +125,21 @@ namespace Voltium.Core.Pipeline
         //public uint SampleMask;  do we need to expose this
 
         /// <summary>
-        /// A buffer of 8 <see cref="DXGI_FORMAT"/>s
+        /// A buffer of 8 <see cref="DataFormat"/>s
         /// </summary>
         public unsafe struct FormatBuffer8
         {
             private fixed uint _formats[8];
 
             /// <summary>
-            /// Retrieves the <see cref="DXGI_FORMAT"/> for a given index
+            /// Retrieves the <see cref="DataFormat"/> for a given index
             /// </summary>
-            public DXGI_FORMAT this[int index]
+            public DataFormat this[int index]
             {
                 get
                 {
                     Guard.InRangeInclusive(index, 0, 7);
-                    return (DXGI_FORMAT)_formats[index];
+                    return (DataFormat)_formats[index];
                 }
                 set => _formats[index] = (uint)value;
             }

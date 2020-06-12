@@ -7,13 +7,14 @@ using Voltium.Core.GpuResources;
 using Voltium.Core.Managers;
 using Voltium.Core.Memory.GpuResources.ResourceViews;
 using Voltium.Core.Pipeline;
+using static TerraFX.Interop.D3D_PRIMITIVE_TOPOLOGY;
 
 namespace Voltium.Core
 {
     /// <summary>
     /// Represents a context on which GPU commands can be recorded
     /// </summary>
-    public unsafe struct GraphicsContext : IDisposable
+    public unsafe partial struct GraphicsContext : IDisposable
     {
         private ComPtr<ID3D12GraphicsCommandList> _list;
         private ComPtr<ID3D12CommandAllocator> _allocator;
@@ -159,8 +160,8 @@ namespace Voltium.Core
             return new D3D12_RESOURCE_TRANSITION_BARRIER
             {
                 pResource = resource.UnderlyingResource,
-                StateBefore = resource.State,
-                StateAfter = transition.NewState,
+                StateBefore = (D3D12_RESOURCE_STATES)resource.State,
+                StateAfter = (D3D12_RESOURCE_STATES)transition.NewState,
                 Subresource = transition.Subresource
             };
         }
@@ -205,9 +206,19 @@ namespace Voltium.Core
         /// Sets the primitive toplogy for geometry
         /// </summary>
         /// <param name="topology">The <see cref="D3D_PRIMITIVE_TOPOLOGY"/> to use</param>
-        public void SetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY topology)
+        public void SetTopology(Topology topology)
         {
-            _list.Get()->IASetPrimitiveTopology(topology);
+            _list.Get()->IASetPrimitiveTopology((D3D_PRIMITIVE_TOPOLOGY)topology);
+        }
+
+        /// <summary>
+        /// Sets the number of points in a control point patch
+        /// </summary>
+        /// <param name="count">The number of points per patch></param>
+        public void SetControlPatchPointCount(byte count)
+        {
+            Guard.InRangeInclusive(1, 32, count);
+            _list.Get()->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_1_CONTROL_POINT_PATCHLIST + (count - 1));
         }
 
         /// <summary>

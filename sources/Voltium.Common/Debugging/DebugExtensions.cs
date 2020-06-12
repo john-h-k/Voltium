@@ -37,6 +37,7 @@ namespace Voltium.Common
 
         public static string TranslateHr(int hr)
         {
+#if REFLECTION
             var type = typeof(Windows);
             foreach (var field in type.GetFields(BindingFlags.Public | BindingFlags.Static))
             {
@@ -45,6 +46,7 @@ namespace Voltium.Common
                     return field.Name;
                 }
             }
+#endif
 
             return "<unmapped>";
         }

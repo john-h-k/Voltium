@@ -57,33 +57,33 @@ namespace Voltium.Common
         private static StringBuilder GetNewStringBuilder() => new StringBuilder(DefaultSize);
         private const int DefaultSize = 64;
 
-        public static string DefaultToString<T>(T @this, ReflectionToStringFlags flags = ReflectionToStringFlags.Default)
-        {
-            if (@this is null)
-            {
-                return "null";
-            }
+        //public static string DefaultToString<T>(T @this, ReflectionToStringFlags flags = ReflectionToStringFlags.Default)
+        //{
+        //    if (@this is null)
+        //    {
+        //        return "null";
+        //    }
 
-            using RentedStringBuilder builder = RentStringBuilder();
+        //    using RentedStringBuilder builder = RentStringBuilder();
 
-            BindingFlags bindingFlags = (BindingFlags)(flags & ReflectionToStringFlags.BindingFlagsMask) | BindingFlags.Instance;
-            if (flags.HasFlag(ReflectionToStringFlags.Properties))
-            {
-                foreach (PropertyInfo prop in @this.GetType().GetProperties(bindingFlags))
-                {
-                    builder.AppendLine($"{prop.Name}: {prop.GetValue(@this)}");
-                }
-            }
-            else if (flags.HasFlag(ReflectionToStringFlags.Fields))
-            {
-                foreach (FieldInfo field in @this.GetType().GetFields(bindingFlags))
-                {
-                    builder.AppendLine($"{field.Name}: {field.GetValue(@this)}");
-                }
-            }
+        //    BindingFlags bindingFlags = (BindingFlags)(flags & ReflectionToStringFlags.BindingFlagsMask) | BindingFlags.Instance;
+        //    if (flags.HasFlag(ReflectionToStringFlags.Properties))
+        //    {
+        //        foreach (PropertyInfo prop in @this.GetType().GetProperties(bindingFlags))
+        //        {
+        //            builder.AppendLine($"{prop.Name}: {prop.GetValue(@this)}");
+        //        }
+        //    }
+        //    else if (flags.HasFlag(ReflectionToStringFlags.Fields))
+        //    {
+        //        foreach (FieldInfo field in @this.GetType().GetFields(bindingFlags))
+        //        {
+        //            builder.AppendLine($"{field.Name}: {field.GetValue(@this)}");
+        //        }
+        //    }
 
-            return builder.ToString();
-        }
+        //    return builder.ToString();
+        //}
 
         public static void WriteTabbingNewlines(ReadOnlySpan<char> str, int tabPerNewline = 1, TextWriter writer = null!)
         {

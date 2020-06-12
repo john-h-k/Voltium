@@ -74,8 +74,8 @@ namespace Voltium.Interactive
             MSG msg;
 
             _timer = ApplicationTimer.StartNew();
-            _timer.SetFixedTimeStep(true);
-            _timer.SetTargetElapsedSeconds(1 / 100d);
+            //_timer.SetFixedTimeStep(true);
+            _timer.SetTargetElapsedSeconds(1 / 850d);
 
             do
             {
@@ -97,6 +97,7 @@ namespace Voltium.Interactive
         private static ApplicationTimer _timer = null!;
 
         // Main message handler for the sample
+        [UnmanagedCallersOnly]
         private static nint WindowProc(IntPtr hWnd, uint message, nuint wParam, nint lParam)
         {
             var handle = GetWindowLongPtrW(hWnd, GWLP_USERDATA);

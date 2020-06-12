@@ -10,7 +10,7 @@ namespace Voltium.Core.GpuResources
     /// <summary>
     /// Represents a GPU resource
     /// </summary>
-    public unsafe class GpuResource : CriticalFinalizerObject, IDisposable
+    internal unsafe class GpuResource : CriticalFinalizerObject, IDisposable
     {
         internal GpuResource(
             ComPtr<ID3D12Resource> resource,
@@ -39,7 +39,7 @@ namespace Voltium.Core.GpuResources
         private GpuResource() { }
 
         // this is a hack. TODO make it right
-        internal static GpuResource FromRenderTarget(
+        internal static GpuResource FromBackBuffer(
             ComPtr<ID3D12Resource> resource
         )
         {
@@ -48,8 +48,8 @@ namespace Voltium.Core.GpuResources
             {
                 _value = resource.Move(),
                 Type = (GpuMemoryType)(-1) /* TODO wtf should we have here */,
-                ResourceFormat = desc.Format,
-                State = D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_COMMON
+                ResourceFormat = (DataFormat)desc.Format,
+                State = (ResourceState)D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_COMMON
             };
         }
 
@@ -59,9 +59,9 @@ namespace Voltium.Core.GpuResources
         public GpuMemoryType Type { get; private set; }
 
         /// <summary>
-        /// The format of the buffer, if typed, else <see cref="DXGI_FORMAT.DXGI_FORMAT_UNKNOWN"/>
+        /// The format of the buffer, if typed, else <see cref="DataFormat.Unknown"/>
         /// </summary>
-        public DXGI_FORMAT ResourceFormat { get; private set; }
+        public DataFormat ResourceFormat { get; private set; }
 
         /// <summary>
         /// The underlying value of the resource
@@ -71,7 +71,7 @@ namespace Voltium.Core.GpuResources
         /// <summary>
         /// The current state of the resource
         /// </summary>
-        public D3D12_RESOURCE_STATES State { get; internal set; }
+        public ResourceState State { get; internal set; }
 
         private ComPtr<ID3D12Resource> _value;
 

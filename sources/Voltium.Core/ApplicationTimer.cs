@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using TerraFX.Interop;
+using Voltium.Common;
 
 namespace Voltium.Core
 {
@@ -23,9 +25,9 @@ namespace Voltium.Core
         {
             var timer = new ApplicationTimer();
 
-            TryQueryPerformanceFrequency(out timer._qpcFrequency);
+            timer._qpcFrequency = QueryPerformanceFrequency();
 
-            TryQueryPerformanceCounter(out timer._qpcLastTime);
+            timer._qpcLastTime = QueryPerformanceCounter();
 
             timer._qpcMaxDelta = (ulong)(timer._qpcFrequency.QuadPart / 10);
 
@@ -101,7 +103,7 @@ namespace Voltium.Core
         /// </summary>
         public void ResetElapsedTime()
         {
-            TryQueryPerformanceCounter(out _qpcLastTime);
+            _qpcLastTime = QueryPerformanceCounter();
 
             _leftOverTicks = 0;
             _framesPerSecond = 0;
@@ -115,7 +117,7 @@ namespace Voltium.Core
         /// in fixed timestep mode, or immediately, in variable timestep mode
         public void Tick(Action update)
         {
-            TryQueryPerformanceCounter(out LARGE_INTEGER currentTime);
+            var currentTime = QueryPerformanceCounter();
 
             var timeDelta = (ulong)(currentTime.QuadPart - _qpcLastTime.QuadPart);
 
@@ -174,26 +176,26 @@ namespace Voltium.Core
             }
         }
 
-        private static unsafe void TryQueryPerformanceCounter(out LARGE_INTEGER lpPerformanceCounter)
+        private static unsafe LARGE_INTEGER QueryPerformanceCounter()
         {
-            fixed (LARGE_INTEGER* pPerformanceCounter = &lpPerformanceCounter)
+            LARGE_INTEGER counter;
+            if (Windows.QueryPerformanceCounter(&counter) == Windows.TRUE)
             {
-                if (Windows.QueryPerformanceCounter(pPerformanceCounter) == Windows.TRUE)
-                {
-                    return;
-                }
+                return counter;
             }
+            ThrowHelper.ThrowExternalException(Marshal.GetLastWin32Error());
+            return default;
         }
 
-        private static unsafe void TryQueryPerformanceFrequency(out LARGE_INTEGER lpFrequency)
+        private static unsafe LARGE_INTEGER QueryPerformanceFrequency()
         {
-            fixed (LARGE_INTEGER* pFrequency = &lpFrequency)
+            LARGE_INTEGER frequency;
+            if (Windows.QueryPerformanceFrequency(&frequency) == Windows.TRUE)
             {
-                if (Windows.QueryPerformanceFrequency(pFrequency) == Windows.TRUE)
-                {
-                    return;
-                }
+                return frequency;
             }
+            ThrowHelper.ThrowExternalException(Marshal.GetLastWin32Error());
+            return default;
         }
 
         private const ulong TicksPerSecond = 10000000;

@@ -11,6 +11,7 @@ using static TerraFX.Interop.D3D12_DRED_ENABLEMENT;
 using static TerraFX.Interop.DXGI_DEBUG_RLO_FLAGS;
 using static TerraFX.Interop.DXGI_SWAP_CHAIN_FLAG;
 using Voltium.Common.Debugging;
+using Voltium.Core.Pipeline;
 
 namespace Voltium.Core.Managers
 {
@@ -32,6 +33,7 @@ namespace Voltium.Core.Managers
         private GpuResource _depthStencil = null!;
         internal uint BackBufferIndex;
         private GraphicalConfiguration _config = null!;
+        private GpuDispatchManager _dispatch = null!;
 
         /// <summary>
         /// The <see cref="ScreenData"/> for the output
@@ -111,7 +113,7 @@ namespace Voltium.Core.Managers
             Allocator = new GpuAllocator(this);
 
             InitializeDescriptorSizes();
-            GpuDispatchManager.Initialize(this, _config);
+            _dispatch = GpuDispatchManager.Create(this, _config);
 
             CreateSwapChain();
             CreateRtvAndDsvDescriptorHeaps();
@@ -145,13 +147,30 @@ namespace Voltium.Core.Managers
         /// </summary>
         public ID3D12Device* Device => _device.Get();
 
+        /// <summary>
+        /// Returns a <see cref="GraphicsContext"/> used for recording graphical commands
+        /// </summary>
+        /// <returns>A new <see cref="GraphicsContext"/></returns>
+        public GraphicsContext BeginGraphicsContext(PipelineStateObject? pso = null)
+        {
+            return _dispatch.BeginGraphicsContext(pso);
+        }
+
+        /// <summary>
+        /// Submit a set of recorded commands to the list
+        /// </summary>
+        /// <param name="context">The commands to submit for execution</param>
+        public void End(GraphicsContext context)
+        {
+            _dispatch.End(context);
+        }
 
         /// <summary>
         /// Move to the next frame's set of resources
         /// </summary>
         public void MoveToNextFrame()
         {
-            GpuDispatchManager.Manager.MoveToNextFrame();
+            _dispatch.MoveToNextFrame();
             BackBufferIndex = (BackBufferIndex + 1) % BackBufferCount;
         }
 
@@ -239,7 +258,7 @@ namespace Voltium.Core.Managers
                 BufferCount = _config.SwapChainBufferCount,
                 BufferUsage = (int)DXGI_USAGE_RENDER_TARGET_OUTPUT, // this is the output chain
                 Flags = (uint)(DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH),
-                Format = _config.BackBufferFormat,
+                Format = (DXGI_FORMAT)_config.BackBufferFormat,
                 Height = ScreenData.Height,
                 Width = ScreenData.Width,
                 SampleDesc = new DXGI_SAMPLE_DESC(_config.MultiSamplingStrategy.SampleCount, _config.MultiSamplingStrategy.QualityLevel),
@@ -258,7 +277,7 @@ namespace Voltium.Core.Managers
 
             using ComPtr<IDXGISwapChain1> swapChain = default;
             Guard.ThrowIfFailed(_factory.Get()->CreateSwapChainForHwnd(
-                (IUnknown*)GpuDispatchManager.Manager.GetGraphicsQueue(),
+                (IUnknown*)_dispatch.GetGraphicsQueue(),
                 ScreenData.Handle,
                 &desc,
                 null, //&fullscreenDesc,
@@ -287,7 +306,7 @@ namespace Voltium.Core.Managers
                 _config.SwapChainBufferCount,
                 ScreenData.Width,
                 ScreenData.Height,
-                _config.BackBufferFormat,
+                (DXGI_FORMAT)_config.BackBufferFormat,
                 (uint)(DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH)
             ));
 
@@ -302,13 +321,13 @@ namespace Voltium.Core.Managers
         {
             ScreenData = newScreenData;
 
-            GpuDispatchManager.Manager.BlockForGraphicsIdle();
+            _dispatch.BlockForGraphicsIdle();
 
             ResizeSwapChain();
             CreateRenderTargets();
         }
 
-        internal bool ReportLiveObjects(bool internalObjects = false)
+        internal void ReportLiveObjects(bool internalObjects = false)
         {
             if (_debugLayer.Exists)
             {
@@ -317,8 +336,6 @@ namespace Voltium.Core.Managers
                     DXGI_DEBUG_RLO_DETAIL | (internalObjects ? DXGI_DEBUG_RLO_ALL : DXGI_DEBUG_RLO_IGNORE_INTERNAL)
                 ));
             }
-
-            return true;
         }
 
         /// <summary>
@@ -326,7 +343,7 @@ namespace Voltium.Core.Managers
         /// </summary>
         public void Present()
         {
-            GpuDispatchManager.Manager.ExecuteSubmissions();
+            _dispatch.ExecuteSubmissions();
 
             var hr = _swapChain.Get()->Present(_syncInterval, 0);
 
@@ -466,9 +483,9 @@ namespace Voltium.Core.Managers
                     ComPtr.GetVoidAddressOf(&renderTarget)
                 ));
 
-                SetObjectName(renderTarget.Get(), $"BackBufferRenderTarget[{i}]");
+                SetObjectName(renderTarget.Get(), $"BackBuffer RenderTarget[{i}]");
 
-                _renderTargets[i] = GpuResource.FromRenderTarget(renderTarget.Move());
+                _renderTargets[i] = GpuResource.FromBackBuffer(renderTarget.Move());
             }
 
             _depthStencil?.Dispose();
@@ -476,9 +493,9 @@ namespace Voltium.Core.Managers
             var desc = new GpuResourceDesc(
                 GpuResourceFormat.DepthStencil(_config.DepthStencilFormat, ScreenData.Width, ScreenData.Height),
                 GpuMemoryType.GpuOnly,
-                D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_DEPTH_WRITE,
+                ResourceState.DepthWrite,
                 allocFlags: GpuAllocFlags.ForceAllocateComitted,
-                clearValue: new D3D12_CLEAR_VALUE(_config.DepthStencilFormat, 1.0f, 0)
+                clearValue: new D3D12_CLEAR_VALUE((DXGI_FORMAT)_config.DepthStencilFormat, 1.0f, 0)
             );
 
             _depthStencil = Allocator.Allocate(desc);
@@ -504,7 +521,7 @@ namespace Voltium.Core.Managers
 
             var desc = new D3D12_DEPTH_STENCIL_VIEW_DESC
             {
-                Format = _config.DepthStencilFormat,
+                Format = (DXGI_FORMAT)_config.DepthStencilFormat,
                 Flags = D3D12_DSV_FLAGS.D3D12_DSV_FLAG_NONE,
                 ViewDimension = D3D12_DSV_DIMENSION.D3D12_DSV_DIMENSION_TEXTURE2D
             };
@@ -531,10 +548,10 @@ namespace Voltium.Core.Managers
         {
             ReportLiveObjects();
 
-            _device.Dispose();
             _swapChain.Dispose();
             _debugLayer.Dispose();
-            GpuDispatchManager.Manager.Dispose();
+            _dispatch.Dispose();
+            _device.Dispose();
         }
     }
 }

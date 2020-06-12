@@ -100,8 +100,8 @@ namespace Voltium.Interactive
             _object = GemeotryGenerator.LoadSingleModel("logo.obj");
             //_object = GemeotryGenerator.CreateCube(0.5f);
 
-            _vertexBuffer = _allocator.AllocateVertexBuffer(_object.Vertices, GpuMemoryType.CpuUpload, GpuAllocFlags.ForceAllocateComitted);
-            _indexBuffer = _allocator.AllocateIndexBuffer(_object.Indices, GpuMemoryType.CpuUpload, GpuAllocFlags.ForceAllocateComitted);
+            _vertexBuffer = _allocator.AllocateVertexBuffer(_object.Vertices, GpuMemoryType.CpuUpload);
+            _indexBuffer = _allocator.AllocateIndexBuffer(_object.Indices, GpuMemoryType.CpuUpload);
 
             var rootParams = new[]
             {
@@ -121,15 +121,14 @@ namespace Voltium.Interactive
             };
 
             var vertexShader = ShaderManager.CompileShader("Shaders/SimpleVertexShader.hlsl", DxcCompileTarget.Vs_6_0, compilationFlags);
-            var pixelShader = ShaderManager.CompileShader("Shaders/SimplePixelShader.hlsl", DxcCompileTarget.Ps_6_0, compilationFlags);
+            var pixelShader = ShaderManager.CompileShader("Shaders/SimplePixelShader.hlsl", new DxcCompileTarget(ShaderType.Pixel, 6, 0), compilationFlags);
 
             GraphicsPipelineDesc psoDesc = new(_rootSig, config.BackBufferFormat, config.DepthStencilFormat, vertexShader, pixelShader);
-            psoDesc.Rasterizer.FaceCullMode = CullMode.None;
-            DrawPso = PipelineManager.CreatePso<Vertex>(_device, "Default", psoDesc);
+            _drawPso = PipelineManager.CreatePso<Vertex>(_device, "Default", psoDesc);
 
-            _objectConstants = _allocator.AllocateConstantBuffer<ObjectConstants>(1, GpuMemoryType.CpuUpload, GpuAllocFlags.ForceAllocateComitted);
-            _frameConstants = _allocator.AllocateConstantBuffer<FrameConstants>(1, GpuMemoryType.CpuUpload, GpuAllocFlags.ForceAllocateComitted);
-            _sceneLight = _allocator.AllocateConstantBuffer<LightConstants>(1, GpuMemoryType.CpuUpload, GpuAllocFlags.ForceAllocateComitted);
+            _objectConstants = _allocator.AllocateConstantBuffer<ObjectConstants>(2, GpuMemoryType.CpuUpload);
+            _frameConstants = _allocator.AllocateConstantBuffer<FrameConstants>(2, GpuMemoryType.CpuUpload);
+            _sceneLight = _allocator.AllocateConstantBuffer<LightConstants>(2, GpuMemoryType.CpuUpload);
 
             _objectConstants.Map();
             _frameConstants.Map();
@@ -182,19 +181,20 @@ namespace Voltium.Interactive
 
         private RgbaColor _color = new RgbaColor(1, 0, 0, 1);
         private RootSignature _rootSig = null!;
-        private PipelineStateObject DrawPso = null!;
+        private PipelineStateObject _drawPso = null!;
 
         private ConstantBuffer<ObjectConstants> _objectConstants;
         private ConstantBuffer<FrameConstants> _frameConstants;
         private ConstantBuffer<LightConstants> _sceneLight;
 
-        private Matrix4x4 _perFrameRotation = Matrix4x4.CreateRotationY(0.001f)/* * Matrix4x4.CreateRotationX(0.001f)*/;
+        private Matrix4x4 _perFrameRotation = Matrix4x4.CreateRotationY(10f)/* * Matrix4x4.CreateRotationX(0.001f)*/;
         //private int _totalCount = 0;
 
+        private bool _isFirst = false;
         public override void Update(ApplicationTimer timer)
         {
             // rotate a small amount each frame
-            _objectConstants.LocalCopy.World *= _perFrameRotation;
+            _objectConstants.LocalCopy.World *= Matrix4x4.CreateRotationY(0.5f * (float)timer.ElapsedSeconds);
 
             // scale between 0 and 5 seconds
             //var scale = Matrix4x4.CreateScale((float)(Math.Abs((total % 10) - 5)) / 5);u
@@ -210,19 +210,21 @@ namespace Voltium.Interactive
                 scale = 1;
             }
 
-            _objectConstants.Buffers[0].World = _objectConstants.LocalCopy.World * Matrix4x4.CreateScale(scale);
-            _objectConstants.Buffers[0].Material = _objectConstants.LocalCopy.Material;
+            var ind = _isFirst ? 0 : 1;
+            _isFirst = !_isFirst;
+            _objectConstants.Buffers[ind].World = _objectConstants.LocalCopy.World * Matrix4x4.CreateScale(scale);
+            _objectConstants.Buffers[ind].Material = _objectConstants.LocalCopy.Material;
 
-            _frameConstants.Buffers[0] = _frameConstants.LocalCopy;
+            _frameConstants.Buffers[ind] = _frameConstants.LocalCopy;
 
-            _sceneLight.Buffers[0] = _sceneLight.LocalCopy;
+            _sceneLight.Buffers[ind] = _sceneLight.LocalCopy;
 
             //_color = ChangeHue(_color);
         }
 
         public override PipelineStateObject GetInitialPso()
         {
-            return DrawPso;
+            return _drawPso;
         }
 
         public override void Render(GraphicsContext recorder)
@@ -233,7 +235,7 @@ namespace Voltium.Interactive
 
             recorder.SetGraphicsRootSignature(_rootSig);
 
-            recorder.ResourceTransition(renderTarget, D3D12_RESOURCE_STATE_RENDER_TARGET);
+            recorder.ResourceTransition(renderTarget, ResourceState.RenderTarget);
 
             recorder.SetRenderTarget(renderTargetView.CpuHandle, 1, depthStencilView.CpuHandle);
 
@@ -247,10 +249,10 @@ namespace Voltium.Interactive
             recorder.SetGraphicsConstantBufferDescriptor(1, _frameConstants, 0);
             recorder.SetGraphicsConstantBufferDescriptor(2, _sceneLight, 0);
 
-            recorder.SetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY.D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+            recorder.SetTopology(Topology.TriangeList);
             recorder.DrawIndexed((uint)_object.Indices.Length);
 
-            recorder.ResourceTransition(renderTarget, D3D12_RESOURCE_STATE_PRESENT);
+            recorder.ResourceTransition(renderTarget, ResourceState.Present);
         }
 
         private void SetHueDegrees(float radians)

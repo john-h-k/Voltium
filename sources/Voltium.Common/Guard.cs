@@ -135,6 +135,7 @@ namespace Voltium.Common
 
         private static string ResolveErrorCode(int hr)
         {
+#if REFLECTION
             // TODO this is horrific
             var windows = typeof(Windows);
             foreach (var field in windows.GetFields(BindingFlags.Static | BindingFlags.Public))
@@ -144,6 +145,7 @@ namespace Voltium.Common
                     return field.Name;
                 }
             }
+#endif
 
             return "<unmapped>";
         }

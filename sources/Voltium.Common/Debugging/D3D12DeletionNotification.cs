@@ -10,37 +10,48 @@ using TerraFX.Interop;
 
 namespace Voltium.Common.Debugging
 {
-    internal unsafe static class D3D12DeletionNotification
+    internal static unsafe class D3D12DeletionNotification
     {
-        public static void RegisterForDeletionCallback<T>(ComPtr<T> ptr, delegate* stdcall<void*, void> callback, object? data = null) where T : unmanaged
+        public static void RegisterForDeletionCallback<T>(T* ptr, delegate* stdcall<void*, void> callback, object? data = null) where T : unmanaged
         {
-            if (!ptr.TryQueryInterface<ID3DDestructionNotifier>(out var notifier))
+            if (!ComPtr.TryQueryInterface<T, ID3DDestructionNotifier>(ptr, out var notifier))
             {
                 ThrowHelper.ThrowArgumentException("Type could not query for interface ID3DDestructionNotifier");
             }
 
-            using (notifier)
-            {
+            try
+            { 
                 var handle = default(IntPtr);
                 if (data is object)
                 {
                     handle = GCHandle.ToIntPtr(GCHandle.Alloc(handle));
                 }
 
-                Guard.ThrowIfFailed(notifier.Get()->RegisterDestructionCallback(callback, (void*)handle, null));
+                Guard.ThrowIfFailed(notifier->RegisterDestructionCallback(callback, (void*)handle, null));
+            }
+            finally
+            {
+                _ = notifier->Release();
             }
         }
 
-        public static void BreakOnDeletion<T>(ComPtr<T> ptr, object? data = null) where T : unmanaged
+        public static void BreakOnDeletion<T>(T* ptr, object? data = null) where T : unmanaged
         {
             if (data is null)
             {
-                data = $"'{typeof(T).Name} with name '{DirectXHelpers.GetObjectName(ptr.Get())}' is being deleted";
+                data =
+#if REFLECTION
+                    $"{typeof(T).Name}"
+#else
+                    $"D3D object"
+#endif
+                    + $" with name '{DirectXHelpers.GetObjectName(ptr)}' is being deleted";
             }
 
             RegisterForDeletionCallback(ptr, (delegate* stdcall<void*, void>)(delegate* <IntPtr, void>)&BreakOnDeletion, data);
         }
 
+        [UnmanagedCallersOnly]
         private static void BreakOnDeletion(IntPtr data)
         {
             if (data != default)

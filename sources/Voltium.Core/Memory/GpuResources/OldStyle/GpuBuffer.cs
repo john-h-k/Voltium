@@ -56,7 +56,7 @@ namespace Voltium.Core.GpuResources.OldStyle
 
             var sz = DXGISurfaceInfo.BitsPerPixel(resourceDesc.Format) / 8;
             Guard.True(sz == ElementSize || ElementSize == 1, // 1 is untyped buffer
-                $"Invalid TElement {typeof(TElement)} (size: {ElementSize}) for DXGI_FORMAT {resourceDesc.Format} (size: {sz})");
+                $"Invalid TElement (size: {ElementSize}) for DXGI_FORMAT {resourceDesc.Format} (size: {sz})");
         }
 
     }

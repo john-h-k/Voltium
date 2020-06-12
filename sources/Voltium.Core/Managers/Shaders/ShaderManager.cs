@@ -97,15 +97,17 @@ namespace Voltium.Core.Managers
         /// <param name="flags">An array of <see cref="DxcCompileFlags.Flag"/> to pass to the compiler</param>
         /// <param name="entrypoint">The entrypoint to the shader, if it is not a <see cref="ShaderType.Library"/>,
         /// or 'main' by default</param>
+        /// <param name="encoding">The <see cref="OutputEncoding"/> for any textual output</param>
         /// <returns>A new <see cref="CompiledShader"/></returns>
         public static CompiledShader CompileShader(
             string filename,
             DxcCompileTarget target,
             DxcCompileFlags.Flag[] flags = null!,
-            ReadOnlySpan<char> entrypoint = default
+            ReadOnlySpan<char> entrypoint = default,
+            OutputEncoding encoding = OutputEncoding.Utf16
         )
         {
-            return CompileShader(filename, File.OpenText(filename), target, flags, entrypoint, new FileInfo(filename).DirectoryName!);
+            return CompileShader(filename, File.OpenText(filename), target, flags, entrypoint, encoding, new FileInfo(filename).DirectoryName!);
         }
 
         /// <summary>
@@ -117,6 +119,7 @@ namespace Voltium.Core.Managers
         /// <param name="flags">An array of <see cref="DxcCompileFlags.Flag"/> to pass to the compiler</param>
         /// <param name="entrypoint">The entrypoint to the shader, if it is not a <see cref="ShaderType.Library"/>,
         /// or 'main' by default</param>
+        /// <param name="encoding">The <see cref="OutputEncoding"/> for any textual output</param>
         /// <param name="shaderDir">Optionally, the directory to use when including shaders</param>
         /// <returns>A new <see cref="CompiledShader"/></returns>
         public static CompiledShader CompileShader(
@@ -125,6 +128,7 @@ namespace Voltium.Core.Managers
             DxcCompileTarget target,
             DxcCompileFlags.Flag[] flags = null!,
             ReadOnlySpan<char> entrypoint = default,
+            OutputEncoding encoding = OutputEncoding.Utf16,
             string shaderDir = ""
         )
         {
@@ -139,7 +143,7 @@ namespace Voltium.Core.Managers
 
             stream.Read(buff);
 
-            return CompileShader(name, buff, target, flags, entrypoint, shaderDir);
+            return CompileShader(name, buff, target, flags, entrypoint, encoding, shaderDir);
         }
 
         /// <summary>
@@ -151,6 +155,7 @@ namespace Voltium.Core.Managers
         /// <param name="flags">An array of <see cref="DxcCompileFlags.Flag"/> to pass to the compiler</param>
         /// <param name="entrypoint">The entrypoint to the shader, if it is not a <see cref="ShaderType.Library"/>,
         /// or 'main' by default</param>
+        /// <param name="encoding">The <see cref="OutputEncoding"/> for any textual output</param>
         /// <param name="shaderDir">Optionally, the directory to use when including shaders</param>
         /// <returns>A new <see cref="CompiledShader"/></returns>
         public unsafe static CompiledShader CompileShader(
@@ -159,6 +164,7 @@ namespace Voltium.Core.Managers
             DxcCompileTarget target,
             DxcCompileFlags.Flag[] flags = null!,
             ReadOnlySpan<char> entrypoint = default,
+            OutputEncoding encoding = OutputEncoding.Utf16,
             string shaderDir = ""
         )
         {
@@ -181,7 +187,12 @@ namespace Voltium.Core.Managers
 
             // biggest target possible (althought invalid) would be "-T lib_255_255", 14 chars (15 with null char)
             // entrypoint is 0 if empty, else "-E " + length of entrypoint + null char
-            int targetAndEntrypointLength = (14 + 1 + (entrypoint.IsEmpty ? 0 : entrypoint.Length + 3 + 1)) * sizeof(char);
+            // encoding is either 14 or 15 chars (UTF8 or UTF16) + null char
+            Debug.Assert(encoding is OutputEncoding.Utf8 or OutputEncoding.Utf16);
+            var encodingLength = (encoding == OutputEncoding.Utf16 ? 5 + 1 : 4 + 1) + 9 + 1;
+            var targetLength = 14 + 1;
+            var entryPointLength = entrypoint.IsEmpty ? 0 : entrypoint.Length + 3 + 1;
+            int prefixLength =  (encodingLength + targetLength + entryPointLength) * sizeof(char);
 
             // space for all the flag strings (and their null chars) + the actual pointers to these strings
             int flagPointerLength = 0;
@@ -192,10 +203,11 @@ namespace Voltium.Core.Managers
                 flagPointerLength += (1 + flag.ArgCount) * sizeof(nuint);
             }
 
-            flagPointerLength += (entrypoint.IsEmpty ? 2 : 4) * sizeof(nuint);
+            // 4 for target + encoding (as each are flag + arg), and 2 extra for entrypoint if present
+            flagPointerLength += (entrypoint.IsEmpty ? 4 : 6) * sizeof(nuint);
 
             // rent as short term usage TODO: POH pool
-            using var rentedFlagBuff = RentedArray<byte>.Create(flagPointerLength + flagLength + targetAndEntrypointLength);
+            using var rentedFlagBuff = RentedArray<byte>.Create(flagPointerLength + flagLength + prefixLength);
 
             // can't have Span<ushort*>
             var flagPointerBuff = MemoryMarshal.Cast<byte, nuint>(rentedFlagBuff.Value.AsSpan());
@@ -259,6 +271,36 @@ namespace Voltium.Core.Managers
                 }
             }
 
+            // encoding
+            {
+                // pointer to '-encoding '
+                flagPointerBuff[0] = (nuint)Unsafe.AsPointer(ref MemoryMarshal.GetReference(flagBuff));
+                flagPointerBuff = flagPointerBuff.Slice(1);
+
+                // pointer to value
+                flagPointerBuff[0] = (nuint)Unsafe.AsPointer(ref MemoryMarshal.GetReference(flagBuff.Slice(10)));
+                flagPointerBuff = flagPointerBuff.Slice(1);
+
+                flagBuff[0] = '-';
+                flagBuff[1] = 'e';
+                flagBuff[2] = 'n';
+                flagBuff[3] = 'c';
+                flagBuff[4] = 'o';
+                flagBuff[5] = 'd';
+                flagBuff[6] = 'i';
+                flagBuff[7] = 'n';
+                flagBuff[8] = 'g';
+                flagBuff[9] = '\0';
+
+                flagBuff = flagBuff.Slice(10);
+
+                var encodingStr = encoding == OutputEncoding.Utf16 ? "utf16" : "utf8";
+                encodingStr.AsSpan().CopyTo(flagBuff);
+                flagBuff[encodingStr.Length] = '\0';
+
+                flagBuff = flagBuff.Slice(encodingStr.Length + 1);
+            }
+
             foreach (var flag in flags)
             {
                 // flag ctor handles nulls for us
@@ -313,7 +355,7 @@ namespace Voltium.Core.Managers
 
                 if (Windows.FAILED(statusHr))
                 {
-                    var result = TryGetOutputUtf8(compileResult.Get(), DXC_OUT_KIND.DXC_OUT_ERRORS, out var errors, out var errorName);
+                    var result = TryGetOutput(compileResult.Get(), DXC_OUT_KIND.DXC_OUT_ERRORS, out var errors, out var errorName);
                     Debug.Assert(result);
                     _ = result; // prevent release warning
 
@@ -323,8 +365,8 @@ namespace Voltium.Core.Managers
                         var data = new ShaderCompilationData
                         {
                             Filename = name,
-                            Errors = FromBlob(errors.Get()),
-                            //Other = FromBlob(errorName.Get())
+                            Errors = AsString(errors.Get()),
+                            Other = AsString(errorName.Get())
                         };
                         throw new ShaderCompilationException(data);
                     }
@@ -338,7 +380,6 @@ namespace Voltium.Core.Managers
                         HandlePdb(pdb.Get(), pdbName.Get());
                     }
                 }
-
 
                 using ComPtr<IDxcBlob> pBlob = default;
                 Guard.ThrowIfFailed(compileResult.Get()->GetResult(ComPtr.GetAddressOf(&pBlob)));
@@ -354,6 +395,33 @@ namespace Voltium.Core.Managers
             file.Write(FromBlob(pdb));
         }
 
+        private static unsafe ReadOnlySpan<char> AsString(IDxcBlobUtf16* utf16)
+            => utf16 == null ? null : new ReadOnlySpan<char>(utf16->GetStringPointer(), (int)utf16->GetStringLength());
+        private static unsafe ReadOnlySpan<char> AsString(IDxcBlobUtf8* utf8)
+            => Encoding.UTF8.GetString(new ReadOnlySpan<byte>(utf8->GetStringPointer(), (int) utf8->GetStringLength()));
+
+        private static unsafe ReadOnlySpan<char> AsString(IDxcBlob* pBlob)
+        {
+            if (ComPtr.TryQueryInterface(pBlob, out IDxcBlobUtf8* utf8))
+            {
+                return AsString(utf8);
+            }
+            if (ComPtr.TryQueryInterface(pBlob, out IDxcBlobUtf16* utf16))
+            {
+                return AsString(utf16);
+            }
+
+            if (ComPtr.TryQueryInterface(pBlob, out IDxcBlobEncoding* _))
+            {
+                ThrowHelper.ThrowNotSupportedException("Unsupported encoding");
+            }
+            else
+            {
+                ThrowHelper.ThrowNotSupportedException("Cannot decode binary data");
+            }
+            return null;
+        }
+
         private static unsafe ReadOnlySpan<byte> FromBlob(IDxcBlob* pBlob)
             => new ReadOnlySpan<byte>(pBlob->GetBufferPointer(), (int)pBlob->GetBufferSize());
 
@@ -363,35 +431,16 @@ namespace Voltium.Core.Managers
         private static unsafe ReadOnlySpan<char> FromBlob(IDxcBlobUtf16* pBlob)
             => new ReadOnlySpan<char>(pBlob->GetStringPointer(), (int)pBlob->GetStringLength());
 
-        private static unsafe bool TryGetOutput(IDxcResult* result, DXC_OUT_KIND kind, out ComPtr<IDxcBlob> data, out ComPtr<IDxcBlobUtf16> name)
+        private static unsafe bool TryGetOutput(
+            IDxcResult* result,
+            DXC_OUT_KIND kind,
+            out ComPtr<IDxcBlob> data,
+            out ComPtr<IDxcBlobUtf16> name
+        )
         {
             if (result->HasOutput(kind) == Windows.TRUE)
             {
                 fixed (ComPtr<IDxcBlob>* pData = &data)
-                fixed (ComPtr<IDxcBlobUtf16>* pName = &name)
-                {
-                    Guard.ThrowIfFailed(result->GetOutput(
-                        kind,
-                        pData->Guid,
-                        ComPtr.GetVoidAddressOf(pData),
-                        ComPtr.GetAddressOf(pName)
-                    ));
-
-                    return true;
-                }
-            }
-
-            data = default;
-            name = default;
-
-            return false;
-        }
-
-        private static unsafe bool TryGetOutputUtf8(IDxcResult* result, DXC_OUT_KIND kind, out ComPtr<IDxcBlobUtf8> data, out ComPtr<IDxcBlobUtf16> name)
-        {
-            if (result->HasOutput(kind) == Windows.TRUE)
-            {
-                fixed (ComPtr<IDxcBlobUtf8>* pData = &data)
                 fixed (ComPtr<IDxcBlobUtf16>* pName = &name)
                 {
                     Guard.ThrowIfFailed(result->GetOutput(

@@ -59,7 +59,7 @@ namespace Voltium.Core.Managers
             outDesc = new D3D12_GRAPHICS_PIPELINE_STATE_DESC
             {
                 pRootSignature = inDesc.ShaderSignature.Value,
-                DSVFormat = inDesc.DepthStencilFormat,
+                DSVFormat = (DXGI_FORMAT)inDesc.DepthStencilFormat,
                 BlendState = blendDesc,
                 RasterizerState = rasterizerDesc,
                 DepthStencilState = depthStencilDesc,

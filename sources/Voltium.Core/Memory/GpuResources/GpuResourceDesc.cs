@@ -20,7 +20,7 @@ namespace Voltium.Core.GpuResources
         public GpuResourceDesc(
             GpuResourceFormat resourceFormat,
             GpuMemoryType gpuMemoryType,
-            D3D12_RESOURCE_STATES initialState,
+            ResourceState initialState,
             GpuAllocFlags allocFlags = GpuAllocFlags.None,
             D3D12_CLEAR_VALUE? clearValue = null,
             D3D12_HEAP_FLAGS heapFlags = D3D12_HEAP_FLAGS.D3D12_HEAP_FLAG_NONE
@@ -60,7 +60,7 @@ namespace Voltium.Core.GpuResources
         /// <summary>
         /// The state to create the resource as
         /// </summary>
-        public D3D12_RESOURCE_STATES InitialState;
+        public ResourceState InitialState;
 
         /// <summary>
         /// The type of the underlying GPU memory
@@ -68,7 +68,7 @@ namespace Voltium.Core.GpuResources
         public GpuMemoryType GpuMemoryType;
 
         /// <inheritdoc cref="GpuResourceFormat"/>
-        public DXGI_FORMAT Format => ResourceFormat.Format;
+        public DataFormat Format => ResourceFormat.Format;
     }
 
 
@@ -88,7 +88,7 @@ namespace Voltium.Core.GpuResources
         /// <param name="height">The height of the texture</param>
         /// <param name="depth">The depth of the texture</param>
         /// <returns>A new <see cref="GpuResourceFormat"/> representing the texture</returns>
-        public static GpuResourceFormat Texture(TextureDimension dimension, DXGI_FORMAT format, ulong width, uint height = 1, ushort depth = 1)
+        public static GpuResourceFormat Texture(TextureDimension dimension, DataFormat format, ulong width, uint height = 1, ushort depth = 1)
                 => TextureArray(dimension, format, width, height, depth); // Tex arrays and 3D texs share the same field for depth/arrayCount so same creation process
 
 
@@ -101,11 +101,11 @@ namespace Voltium.Core.GpuResources
         /// <param name="height">The height of each texture</param>
         /// <param name="arrayCount">The number of elements in the texture array</param>
         /// <returns>A new <see cref="GpuResourceFormat"/> representing an array of 1 or 2 dimensional textures</returns>
-        public static GpuResourceFormat TextureArray(TextureDimension dimension, DXGI_FORMAT format, ulong width, uint height = 1, ushort arrayCount = 1)
+        public static GpuResourceFormat TextureArray(TextureDimension dimension, DataFormat format, ulong width, uint height = 1, ushort arrayCount = 1)
         {
             // can't have 3D tex arrays
             Debug.Assert(dimension != TextureDimension.Tex3D);
-            return new GpuResourceFormat(D3D12_RESOURCE_DESC.Tex3D(format, width, height, arrayCount));
+            return new GpuResourceFormat(D3D12_RESOURCE_DESC.Tex3D((DXGI_FORMAT)format, width, height, arrayCount));
         }
 
         /// <summary>
@@ -115,9 +115,9 @@ namespace Voltium.Core.GpuResources
         /// <param name="width">The width of the depth stencil</param>
         /// <param name="height">The height of the depth stencil</param>
         /// <returns>A new <see cref="GpuResourceFormat"/> representing a depth stencil</returns>
-        public static GpuResourceFormat DepthStencil(DXGI_FORMAT format, ulong width, uint height)
+        public static GpuResourceFormat DepthStencil(DataFormat format, ulong width, uint height)
         {
-            return new GpuResourceFormat(D3D12_RESOURCE_DESC.Tex2D(format, width, height, mipLevels: 1, flags: D3D12_RESOURCE_FLAGS.D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL));
+            return new GpuResourceFormat(D3D12_RESOURCE_DESC.Tex2D((DXGI_FORMAT)format, width, height, mipLevels: 1, flags: D3D12_RESOURCE_FLAGS.D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL));
         }
 
         /// <summary>
@@ -133,7 +133,7 @@ namespace Voltium.Core.GpuResources
         /// <summary>
         /// The format of the resource
         /// </summary>
-        public DXGI_FORMAT Format => D3D12ResourceDesc.Format;
+        public DataFormat Format => (DataFormat)D3D12ResourceDesc.Format;
 
         internal D3D12_RESOURCE_DESC D3D12ResourceDesc;
 

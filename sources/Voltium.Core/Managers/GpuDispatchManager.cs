@@ -16,38 +16,11 @@ using static TerraFX.Interop.D3D12_COMMAND_QUEUE_PRIORITY;
 
 namespace Voltium.Core.Managers
 {
-    internal struct GpuCommandSet : IDisposable
-    {
-        public ComPtr<ID3D12GraphicsCommandList> List;
-        public ComPtr<ID3D12CommandAllocator> Allocator;
-
-        public GpuCommandSet Move()
-        {
-            var copy = this;
-            copy.List = List.Move();
-            copy.Allocator = Allocator.Move();
-            return copy;
-        }
-
-        public GpuCommandSet Copy()
-        {
-            var copy = this;
-            copy.List = List.Copy();
-            copy.Allocator = Allocator.Copy();
-            return copy;
-        }
-
-        public void Dispose()
-        {
-            List.Dispose();
-            Allocator.Dispose();
-        }
-    }
 
     /// <summary>
     /// In charge of managing submission of command lists, bundled, and queries, to a GPU
     /// </summary>
-    public sealed class GpuDispatchManager : IDisposable
+    internal sealed class GpuDispatchManager : IDisposable
     {
         private SynchronizedCommandQueue _graphics;
         private SynchronizedCommandQueue _compute;
@@ -64,24 +37,6 @@ namespace Voltium.Core.Managers
 
         private CommandListPool _listPool = null!;
 
-        private static bool _initialized;
-        private static readonly object Lock = new();
-
-        /// <summary>
-        /// The single instance of this type. You must call <see cref="Initialize"/> before retrieving the instance
-        /// </summary>
-        public static GpuDispatchManager Manager
-        {
-            get
-            {
-                Guard.Initialized(_initialized);
-
-                return Value;
-            }
-        }
-
-        private static readonly GpuDispatchManager Value = new GpuDispatchManager();
-
         private GpuDispatchManager() { }
 
         /// <summary>
@@ -89,19 +44,14 @@ namespace Voltium.Core.Managers
         /// </summary>
         /// <param name="device">The device used to initialize the type</param>
         /// <param name="config"></param>
-        public static void Initialize(GraphicsDevice device, GraphicalConfiguration config)
+        public static GpuDispatchManager Create(GraphicsDevice device, GraphicalConfiguration config)
         {
-            // TODO could probably use CAS/System.Threading.LazyInitializer
-            lock (Lock)
-            {
-                Debug.Assert(!_initialized);
-
-                _initialized = true;
-                Value.CoreInitialize(device, config);
-            }
+            var value = new GpuDispatchManager();
+            value.InternalCreate(device, config);
+            return value;
         }
 
-        private unsafe void CoreInitialize(GraphicsDevice device, GraphicalConfiguration config)
+        private unsafe void InternalCreate(GraphicsDevice device, GraphicalConfiguration config)
         {
             _device = device;
 
@@ -111,13 +61,8 @@ namespace Voltium.Core.Managers
             _listPool = new CommandListPool(device);
 
             _graphics = CreateSynchronizedCommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT);
-            DirectXHelpers.SetObjectName(_graphics.GetQueue(), "Graphics queue");
-
             _compute = CreateSynchronizedCommandQueue(D3D12_COMMAND_LIST_TYPE_COMPUTE);
-            DirectXHelpers.SetObjectName(_compute.GetQueue(), "Compute queue");
-
             _copy = CreateSynchronizedCommandQueue(D3D12_COMMAND_LIST_TYPE_COPY);
-            DirectXHelpers.SetObjectName(_copy.GetQueue(), "Copy queue");
         }
 
         private static readonly D3D12_FENCE_FLAGS DefaultFenceFlags = D3D12_FENCE_FLAGS.D3D12_FENCE_FLAG_NONE;
@@ -156,14 +101,23 @@ namespace Voltium.Core.Managers
                 p.Guid,
                 ComPtr.GetVoidAddressOf(&p)
             ));
+            var name = GetListTypeName(type);
+            DirectXHelpers.SetObjectName(p.Get(), name + " Queue");
 
-            return new SynchronizedCommandQueue(_device, (ExecutionContext)type, p, CreateFence());
+            var fence = CreateFence();
+            DirectXHelpers.SetObjectName(fence.Get(), name + " Fence");
+
+            return new SynchronizedCommandQueue(_device, (ExecutionContext)type, p, fence.Move());
         }
 
-        /// <summary>
-        /// Submit a set of recorded commands to the list
-        /// </summary>
-        /// <param name="graphicsCommands">The commands to submit for execution</param>
+        private string GetListTypeName(D3D12_COMMAND_LIST_TYPE type) => type switch
+        {
+            D3D12_COMMAND_LIST_TYPE_DIRECT => "Graphics",
+            D3D12_COMMAND_LIST_TYPE_COMPUTE => "Compute",
+            D3D12_COMMAND_LIST_TYPE_COPY => "Copy",
+            _ => "Unknown"
+        };
+
         public void End(GraphicsContext graphicsCommands)
         {
             using (_listAccessLock.EnterScoped())
@@ -281,10 +235,6 @@ namespace Voltium.Core.Managers
             lists.Clear();
         }
 
-        /// <summary>
-        /// Returns a <see cref="GraphicsContext"/> used for recording graphical commands
-        /// </summary>
-        /// <returns>A new <see cref="GraphicsContext"/></returns>
         public unsafe GraphicsContext BeginGraphicsContext(PipelineStateObject? defaultPso = null)
         {
             using var allocator = _graphics.RentAllocator();
@@ -306,8 +256,6 @@ namespace Voltium.Core.Managers
             {
                 BlockForGpuIdle();
             }
-
-            _device.Dispose();
 
             _graphics.Dispose();
             _compute.Dispose();

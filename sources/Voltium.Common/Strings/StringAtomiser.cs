@@ -13,7 +13,7 @@ namespace Voltium.Common
     /// The type used for creating and using <see cref="Atom"/>s, which are lightweight high performance handles for
     /// <see cref="string"/>s
     /// </summary>
-    public static class StringAtoms
+    public static class StringAtomiser
     {
         // TODO should we do some basic interning here? maybe
         //private static int[] ghcRem1024 = new string[64];

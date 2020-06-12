@@ -76,7 +76,6 @@ namespace Voltium.Core.Pool
         protected sealed override void InternalDispose()
         {
             base.InternalDispose();
-            _device.Dispose();
         }
 
         protected override void ManageRent(ref ComPtr<ID3D12GraphicsCommandList> value, ListCreationParams state)

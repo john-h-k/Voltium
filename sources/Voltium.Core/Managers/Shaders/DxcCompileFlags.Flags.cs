@@ -208,11 +208,8 @@ namespace Voltium.Core.Managers
         /// Enable 16bit types and disable min precision types.Available in HLSL 2018 and shader model 6.2
         /// </summary>
         public static Flag Enable16BitTypes { get; } = new Flag("-enable-16bit-types");
-        /// <summary>
-        /// Set default encoding for text outputs(utf8|utf16) default=utf8
-        /// </summary>
 
-        public static Flag Encoding(OutputEncoding value) => new Flag($"-encoding {value.ToDxcArg()}");
+        //public static Flag Encoding(OutputEncoding value) => new Flag($"-encoding {value.ToDxcArg()}");
         /// <summary>
         /// Only export shaders when compiling a library
         /// </summary>
@@ -222,19 +219,19 @@ namespace Voltium.Core.Managers
         /// </summary>
 
         public static Flag Exports(string value) => new Flag($"-exports {value}");
+
         /// <summary>
         /// Entry point name
         /// </summary>
-
         public static Flag OutputAssemblyCodeListingFile(string file) => new Flag($"-Fc {file}");
+
         /// <summary>
         /// Print option name with mappable diagnostics
         /// </summary>
         public static Flag FdiagnosticsShowOption { get; } = new Flag("-fdiagnostics-show-option");
         /// <summary>
-        /// Write debug information to the given file, or automatically named file in directory when ending in ''
+        /// Write debug information to the given file, or automatically named file in directory
         /// </summary>
-
         public static Flag WriteDebugInformationToFile(string file = "/") => new Flag($"-Fd {file}");
         /// <summary>
         /// Output warnings and errors to the given file
@@ -262,7 +259,7 @@ namespace Voltium.Core.Managers
         /// force root signature version (rootsig_1_1 if omitted)
         /// </summary>
         // should probs custom enum this
-        public static Flag ForceRootsigVer(D3D_ROOT_SIGNATURE_VERSION profile) => new Flag($"-force-rootsig-ver {profile.ToString().Replace(nameof(D3D_ROOT_SIGNATURE_VERSION), "rootsig")}");
+        public static Flag ForceRootSignatureVersion(D3D_ROOT_SIGNATURE_VERSION profile) => new Flag($"-force-rootsig-ver {profile.ToString().Replace(nameof(D3D_ROOT_SIGNATURE_VERSION), "rootsig")}");
         /// <summary>
         /// Output object file
         /// </summary>
@@ -299,6 +296,7 @@ namespace Voltium.Core.Managers
         /// Prefer flow control constructs
         /// </summary>
         public static Flag PreferFlowControlConstructs { get; } = new Flag("-Gfp");
+
         /// <summary>
         /// Force IEEE strictness
         /// </summary>
@@ -367,9 +365,9 @@ namespace Voltium.Core.Managers
         public static Flag ResMayAlias { get; } = new Flag("-res-may-alias");
 
         /// <summary>
-        /// Read root signature from a
+        /// Read root signature from a #define
         /// </summary>
-        public static Flag RootsigDefine(string value) => new Flag($"-rootsig-define {value}");
+        public static Flag RootSignatureDefine(string value) => new Flag($"-rootsig-define {value}");
 
         /// <summary>
         /// Disable validation
