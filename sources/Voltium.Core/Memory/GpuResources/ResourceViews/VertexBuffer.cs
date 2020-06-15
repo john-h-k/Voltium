@@ -56,16 +56,22 @@ namespace Voltium.Core.GpuResources
     /// <summary>
     /// A type used for a scoped mapping of GPU resources
     /// </summary>
-    public unsafe struct ScopedResourceMap : IDisposable
+    public unsafe struct ScopedResourceMap<T> : IDisposable
     {
-        internal ScopedResourceMap(ID3D12Resource* resource, uint subresource)
+        internal ScopedResourceMap(ID3D12Resource* resource, uint subresource, void* data, uint length)
         {
             _resource = resource;
             _subresource = subresource;
+            _data = data;
+            _length = length;
         }
 
         private ID3D12Resource* _resource;
         private uint _subresource;
+        private void* _data;
+        private uint _length;
+
+        public Span<T> Data => new Span<T>(_data, (int)_length);
 
         /// <summary>
         /// Unmaps the resource

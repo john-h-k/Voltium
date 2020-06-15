@@ -6,12 +6,13 @@ using System.Text;
 using System.Threading.Tasks;
 using TerraFX.Interop;
 using Voltium.Common;
-using Voltium.Core.GpuResources;
+using Voltium.Core.Memory.GpuResources;
 using Voltium.Core.Managers;
 using Voltium.Core.Pipeline;
 using Voltium.RenderEngine.Passes;
 using Voltium.RenderEngine.RenderGraph;
 using static TerraFX.Interop.D3D12_RESOURCE_STATES;
+using Voltium.Core.GpuResources;
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
 
 namespace Voltium.Core
@@ -48,7 +49,7 @@ namespace Voltium.Core
             return new TexHandle((uint)_resources.Count - 1);
         }
 
-        internal BufferHandle RegisterBuffer(ResourceData data)
+        internal BufferHandle RegisterBuffer<T>(ResourceData data)
         {
             Debug.Assert(data.Dimension is null);
             _resources.Add(data);
@@ -63,17 +64,7 @@ namespace Voltium.Core
     {
         public RenderComponents Components { get; private set; }
         public Texture Resolve(TexHandle handle) => throw new NotImplementedException();
-        public Buffer Resolve(BufferHandle handle) => throw new NotImplementedException();
-    }
-
-
-    public struct Texture
-    {
-    }
-
-    public struct Buffer
-    {
-
+        public Buffer Resolve<T>(BufferHandle handle) where T : unmanaged => throw new NotImplementedException();
     }
 
     public readonly struct TexHandle
@@ -149,11 +140,11 @@ namespace Voltium.Core
             return RegisterGraphTexture(res);
         }
 
-        public BufferHandle CreateVertexBuffer(nuint size)
+        public BufferHandle<TVertex> CreateVertexBuffer<TVertex>(nuint size) where TVertex : unmanaged
         {
             var res = new ResourceData { Width = size };
 
-            return RegisterGraphBuffer(res);
+            return RegisterGraphBuffer<TVertex>(res);
         }
 
         private TexHandle RegisterGraphTexture(ResourceData res)
@@ -162,10 +153,10 @@ namespace Voltium.Core
             return _graph.RegisterTexture(res);
         }
 
-        private BufferHandle RegisterGraphBuffer(ResourceData res)
+        private BufferHandle<T> RegisterGraphBuffer<T>(ResourceData res)
         {
             res.CreationPass = _passIndex;
-            return _graph.RegisterBuffer(res);
+            return _graph.RegisterBuffer<T>(res);
         }
 
         public void Write(TexHandle tex, ResourceWriteFlags flags)
@@ -278,7 +269,7 @@ namespace Voltium.Core
 
         /// <summary>
         /// The resource can be read as several other <see cref="ResourceState"/>s. This is the starting
-        /// state for a <see cref="GpuMemoryType.CpuUpload"/> resource
+        /// state for a <see cref="GpuMemoryKind.CpuUpload"/> resource
         /// </summary>
         GenericRead = D3D12_RESOURCE_STATE_GENERIC_READ,
 

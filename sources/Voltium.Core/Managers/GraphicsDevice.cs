@@ -12,6 +12,7 @@ using static TerraFX.Interop.DXGI_DEBUG_RLO_FLAGS;
 using static TerraFX.Interop.DXGI_SWAP_CHAIN_FLAG;
 using Voltium.Common.Debugging;
 using Voltium.Core.Pipeline;
+using Voltium.Core.Memory.GpuResources;
 
 namespace Voltium.Core.Managers
 {
@@ -29,8 +30,8 @@ namespace Voltium.Core.Managers
         internal ulong TotalFramesRendered = 0;
         private DescriptorHeap _renderTargetViewHeap;
         private DescriptorHeap _depthStencilViewHeap;
-        private GpuResource[] _renderTargets = null!;
-        private GpuResource _depthStencil = null!;
+        private Texture[] _renderTargets = null!;
+        private Texture _depthStencil = null!;
         internal uint BackBufferIndex;
         private GraphicalConfiguration _config = null!;
         private GpuDispatchManager _dispatch = null!;
@@ -198,12 +199,12 @@ namespace Voltium.Core.Managers
         /// <summary>
         /// The <see cref="GpuResource"/> for the current render target resource
         /// </summary>
-        public GpuResource RenderTarget => _renderTargets[BackBufferIndex];
+        public Texture RenderTarget => _renderTargets[BackBufferIndex];
 
         /// <summary>
         /// The <see cref="GpuResource"/> for the current depth stencil resource
         /// </summary>
-        public GpuResource DepthStencil => _depthStencil;
+        public Texture DepthStencil => _depthStencil;
 
         /// <summary>
         /// The number of CPU buffered resources
@@ -492,7 +493,7 @@ namespace Voltium.Core.Managers
 
             var desc = new GpuResourceDesc(
                 GpuResourceFormat.DepthStencil(_config.DepthStencilFormat, ScreenData.Width, ScreenData.Height),
-                GpuMemoryType.GpuOnly,
+                GpuMemoryKind.GpuOnly,
                 ResourceState.DepthWrite,
                 allocFlags: GpuAllocFlags.ForceAllocateComitted,
                 clearValue: new D3D12_CLEAR_VALUE((DXGI_FORMAT)_config.DepthStencilFormat, 1.0f, 0)

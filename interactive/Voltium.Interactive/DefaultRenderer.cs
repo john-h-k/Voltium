@@ -14,6 +14,7 @@ using Voltium.Core.Pipeline;
 using System.Runtime.CompilerServices;
 using Voltium.Core.Managers.Shaders;
 using Voltium.Core.Configuration.Graphics;
+using Voltium.Core.Memory.GpuResources;
 using System;
 using Voltium.Core.Memory.GpuResources.ResourceViews;
 using System.Runtime.InteropServices;
@@ -86,8 +87,8 @@ namespace Voltium.Interactive
     public unsafe class DefaultRenderer : Renderer
     {
         private GpuAllocator _allocator = null!;
-        private VertexBuffer<Vertex> _vertexBuffer;
-        private IndexBuffer<ushort> _indexBuffer;
+        private Buffer<Vertex> _vertexBuffer;
+        private Buffer<ushort> _indexBuffer;
         private int _zoomLevel;
         private Geometry _object;
         private GraphicsDevice _device = null!;
@@ -100,8 +101,8 @@ namespace Voltium.Interactive
             _object = GemeotryGenerator.LoadSingleModel("logo.obj");
             //_object = GemeotryGenerator.CreateCube(0.5f);
 
-            _vertexBuffer = _allocator.AllocateVertexBuffer(_object.Vertices, GpuMemoryType.CpuUpload);
-            _indexBuffer = _allocator.AllocateIndexBuffer(_object.Indices, GpuMemoryType.CpuUpload);
+            _vertexBuffer = _allocator.AllocateBuffer(_object.Vertices, BufferKind.Vertex, GpuMemoryKind.CpuUpload);
+            _indexBuffer = _allocator.AllocateBuffer(_object.Indices, BufferKind.Index, GpuMemoryKind.CpuUpload);
 
             var rootParams = new[]
             {
@@ -123,12 +124,13 @@ namespace Voltium.Interactive
             var vertexShader = ShaderManager.CompileShader("Shaders/SimpleVertexShader.hlsl", DxcCompileTarget.Vs_6_0, compilationFlags);
             var pixelShader = ShaderManager.CompileShader("Shaders/SimplePixelShader.hlsl", new DxcCompileTarget(ShaderType.Pixel, 6, 0), compilationFlags);
 
-            GraphicsPipelineDesc psoDesc = new(_rootSig, config.BackBufferFormat, config.DepthStencilFormat, vertexShader, pixelShader);
+            var psoDesc = new GraphicsPipelineDesc(_rootSig, config.BackBufferFormat, config.DepthStencilFormat, vertexShader, pixelShader);
+
             _drawPso = PipelineManager.CreatePso<Vertex>(_device, "Default", psoDesc);
 
-            _objectConstants = _allocator.AllocateConstantBuffer<ObjectConstants>(2, GpuMemoryType.CpuUpload);
-            _frameConstants = _allocator.AllocateConstantBuffer<FrameConstants>(2, GpuMemoryType.CpuUpload);
-            _sceneLight = _allocator.AllocateConstantBuffer<LightConstants>(2, GpuMemoryType.CpuUpload);
+            _objectConstants = _allocator.AllocateBuffer<ObjectConstants>(2, BufferKind.Constant, GpuMemoryKind.CpuUpload);
+            _frameConstants = _allocator.AllocateBuffer<FrameConstants>(2, BufferKind.Constant, GpuMemoryKind.CpuUpload);
+            _sceneLight = _allocator.AllocateBuffer<LightConstants>(2, BufferKind.Constant, GpuMemoryKind.CpuUpload);
 
             _objectConstants.Map();
             _frameConstants.Map();
@@ -142,7 +144,7 @@ namespace Voltium.Interactive
             var aspectRatio = (float)screen.Width / screen.Height;
             var fovAngleY = 70.0f * MathF.PI / 180.0f;
 
-            _objectConstants.LocalCopy = new ObjectConstants
+            _objectConstants[0] = new ObjectConstants
             {
                 World = Matrix4x4.Identity,
                 Material = new Material
@@ -153,7 +155,7 @@ namespace Voltium.Interactive
                 }
             };
 
-            _frameConstants.LocalCopy = new FrameConstants
+            _frameConstants[0] = new FrameConstants
             {
                 View = Matrix4x4.CreateLookAt(
                     new Vector3(0.0f, 0.7f, 1.5f),
@@ -165,7 +167,7 @@ namespace Voltium.Interactive
                 CameraPosition = new Vector3(0.0f, 0.7f, 1.5f),
             };
 
-            _sceneLight.LocalCopy.Light0 = new DirectionalLight
+            _sceneLight[0].Light0 = new DirectionalLight
             {
                 Strength = new Vector3(1, 1, 1),
                 Direction = new Vector3(0, -1, 0)
@@ -183,9 +185,9 @@ namespace Voltium.Interactive
         private RootSignature _rootSig = null!;
         private PipelineStateObject _drawPso = null!;
 
-        private ConstantBuffer<ObjectConstants> _objectConstants;
-        private ConstantBuffer<FrameConstants> _frameConstants;
-        private ConstantBuffer<LightConstants> _sceneLight;
+        private Buffer<ObjectConstants> _objectConstants;
+        private Buffer<FrameConstants> _frameConstants;
+        private Buffer<LightConstants> _sceneLight;
 
         private Matrix4x4 _perFrameRotation = Matrix4x4.CreateRotationY(10f)/* * Matrix4x4.CreateRotationX(0.001f)*/;
         //private int _totalCount = 0;
@@ -194,7 +196,7 @@ namespace Voltium.Interactive
         public override void Update(ApplicationTimer timer)
         {
             // rotate a small amount each frame
-            _objectConstants.LocalCopy.World *= Matrix4x4.CreateRotationY(0.5f * (float)timer.ElapsedSeconds);
+            _objectConstants[0].World *= Matrix4x4.CreateRotationY(0.5f * (float)timer.ElapsedSeconds);
 
             // scale between 0 and 5 seconds
             //var scale = Matrix4x4.CreateScale((float)(Math.Abs((total % 10) - 5)) / 5);u
@@ -210,14 +212,14 @@ namespace Voltium.Interactive
                 scale = 1;
             }
 
-            var ind = _isFirst ? 0 : 1;
+            var ind = _isFirst ? 0u : 1u;
             _isFirst = !_isFirst;
-            _objectConstants.Buffers[ind].World = _objectConstants.LocalCopy.World * Matrix4x4.CreateScale(scale);
-            _objectConstants.Buffers[ind].Material = _objectConstants.LocalCopy.Material;
+            _objectConstants[ind].World = _objectConstants[0].World * Matrix4x4.CreateScale(scale);
+            _objectConstants[ind].Material = _objectConstants[0].Material;
 
-            _frameConstants.Buffers[ind] = _frameConstants.LocalCopy;
+            _frameConstants[ind] = _frameConstants[0];
 
-            _sceneLight.Buffers[ind] = _sceneLight.LocalCopy;
+            _sceneLight[ind] = _sceneLight[0];
 
             //_color = ChangeHue(_color);
         }

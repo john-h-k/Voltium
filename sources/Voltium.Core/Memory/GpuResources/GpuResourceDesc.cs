@@ -19,7 +19,7 @@ namespace Voltium.Core.GpuResources
         /// <param name="heapFlags">Any additional flags used for creating or selecting the allocation heap</param>
         public GpuResourceDesc(
             GpuResourceFormat resourceFormat,
-            GpuMemoryType gpuMemoryType,
+            GpuMemoryKind gpuMemoryType,
             ResourceState initialState,
             GpuAllocFlags allocFlags = GpuAllocFlags.None,
             D3D12_CLEAR_VALUE? clearValue = null,
@@ -65,7 +65,7 @@ namespace Voltium.Core.GpuResources
         /// <summary>
         /// The type of the underlying GPU memory
         /// </summary>
-        public GpuMemoryType GpuMemoryType;
+        public GpuMemoryKind GpuMemoryType;
 
         /// <inheritdoc cref="GpuResourceFormat"/>
         public DataFormat Format => ResourceFormat.Format;

@@ -64,7 +64,7 @@ namespace Voltium.Core
         // you can pass a length, say, of a span, and get a free lil bit of validation
         internal static unsafe RgbaColor FromPointer(float* p, uint length = 4)
         {
-            Debug.Assert(length > 4);
+            Debug.Assert(length >= 4);
             return Unsafe.As<float, RgbaColor>(ref *p);
         }
     }

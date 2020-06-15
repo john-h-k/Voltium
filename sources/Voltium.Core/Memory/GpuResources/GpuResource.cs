@@ -47,7 +47,7 @@ namespace Voltium.Core.GpuResources
             return new GpuResource
             {
                 _value = resource.Move(),
-                Type = (GpuMemoryType)(-1) /* TODO wtf should we have here */,
+                Type = (GpuMemoryKind)(-1) /* TODO wtf should we have here */,
                 ResourceFormat = (DataFormat)desc.Format,
                 State = (ResourceState)D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_COMMON
             };
@@ -56,7 +56,7 @@ namespace Voltium.Core.GpuResources
         /// <summary>
         /// The type of the resource
         /// </summary>
-        public GpuMemoryType Type { get; private set; }
+        public GpuMemoryKind Type { get; private set; }
 
         /// <summary>
         /// The format of the buffer, if typed, else <see cref="DataFormat.Unknown"/>
@@ -108,13 +108,13 @@ namespace Voltium.Core.GpuResources
         public ulong Size => _size;
 
         /// <summary>
-        /// Retuns a <see cref="ScopedResourceMap"/> that allows a <see cref="Map"/> call to be scoped
+        /// Retuns a <see cref="ScopedResourceMap{T}"/> that allows a <see cref="Map"/> call to be scoped
         /// </summary>
         /// <param name="subresource">The subresource index to map</param>
-        public unsafe ScopedResourceMap MapScoped(uint subresource)
+        public unsafe ScopedResourceMap<T> MapScoped<T>(uint subresource)
         {
             Map(subresource);
-            return new ScopedResourceMap(UnderlyingResource, subresource);
+            return new ScopedResourceMap<T>(UnderlyingResource, subresource, CpuAddress, GetBufferSize());
         }
 
         /// <summary>
@@ -123,7 +123,7 @@ namespace Voltium.Core.GpuResources
         /// <param name="subresource">The subresource index to map</param>
         public unsafe void Map(uint subresource)
         {
-            Debug.Assert(Type != GpuMemoryType.GpuOnly);
+            Debug.Assert(Type != GpuMemoryKind.GpuOnly);
 
             if (CpuAddress == null)
             {
@@ -140,7 +140,7 @@ namespace Voltium.Core.GpuResources
         /// <param name="subresource">The subresource index to unmap</param>
         public unsafe void Unmap(uint subresource)
         {
-            Debug.Assert(Type != GpuMemoryType.GpuOnly);
+            Debug.Assert(Type != GpuMemoryKind.GpuOnly);
 
             if (CpuAddress != null)
             {

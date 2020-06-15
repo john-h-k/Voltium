@@ -8,7 +8,7 @@ namespace Voltium.Core.GpuResources
         public T Upload;
         public T Readback;
 
-        public T this[GpuMemoryType context]
+        public T this[GpuMemoryKind context]
         {
             get => Unsafe.Add(ref Default, (int)context - 1);
 
