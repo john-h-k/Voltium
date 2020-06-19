@@ -343,7 +343,6 @@ namespace Voltium.Core.Managers
                 Guard.ThrowIfFailed(Compiler.Get()->Compile(
                     &text,
                     (ushort**)ppFlags,
-                    // account for target flag, and possible entrypoint flag
                     (uint)(flagPointerLength / sizeof(nuint)),
                     pInclude,
                     compileResult.Guid,

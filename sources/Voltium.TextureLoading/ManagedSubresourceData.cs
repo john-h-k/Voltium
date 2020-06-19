@@ -7,15 +7,15 @@ namespace Voltium.TextureLoading
     /// <summary>
     /// Represents a section of data in a single resource
     /// </summary>
-    public readonly struct ManagedSubresourceData
+    public readonly struct SubresourceData
     {
         /// <summary>
-        /// Creates a new instance of <see cref="ManagedSubresourceData"/>
+        /// Creates a new instance of <see cref="SubresourceData"/>
         /// </summary>
         /// <param name="dataOffset">The offset from the resource start, in bytes</param>
         /// <param name="rowPitch">The row pitch, or width, or physical size, in bytes, of the subresource data</param>
         /// <param name="slicePitch">The depth pitch, or width, or physical size, in bytes, of the subresource data</param>
-        public ManagedSubresourceData(nuint dataOffset, nuint rowPitch, nuint slicePitch)
+        public SubresourceData(nuint dataOffset, nuint rowPitch, nuint slicePitch)
         {
             DataOffset = dataOffset;
             RowPitch = rowPitch;

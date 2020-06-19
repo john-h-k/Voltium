@@ -60,12 +60,7 @@ namespace Voltium.Common
         // https://github.com/dotnet/runtime/issues/36272
         public readonly Guid* Guid => PointerToCachedGuid;
 
-        private static readonly Guid CachedGuid =
-#if REFLECTION
-            typeof(T).GUID;
-#else
-            default;
-#endif
+        private static readonly Guid CachedGuid = typeof(T).GUID;
 
         // ReSharper disable twice StaticMemberInGenericType
         private static readonly Guid* PointerToCachedGuid;
@@ -74,7 +69,6 @@ namespace Voltium.Common
         /// <summary>
         /// Retrieves the underlying pointer
         /// </summary>
-        /// <returns></returns>
         public readonly T* Get() => _ptr;
 
         /// <summary>
@@ -210,7 +204,7 @@ namespace Voltium.Common
 
         /// <inheritdoc cref="object.GetHashCode"/>
         // ReSharper disable once NonReadonlyMemberInGetHashCode
-        public override int GetHashCode() => (int)_ptr;
+        public override int GetHashCode() => ((ulong)_ptr).GetHashCode();
     }
 
     /// <summary>

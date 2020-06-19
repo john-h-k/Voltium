@@ -46,23 +46,69 @@ namespace Voltium.Core.Managers
 
         public SynchronizedCommandQueue(
             GraphicsDevice device,
-            ExecutionContext context,
-            ComPtr<ID3D12CommandQueue> queue,
-            ComPtr<ID3D12Fence> fence
+            ExecutionContext context
         )
         {
-            Debug.Assert(queue.Exists);
-            Debug.Assert(fence.Exists);
             Debug.Assert(device is object);
 
             _type = context;
-            _queue = queue;
-            _fence = fence;
+
+            _queue = CreateQueue(device, context);
+            _fence = CreateFence(device);
+            
+            DirectXHelpers.SetObjectName(_queue.Get(), GetListTypeName(context) + " Queue");
+            DirectXHelpers.SetObjectName(_fence.Get(), GetListTypeName(context) + " Fence");
+
             _marker = new FenceMarker(device.BackBufferCount);
             _executingAllocators = new();
             Guard.ThrowIfFailed(_queue.Get()->Signal(_fence.Get(), _marker.FenceValue));
             _allocatorPool = new(ComPtr<ID3D12Device>.CopyFromPointer(device.Device), context);
         }
+
+        private static unsafe ComPtr<ID3D12CommandQueue> CreateQueue(GraphicsDevice device, ExecutionContext type)
+        {
+            var desc = new D3D12_COMMAND_QUEUE_DESC
+            {
+                Type = (D3D12_COMMAND_LIST_TYPE)type,
+                Flags = D3D12_COMMAND_QUEUE_FLAGS.D3D12_COMMAND_QUEUE_FLAG_NONE,
+                NodeMask = 0, // TODO: MULTI-GPU
+                Priority = (int)D3D12_COMMAND_QUEUE_PRIORITY.D3D12_COMMAND_QUEUE_PRIORITY_NORMAL // why are you like this D3D12
+            };
+
+            ComPtr<ID3D12CommandQueue> p = default;
+
+            Guard.ThrowIfFailed(device.Device->CreateCommandQueue(
+                &desc,
+                p.Guid,
+                ComPtr.GetVoidAddressOf(&p)
+            ));
+
+            return p.Move();
+        }
+
+        private static unsafe ComPtr<ID3D12Fence> CreateFence(GraphicsDevice device)
+        {
+            ComPtr<ID3D12Fence> fence = default;
+
+            Guard.ThrowIfFailed(device.Device->CreateFence(
+                0,
+                0,
+                fence.Guid,
+                (void**)&fence
+            ));
+
+
+
+            return fence;
+        }
+
+        private static string GetListTypeName(ExecutionContext type) => type switch
+        {
+            ExecutionContext.Graphics => "Graphics",
+            ExecutionContext.Compute => "Compute",
+            ExecutionContext.Copy => "Copy",
+            _ => "Unknown"
+        };
 
         public ComPtr<ID3D12CommandAllocator> RentAllocator()
         {
@@ -83,6 +129,8 @@ namespace Voltium.Core.Managers
             return _allocatorPool.Rent().Move();
         }
 
+        public FenceMarker GetFenceForNextExecution() => _marker + 1;
+
         public void Execute(
             ReadOnlySpan<GpuCommandSet> lists,
             out FenceMarker completion
@@ -97,13 +145,11 @@ namespace Voltium.Core.Managers
                 _executingAllocators.Enqueue(new ExecutingAllocator { Allocator = lists[i].Allocator.Move(), Marker = _marker + 1 });
             }
 
-            if (lists.IsEmpty)
+            // we still increment the fence to keep it in sync with the other queues
+            if (!lists.IsEmpty)
             {
-                completion = GetReachedFence();
-                return;
+                _queue.Get()->ExecuteCommandLists((uint)lists.Length, (ID3D12CommandList**)pLists);
             }
-
-            _queue.Get()->ExecuteCommandLists((uint)lists.Length, (ID3D12CommandList**)pLists);
 
             InsertNextFence();
             completion = _marker;
@@ -122,7 +168,7 @@ namespace Voltium.Core.Managers
             return GetSynchronizer(_marker);
         }
 
-        private void InsertNextFence()
+        internal void InsertNextFence()
         {
             _marker++;
             Guard.ThrowIfFailed(_queue.Get()->Signal(_fence.Get(), _marker.FenceValue));
@@ -131,11 +177,6 @@ namespace Voltium.Core.Managers
         internal GpuDispatchSynchronizer GetSynchronizer(FenceMarker fenceMarker)
         {
             return new GpuDispatchSynchronizer(_fence.Copy(), fenceMarker);
-        }
-
-        internal void Signal(ID3D12Fence* fence, FenceMarker marker)
-        {
-            _queue.Get()->Signal(fence, marker.FenceValue);
         }
 
         public void Dispose()

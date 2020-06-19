@@ -3,6 +3,7 @@ using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using TerraFX.Interop;
+using static TerraFX.Interop.Windows;
 using Voltium.Common;
 
 namespace Voltium.Core.Managers
@@ -28,8 +29,8 @@ namespace Voltium.Core.Managers
 
         static IncludeHandler()
         {
-            Heap = Windows.GetProcessHeap();
-            Vtbl = (void**)Windows.HeapAlloc(Heap, 0, (uint)sizeof(nuint) * 4);
+            Heap = GetProcessHeap();
+            Vtbl = (void**)HeapAlloc(Heap, 0, (uint)sizeof(nuint) * 4);
 
             // these should be stdcall in the future
 
@@ -63,7 +64,7 @@ namespace Voltium.Core.Managers
         {
             if (pFilename == null || ppIncludeSource == null)
             {
-                return Windows.E_POINTER;
+                return E_POINTER;
             }
 
             try
@@ -83,18 +84,18 @@ namespace Voltium.Core.Managers
                 }
                 else
                 {
-                    return Windows.E_FAIL;
+                    return E_FAIL;
                 }
 
                 var includeText = File.ReadAllText(file.FullName);
                 IDxcBlob* blob = CreateBlob(includeText).Get();
 
                 *ppIncludeSource = blob;
-                return Windows.S_OK;
+                return S_OK;
             }
             catch
             {
-                return Windows.E_FAIL;
+                return E_FAIL;
             }
         }
 

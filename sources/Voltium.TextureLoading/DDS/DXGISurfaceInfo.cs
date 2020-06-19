@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using TerraFX.Interop;
 using static TerraFX.Interop.DXGI_FORMAT;
 
@@ -160,7 +160,7 @@ namespace Voltium.TextureLoading.DDS
         internal static DXGISurfaceInfo FromPacked(Size2 size, uint bytesPerBlock)
         {
             (uint height, uint width) = size;
-            uint rowBytes = ((width + 1) >> 1) * bytesPerBlock;
+            uint rowBytes = (width + 1) / 2 * bytesPerBlock;
             uint numRows = height;
             uint numBytes = rowBytes * height;
 
@@ -171,9 +171,9 @@ namespace Voltium.TextureLoading.DDS
         {
             (uint height, uint width) = size;
 
-            uint rowBytes = ((width + 1) >> 1) * bytesPerBlock;
-            uint numRows = height + ((height + 1) >> 1);
-            uint numBytes = (rowBytes * height) + (((rowBytes * height) + 1) >> 1);
+            uint rowBytes = (width + 1) / 2 * bytesPerBlock;
+            uint numRows = height + ((height + 1) / 2);
+            uint numBytes = (rowBytes * height) + (((rowBytes * height) + 1) / 2);
 
             return new DXGISurfaceInfo(numBytes, rowBytes, numRows);
         }

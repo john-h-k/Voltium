@@ -6,7 +6,7 @@ namespace Voltium.Core.GpuResources
     /// Flags uesd by the GPU allocator
     /// </summary>
     [Flags]
-    public enum GpuAllocFlags
+    public enum AllocFlags
     {
         /// <summary>
         /// No flags

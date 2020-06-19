@@ -9,6 +9,7 @@ using Voltium.Core.Memory.GpuResources;
 using Voltium.Core.Memory.GpuResources.ResourceViews;
 using Voltium.Core.Pipeline;
 using static TerraFX.Interop.D3D_PRIMITIVE_TOPOLOGY;
+using Buffer = Voltium.Core.Memory.GpuResources.Buffer;
 
 namespace Voltium.Core
 {
@@ -20,14 +21,11 @@ namespace Voltium.Core
         private ComPtr<ID3D12GraphicsCommandList> _list;
         private ComPtr<ID3D12CommandAllocator> _allocator;
 
+
         internal ComPtr<ID3D12GraphicsCommandList> GetAndReleaseList() => _list.Move();
         internal ComPtr<ID3D12CommandAllocator> GetAndReleaseAllocator() => _allocator.Move();
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        public GraphicsContext Move()
+        internal GraphicsContext Move()
         {
             var copy = this;
             copy._list = _list.Move();
@@ -35,11 +33,7 @@ namespace Voltium.Core
             return copy;
         }
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        public GraphicsContext Copy()
+        internal GraphicsContext Copy()
         {
             var copy = this;
             copy._list = _list.Copy();
@@ -95,29 +89,64 @@ namespace Voltium.Core
             _list.Get()->OMSetStencilRef(value);
         }
 
-        ///// <summary>
-        ///// Copy an entire resource
-        ///// </summary>
-        ///// <param name="source">The resource to copy from</param>
-        ///// <param name="destination">The resource to copy to</param>
-        //public void CopyResource(GpuResource source, GpuResource destination)
-        //{
-        //    Debug.Assert(AreCopyable(source, destination)); // this is just a "most of the time scenario"
-        //    // line below can error even if assertion isn't hit
+        /// <summary>
+        /// Copy an entire resource
+        /// </summary>
+        /// <param name="source">The resource to copy from</param>
+        /// <param name="destination">The resource to copy to</param>
+        public void CopyResource(Buffer source, Buffer destination)
+        {
+            _list.Get()->CopyResource(destination.Resource.UnderlyingResource, source.Resource.UnderlyingResource);
+        }
 
-        //    _list.Get()->CopyResource(source.UnderlyingResource, destination.UnderlyingResource);
-        //}
+        /// <summary>
+        /// Uploads a buffer from the CPU to the GPU
+        /// </summary>
+        /// <param name="allocator"></param>
+        /// <param name="buffer"></param>
+        /// <param name="destination"></param>
+        public void UploadResource(GpuAllocator allocator, Span<byte> buffer, Buffer destination)
+        {
+            var upload = allocator.AllocateBuffer(buffer.Length, MemoryAccess.CpuUpload, ResourceState.CopySource);
+            upload.WriteData(buffer);
+
+            CopyResource(upload, destination);
+        }
+
+        /// <summary>
+        /// Uploads a buffer from the CPU to the GPU
+        /// </summary>
+        /// <param name="allocator"></param>
+        /// <param name="texture"></param>
+        /// <param name="destination"></param>
+        public void UploadResource(GpuAllocator allocator, Span<byte> texture, Texture destination)
+        {
+            var uploadLength = Windows.GetRequiredIntermediateSize(destination.Resource.UnderlyingResource, 0, )
+            var upload = allocator.AllocateTexture(Windows.GetRequiredIntermediateSize(, MemoryAccess.CpuUpload, ResourceState.CopySource);
+            upload.WriteData(buffer);
+
+            CopyResource(upload, destination);
+        }
+
+        /// <summary>
+        /// Copy an entire resource
+        /// </summary>
+        /// <param name="source">The resource to copy from</param>
+        /// <param name="destination">The resource to copy to</param>
+        public void CopyResource(Texture source, Texture destination)
+        {
+            _list.Get()->CopyResource(source.Resource.UnderlyingResource, destination.Resource.UnderlyingResource);
+        }
 
         /// <summary>
         /// Sets a directly-bound constant buffer view descriptor to the graphics pipeline
         /// </summary>
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
-        /// <param name="cbuffer">The <see cref="ConstantBuffer{TBuffer}"/> containing the buffer to add</param>
-        /// <param name="cbufferIndex">The index into <paramref name="cbuffer"/> where the buffer is located</param>
-        public void SetGraphicsConstantBufferDescriptor<TBuffer>(uint paramIndex, Buffer<TBuffer> cbuffer, uint cbufferIndex)
-            where TBuffer : unmanaged
+        /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
+        /// <param name="offset"></param>
+        public void SetGraphicsConstantBufferDescriptor(uint paramIndex, Buffer cbuffer, uint offset = 0)
         {
-            _list.Get()->SetGraphicsRootConstantBufferView(paramIndex, cbuffer.GetGpuAddress() + (cbufferIndex * (uint)cbuffer.GetElementSize()));
+            _list.Get()->SetGraphicsRootConstantBufferView(paramIndex, cbuffer.GpuAddress + offset);
         }
 
         /// <summary>
@@ -134,7 +163,7 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="resource">The resource to transition</param>
         /// <param name="transition">The transition</param>
-        public void ResourceTransition<T>(Buffer<T> resource, ResourceTransition transition) where T : unmanaged
+        public void ResourceTransition<T>(Buffer resource, ResourceTransition transition) where T : unmanaged
             => ResourceTransition(resource.Resource, transition);
 
         /// <summary>
@@ -348,11 +377,11 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="vertexResource">The vertex buffer to set</param>
         /// <param name="startSlot">The slot on the device array to start setting vertex buffers to</param>
-        /// <typeparam name="T">The type of the vertex in <see cref="VertexBuffer{TVertex}"/></typeparam>
-        public void SetVertexBuffers<T>(Buffer<T> vertexResource, uint startSlot = 0)
+        /// <typeparam name="T">The type of the vertex in <see cref="Buffer"/></typeparam>
+        public void SetVertexBuffers<T>(Buffer vertexResource, uint startSlot = 0)
             where T : unmanaged
         {
-            var desc = CreateVertexBufferView(vertexResource);
+            var desc = CreateVertexBufferView<T>(vertexResource);
             _list.Get()->IASetVertexBuffers(startSlot, 1, &desc);
         }
 
@@ -361,8 +390,8 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="vertexBuffers">The vertex buffers to set</param>
         /// <param name="startSlot">The slot on the device array to start setting vertex buffers to</param>
-        /// <typeparam name="T">The type of the vertex in <see cref="VertexBuffer{TVertex}"/></typeparam>
-        public void SetVertexBuffers<T>(ReadOnlySpan<Buffer<T>> vertexBuffers, uint startSlot = 0)
+        /// <typeparam name="T">The type of the vertex in <see cref="Buffer"/></typeparam>
+        public void SetVertexBuffers<T>(ReadOnlySpan<Buffer> vertexBuffers, uint startSlot = 0)
             where T : unmanaged
         {
             Debug.Assert(StackSentinel.SafeToStackalloc<D3D12_VERTEX_BUFFER_VIEW>(vertexBuffers.Length));
@@ -370,20 +399,20 @@ namespace Voltium.Core
             D3D12_VERTEX_BUFFER_VIEW* views = stackalloc D3D12_VERTEX_BUFFER_VIEW[vertexBuffers.Length];
             for (int i = 0; i < vertexBuffers.Length; i++)
             {
-                views[i] = CreateVertexBufferView(vertexBuffers[i]);
+                views[i] = CreateVertexBufferView<T>(vertexBuffers[i]);
             }
 
             _list.Get()->IASetVertexBuffers(startSlot, (uint)vertexBuffers.Length, views);
         }
 
-        private static D3D12_VERTEX_BUFFER_VIEW CreateVertexBufferView<T>(Buffer<T> buffer)
+        private static D3D12_VERTEX_BUFFER_VIEW CreateVertexBufferView<T>(Buffer buffer)
             where T : unmanaged
         {
             return new D3D12_VERTEX_BUFFER_VIEW
             {
-                BufferLocation = buffer.GetGpuAddress(),
-                SizeInBytes = buffer.ByteCount,
-                StrideInBytes = buffer.GetElementSize()
+                BufferLocation = buffer.GpuAddress,
+                SizeInBytes = buffer.Length,
+                StrideInBytes = (uint)sizeof(T)
             };
         }
 
@@ -391,19 +420,19 @@ namespace Voltium.Core
         /// Set the index buffer
         /// </summary>
         /// <param name="indexResource">The index buffer to set</param>
-        /// <typeparam name="T">The type of the index in <see cref="IndexBuffer{TIndex}"/></typeparam>
-        public void SetIndexBuffer<T>(Buffer<T> indexResource)
+        /// <typeparam name="T">The type of the index in <see cref="Buffer"/></typeparam>
+        public void SetIndexBuffer<T>(Buffer indexResource)
             where T : unmanaged
         {
             var desc = CreateIndexBufferView(indexResource);
             _list.Get()->IASetIndexBuffer(&desc);
 
-            static D3D12_INDEX_BUFFER_VIEW CreateIndexBufferView(Buffer<T> buffer)
+            static D3D12_INDEX_BUFFER_VIEW CreateIndexBufferView(Buffer buffer)
             {
                 return new D3D12_INDEX_BUFFER_VIEW
                 {
-                    BufferLocation = buffer.GetGpuAddress(),
-                    SizeInBytes = buffer.ByteCount,
+                    BufferLocation = buffer.GpuAddress,
+                    SizeInBytes = buffer.Length,
                     Format = GetDxgiIndexType()
                 };
 

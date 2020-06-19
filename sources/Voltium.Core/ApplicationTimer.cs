@@ -67,20 +67,17 @@ namespace Voltium.Core
         /// <summary>
         /// Whether a fixed or variable timestep should be used
         /// </summary>
-        /// <param name="isFixedTimestep"><c>true</c> if a fixed timestep should be used, and <c>false</c> if a variable timestep should be used</param>
-        public void SetFixedTimeStep(bool isFixedTimestep) { _isFixedTimeStep = isFixedTimestep; }
+        public bool IsFixedTimeStep { get; set; }
 
         /// <summary>
         /// Sets the desired number of ticks to elapse each frame in fixed timestep mode
         /// </summary>
-        /// <param name="targetElapsed">The number of ticks to elapse each frame</param>
-        public void SetTargetElapsedTicks(ulong targetElapsed) { _targetElapsedTicks = targetElapsed; }
+        public ulong TargetElapsedTicks { get; set; }
 
         /// <summary>
         /// Sets the desired number of seconds to elapse each frame in fixed timestep mode
         /// </summary>
-        /// <param name="targetElapsed">The number of seconds to elapse each frame</param>
-        public void SetTargetElapsedSeconds(double targetElapsed) { _targetElapsedTicks = SecondsToTicks(targetElapsed); }
+        public double TargetElapsedSeconds { get => TargetElapsedTicks / TicksPerSecond; set => TargetElapsedTicks = (ulong)(value * TicksPerSecond); }
 
         /// <summary>
         /// Converts ticks to seconds
@@ -134,22 +131,21 @@ namespace Voltium.Core
 
             uint lastFrameCount = _frameCount;
 
-            if (_isFixedTimeStep)
+            if (IsFixedTimeStep)
             {
-                if ((ulong)Math.Abs((long)(timeDelta - _targetElapsedTicks)) < TicksPerSecond / 4000)
+                if ((ulong)Math.Abs((long)(timeDelta - TargetElapsedTicks)) < TicksPerSecond / 4000)
                 {
-                    timeDelta = _targetElapsedTicks;
+                    timeDelta = TargetElapsedTicks;
                 }
 
                 _leftOverTicks += timeDelta;
 
-                while (_leftOverTicks >= _targetElapsedTicks)
+                while (_leftOverTicks >= TargetElapsedTicks)
                 {
-                    _elapsedTicks = _targetElapsedTicks;
-                    _totalTicks += _targetElapsedTicks;
-                    _leftOverTicks -= _targetElapsedTicks;
+                    _elapsedTicks = TargetElapsedTicks;
+                    _totalTicks += TargetElapsedTicks;
+                    _leftOverTicks -= TargetElapsedTicks;
                     _frameCount++;
-
                     update();
                 }
             }
@@ -212,8 +208,5 @@ namespace Voltium.Core
         private uint _framesPerSecond;
         private uint _framesThisSecond;
         private ulong _qpcSecondCounter;
-
-        private bool _isFixedTimeStep;
-        private ulong _targetElapsedTicks;
     }
 }

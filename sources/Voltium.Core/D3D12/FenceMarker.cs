@@ -7,7 +7,7 @@ namespace Voltium.Core.D3D12
     /// <summary>
     /// Represents a position on a fence
     /// </summary>
-    [DebuggerDisplay("Execution Context: {ExecutionContext}, Value: {Value}")]
+    [DebuggerDisplay("Value: {Value}")]
     public readonly struct FenceMarker : IEquatable<FenceMarker>, IComparable<FenceMarker>
     {
         internal FenceMarker(ulong fenceValue) => Value = fenceValue;

@@ -49,12 +49,12 @@ namespace Voltium.Interactive
         }
         public override unsafe void Render()
         {
-            using var commandList = _device.BeginGraphicsContext(_renderer.GetInitialPso());
+            var commandList = _device.BeginGraphicsContext(_renderer.GetInitialPso());
 
             commandList.SetViewportAndScissor(_device.ScreenData);
             _renderer.Render(commandList);
 
-            _device.End(commandList.Move());
+            _device.End(commandList);
 
             _device.Present();
         }

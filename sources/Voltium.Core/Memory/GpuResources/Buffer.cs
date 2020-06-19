@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
@@ -16,74 +17,75 @@ namespace Voltium.Core.Memory.GpuResources
     /// <summary>
     /// Represents a single-dimension untyped buffer of GPU data
     /// </summary>
-    public unsafe struct Buffer
+    public unsafe struct Buffer : IDisposable
     {
-        /// <summary>
-        /// The type of this buffer to the shader
-        /// </summary>
-        public readonly BufferKind Kind;
         private GpuResource _resource;
-
-        internal static uint CalculateBufferSize(BufferKind type, uint count)
-            => CalcPaddedSize(type) * count;
-
-        internal Buffer(GpuResource resource)
-        {
-            ByteCount = resource.GetBufferSize();
-        }
-
-
-        private static uint CalcPaddedSize(BufferKind type)
-        {
-            var size = type switch
-            {
-                // Constant buffers must be 256 byte aligned when being read by a shader
-                // but the CPU types don't have to be 256 bytes
-                BufferKind.Constant => (uint)(sizeof(T) + 255U) & ~255U,
-                // The stride of index and vertex buffers is manually defined
-                BufferKind.Index or BufferKind.Vertex => (uint)sizeof(T),
-
-                // Can't use a throwhelper in a switch expression so we just use a magic value
-                _ => 0xFFFFFFFF
-            };
-
-            if (size == 0xFFFFFFFF)
-            {
-                ThrowHelper.ThrowNotSupportedException("Unsupported buffer type");
-            }
-
-            return size;
-        }
-
-        /// <inheritdoc cref="GpuResource.Map"/>
-        public Span<T> MapAs<T>()
-        {
-            // buffers always have subresource index 0
-            _resource.Map(0);
-
-            // consumer is expectred to klnow the alignemtn rules e,g Cb|V rquiers 256 byte
-            return MemoryMarshal.Cast<byte, T>(_resource.CpuData);
-        }
-
-
-        /// <inheritdoc cref="GpuResource.MapScoped"/>
-        public ScopedResourceMap<T> MapScoped<T>() => _resource.MapScoped<T>(0);
-
-
-        /// <inheritdoc cref="GpuResource.Unmap"/>
-        public void Unmap() => _resource.Map(0);
-
+        private void* _cpuAddress;
         /// <summary>
         /// The size, in bytes, of the buffer
         /// </summary>
-        public readonly uint ByteCount;
+        public readonly uint Length;
+
+        internal Buffer(ulong length, GpuResource resource)
+        {
+            _resource = resource;
+
+            Length = (uint)length;
+            _cpuAddress = null;
+            GpuAddress = resource.GpuAddress;
+        }
+
+        /// <summary>
+        /// The buffer data. This may be empty if the data is not CPU writable
+        /// </summary>
+        public Span<byte> Data
+        {
+            get
+            {
+                if (_cpuAddress == null)
+                {
+                    _cpuAddress = _resource.Map(0);
+                }
+
+                return new Span<byte>(_cpuAddress, (int)Length);
+            }
+        }
+
+        /// <summary>
+        /// Writes the <typeparamref name="T"/> to the buffer
+        /// </summary>
+        /// <typeparam name="T">The type to write</typeparam>
+        public void WriteData<T>(ref T data, uint offset) where T : unmanaged
+        {
+            if (_cpuAddress == null)
+            {
+                _cpuAddress = _resource.Map(0);
+            }
+
+            *((T*)_cpuAddress + offset) = data;
+        }
+
+        /// <summary>
+        /// Writes the <typeparamref name="T"/> to the buffer
+        /// </summary>
+        /// <typeparam name="T">The type to write</typeparam>
+        public void WriteData<T>(Span<T> data) where T : unmanaged
+        {
+            if (_cpuAddress == null)
+            {
+                _cpuAddress = _resource.Map(0);
+            }
+
+            data.CopyTo(new Span<T>(_cpuAddress, (int)Length));
+        }
+
+        /// <inheritdoc/>
+        public void Dispose() => _resource?.Dispose();
 
         // required for binding directly without desc heap
-        internal ulong GetGpuAddress() => _resource.GpuAddress;
+        internal ulong GpuAddress;
 
         internal GpuResource Resource => _resource;
-
-        internal Span<byte> GetUnderlyingDataSpan() => _resource.CpuData;
     }
 
     //public static unsafe class BufferExtensions

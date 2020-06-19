@@ -14,23 +14,20 @@ namespace Voltium.Core.GpuResources
     {
         internal GpuResource(
             ComPtr<ID3D12Resource> resource,
-            GpuResourceDesc desc,
-            ulong size,
-            ulong offset,
-            AllocatorHeap heap,
-            GpuAllocator allocator
+            InternalAllocDesc desc,
+            GpuAllocator? allocator = null,
+            AllocatorHeap heap = default,
+            HeapBlock block = default
         )
         {
             _value = resource.Move();
-            State = desc.InitialState;
-            ResourceFormat = desc.Format;
-            Type = desc.GpuMemoryType;
-            _size = size;
-            _offset = offset;
-            _heap = heap;
+            State = (ResourceState)desc.InitialState;
+            ResourceFormat = (DataFormat)desc.Desc.Format;
+            Heap = heap;
+            Block = block;
             _allocator = allocator;
 
-            if (desc.ResourceFormat.D3D12ResourceDesc.Dimension == D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_BUFFER)
+            if (desc.Desc.Dimension == D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_BUFFER)
             {
                 GpuAddress = UnderlyingResource->GetGPUVirtualAddress();
             }
@@ -47,16 +44,10 @@ namespace Voltium.Core.GpuResources
             return new GpuResource
             {
                 _value = resource.Move(),
-                Type = (GpuMemoryKind)(-1) /* TODO wtf should we have here */,
                 ResourceFormat = (DataFormat)desc.Format,
                 State = (ResourceState)D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_COMMON
             };
         }
-
-        /// <summary>
-        /// The type of the resource
-        /// </summary>
-        public GpuMemoryKind Type { get; private set; }
 
         /// <summary>
         /// The format of the buffer, if typed, else <see cref="DataFormat.Unknown"/>
@@ -86,52 +77,20 @@ namespace Voltium.Core.GpuResources
         /// </summary>
         public unsafe void* CpuAddress { get; private set; }
 
-        /// <summary>
-        /// A <see cref="Span{T}"/> encompassing the buffer data. This may be empty if the resource
-        /// is unmapped or not CPU accessible
-        /// </summary>
-        public Span<byte> CpuData => new Span<byte>(CpuAddress, (int)GetBufferSize());
-
         private GpuAllocator? _allocator;
-        private AllocatorHeap _heap;
-        private ulong _size;
-        private ulong _offset;
-
-        internal AllocatorHeap GetAllocatorHeap() => _heap;
-
-        internal ulong GetOffsetFromUnderlyingResource() => _offset;
-
-
-        /// <summary>
-        /// The size of the allocation
-        /// </summary>
-        public ulong Size => _size;
-
-        /// <summary>
-        /// Retuns a <see cref="ScopedResourceMap{T}"/> that allows a <see cref="Map"/> call to be scoped
-        /// </summary>
-        /// <param name="subresource">The subresource index to map</param>
-        public unsafe ScopedResourceMap<T> MapScoped<T>(uint subresource)
-        {
-            Map(subresource);
-            return new ScopedResourceMap<T>(UnderlyingResource, subresource, CpuAddress, GetBufferSize());
-        }
+        public AllocatorHeap Heap;
+        public HeapBlock Block;
 
         /// <summary>
         /// If the resource is not currently mapped, maps the resource
         /// </summary>
         /// <param name="subresource">The subresource index to map</param>
-        public unsafe void Map(uint subresource)
+        public unsafe void* Map(uint subresource)
         {
-            Debug.Assert(Type != GpuMemoryKind.GpuOnly);
-
-            if (CpuAddress == null)
-            {
-                // Apparently the range for map and unmap are for debugging purposes and yield no perf benefit. Maybe we could still support em
-                void* pData;
-                Guard.ThrowIfFailed(UnderlyingResource->Map(subresource, null, &pData));
-                CpuAddress = (byte*)pData + _offset;
-            }
+            // Apparently the range for map and unmap are for debugging purposes and yield no perf benefit. Maybe we could still support em
+            void* pData;
+            Guard.ThrowIfFailed(UnderlyingResource->Map(subresource, null, &pData));
+            return pData;
         }
 
         /// <summary>
@@ -140,21 +99,8 @@ namespace Voltium.Core.GpuResources
         /// <param name="subresource">The subresource index to unmap</param>
         public unsafe void Unmap(uint subresource)
         {
-            Debug.Assert(Type != GpuMemoryKind.GpuOnly);
-
-            if (CpuAddress != null)
-            {
-                // Apparently the range for map and unmap are for debugging purposes and yield no perf benefit. Maybe we could still support em
-                UnderlyingResource->Unmap(subresource, null);
-                CpuAddress = null;
-            }
-        }
-
-        internal uint GetBufferSize()
-        {
-            var desc = UnderlyingResource->GetDesc();
-            Debug.Assert(desc.Dimension == D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_BUFFER);
-            return (uint)(desc.Width * desc.Height * desc.DepthOrArraySize);
+            // Apparently the range for map and unmap are for debugging purposes and yield no perf benefit. Maybe we could still support em
+            UnderlyingResource->Unmap(subresource, null);
         }
 
         /// <inheritdoc cref="IDisposable"/>

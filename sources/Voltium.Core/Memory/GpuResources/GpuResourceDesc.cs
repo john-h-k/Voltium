@@ -19,9 +19,9 @@ namespace Voltium.Core.GpuResources
         /// <param name="heapFlags">Any additional flags used for creating or selecting the allocation heap</param>
         public GpuResourceDesc(
             GpuResourceFormat resourceFormat,
-            GpuMemoryKind gpuMemoryType,
+            MemoryAccess gpuMemoryType,
             ResourceState initialState,
-            GpuAllocFlags allocFlags = GpuAllocFlags.None,
+            AllocFlags allocFlags = AllocFlags.None,
             D3D12_CLEAR_VALUE? clearValue = null,
             D3D12_HEAP_FLAGS heapFlags = D3D12_HEAP_FLAGS.D3D12_HEAP_FLAG_NONE
         )
@@ -42,7 +42,7 @@ namespace Voltium.Core.GpuResources
         /// <summary>
         /// Any additional flags used during allocation of the resource
         /// </summary>
-        public GpuAllocFlags AllocFlags;
+        public AllocFlags AllocFlags;
 
         // TODO document best formats for this https://gpuopen.com/performance/#clears
         /// <summary>
@@ -65,7 +65,7 @@ namespace Voltium.Core.GpuResources
         /// <summary>
         /// The type of the underlying GPU memory
         /// </summary>
-        public GpuMemoryKind GpuMemoryType;
+        public MemoryAccess GpuMemoryType;
 
         /// <inheritdoc cref="GpuResourceFormat"/>
         public DataFormat Format => ResourceFormat.Format;
@@ -144,27 +144,5 @@ namespace Voltium.Core.GpuResources
         {
             D3D12ResourceDesc = d3d12ResourceDesc;
         }
-    }
-
-    /// <summary>
-    /// Represents the allowed dimensions of a GPU texture
-    /// </summary>
-    public enum TextureDimension
-    {
-        /// <summary>
-        /// The texture has 1 dimension
-        /// </summary>
-        Tex1D = D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_TEXTURE1D,
-
-        /// <summary>
-        /// The texture has 2 dimensions
-        /// </summary>
-        Tex2D = D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_TEXTURE2D,
-
-        /// <summary>
-        /// The texture has 3 dimensions. 3 dimensional textures cannot
-        /// be used as texture arrays
-        /// </summary>
-        Tex3D = D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_TEXTURE3D
     }
 }

@@ -7,6 +7,7 @@ using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.TextureLoading.DDS;
 using Voltium.TextureLoading.TGA;
+using Voltium.Core.GpuResources;
 using static TerraFX.Interop.D3D12_RESOURCE_DIMENSION;
 
 namespace Voltium.TextureLoading
@@ -149,8 +150,8 @@ namespace Voltium.TextureLoading
             }
 
             DXGI_FORMAT format = textureDescription.LoaderFlags.HasFlag(LoaderFlags.ForceSrgb)
-                ? InteropTypeUtilities.MakeSrgb(textureDescription.Format)
-                : textureDescription.Format;
+                ? InteropTypeUtilities.MakeSrgb((DXGI_FORMAT)textureDescription.Format)
+                : (DXGI_FORMAT)textureDescription.Format;
 
             textureBuffer = default;
             textureBufferUploadHeap = default;
@@ -167,7 +168,7 @@ namespace Voltium.TextureLoading
 
             switch (textureDescription.ResourceDimension)
             {
-                case D3D12_RESOURCE_DIMENSION_TEXTURE2D:
+                case TextureDimension.Tex2D:
                 {
                     D3D12_RESOURCE_DESC texDesc;
                     texDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
@@ -226,14 +227,14 @@ namespace Voltium.TextureLoading
                         D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_COPY_DEST);
                     cmdList->ResourceBarrier(1, &commonToCopyDest);
 
-                    fixed (ManagedSubresourceData* pManagedSubresourceData = textureDescription.SubresourceData.Span)
+                    fixed (SubresourceData* pManagedSubresourceData = textureDescription.SubresourceData.Span)
                     fixed (byte* pBitData = textureDescription.BitData.Span)
                     {
                         // Convert the ManagedSubresourceData to D3D12_SUBRESOURCE_DATA
                         // Just involves changing the offset (int32, relative to start of data) to an absolute pointer
                         for (int i = 0; i < num2DSubresources; i++)
                         {
-                            ManagedSubresourceData* p = &pManagedSubresourceData[i];
+                            SubresourceData* p = &pManagedSubresourceData[i];
                             ((D3D12_SUBRESOURCE_DATA*)p)->pData = pBitData + p->DataOffset;
                         }
 
@@ -244,7 +245,8 @@ namespace Voltium.TextureLoading
                             0,
                             0,
                             num2DSubresources,
-                            (D3D12_SUBRESOURCE_DATA*)pManagedSubresourceData);
+                            (D3D12_SUBRESOURCE_DATA*)pManagedSubresourceData
+                        );
                     }
 
                     var copyDestToSrv = D3D12_RESOURCE_BARRIER.InitTransition(textureBuffer,

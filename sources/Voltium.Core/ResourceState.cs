@@ -103,7 +103,7 @@ namespace Voltium.Core
 
         /// <summary>
         /// The resource can be read as several other <see cref="ResourceState"/>s. This is the starting
-        /// state for a <see cref="GpuMemoryKind.CpuUpload"/> resource
+        /// state for a <see cref="MemoryAccess.CpuUpload"/> resource
         /// </summary>
         GenericRead = D3D12_RESOURCE_STATE_GENERIC_READ,
 

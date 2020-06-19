@@ -55,59 +55,36 @@ namespace Voltium.Core.Managers
         {
             _device = device;
 
-            _frameFence = CreateFence();
+            //_frameFence = CreateFence();
             _frameMarker = new FenceMarker(config.SwapChainBufferCount - 1);
 
             _listPool = new CommandListPool(device);
 
-            _graphics = CreateSynchronizedCommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT);
-            _compute = CreateSynchronizedCommandQueue(D3D12_COMMAND_LIST_TYPE_COMPUTE);
-            _copy = CreateSynchronizedCommandQueue(D3D12_COMMAND_LIST_TYPE_COPY);
+            _graphics = new (device, ExecutionContext.Graphics);
+            _compute = new(device, ExecutionContext.Compute);
+            _copy = new(device, ExecutionContext.Copy);
         }
 
-        private static readonly D3D12_FENCE_FLAGS DefaultFenceFlags = D3D12_FENCE_FLAGS.D3D12_FENCE_FLAG_NONE;
-
-        private unsafe ComPtr<ID3D12Fence> CreateFence()
-        {
-            ComPtr<ID3D12Fence> fence = default;
-
-            Guard.ThrowIfFailed(_device.Device->CreateFence(
-                0,
-                DefaultFenceFlags,
-                fence.Guid,
-                (void**)&fence
-            ));
-
-            return fence;
-        }
 
         // used for swapchain creation. not allowed to take ownership of returned pointer etc
         internal unsafe ID3D12CommandQueue* GetGraphicsQueue() => _graphics.GetQueue();
 
-        private unsafe SynchronizedCommandQueue CreateSynchronizedCommandQueue(D3D12_COMMAND_LIST_TYPE type)
+        public FenceMarker GetFenceReached(ExecutionContext context)
         {
-            var desc = new D3D12_COMMAND_QUEUE_DESC
+            FenceMarker? marker = context switch
             {
-                Type = type,
-                Flags = D3D12_COMMAND_QUEUE_FLAGS.D3D12_COMMAND_QUEUE_FLAG_NONE,
-                NodeMask = 0, // TODO: MULTI-GPU
-                Priority = (int)D3D12_COMMAND_QUEUE_PRIORITY_NORMAL // why are you like this D3D12
+                ExecutionContext.Graphics => _graphics.GetReachedFence(),
+                ExecutionContext.Compute => _compute.GetReachedFence(),
+                ExecutionContext.Copy => _copy.GetReachedFence(),
+                _ => null
             };
 
-            ComPtr<ID3D12CommandQueue> p = default;
+            if (marker is null)
+            {
+                ThrowHelper.ThrowArgumentException("Invalid execution context");
+            }
 
-            Guard.ThrowIfFailed(_device.Device->CreateCommandQueue(
-                &desc,
-                p.Guid,
-                ComPtr.GetVoidAddressOf(&p)
-            ));
-            var name = GetListTypeName(type);
-            DirectXHelpers.SetObjectName(p.Get(), name + " Queue");
-
-            var fence = CreateFence();
-            DirectXHelpers.SetObjectName(fence.Get(), name + " Fence");
-
-            return new SynchronizedCommandQueue(_device, (ExecutionContext)type, p, fence.Move());
+            return (FenceMarker)marker;
         }
 
         private string GetListTypeName(D3D12_COMMAND_LIST_TYPE type) => type switch
@@ -118,12 +95,14 @@ namespace Voltium.Core.Managers
             _ => "Unknown"
         };
 
-        public void End(GraphicsContext graphicsCommands)
+        public FenceMarker End(GraphicsContext graphicsCommands)
         {
             using (_listAccessLock.EnterScoped())
             {
                 InternalEndNoSync(graphicsCommands.Move());
             }
+
+            return _graphics.GetFenceForNextExecution();
         }
 
         private ComPtr<ID3D12Fence> _frameFence;
@@ -133,24 +112,13 @@ namespace Voltium.Core.Managers
         {
             // currently we let IDXGISwapChain::Present implicitly sync for us
 
-            //_frameMarker++;
-
-            //_graphics.Signal(_frameFence.Get(), _frameMarker);
-
-            //FenceMarker lastFrame = _frameMarker - DeviceManager.BackBufferCount;
-
-            //if (_frameFence.Get()->GetCompletedValue() <= lastFrame.FenceValue)
-            //{
-            //    using var sync = new GpuDispatchSynchronizer(_frameFence.Copy(), _frameMarker);
-            //    sync.Block();
-            //}
+            _graphics.GetSynchronizerForIdle().Block();
         }
 
         internal void BlockForGraphicsIdle()
         {
+            _graphics.InsertNextFence();
             _graphics.GetSynchronizerForIdle().Block();
-
-            _frameMarker++;
         }
 
         internal bool IsGpuIdle()
@@ -178,7 +146,7 @@ namespace Voltium.Core.Managers
         /// Submit a set of recorded commands to the queue
         /// </summary>
         /// <param name="commands">The commands to submit for execution</param>
-        public void End(ReadOnlySpan<GraphicsContext> commands)
+        public FenceMarker End(ReadOnlySpan<GraphicsContext> commands)
         {
             using (_listAccessLock.EnterScoped())
             {
@@ -189,6 +157,8 @@ namespace Voltium.Core.Managers
                     InternalEndNoSync(commands[i].Move());
                 }
             }
+
+            return _graphics.GetFenceForNextExecution();
         }
 
         private unsafe void InternalEndNoSync(GraphicsContext graphicsCommands)

@@ -1,8 +1,10 @@
-﻿using System;
+using System;
 using System.Text;
 using System.Threading;
 using TerraFX.Interop;
 using Voltium.Common;
+using Voltium.Core;
+using Voltium.Core.GpuResources;
 using Voltium.TextureLoading.DDS;
 
 namespace Voltium.TextureLoading
@@ -13,15 +15,15 @@ namespace Voltium.TextureLoading
     public readonly struct TextureDescription
     {
         internal TextureDescription(
-            Memory<byte> bitData,
-            D3D12_RESOURCE_DIMENSION resourceDimension,
+            ReadOnlyMemory<byte> bitData,
+            TextureDimension resourceDimension,
             Size3 size,
             uint mipCount,
             uint arraySize,
-            DXGI_FORMAT format,
+            DataFormat format,
             LoaderFlags loaderFlags,
             bool isCubeMap,
-            Memory<ManagedSubresourceData> subresourceData,
+            ReadOnlyMemory<SubresourceData> subresourceData,
             AlphaMode alphaMode,
             TexType underlyingTextureType)
         {
@@ -49,12 +51,12 @@ namespace Voltium.TextureLoading
         /// <summary>
         /// The buffer that contains the data referenced by <see cref="SubresourceData"/>
         /// </summary>
-        public Memory<byte> BitData { get; }
+        public ReadOnlyMemory<byte> BitData { get; }
 
         /// <summary>
         /// The dimension of the DDS data
         /// </summary>
-        public D3D12_RESOURCE_DIMENSION ResourceDimension { get; }
+        public TextureDimension ResourceDimension { get; }
 
         /// <summary>
         /// The height of the texture
@@ -84,7 +86,7 @@ namespace Voltium.TextureLoading
         /// <summary>
         /// The format of the texture
         /// </summary>
-        public DXGI_FORMAT Format { get; }
+        public DataFormat Format { get; }
 
         /// <summary>
         /// Flags used by the loader
@@ -99,7 +101,7 @@ namespace Voltium.TextureLoading
         /// <summary>
         /// The subresource data, relative to <see cref="BitData"/>, for upload
         /// </summary>
-        public Memory<ManagedSubresourceData> SubresourceData { get; }
+        public ReadOnlyMemory<SubresourceData> SubresourceData { get; }
 
         /// <summary>
         /// The alpha mode of the texture
@@ -126,7 +128,7 @@ namespace Voltium.TextureLoading
             val.AppendLine($"AlphaMode: {AlphaMode}");
 
             val.AppendLine("\nSubresource Data: ");
-            foreach (ManagedSubresourceData managedSubresourceData in SubresourceData.Span)
+            foreach (SubresourceData managedSubresourceData in SubresourceData.Span)
             {
                 val.Append('\t').AppendLine(managedSubresourceData.ToString().Replace("\n", "\n\t"));
             }

@@ -3,6 +3,8 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using TerraFX.Interop;
 using Voltium.Common;
+using Voltium.Core;
+using Voltium.Core.GpuResources;
 using static Voltium.TextureLoading.DDS.InteropTypeUtilities;
 
 namespace Voltium.TextureLoading.DDS
@@ -56,7 +58,7 @@ namespace Voltium.TextureLoading.DDS
 
             EnsureValidResourceSizeAndDimension(resDim, arraySize, isCubeMap, size);
 
-            ManagedSubresourceData[] subresourceData = FillSubresourceData(
+            SubresourceData[] subresourceData = FillSubresourceData(
                 size,
                 mipCount,
                 arraySize,
@@ -75,11 +77,11 @@ namespace Voltium.TextureLoading.DDS
 
             return new TextureDescription(
                 metadata.BitData,
-                resDim,
+                (TextureDimension)resDim,
                 texSize,
                 mipCount - skipMip,
                 arraySize,
-                format,
+                (DataFormat)format,
                 loaderFlags,
                 isCubeMap,
                 subresourceData,
@@ -286,7 +288,7 @@ namespace Voltium.TextureLoading.DDS
             }
         }
 
-        private static ManagedSubresourceData[] FillSubresourceData(
+        private static SubresourceData[] FillSubresourceData(
             Size3 size,
             uint mipCount,
             uint arraySize,
@@ -308,7 +310,7 @@ namespace Voltium.TextureLoading.DDS
 
             int index = 0;
 
-            var data = new ManagedSubresourceData[mipCount * arraySize];
+            var data = new SubresourceData[mipCount * arraySize];
 
             for (uint i = 0U; i < arraySize; i++)
             {
@@ -327,14 +329,12 @@ namespace Voltium.TextureLoading.DDS
                         }
 
                         Debug.Assert(index < mipCount * arraySize);
-                        data[index] = new ManagedSubresourceData(offset, surface.RowBytes, surface.NumBytes);
-
-                        index++;
+                        data[index++] = new SubresourceData(offset, surface.RowBytes, surface.NumBytes);
                     }
                     else if (j == 0)
                     {
                         // Count number of skipped mipmaps (first item only)
-                        ++skipMip;
+                        skipMip++;
                     }
 
                     offset += surface.NumBytes * tmpSize.Depth;
@@ -344,24 +344,9 @@ namespace Voltium.TextureLoading.DDS
                         ThrowHelper.ThrowArgumentException("File was too small");
                     }
 
-                    tmpSize.Height >>= 1;
-                    tmpSize.Width >>= 1;
-                    tmpSize.Depth >>= 1;
-
-                    if (tmpSize.Height == 0)
-                    {
-                        tmpSize.Height = 1;
-                    }
-
-                    if (tmpSize.Width == 0)
-                    {
-                        tmpSize.Width = 1;
-                    }
-
-                    if (tmpSize.Depth == 0)
-                    {
-                        tmpSize.Depth = 1;
-                    }
+                    tmpSize.Height = Math.Max(tmpSize.Height / 2, 1);
+                    tmpSize.Width = Math.Max(tmpSize.Width / 2, 1);
+                    tmpSize.Depth = Math.Max(tmpSize.Depth / 2, 1);
                 }
             }
 

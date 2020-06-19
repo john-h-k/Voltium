@@ -13,6 +13,7 @@ using static TerraFX.Interop.DXGI_SWAP_CHAIN_FLAG;
 using Voltium.Common.Debugging;
 using Voltium.Core.Pipeline;
 using Voltium.Core.Memory.GpuResources;
+using Voltium.Core.D3D12;
 
 namespace Voltium.Core.Managers
 {
@@ -31,10 +32,11 @@ namespace Voltium.Core.Managers
         private DescriptorHeap _renderTargetViewHeap;
         private DescriptorHeap _depthStencilViewHeap;
         private Texture[] _renderTargets = null!;
-        private Texture _depthStencil = null!;
+        private Texture _depthStencil;
         internal uint BackBufferIndex;
         private GraphicalConfiguration _config = null!;
-        private GpuDispatchManager _dispatch = null!;
+        private SynchronizedCommandQueue _graphicsQueue;
+        //private GpuDispatchManager _dispatch = null!;
 
         /// <summary>
         /// The <see cref="ScreenData"/> for the output
@@ -114,7 +116,7 @@ namespace Voltium.Core.Managers
             Allocator = new GpuAllocator(this);
 
             InitializeDescriptorSizes();
-            _dispatch = GpuDispatchManager.Create(this, _config);
+            _graphicsQueue = new SynchronizedCommandQueue(this, ExecutionContext.Graphics);
 
             CreateSwapChain();
             CreateRtvAndDsvDescriptorHeaps();
@@ -122,6 +124,8 @@ namespace Voltium.Core.Managers
 
             Viewport = new Viewport(0.0f, 0.0f, ScreenData.Width, ScreenData.Height, 0.0f, 1.0f);
             Scissor = new Rectangle(0, 0, (int)ScreenData.Width, (int)ScreenData.Height);
+
+            BackBufferIndex = _swapChain.Get()->GetCurrentBackBufferIndex();
         }
 
         /// <summary>
@@ -148,14 +152,96 @@ namespace Voltium.Core.Managers
         /// </summary>
         public ID3D12Device* Device => _device.Get();
 
+        internal ComPtr<ID3D12Heap> CreateHeap(D3D12_HEAP_DESC desc)
+        {
+            ComPtr<ID3D12Heap> heap = default;
+            Guard.ThrowIfFailed(Device->CreateHeap(
+                &desc,
+                heap.Guid,
+                ComPtr.GetVoidAddressOf(&heap)
+            ));
+
+            return heap.Move();
+        }
+
+        internal D3D12_RESOURCE_ALLOCATION_INFO GetAllocationInfo(InternalAllocDesc desc)
+            => Device->GetResourceAllocationInfo(0, 1, &desc.Desc);
+
+        internal ComPtr<ID3D12Resource> CreatePlacedResource(ID3D12Heap* heap, ulong offset, InternalAllocDesc desc)
+        {
+            var clearVal = desc.ClearValue.GetValueOrDefault();
+
+            using ComPtr<ID3D12Resource> resource = default;
+
+            Guard.ThrowIfFailed(Device->CreatePlacedResource(
+                 heap,
+                 offset,
+                 &desc.Desc,
+                 desc.InitialState,
+                 desc.ClearValue is null ? null : &clearVal,
+                 resource.Guid,
+                 ComPtr.GetVoidAddressOf(&resource)
+             ));
+
+            return resource.Move();
+        }
+
+        internal ComPtr<ID3D12Resource> CreateComittedResource(InternalAllocDesc desc)
+        {
+            var heapProperties = GetHeapProperties(desc);
+            var clearVal = desc.ClearValue.GetValueOrDefault();
+
+            using ComPtr<ID3D12Resource> resource = default;
+
+            Guard.ThrowIfFailed(Device->CreateCommittedResource(
+                 &heapProperties,
+                 D3D12_HEAP_FLAGS.D3D12_HEAP_FLAG_NONE,
+                 &desc.Desc,
+                 desc.InitialState,
+                 desc.ClearValue is null ? null : &clearVal,
+                 resource.Guid,
+                 ComPtr.GetVoidAddressOf(&resource)
+            ));
+
+            return resource;
+
+            static D3D12_HEAP_PROPERTIES GetHeapProperties(InternalAllocDesc desc)
+            {
+                return new D3D12_HEAP_PROPERTIES(desc.HeapType);
+            }
+        }
+
         /// <summary>
         /// Returns a <see cref="GraphicsContext"/> used for recording graphical commands
         /// </summary>
         /// <returns>A new <see cref="GraphicsContext"/></returns>
         public GraphicsContext BeginGraphicsContext(PipelineStateObject? pso = null)
         {
-            return _dispatch.BeginGraphicsContext(pso);
+            if (_list == null || _allocator == null)
+            {
+                ID3D12GraphicsCommandList* list;
+                ID3D12CommandAllocator* allocator;
+
+                var iid0 = IID_ID3D12CommandAllocator;
+                var iid1 = IID_ID3D12GraphicsCommandList;
+                Guard.ThrowIfFailed(Device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE.D3D12_COMMAND_LIST_TYPE_DIRECT, &iid0, (void**)&allocator));
+                Guard.ThrowIfFailed(Device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE.D3D12_COMMAND_LIST_TYPE_DIRECT, allocator, pso is null ? null : pso.GetPso(), &iid1, (void**)&list));
+
+                Guard.ThrowIfFailed(list->Close());
+
+                _list = list;
+                _allocator = allocator;
+            }
+
+            Guard.ThrowIfFailed(_allocator->Reset());
+            Guard.ThrowIfFailed(_list->Reset(_allocator, pso is null ? null : pso.GetPso()));
+
+            return new GraphicsContext(_list, _allocator);
+
+            //return _dispatch.BeginGraphicsContext(pso);
         }
+        private ID3D12GraphicsCommandList* _list;
+        private ID3D12CommandAllocator* _allocator;
 
         /// <summary>
         /// Submit a set of recorded commands to the list
@@ -163,7 +249,11 @@ namespace Voltium.Core.Managers
         /// <param name="context">The commands to submit for execution</param>
         public void End(GraphicsContext context)
         {
-            _dispatch.End(context);
+            var list = context.GetAndReleaseList();
+            list.Get()->Close();
+            _graphicsQueue.GetQueue()->ExecuteCommandLists(1, (ID3D12CommandList**)&list);
+            _graphicsQueue.GetSynchronizerForIdle().Block();
+            //return _dispatch.End(context);
         }
 
         /// <summary>
@@ -171,7 +261,8 @@ namespace Voltium.Core.Managers
         /// </summary>
         public void MoveToNextFrame()
         {
-            _dispatch.MoveToNextFrame();
+            //_graphicsQueue.MoveToNextFrame();
+            _graphicsQueue.GetSynchronizerForIdle().Block();
             BackBufferIndex = (BackBufferIndex + 1) % BackBufferCount;
         }
 
@@ -278,7 +369,7 @@ namespace Voltium.Core.Managers
 
             using ComPtr<IDXGISwapChain1> swapChain = default;
             Guard.ThrowIfFailed(_factory.Get()->CreateSwapChainForHwnd(
-                (IUnknown*)_dispatch.GetGraphicsQueue(),
+                (IUnknown*)_graphicsQueue.GetQueue(),
                 ScreenData.Handle,
                 &desc,
                 null, //&fullscreenDesc,
@@ -322,7 +413,7 @@ namespace Voltium.Core.Managers
         {
             ScreenData = newScreenData;
 
-            _dispatch.BlockForGraphicsIdle();
+            _graphicsQueue.GetSynchronizerForIdle().Block();
 
             ResizeSwapChain();
             CreateRenderTargets();
@@ -344,9 +435,16 @@ namespace Voltium.Core.Managers
         /// </summary>
         public void Present()
         {
-            _dispatch.ExecuteSubmissions();
+            //_dispatch.ExecuteSubmissions();
 
+            var before = Stopwatch.GetTimestamp();
             var hr = _swapChain.Get()->Present(_syncInterval, 0);
+
+            var interval = (Stopwatch.GetTimestamp() - before) / (double)Stopwatch.Frequency;
+            if (interval > 0.001)
+            {
+                Console.WriteLine(interval);
+            }
 
             TotalFramesRendered++;
 
@@ -360,13 +458,14 @@ namespace Voltium.Core.Managers
 
                 MoveToNextFrame();
             }
+
         }
 
         private void OnDeviceRemoved()
         {
             // we don't cache DRED state. we could, as this is the only class that should
             // change DRED state, but this isn't a fast path so there is no point
-            if (_device.TryQueryInterface(out ComPtr<ID3D12DeviceRemovedExtendedData> dred))
+            if (_device.TryQueryInterface<ID3D12DeviceRemovedExtendedData>(out var dred))
             {
                 using (dred)
                 {
@@ -473,35 +572,33 @@ namespace Voltium.Core.Managers
 
         private void CreateRtvAndDsvResources()
         {
-            _renderTargets = new GpuResource[BackBufferCount];
+            _renderTargets = new Texture[BackBufferCount];
 
             for (uint i = 0; i < _renderTargets.Length; i++)
             {
-                using ComPtr<ID3D12Resource> renderTarget = default;
-                Guard.ThrowIfFailed(_swapChain.Get()->GetBuffer(
-                    i,
-                    renderTarget.Guid,
-                    ComPtr.GetVoidAddressOf(&renderTarget)
-                ));
-
-                SetObjectName(renderTarget.Get(), $"BackBuffer RenderTarget[{i}]");
-
-                _renderTargets[i] = GpuResource.FromBackBuffer(renderTarget.Move());
+                _renderTargets[i].Dispose();
+                _renderTargets[i] = Texture.FromBackBuffer((IDXGISwapChain*)_swapChain.Get(), i);
+                SetObjectName(_renderTargets[i].Resource.UnderlyingResource, $"Render target #{i}");
             }
 
-            _depthStencil?.Dispose();
+            _depthStencil.Dispose();
 
-            var desc = new GpuResourceDesc(
-                GpuResourceFormat.DepthStencil(_config.DepthStencilFormat, ScreenData.Width, ScreenData.Height),
-                GpuMemoryKind.GpuOnly,
-                ResourceState.DepthWrite,
-                allocFlags: GpuAllocFlags.ForceAllocateComitted,
-                clearValue: new D3D12_CLEAR_VALUE((DXGI_FORMAT)_config.DepthStencilFormat, 1.0f, 0)
-            );
+            var texDesc = new TextureDesc
+            {
+                Format = _config.DepthStencilFormat,
+                Dimension = TextureDimension.Tex2D,
+                Width = ScreenData.Width,
+                Height = ScreenData.Height,
+                DepthOrArraySize = 1,
+                MemoryKind = MemoryAccess.GpuOnly,
+                InitialResourceState = ResourceState.DepthWrite,
+                ClearValue = TextureClearValue.CreateForDepthStencil(1.0f, 0),
+                ResourceFlags = ResourceFlags.AllowDepthStencil
+            };
 
-            _depthStencil = Allocator.Allocate(desc);
+            _depthStencil = Allocator.AllocateTexture(texDesc);
 
-            SetObjectName(_depthStencil.UnderlyingResource, nameof(_depthStencil));
+            SetObjectName(_depthStencil.Resource.UnderlyingResource, nameof(_depthStencil));
         }
 
         private void CreateRtvAndDsvDescriptorHeaps()
@@ -516,7 +613,7 @@ namespace Voltium.Core.Managers
             var handle = _renderTargetViewHeap.FirstDescriptor;
             for (uint i = 0; i < _renderTargets.Length; i++)
             {
-                Device->CreateRenderTargetView(_renderTargets[i].UnderlyingResource, null /* TODO */, handle.CpuHandle.Value);
+                Device->CreateRenderTargetView(_renderTargets[i].Resource.UnderlyingResource, null /* TODO */, handle.CpuHandle.Value);
                 handle++;
             }
 
@@ -527,16 +624,16 @@ namespace Voltium.Core.Managers
                 ViewDimension = D3D12_DSV_DIMENSION.D3D12_DSV_DIMENSION_TEXTURE2D
             };
 
-            Debug.Assert(_depthStencil.UnderlyingResource != null);
+            Debug.Assert(_depthStencil.Resource.UnderlyingResource != null);
 
             Device->CreateDepthStencilView(
-                _depthStencil.UnderlyingResource,
+                _depthStencil.Resource.UnderlyingResource,
                 &desc,
                 DepthStencilView.CpuHandle.Value
             );
 
 
-            SetObjectName(_depthStencil.UnderlyingResource, nameof(_depthStencil));
+            SetObjectName(_depthStencil.Resource.UnderlyingResource, nameof(_depthStencil));
         }
 
         private D3D12_RENDER_TARGET_VIEW_DESC CreateRenderTargetViewDesc()
@@ -551,7 +648,7 @@ namespace Voltium.Core.Managers
 
             _swapChain.Dispose();
             _debugLayer.Dispose();
-            _dispatch.Dispose();
+            _graphicsQueue.Dispose();
             _device.Dispose();
         }
     }

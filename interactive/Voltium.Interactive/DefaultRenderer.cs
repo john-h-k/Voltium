@@ -16,8 +16,9 @@ using Voltium.Core.Managers.Shaders;
 using Voltium.Core.Configuration.Graphics;
 using Voltium.Core.Memory.GpuResources;
 using System;
-using Voltium.Core.Memory.GpuResources.ResourceViews;
 using System.Runtime.InteropServices;
+using Buffer = Voltium.Core.Memory.GpuResources.Buffer;
+using Voltium.Core.D3D12;
 
 namespace Voltium.Interactive
 {
@@ -87,9 +88,9 @@ namespace Voltium.Interactive
     public unsafe class DefaultRenderer : Renderer
     {
         private GpuAllocator _allocator = null!;
-        private Buffer<Vertex> _vertexBuffer;
-        private Buffer<ushort> _indexBuffer;
-        private int _zoomLevel;
+        private Buffer _vertexBuffer;
+        private Buffer _indexBuffer;
+        private int _zoomDelta;
         private Geometry _object;
         private GraphicsDevice _device = null!;
 
@@ -98,11 +99,27 @@ namespace Voltium.Interactive
             _device = device;
             _allocator = _device.Allocator;
 
-            _object = GemeotryGenerator.LoadSingleModel("logo.obj");
-            //_object = GemeotryGenerator.CreateCube(0.5f);
+            //_object = GemeotryGenerator.LoadSingleModel("logo.obj");
+            _object = GemeotryGenerator.CreateCube(0.5f);
 
-            _vertexBuffer = _allocator.AllocateBuffer(_object.Vertices, BufferKind.Vertex, GpuMemoryKind.CpuUpload);
-            _indexBuffer = _allocator.AllocateBuffer(_object.Indices, BufferKind.Index, GpuMemoryKind.CpuUpload);
+            _allocator.AllocateBuffer(11586 * 11586, MemoryAccess.CpuUpload, ResourceState.GenericRead);
+
+            var vertexUploadBuffer = _allocator.AllocateBuffer(_object.Vertices.Length * sizeof(Vertex), MemoryAccess.CpuUpload, ResourceState.GenericRead);
+            _vertexBuffer = _allocator.AllocateBuffer(_object.Vertices.Length * sizeof(Vertex), MemoryAccess.GpuOnly, ResourceState.CopyDestination);
+            var indexUploadBuffer = _allocator.AllocateBuffer(_object.Indices.Length * sizeof(ushort), MemoryAccess.CpuUpload, ResourceState.GenericRead);
+            _indexBuffer = _allocator.AllocateBuffer(_object.Indices.Length * sizeof(ushort), MemoryAccess.GpuOnly, ResourceState.CopyDestination);
+
+            _obj = _allocator.AllocateBuffer(sizeof(ObjectConstants), MemoryAccess.CpuUpload, ResourceState.GenericRead);
+            _frame = _allocator.AllocateBuffer(sizeof(FrameConstants), MemoryAccess.CpuUpload, ResourceState.GenericRead);
+            _light = _allocator.AllocateBuffer(sizeof(LightConstants), MemoryAccess.CpuUpload, ResourceState.GenericRead);
+
+            vertexUploadBuffer.WriteData<Vertex>(_object.Vertices);
+            indexUploadBuffer.WriteData<ushort>(_object.Indices);
+
+            var list = _device.BeginGraphicsContext();
+            list.CopyResource(vertexUploadBuffer, _vertexBuffer);
+            list.CopyResource(indexUploadBuffer, _indexBuffer);
+            _device.End(list);
 
             var rootParams = new[]
             {
@@ -115,36 +132,33 @@ namespace Voltium.Interactive
 
             var compilationFlags = new[]
             {
-                DxcCompileFlags.DisableOptimizations,
-                DxcCompileFlags.EnableDebugInformation,
-                DxcCompileFlags.WriteDebugInformationToFile(),
                 DxcCompileFlags.PackMatricesInRowMajorOrder
             };
 
             var vertexShader = ShaderManager.CompileShader("Shaders/SimpleVertexShader.hlsl", DxcCompileTarget.Vs_6_0, compilationFlags);
-            var pixelShader = ShaderManager.CompileShader("Shaders/SimplePixelShader.hlsl", new DxcCompileTarget(ShaderType.Pixel, 6, 0), compilationFlags);
+            var pixelShader = ShaderManager.CompileShader("Shaders/SimplePixelShader.hlsl", DxcCompileTarget.Ps_6_0, compilationFlags);
 
             var psoDesc = new GraphicsPipelineDesc(_rootSig, config.BackBufferFormat, config.DepthStencilFormat, vertexShader, pixelShader);
 
             _drawPso = PipelineManager.CreatePso<Vertex>(_device, "Default", psoDesc);
 
-            _objectConstants = _allocator.AllocateBuffer<ObjectConstants>(2, BufferKind.Constant, GpuMemoryKind.CpuUpload);
-            _frameConstants = _allocator.AllocateBuffer<FrameConstants>(2, BufferKind.Constant, GpuMemoryKind.CpuUpload);
-            _sceneLight = _allocator.AllocateBuffer<LightConstants>(2, BufferKind.Constant, GpuMemoryKind.CpuUpload);
-
-            _objectConstants.Map();
-            _frameConstants.Map();
-            _sceneLight.Map();
-
             SetHueDegrees(MathF.PI / 500);
         }
+
+        private ObjectConstants _objectConstants;
+        private FrameConstants _frameConstants;
+        private LightConstants _sceneLight;
+
+        private Buffer _obj;
+        private Buffer _frame;
+        private Buffer _light;
 
         public override void Resize(ScreenData screen)
         {
             var aspectRatio = (float)screen.Width / screen.Height;
             var fovAngleY = 70.0f * MathF.PI / 180.0f;
 
-            _objectConstants[0] = new ObjectConstants
+            _objectConstants = new ObjectConstants
             {
                 World = Matrix4x4.Identity,
                 Material = new Material
@@ -155,7 +169,7 @@ namespace Voltium.Interactive
                 }
             };
 
-            _frameConstants[0] = new FrameConstants
+            _frameConstants = new FrameConstants
             {
                 View = Matrix4x4.CreateLookAt(
                     new Vector3(0.0f, 0.7f, 1.5f),
@@ -167,41 +181,32 @@ namespace Voltium.Interactive
                 CameraPosition = new Vector3(0.0f, 0.7f, 1.5f),
             };
 
-            _sceneLight[0].Light0 = new DirectionalLight
+            _sceneLight.Light0 = new DirectionalLight
             {
                 Strength = new Vector3(1, 1, 1),
                 Direction = new Vector3(0, -1, 0)
             };
 
-            //_sceneLight.LocalCopy.Light1 = new DirectionalLight
-            //{
-            //    Strength = new Vector3(0.8f),
-            //    Color = new Vector3(1, 1, 0),
-            //    Direction = new Vector3(-0.57735f, 0.57735f, -0.57735f)
-            //};
+
+            _sceneLight.Light1 = new DirectionalLight
+            {
+                Strength = new Vector3(0.8f),
+                Direction = new Vector3(-0.57735f, 0.57735f, -0.57735f)
+            };
         }
 
         private RgbaColor _color = new RgbaColor(1, 0, 0, 1);
         private RootSignature _rootSig = null!;
         private PipelineStateObject _drawPso = null!;
 
-        private Buffer<ObjectConstants> _objectConstants;
-        private Buffer<FrameConstants> _frameConstants;
-        private Buffer<LightConstants> _sceneLight;
-
         private Matrix4x4 _perFrameRotation = Matrix4x4.CreateRotationY(10f)/* * Matrix4x4.CreateRotationX(0.001f)*/;
         //private int _totalCount = 0;
 
-        private bool _isFirst = false;
         public override void Update(ApplicationTimer timer)
         {
-            // rotate a small amount each frame
-            _objectConstants[0].World *= Matrix4x4.CreateRotationY(0.5f * (float)timer.ElapsedSeconds);
-
             // scale between 0 and 5 seconds
             //var scale = Matrix4x4.CreateScale((float)(Math.Abs((total % 10) - 5)) / 5);u
-
-            float scale = _zoomLevel;
+            float scale = _zoomDelta;
 
             if (scale < 0)
             {
@@ -212,14 +217,18 @@ namespace Voltium.Interactive
                 scale = 1;
             }
 
-            var ind = _isFirst ? 0u : 1u;
-            _isFirst = !_isFirst;
-            _objectConstants[ind].World = _objectConstants[0].World * Matrix4x4.CreateScale(scale);
-            _objectConstants[ind].Material = _objectConstants[0].Material;
+            _objectConstants.World *= Matrix4x4.CreateScale(scale);
 
-            _frameConstants[ind] = _frameConstants[0];
+            Console.WriteLine(timer.ElapsedSeconds);
 
-            _sceneLight[ind] = _sceneLight[0];
+            // rotate a small amount each frame
+            _objectConstants.World *= Matrix4x4.CreateRotationY(0.5f * (float)timer.ElapsedSeconds);
+
+            _obj.WriteData(ref _objectConstants, 0);
+            _frame.WriteData(ref _frameConstants, 0);
+            _light.WriteData(ref _sceneLight, 0);
+
+            _zoomDelta = 0;
 
             //_color = ChangeHue(_color);
         }
@@ -241,15 +250,15 @@ namespace Voltium.Interactive
 
             recorder.SetRenderTarget(renderTargetView.CpuHandle, 1, depthStencilView.CpuHandle);
 
-            recorder.ClearRenderTarget(renderTargetView, RgbaColor.White);
+            recorder.ClearRenderTarget(renderTargetView, RgbaColor.Blue);
             recorder.ClearDepth(depthStencilView);
 
-            recorder.SetVertexBuffers(_vertexBuffer);
-            recorder.SetIndexBuffer(_indexBuffer);
+            recorder.SetVertexBuffers<Vertex>(_vertexBuffer);
+            recorder.SetIndexBuffer<ushort>(_indexBuffer);
 
-            recorder.SetGraphicsConstantBufferDescriptor(0, _objectConstants, 0);
-            recorder.SetGraphicsConstantBufferDescriptor(1, _frameConstants, 0);
-            recorder.SetGraphicsConstantBufferDescriptor(2, _sceneLight, 0);
+            recorder.SetGraphicsConstantBufferDescriptor(0, _obj);
+            recorder.SetGraphicsConstantBufferDescriptor(1, _frame);
+            recorder.SetGraphicsConstantBufferDescriptor(2, _light);
 
             recorder.SetTopology(Topology.TriangeList);
             recorder.DrawIndexed((uint)_object.Indices.Length);
@@ -303,14 +312,13 @@ namespace Voltium.Interactive
 
         public override void Destroy()
         {
-            _objectConstants.Unmap();
             _rootSig.Dispose();
             _device.Dispose();
         }
 
         public override void OnMouseScroll(int scroll)
         {
-            _zoomLevel += scroll;
+            _zoomDelta = scroll;
         }
     }
 }

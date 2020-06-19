@@ -24,7 +24,7 @@ namespace Voltium.Common.Debugging
                 var handle = default(IntPtr);
                 if (data is object)
                 {
-                    handle = GCHandle.ToIntPtr(GCHandle.Alloc(handle));
+                    handle = GCHandle.ToIntPtr(GCHandle.Alloc(data));
                 }
 
                 Guard.ThrowIfFailed(notifier->RegisterDestructionCallback(callback, (void*)handle, null));
@@ -54,17 +54,17 @@ namespace Voltium.Common.Debugging
         [UnmanagedCallersOnly]
         private static void BreakOnDeletion(IntPtr data)
         {
+            string? text = null;
             if (data != default)
             {
                 object obj = GCHandle.FromIntPtr(data);
-                if (obj is string s)
-                {
-                    // inspect s for details
-                }
+                text = obj as string;
             }
 
             if (Debugger.IsAttached)
             {
+                // Inspect 'text'
+                GC.KeepAlive(text);
                 Debugger.Break();
             }
             else

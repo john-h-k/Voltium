@@ -45,22 +45,6 @@ namespace Voltium.Core.Managers
             return allocator.Move();
         }
 
-        public ComPtr<ID3D12CommandAllocator> ForceCreate()
-        {
-            using ComPtr<ID3D12CommandAllocator> allocator = default;
-            Guard.ThrowIfFailed(_device.Get()->CreateCommandAllocator(
-                (D3D12_COMMAND_LIST_TYPE)_type,
-                allocator.Guid,
-                ComPtr.GetVoidAddressOf(&allocator)
-            ));
-
-            Logger.LogDebug($"New command allocator allocated (this is the #{_allocatorCount++} allocator)");
-
-            DirectXHelpers.SetObjectName(allocator.Get(), $"Pooled allocator #{_allocatorCount}");
-
-            return allocator.Move();
-        }
-
         protected sealed override void InternalDispose()
         {
             base.InternalDispose();

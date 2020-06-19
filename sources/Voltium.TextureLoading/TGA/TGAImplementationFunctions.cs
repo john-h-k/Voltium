@@ -60,8 +60,8 @@ namespace Voltium.TextureLoading.TGA
                     break;
             }
 
-            var subresources = new ManagedSubresourceData[1];
-            subresources[0] = new ManagedSubresourceData();
+            var subresources = new SubresourceData[1];
+            subresources[0] = new SubresourceData();
 
             return new TextureDescription(
                 data,

@@ -9,9 +9,92 @@ using Voltium.Core.Memory.GpuResources.ResourceViews;
 using System.Runtime.InteropServices;
 using Voltium.Core.Managers;
 using Voltium.Core.Memory.GpuResources;
+using Buffer = Voltium.Core.Memory.GpuResources.Buffer;
+using System.Runtime.CompilerServices;
 
 namespace Voltium.Core.GpuResources
 {
+    // This type is "semi lowered". It needs high level alloc flags because they don't necessarily have a D3D12 equivalent
+    // So we just lower most of it
+    internal struct InternalAllocDesc
+    {
+        public D3D12_RESOURCE_DESC Desc;
+        public D3D12_CLEAR_VALUE? ClearValue;
+        public D3D12_RESOURCE_STATES InitialState;
+        public D3D12_HEAP_TYPE HeapType;
+
+        // Can't immediately lower this. It contains other flags
+        public AllocFlags AllocFlags;
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
+    public struct TextureClearValue
+    {
+        /// <summary>
+        /// If used with a render target, the <see cref="RgbaColor"/> to optimise clearing for
+        /// </summary>
+        public RgbaColor Color;
+
+
+        /// <summary>
+        /// If used with a depth target, the <see cref="float"/> to optimise clearing depth for
+        /// </summary>
+        public float Depth;
+
+        /// <summary>
+        /// If used with a depth target, the <see cref="byte"/> to optimise clearing stencil for
+        /// </summary>
+        public byte Stencil;
+
+        /// <summary>
+        /// Creates a new <see cref="TextureClearValue"/> for a render target
+        /// </summary>
+        /// <param name="color">The <see cref="RgbaColor"/> to optimise clearing for</param>
+        /// <returns>A new <see cref="TextureClearValue"/></returns>
+        public static TextureClearValue CreateForRenderTarget(RgbaColor color) => new TextureClearValue { Color = color };
+
+        /// <summary>
+        /// Creates a new <see cref="TextureClearValue"/> for a render target
+        /// </summary>
+        /// <param name="depth">The <see cref="float"/> to optimise clearing depth for</param>
+        /// <param name="stencil">The <see cref="byte"/> to optimise clearing stencil for</param>
+        /// <returns>A new <see cref="TextureClearValue"/></returns>
+        public static TextureClearValue CreateForDepthStencil(float depth, byte stencil) => new TextureClearValue { Depth = depth, Stencil = stencil };
+    }
+
+    /// <summary>
+    /// Flags used in resource creation
+    /// </summary>
+    public enum ResourceFlags : uint
+    {
+        /// <summary>
+        /// None
+        /// </summary>
+        None = D3D12_RESOURCE_FLAGS.D3D12_RESOURCE_FLAG_NONE,
+
+        /// <summary>
+        /// Allows the resource to be used as a depth stencil. This is only relevant if the resource is a texture
+        /// </summary>
+        AllowDepthStencil = D3D12_RESOURCE_FLAGS.D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL,
+
+        /// <summary>
+        /// Allows the resource to be used as a render target. This is only relevant if the resource is a texture
+        /// </summary>
+        AllowRenderTarget = D3D12_RESOURCE_FLAGS.D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET,
+
+        /// <summary>
+        /// Allows the resource to be used as an unordered access resource
+        /// </summary>
+        AllowUnorderedAccess = D3D12_RESOURCE_FLAGS.D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+
+        /// <summary>
+        /// Prevents the resource being used by shaders
+        /// </summary>
+        DenyShaderResource = D3D12_RESOURCE_FLAGS.D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE,
+    }
+
     /// <summary>
     /// An allocator used for allocating temporary and long
     /// </summary>
@@ -35,6 +118,197 @@ namespace Voltium.Core.GpuResources
             _hasMergedHeapSupport = CheckMergedHeapSupport(_device.Device);
 
             CreateOriginalHeaps();
+        }
+
+        /// <summary>
+        /// Allocates a buffer
+        /// </summary>
+        /// <param name="desc">The <see cref="BufferDesc"/> describing the buffer</param>
+        /// <returns>A new <see cref="Buffer"/></returns>
+        public Buffer AllocateBuffer(
+            in BufferDesc desc
+        )
+            => AllocateBuffer(desc.Length, desc.MemoryKind, desc.InitialResourceState, desc.ResourceFlags, desc.AllocFlags);
+
+        /// <summary>
+        /// Allocates a buffer
+        /// </summary>
+        /// <param name="length">The length, in bytes, to allocate</param>
+        /// <param name="memoryKind">The <see cref="MemoryAccess"/> to allocate the buffer in</param>
+        /// <param name="initialResourceState">The initial state of the resource</param>
+        /// <param name="resourceFlags">Any additional resource flags</param>
+        /// <param name="allocFlags">Any additional allocation flags</param>
+        /// <returns>A new <see cref="Buffer"/></returns>
+        public Buffer AllocateBuffer(
+            long length,
+            MemoryAccess memoryKind,
+            ResourceState initialResourceState,
+            ResourceFlags resourceFlags = ResourceFlags.None,
+            AllocFlags allocFlags = AllocFlags.None
+        )
+        {
+            var desc = new D3D12_RESOURCE_DESC
+            {
+                Width = (ulong)length,
+                Height = 1,
+                DepthOrArraySize = 1,
+                Dimension = D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_BUFFER,
+                Flags = (D3D12_RESOURCE_FLAGS)resourceFlags,
+                MipLevels = 1,
+                SampleDesc = new DXGI_SAMPLE_DESC(1, 0),
+                Layout = D3D12_TEXTURE_LAYOUT.D3D12_TEXTURE_LAYOUT_ROW_MAJOR
+            };
+
+            var resource = new InternalAllocDesc
+            {
+                Desc = desc,
+                AllocFlags = allocFlags,
+                HeapType = (D3D12_HEAP_TYPE)memoryKind,
+                InitialState = (D3D12_RESOURCE_STATES)initialResourceState
+            };
+
+            return new Buffer((ulong)length, Allocate(resource));
+        }
+
+        //public Texture AllocateTexture1D(
+        //    DataFormat format,
+        //    ushort width,
+        //    MemoryAccess memoryKind,
+        //    ResourceState initialResourceState,
+        //    ResourceFlags flags = ResourceFlags.None,
+        //    AllocFlags allocFlags = AllocFlags.None
+        //)
+        //    => AllocateTexture(format, TextureDimension.Tex1D, width, 1, 1, memoryKind, initialResourceState, flags);
+
+        //public Texture AllocateTexture2D(
+        //    DataFormat format,
+        //    ulong width,
+        //    uint height,
+        //    MemoryAccess memoryKind,
+        //    ResourceState initialResourceState,
+        //    ResourceFlags flags = ResourceFlags.None,
+        //    AllocFlags allocFlags = AllocFlags.None
+        //)
+        //    => AllocateTexture(format, TextureDimension.Tex2D, width, height, 1, memoryKind, initialResourceState, flags);
+
+        //public Texture AllocateTexture3D(
+        //    DataFormat format,
+        //    ulong width,
+        //    uint height,
+        //    ushort depth,
+        //    MemoryAccess memoryKind,
+        //    ResourceState initialResourceState,
+        //    ResourceFlags flags = ResourceFlags.None,
+        //    AllocFlags allocFlags = AllocFlags.None
+        //)
+        //    => AllocateTexture(format, TextureDimension.Tex3D, width, height, depth, memoryKind, initialResourceState, flags);
+
+        //public Texture AllocateTextureArray1D(
+        //    DataFormat format,
+        //    ulong width,
+        //    ushort arraySize,
+        //    MemoryAccess memoryKind,
+        //    ResourceState initialResourceState,
+        //    ResourceFlags flags = ResourceFlags.None,
+        //    AllocFlags allocFlags = AllocFlags.None
+        //)
+        //    => AllocateTexture(format, TextureDimension.Tex1D, width, 1, arraySize, memoryKind, initialResourceState, flags);
+
+        //public Texture AllocateTextureArray2D(
+        //    DataFormat format,
+        //    ulong width,
+        //    uint height,
+        //    ushort arraySize,
+        //    MemoryAccess memoryKind,
+        //    ResourceState initialResourceState,
+        //    ResourceFlags flags = ResourceFlags.None,
+        //    AllocFlags allocFlags = AllocFlags.None
+        //)
+        //    => AllocateTexture(format, TextureDimension.Tex2D, width, height, arraySize, memoryKind, initialResourceState, flags);
+
+
+        /// <summary>
+        /// Allocates a texture
+        /// </summary>
+        /// <param name="desc">The <see cref="TextureDesc"/> describing the texture</param>
+        /// <returns>A new <see cref="Texture"/></returns>
+        public Texture AllocateTexture(
+            in TextureDesc desc
+        )
+        {
+            var resDesc = new D3D12_RESOURCE_DESC
+            {
+                Dimension = (D3D12_RESOURCE_DIMENSION)desc.Dimension,
+                Alignment = 0,
+                Width = desc.Width,
+                Height = desc.Height,
+                DepthOrArraySize = desc.DepthOrArraySize,
+                MipLevels = 0,
+                Format = (DXGI_FORMAT)desc.Format,
+                Flags = (D3D12_RESOURCE_FLAGS)desc.ResourceFlags,
+                SampleDesc = new DXGI_SAMPLE_DESC(1, 0) // TODO: MSAA
+            };
+
+            D3D12_CLEAR_VALUE clearVal = new D3D12_CLEAR_VALUE { Format = resDesc.Format };
+
+            var val = desc.ClearValue.GetValueOrDefault();
+            if (desc.ResourceFlags.HasFlag(ResourceFlags.AllowRenderTarget))
+            {
+                Unsafe.Write(clearVal.Anonymous.Color, val.Color);
+            }
+            else if (desc.ResourceFlags.HasFlag(ResourceFlags.AllowDepthStencil))
+            {
+                clearVal.Anonymous.DepthStencil.Depth = val.Depth;
+                clearVal.Anonymous.DepthStencil.Stencil = val.Stencil;
+            }
+
+            var resource = new InternalAllocDesc
+            {
+                Desc = resDesc,
+                ClearValue = desc.ClearValue is null ? (D3D12_CLEAR_VALUE?)null : clearVal,
+                InitialState = (D3D12_RESOURCE_STATES)desc.InitialResourceState,
+                AllocFlags = desc.AllocFlags,
+                HeapType = (D3D12_HEAP_TYPE)desc.MemoryKind
+            };
+
+            return new Texture(desc, Allocate(resource));
+        }
+
+        
+
+
+        /// <summary>
+        /// Allocates a new region of GPU memory
+        /// </summary>
+        /// <param name="desc">The description for the resource to allocate</param>
+        /// <returns>A new <see cref="GpuResource"/> which encapsulates the allocated region</returns>
+        internal GpuResource Allocate(
+            InternalAllocDesc desc
+        )
+        {
+            VerifyDesc(desc);
+
+            var info = _device.GetAllocationInfo(desc);
+
+            if (desc.AllocFlags.HasFlag(AllocFlags.ForceAllocateComitted))
+            {
+                return AllocateCommitted(desc, info);
+            }
+
+            return AllocatePlacedFromHeap(desc, info);
+        }
+
+        private void VerifyDesc(InternalAllocDesc desc)
+        {
+            var flags = desc.AllocFlags;
+            if (flags.HasFlag(AllocFlags.ForceAllocateComitted))
+            {
+                Debug.Assert(!flags.HasFlag(AllocFlags.ForceAllocateNotComitted));
+            }
+            else if (flags.HasFlag(AllocFlags.ForceAllocateNotComitted))
+            {
+                Debug.Assert(!flags.HasFlag(AllocFlags.ForceAllocateComitted));
+            }
         }
 
         private bool CheckMergedHeapSupport(ID3D12Device* device)
@@ -64,7 +338,7 @@ namespace Voltium.Core.GpuResources
                 _heapPools = new List<AllocatorHeap>[9];
             }
 
-            for (var i = GpuMemoryKind.GpuOnly; i <= GpuMemoryKind.CpuReadback; i++)
+            for (var i = D3D12_HEAP_TYPE.D3D12_HEAP_TYPE_DEFAULT; i <= D3D12_HEAP_TYPE.D3D12_HEAP_TYPE_READBACK; i++)
             {
                 if (_hasMergedHeapSupport)
                 {
@@ -84,20 +358,20 @@ namespace Voltium.Core.GpuResources
             }
         }
 
-        private void GetHeapType(int index, out GpuMemoryKind mem, out GpuResourceType res)
+        private void GetHeapType(int index, out D3D12_HEAP_TYPE mem, out GpuResourceType res)
         {
             if (_hasMergedHeapSupport)
             {
-                mem = (GpuMemoryKind)index + 1;
+                mem = (D3D12_HEAP_TYPE)index + 1;
                 res = GpuResourceType.Meaningless;
                 return;
             }
 
-            mem = (GpuMemoryKind)(index / 3) + 1;
+            mem = (D3D12_HEAP_TYPE)(index / 3) + 1;
             res = GpuResourceType.Meaningless;
         }
 
-        private int GetHeapIndex(GpuMemoryKind mem, GpuResourceType res)
+        private int GetHeapIndex(D3D12_HEAP_TYPE mem, GpuResourceType res)
         {
             if (_hasMergedHeapSupport)
             {
@@ -108,7 +382,7 @@ namespace Voltium.Core.GpuResources
             return ind;
         }
 
-        private AllocatorHeap CreateNewHeap(GpuMemoryKind mem, GpuResourceType res)
+        private AllocatorHeap CreateNewHeap(D3D12_HEAP_TYPE mem, GpuResourceType res)
         {
             D3D12_HEAP_FLAGS flags = default;
 
@@ -116,19 +390,18 @@ namespace Voltium.Core.GpuResources
             {
                 flags = res switch
                 {
-                    GpuResourceType.Meaningless => (D3D12_HEAP_FLAGS)0, // shouldn't be reached
+                    GpuResourceType.Meaningless => 0, // shouldn't be reached
                     GpuResourceType.Tex => D3D12_HEAP_FLAGS.D3D12_HEAP_FLAG_DENY_RT_DS_TEXTURES | D3D12_HEAP_FLAGS.D3D12_HEAP_FLAG_DENY_BUFFERS,
                     GpuResourceType.RtOrDs => D3D12_HEAP_FLAGS.D3D12_HEAP_FLAG_DENY_NON_RT_DS_TEXTURES | D3D12_HEAP_FLAGS.D3D12_HEAP_FLAG_DENY_BUFFERS,
                     GpuResourceType.Buffer => D3D12_HEAP_FLAGS.D3D12_HEAP_FLAG_DENY_NON_RT_DS_TEXTURES | D3D12_HEAP_FLAGS.D3D12_HEAP_FLAG_DENY_RT_DS_TEXTURES,
-                    _ => (D3D12_HEAP_FLAGS)0, // shouldn't be reached
+                    _ => 0, // shouldn't be reached
                 };
             }
 
-            D3D12_HEAP_PROPERTIES props = new((D3D12_HEAP_TYPE)mem);
+            D3D12_HEAP_PROPERTIES props = new(mem);
             D3D12_HEAP_DESC desc = new(GetNewHeapSize(mem, res), props, flags: flags);
 
-            ComPtr<ID3D12Heap> heap = default;
-            Guard.ThrowIfFailed(_device.Device->CreateHeap(&desc, heap.Guid, ComPtr.GetVoidAddressOf(&heap)));
+            var heap = _device.CreateHeap(desc);
 
             var allocatorHeap = new AllocatorHeap { Heap = heap.Move(), FreeBlocks = new() };
             bool result = allocatorHeap.FreeBlocks.Add(new HeapBlock { Offset = 0, Size = desc.SizeInBytes });
@@ -138,7 +411,7 @@ namespace Voltium.Core.GpuResources
             return allocatorHeap;
         }
 
-        private ulong GetNewHeapSize(GpuMemoryKind mem, GpuResourceType res)
+        private ulong GetNewHeapSize(D3D12_HEAP_TYPE mem, GpuResourceType res)
         {
             const ulong megabyte = 1024 * 1024;
             //const ulong kilobyte = 1024;
@@ -146,9 +419,9 @@ namespace Voltium.Core.GpuResources
             var guess = res switch
             {
                 GpuResourceType.Meaningless => 256 * megabyte , // shouldn't be reached
-                GpuResourceType.Tex => 64 * megabyte,
+                GpuResourceType.Tex => 256 * megabyte,
                 GpuResourceType.RtOrDs => 64 * megabyte,
-                GpuResourceType.Buffer => 64 * megabyte,
+                GpuResourceType.Buffer => 256 * megabyte,
                 _ => ulong.MaxValue, // shouldn't be reached
             };
 
@@ -157,7 +430,7 @@ namespace Voltium.Core.GpuResources
 
         internal void Return(GpuResource gpuAllocation)
         {
-            var heap = gpuAllocation.GetAllocatorHeap();
+            var heap = gpuAllocation.Heap;
             if (!heap.Heap.Exists)
             {
                 // resource is comitted (implicit heap)
@@ -171,402 +444,33 @@ namespace Voltium.Core.GpuResources
 
         private void ReturnPlacedAllocation(GpuResource gpuAllocation)
         {
-            var block = new HeapBlock { Offset = gpuAllocation.GetOffsetFromUnderlyingResource(), Size = gpuAllocation.Size };
-            var heap = gpuAllocation.GetAllocatorHeap();
+            var block = gpuAllocation.Block;
+            var heap = gpuAllocation.Heap;
 
             heap.FreeBlocks.Add(block);
 
             // TODO defrag
         }
 
-        private D3D12_RESOURCE_ALLOCATION_INFO GetAllocationInfo(GpuResourceDesc desc)
-        {
-            // TODO use ID3D12Device4::GetResourceAllocationInfo1 for doing all our computations in one go
-            return _device.Device->GetResourceAllocationInfo(0 /* TODO: MULTI-GPU */, 1, &desc.ResourceFormat.D3D12ResourceDesc);
-        }
-
-        /// <inheritdoc cref="AllocateBuffer{T}(ReadOnlySpan{T}, BufferKind, GpuMemoryKind, GpuAllocFlags)" />
-        public Buffer<T> AllocateBuffer<T>(
-            T[] initialData,
-            BufferKind bufferKind,
-            GpuMemoryKind memoryKind,
-            GpuAllocFlags flags = GpuAllocFlags.None
-        ) where T : unmanaged
-            => AllocateBuffer((ReadOnlySpan<T>)initialData, bufferKind, memoryKind, flags);
-
-
-        /// <inheritdoc cref="AllocateBuffer{T}(ReadOnlySpan{T}, BufferKind, GpuMemoryKind, GpuAllocFlags)" />
-        public Buffer<T> AllocateBuffer<T>(
-            Span<T> initialData,
-            BufferKind bufferKind,
-            GpuMemoryKind memoryKind,
-            GpuAllocFlags flags = GpuAllocFlags.None
-        ) where T : unmanaged
-            => AllocateBuffer((ReadOnlySpan<T>)initialData, bufferKind, memoryKind, flags);
-
-        /// <summary>
-        /// Allocates a new <see cref="Buffer{T}"/>
-        /// </summary>
-        /// <typeparam name="T">The type of each element</typeparam>
-        /// <param name="initialData">The initial element data, which will be copied to the resource</param>
-        /// <param name="bufferKind">The kind of the buffer being allocated</param>
-        /// <param name="memoryKind">The type of GPU memory to allocate in</param>
-        /// <param name="flags">Any additional allocation flags passed to the allocator</param>
-        /// <returns>A new <see cref="Buffer{T}"/></returns>
-        public Buffer<T> AllocateBuffer<T>(
-            ReadOnlySpan<T> initialData,
-            BufferKind bufferKind,
-            GpuMemoryKind memoryKind,
-            GpuAllocFlags flags = GpuAllocFlags.None
-        ) where T : unmanaged
-        {
-            var resource = AllocateBuffer<T>((uint)initialData.Length, bufferKind, memoryKind, flags);
-
-            resource.Map();
-            initialData.CopyTo(resource);
-            resource.Unmap();
-
-            return resource;
-        }
-
-        /// <summary>
-        /// Allocates a new <see cref="Buffer{T}"/>
-        /// </summary>
-        /// <typeparam name="T">The type of each element</typeparam>
-        /// <param name="bufferCount">The number of elements</param>
-        /// <param name="bufferKind">The kind of the buffer being allocated</param>
-        /// <param name="memoryKind">The type of GPU memory to allocate in</param>
-        /// <param name="flags">Any additional allocation flags passed to the allocator</param>
-        /// <returns>A new <see cref="Buffer{T}"/></returns>
-        public Buffer<T> AllocateBuffer<T>(
-            uint bufferCount,
-            BufferKind bufferKind,
-            GpuMemoryKind memoryKind,
-            GpuAllocFlags flags = GpuAllocFlags.None
-        ) where T : unmanaged
-        {
-            Debug.Assert(memoryKind != GpuMemoryKind.CpuReadback);
-
-            var desc = new GpuResourceDesc(
-                GpuResourceFormat.Buffer(Buffer<T>.CalculateBufferSize(bufferKind, bufferCount)),
-                memoryKind,
-                memoryKind == GpuMemoryKind.CpuUpload ? ResourceState.GenericRead : GetResourceStateForBufferKind(bufferKind),
-                flags
-            );
-
-            return new Buffer<T>(bufferKind, Allocate(desc), bufferCount);
-        }
-
-        private ResourceState GetResourceStateForBufferKind(BufferKind bufferKind)
-        {
-            return bufferKind switch
-            {
-                BufferKind.Constant => ResourceState.ConstantBuffer,
-                BufferKind.Vertex => ResourceState.VertexBuffer,
-                BufferKind.Index => ResourceState.IndexBuffer,
-                _ => ResourceState.Common
-            };
-        }
-
-        /// <inheritdoc cref="AllocateVertexBuffer{TVertex}(ReadOnlySpan{TVertex}, GpuMemoryKind, GpuAllocFlags)" />
-        public VertexBuffer<TVertex> AllocateVertexBuffer<TVertex>(
-            TVertex[] initialData,
-            GpuMemoryKind memoryKind,
-            GpuAllocFlags flags = GpuAllocFlags.None
-        ) where TVertex : unmanaged
-            => AllocateVertexBuffer(initialData.AsSpan(), memoryKind, flags);
-
-
-        /// <inheritdoc cref="AllocateVertexBuffer{TVertex}(ReadOnlySpan{TVertex}, GpuMemoryKind, GpuAllocFlags)" />
-        public VertexBuffer<TVertex> AllocateVertexBuffer<TVertex>(
-            Span<TVertex> initialData,
-            GpuMemoryKind memoryKind,
-            GpuAllocFlags flags = GpuAllocFlags.None
-        ) where TVertex : unmanaged
-            => AllocateVertexBuffer((ReadOnlySpan<TVertex>)initialData, memoryKind, flags);
-
-        /// <summary>
-        /// Allocates a new <see cref="VertexBuffer{TVertex}"/>
-        /// </summary>
-        /// <typeparam name="TVertex">The type of each vertex</typeparam>
-        /// <param name="initialData">The initial vertices data, which will be copied to the resource</param>
-        /// <param name="memoryKind">The type of GPU memory to allocate in</param>
-        /// <param name="flags">Any additional allocation flags passed to the allocator</param>
-        /// <returns>A new <see cref="VertexBuffer{TVertex}"/></returns>
-        public VertexBuffer<TVertex> AllocateVertexBuffer<TVertex>(
-            ReadOnlySpan<TVertex> initialData,
-            GpuMemoryKind memoryKind,
-            GpuAllocFlags flags = GpuAllocFlags.None
-        ) where TVertex : unmanaged
-        {
-            var resource = AllocateVertexBuffer<TVertex>((uint)initialData.Length, memoryKind, flags);
-
-            resource.Map();
-            initialData.CopyTo(resource.Vertices);
-            resource.Unmap();
-
-            return resource;
-        }
-
-        /// <summary>
-        /// Allocates a new <see cref="VertexBuffer{TVertex}"/>
-        /// </summary>
-        /// <typeparam name="TVertex">The type of each vertex</typeparam>
-        /// <param name="vertexCount">The number of vertices</param>
-        /// <param name="memoryKind">The type of GPU memory to allocate in</param>
-        /// <param name="flags">Any additional allocation flags passed to the allocator</param>
-        /// <returns>A new <see cref="VertexBuffer{TVertex}"/></returns>
-        public VertexBuffer<TVertex> AllocateVertexBuffer<TVertex>(
-            uint vertexCount,
-            GpuMemoryKind memoryKind,
-            GpuAllocFlags flags = GpuAllocFlags.None
-        ) where TVertex : unmanaged
-        {
-            Debug.Assert(memoryKind != GpuMemoryKind.CpuReadback);
-
-            var desc = new GpuResourceDesc(
-                GpuResourceFormat.Buffer((uint)sizeof(TVertex) * vertexCount),
-                memoryKind,
-                memoryKind == GpuMemoryKind.CpuUpload ? ResourceState.GenericRead : ResourceState.VertexBuffer,
-                flags
-            );
-
-            return new VertexBuffer<TVertex>(Allocate(desc));
-        }
-
-
-        /// <inheritdoc cref="AllocateIndexBuffer{TIndex}(ReadOnlySpan{TIndex}, GpuMemoryKind, GpuAllocFlags)" />
-        public IndexBuffer<TIndex> AllocateIndexBuffer<TIndex>(
-            TIndex[] initialData,
-            GpuMemoryKind memoryKind,
-            GpuAllocFlags flags = GpuAllocFlags.None
-        ) where TIndex : unmanaged
-            => AllocateIndexBuffer(initialData.AsSpan(), memoryKind, flags);
-
-
-        /// <inheritdoc cref="AllocateIndexBuffer{TIndex}(ReadOnlySpan{TIndex}, GpuMemoryKind, GpuAllocFlags)" />
-        public IndexBuffer<TIndex> AllocateIndexBuffer<TIndex>(
-            Span<TIndex> initialData,
-            GpuMemoryKind memoryKind,
-            GpuAllocFlags flags = GpuAllocFlags.None
-        ) where TIndex : unmanaged
-            => AllocateIndexBuffer((ReadOnlySpan<TIndex>)initialData, memoryKind, flags);
-
-        /// <summary>
-        /// Allocates a new <see cref="IndexBuffer{TIndex}"/>
-        /// </summary>
-        /// <typeparam name="TIndex">The type of each index</typeparam>
-        /// <param name="initialData">The initial indices data, which will be copied to the resource</param>
-        /// <param name="memoryKind">The type of GPU memory to allocate in</param>
-        /// <param name="flags">Any additional allocation flags passed to the allocator</param>
-        /// <returns>A new <see cref="IndexBuffer{TIndex}"/></returns>
-        public IndexBuffer<TIndex> AllocateIndexBuffer<TIndex>(
-            ReadOnlySpan<TIndex> initialData,
-            GpuMemoryKind memoryKind,
-            GpuAllocFlags flags = GpuAllocFlags.None
-        ) where TIndex : unmanaged
-        {
-            var resource = AllocateIndexBuffer<TIndex>((uint)initialData.Length, memoryKind, flags);
-
-            resource.Map();
-            initialData.CopyTo(resource.Indices);
-            resource.Unmap();
-
-            return resource;
-        }
-
-        /// <summary>
-        /// Allocates a new <see cref="IndexBuffer{TIndex}"/>
-        /// </summary>
-        /// <typeparam name="TIndex">The type of each index</typeparam>
-        /// <param name="indexCount">The number of indices</param>
-        /// <param name="memoryKind">The type of GPU memory to allocate in</param>
-        /// <param name="flags">Any additional allocation flags passed to the allocator</param>
-        /// <returns>A new <see cref="IndexBuffer{TIndex}"/></returns>
-        public IndexBuffer<TIndex> AllocateIndexBuffer<TIndex>(
-            uint indexCount,
-            GpuMemoryKind memoryKind,
-            GpuAllocFlags flags = GpuAllocFlags.None
-        ) where TIndex : unmanaged
-        {
-            var desc = new GpuResourceDesc(
-                GpuResourceFormat.Buffer((uint)sizeof(TIndex) * indexCount),
-                memoryKind,
-                memoryKind == GpuMemoryKind.CpuUpload ? ResourceState.GenericRead : ResourceState.IndexBuffer,
-                flags
-            );
-
-            return new IndexBuffer<TIndex>(Allocate(desc));
-        }
-
-        /// <inheritdoc cref="AllocateConstantBuffer{TBuffer}(ReadOnlySpan{TBuffer}, GpuMemoryKind, GpuAllocFlags)" />
-        public ConstantBuffer<TBuffer> AllocateConstantBuffer<TBuffer>(
-            TBuffer[] initialData,
-            GpuMemoryKind memoryKind,
-            GpuAllocFlags flags = GpuAllocFlags.None
-        ) where TBuffer : unmanaged
-            => AllocateConstantBuffer(initialData.AsSpan(), memoryKind, flags);
-
-
-        /// <inheritdoc cref="AllocateConstantBuffer{TBuffer}(ReadOnlySpan{TBuffer}, GpuMemoryKind, GpuAllocFlags)" />
-        public ConstantBuffer<TBuffer> AllocateConstantBuffer<TBuffer>(
-            Span<TBuffer> initialData,
-            GpuMemoryKind memoryKind,
-            GpuAllocFlags flags = GpuAllocFlags.None
-        ) where TBuffer : unmanaged
-            => AllocateConstantBuffer((ReadOnlySpan<TBuffer>)initialData, memoryKind, flags);
-
-        /// <summary>
-        /// Allocates a new <see cref="ConstantBuffer{TBuffer}"/>
-        /// </summary>
-        /// <typeparam name="TBuffer">The type of each constant buffer</typeparam>
-        /// <param name="initialData">The initial buffer data, which will be copied to the resource</param>
-        /// <param name="memoryKind">The type of GPU memory to allocate in</param>
-        /// <param name="flags">Any additional allocation flags passed to the allocator</param>
-        /// <returns>A new <see cref="ConstantBuffer{TBuffer}"/></returns>
-        public ConstantBuffer<TBuffer> AllocateConstantBuffer<TBuffer>(
-            ReadOnlySpan<TBuffer> initialData,
-            GpuMemoryKind memoryKind,
-            GpuAllocFlags flags = GpuAllocFlags.None
-        ) where TBuffer : unmanaged
-        {
-            var resource = AllocateConstantBuffer<TBuffer>((uint)initialData.Length, memoryKind, flags);
-
-            resource.Map();
-
-            if (sizeof(TBuffer) % 256 == 0)
-            {
-                // the types are blittable in memory and we can directly copy
-                initialData.CopyTo(MemoryMarshal.Cast<byte, TBuffer>(resource.Buffers.GetUntypedData()));
-            }
-            else
-            {
-                var buffers = resource.Buffers;
-                for (var i = 0; i < initialData.Length; i++)
-                {
-                    buffers[i] = initialData[i];
-                }
-            }    
-
-            resource.Unmap();
-
-            return resource;
-        }
-
-        /// <summary>
-        /// Allocates a new <see cref="ConstantBuffer{TBuffer}"/>
-        /// </summary>
-        /// <typeparam name="TBuffer">The type of each buffer</typeparam>
-        /// <param name="bufferCount">The number of buffers</param>
-        /// <param name="memoryKind">The type of GPU memory to allocate in</param>
-        /// <param name="flags">Any additional allocation flags passed to the allocator</param>
-        /// <returns>A new <see cref="ConstantBuffer{TBuffer}"/></returns>
-        public ConstantBuffer<TBuffer> AllocateConstantBuffer<TBuffer>(
-            uint bufferCount,
-            GpuMemoryKind memoryKind,
-            GpuAllocFlags flags = GpuAllocFlags.None
-        ) where TBuffer : unmanaged
-        {
-            Debug.Assert(memoryKind != GpuMemoryKind.CpuReadback);
-
-            var desc = new GpuResourceDesc(
-                GpuResourceFormat.Buffer(CalculateConstantBufferSize(sizeof(TBuffer)) * bufferCount),
-                memoryKind,
-                memoryKind == GpuMemoryKind.CpuUpload ? ResourceState.GenericRead : ResourceState.ConstantBuffer,
-                flags
-            );
-
-            return new ConstantBuffer<TBuffer>(Allocate(desc));
-        }
-
         private static uint CalculateConstantBufferSize(int size)
             => (uint)((size + 255) & ~255);
 
-        public Texture AllocateDepthStencil(DataFormat format, uint width, uint height)
+        private GpuResource AllocateCommitted(InternalAllocDesc desc, D3D12_RESOURCE_ALLOCATION_INFO allocInfo)
         {
-            var desc = new GpuResourceDesc(
-                GpuResourceFormat.DepthStencil(format, width, height),
-                GpuMemoryKind.GpuOnly,
-                ResourceState.DepthWrite,
-                allocFlags: GpuAllocFlags.ForceAllocateComitted,
-                clearValue: new D3D12_CLEAR_VALUE((DXGI_FORMAT)format, 1.0f, 0)
-            );
-
-            return Allocate(desc);
-        }
-
-        /// <summary>
-        /// Allocates a new region of GPU memory
-        /// </summary>
-        /// <param name="desc">The description for the resource to allocate</param>
-        /// <returns>A new <see cref="GpuResource"/> which encapsulates the allocated region</returns>
-        internal GpuResource Allocate(
-            GpuResourceDesc desc
-        )
-        {
-            VerifyDesc(desc);
-
-            var info = GetAllocationInfo(desc);
-
-            if (desc.AllocFlags.HasFlag(GpuAllocFlags.ForceAllocateComitted))
-            {
-                return AllocateCommitted(desc, info);
-            }
-
-            return AllocatePlacedFromHeap(desc, info);
-        }
-
-        private void VerifyDesc(GpuResourceDesc desc)
-        {
-            var flags = desc.AllocFlags;
-            if (flags.HasFlag(GpuAllocFlags.ForceAllocateComitted))
-            {
-                Debug.Assert(!flags.HasFlag(GpuAllocFlags.ForceAllocateNotComitted));
-            }
-            else if (flags.HasFlag(GpuAllocFlags.ForceAllocateNotComitted))
-            {
-                Debug.Assert(!flags.HasFlag(GpuAllocFlags.ForceAllocateComitted));
-            }
-        }
-
-        private GpuResource AllocateCommitted(GpuResourceDesc desc, D3D12_RESOURCE_ALLOCATION_INFO allocInfo)
-        {
-            var heapProperties = GetHeapProperties(desc);
-
-            var clearVal = desc.ClearValue.GetValueOrDefault();
-
-            using ComPtr<ID3D12Resource> resource = default;
-
-            Guard.ThrowIfFailed(_device.Device->CreateCommittedResource(
-                 &heapProperties,
-                 desc.HeapFlags,
-                 &desc.ResourceFormat.D3D12ResourceDesc,
-                 (D3D12_RESOURCE_STATES)desc.InitialState,
-                 desc.ClearValue is null ? null : &clearVal,
-                 resource.Guid,
-                 ComPtr.GetVoidAddressOf(&resource)
-            ));
+            var resource = _device.CreateComittedResource(desc);
 
             return new GpuResource(
                 resource.Move(),
                 desc,
-                allocInfo.SizeInBytes,
-                0,
-                default,
-                this
+                default
             );
         }
 
-        private D3D12_HEAP_PROPERTIES GetHeapProperties(GpuResourceDesc desc)
-        {
-            return new D3D12_HEAP_PROPERTIES((D3D12_HEAP_TYPE)desc.GpuMemoryType);
-        }
-
-        private bool TryAllocateFromHeap(GpuResourceDesc desc, D3D12_RESOURCE_ALLOCATION_INFO info, AllocatorHeap heap, out GpuResource allocation)
+        private bool TryAllocateFromHeap(InternalAllocDesc desc, D3D12_RESOURCE_ALLOCATION_INFO info, AllocatorHeap heap, out GpuResource allocation)
         {
             if (TryGetFreeBlock(heap, info, out HeapBlock freeBlock))
             {
-                allocation = CreatePlaced(desc, info, heap, freeBlock);
+                allocation = CreatePlaced(desc, heap, freeBlock);
                 return true;
             }
 
@@ -574,11 +478,11 @@ namespace Voltium.Core.GpuResources
             return false;
         }
 
-        private GpuResource AllocatePlacedFromHeap(GpuResourceDesc desc, D3D12_RESOURCE_ALLOCATION_INFO info)
+        private GpuResource AllocatePlacedFromHeap(InternalAllocDesc desc, D3D12_RESOURCE_ALLOCATION_INFO info)
         {
             var resType = GetResType(desc);
             GpuResource allocation;
-            var heapList = _heapPools[GetHeapIndex(desc.GpuMemoryType, resType)];
+            var heapList = _heapPools[GetHeapIndex(desc.HeapType, resType)];
             for (var i = 0; i < heapList.Count; i++)
             {
                 if (TryAllocateFromHeap(desc, info, heapList[i], out allocation))
@@ -588,13 +492,13 @@ namespace Voltium.Core.GpuResources
             }
 
             // No free blocks available anywhere. Create a new heap
-            var newHeap = CreateNewHeap(desc.GpuMemoryType, resType);
+            var newHeap = CreateNewHeap(desc.HeapType, resType);
             var result = TryAllocateFromHeap(desc, info, newHeap, out allocation);
             Debug.Assert(result);
             return allocation;
         }
 
-        private GpuResourceType GetResType(GpuResourceDesc desc)
+        private GpuResourceType GetResType(InternalAllocDesc desc)
         {
             const D3D12_RESOURCE_FLAGS rtOrDsFlags =
                 D3D12_RESOURCE_FLAGS.D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL | D3D12_RESOURCE_FLAGS.D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
@@ -604,40 +508,27 @@ namespace Voltium.Core.GpuResources
                 return GpuResourceType.Meaningless;
             }
 
-            if (desc.ResourceFormat.D3D12ResourceDesc.Dimension == D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_BUFFER)
+            if (desc.Desc.Dimension == D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_BUFFER)
             {
                 return GpuResourceType.Buffer;
             }
-            if ((desc.ResourceFormat.D3D12ResourceDesc.Flags & rtOrDsFlags) != 0)
+            if ((desc.Desc.Flags & rtOrDsFlags) != 0)
             {
                 return GpuResourceType.RtOrDs;
             }
             return GpuResourceType.Tex;
         }
 
-        private GpuResource CreatePlaced(GpuResourceDesc desc, D3D12_RESOURCE_ALLOCATION_INFO allocInfo, AllocatorHeap heap, HeapBlock block)
+        private GpuResource CreatePlaced(InternalAllocDesc desc, AllocatorHeap heap, HeapBlock block)
         {
-            var clearVal = desc.ClearValue.GetValueOrDefault();
-
-            using ComPtr<ID3D12Resource> resource = default;
-
-            Guard.ThrowIfFailed(_device.Device->CreatePlacedResource(
-                 heap.Heap.Get(),
-                 block.Offset,
-                 &desc.ResourceFormat.D3D12ResourceDesc,
-                 (D3D12_RESOURCE_STATES)desc.InitialState,
-                 desc.ClearValue is null ? null : &clearVal,
-                 resource.Guid,
-                 ComPtr.GetVoidAddressOf(&resource)
-             ));
+            var resource = _device.CreatePlacedResource(heap.Heap.Get(), block.Offset, desc);
 
             return new GpuResource(
                 resource.Move(),
                 desc,
-                allocInfo.SizeInBytes,
-                block.Offset,
+                this,
                 heap,
-                this
+                block
             );
         }
 
@@ -699,5 +590,94 @@ namespace Voltium.Core.GpuResources
         {
             _device.Dispose();
         }
+    }
+
+
+    /// <summary>
+    /// Describes a buffer, for use by the <see cref="GpuAllocator"/>
+    /// </summary>
+    public struct BufferDesc
+    {
+        /// <summary>
+        /// The size of the buffer, in bytes
+        /// </summary>
+        public long Length;
+
+        /// <summary>
+        /// The 
+        /// </summary>
+        public MemoryAccess MemoryKind;
+
+        /// <summary>
+        /// The state of the resource when it is allocated. This is ignored for <see cref="MemoryAccess.CpuUpload"/> buffers
+        /// </summary>
+        public ResourceState InitialResourceState;
+
+        /// <summary>
+        /// Any addition resource flags
+        /// </summary>
+        public ResourceFlags ResourceFlags;
+
+        /// <summary>
+        /// Any additional allocation flags
+        /// </summary>
+        public AllocFlags AllocFlags;
+    }
+
+    /// <summary>
+    /// Describes a buffer, for use by the <see cref="GpuAllocator"/>
+    /// </summary>
+    public struct TextureDesc
+    {
+        /// <summary>
+        /// The format of the texture
+        /// </summary>
+        public DataFormat Format;
+
+        /// <summary>
+        /// The number of dimensions in the texture
+        /// </summary>
+        public TextureDimension Dimension;
+
+        /// <summary>
+        /// The width, in bytes, of the texture
+        /// </summary>
+        public ulong Width;
+
+        /// <summary>
+        /// The height, in bytes, of the texture
+        /// </summary>
+        public uint Height;
+
+        /// <summary>
+        /// The depth, if <see cref="Dimension"/> is <see cref="TextureDimension.Tex3D"/>, else the number of elements in this texture array
+        /// </summary>
+        public ushort DepthOrArraySize;
+
+        /// <summary>
+        /// If this texture is a render target or depth stencil, the value for which it is optimised to call <see cref="GraphicsContext.ClearRenderTarget(DescriptorHandle, RgbaColor, Rectangle)"/>
+        /// or <see cref="GraphicsContext.ClearDepthStencil(DescriptorHandle, float, byte, ReadOnlySpan{Rectangle})"/> for
+        /// </summary>
+        public TextureClearValue? ClearValue;
+
+        /// <summary>
+        /// The 
+        /// </summary>
+        public MemoryAccess MemoryKind;
+
+        /// <summary>
+        /// The state of the resource when it is allocated. This is ignored for <see cref="MemoryAccess.CpuUpload"/> buffers
+        /// </summary>
+        public ResourceState InitialResourceState;
+
+        /// <summary>
+        /// Any addition resource flags
+        /// </summary>
+        public ResourceFlags ResourceFlags;
+
+        /// <summary>
+        /// Any additional allocation flags
+        /// </summary>
+        public AllocFlags AllocFlags;
     }
 }

@@ -5,7 +5,7 @@ namespace Voltium.Core
     /// <summary>
     /// Represents the type of a GPU resource
     /// </summary>
-    public enum GpuMemoryKind
+    public enum MemoryAccess
     {
         /// <summary>
         /// A resource that is only accessible by the GPU.

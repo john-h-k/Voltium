@@ -24,6 +24,8 @@ namespace Voltium.Interactive
 
         public static int Run(Application application, HINSTANCE hInstance, int nCmdShow)
         {
+            _application = application;
+
             uint height;
             uint width;
 
@@ -74,8 +76,8 @@ namespace Voltium.Interactive
             MSG msg;
 
             _timer = ApplicationTimer.StartNew();
-            //_timer.SetFixedTimeStep(true);
-            _timer.SetTargetElapsedSeconds(1 / 850d);
+            _timer.IsFixedTimeStep = false;
+            _timer.TargetElapsedSeconds = 1 / 50d;
 
             do
             {
@@ -95,13 +97,13 @@ namespace Voltium.Interactive
         }
 
         private static ApplicationTimer _timer = null!;
+        private static Application _application = null!;
 
         // Main message handler for the sample
-        [UnmanagedCallersOnly]
+        [UnmanagedCallersOnly(CallingConvention = CallingConvention.StdCall)]
         private static nint WindowProc(IntPtr hWnd, uint message, nuint wParam, nint lParam)
         {
             var handle = GetWindowLongPtrW(hWnd, GWLP_USERDATA);
-            var pSample = (handle != IntPtr.Zero) ? (Application?)GCHandle.FromIntPtr(handle).Target : null;
 
             switch (message)
             {
@@ -115,20 +117,20 @@ namespace Voltium.Interactive
 
                 case WM_KEYDOWN:
                 {
-                    pSample?.OnKeyDown((byte)wParam);
+                    _application.OnKeyDown((byte)wParam);
                     return 0;
                 }
 
                 case WM_KEYUP:
                 {
-                    pSample?.OnKeyUp((byte)wParam);
+                    _application.OnKeyUp((byte)wParam);
                     return 0;
                 }
 
                 case WM_MOUSEWHEEL:
                 {
                     var delta = GET_WHEEL_DELTA_WPARAM(wParam) / 120;
-                    pSample?.OnMouseScroll(delta);
+                    _application.OnMouseScroll(delta);
                     return 0;
                 }
 
@@ -156,22 +158,24 @@ namespace Voltium.Interactive
 
                     if (sz != 0) // why do we sometimes get zero size wParams?
                     {
-                        pSample?.OnResize(_screenData);
+                        _application.OnResize(_screenData);
                     }
                     return 0;
                 }
 
                 case WM_PAINT:
                 {
-                    if (pSample != null)
+                    if (_application != null)
                     {
-
-                        _timer.Tick(() =>
+                        fixed (char* pFps = $"Voltium - FPS: {_timer.FramesPerSeconds}")
+                        {
+                            _ = SetWindowTextW(Hwnd, (ushort*)pFps);
+                            _timer.Tick(() =>
                             {
-                                pSample.Update(_timer);
-                                pSample.Render();
-                            }
-                        );
+                                _application.Update(_timer);
+                                _application.Render();
+                            });
+                        }
                     }
 
                     return 0;
