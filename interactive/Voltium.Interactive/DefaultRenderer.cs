@@ -19,6 +19,7 @@ using System;
 using System.Runtime.InteropServices;
 using Buffer = Voltium.Core.Memory.GpuResources.Buffer;
 using Voltium.Core.D3D12;
+using Voltium.TextureLoading;
 
 namespace Voltium.Interactive
 {
@@ -65,10 +66,11 @@ namespace Voltium.Interactive
     [ShaderInput]
     public partial struct Vertex
     {
-        public Vertex(Vector3 position, Vector3 normal)
+        public Vertex(Vector3 position, Vector3 normal, Vector2 texC)
         {
             Position = position;
             Normal = normal;
+            TexC = texC;
         }
 
         public Vertex(
@@ -79,10 +81,12 @@ namespace Voltium.Interactive
         {
             Position = new(vertexX, vertexY, vertexZ);
             Normal = new(normalX, normalY, normalZ);
+            TexC = new(texU, texV);
         }
 
         public Vector3 Position;
         public Vector3 Normal;
+        public Vector2 TexC;
     }
 
     public unsafe class DefaultRenderer : Renderer
@@ -90,9 +94,11 @@ namespace Voltium.Interactive
         private GpuAllocator _allocator = null!;
         private Buffer _vertexBuffer;
         private Buffer _indexBuffer;
+        private Texture _texture;
         private int _zoomDelta;
         private Geometry _object;
         private GraphicsDevice _device = null!;
+        private DescriptorHeap _textures;
 
         public override void Init(GraphicsDevice device, GraphicalConfiguration config, in ScreenData screen)
         {
@@ -102,23 +108,34 @@ namespace Voltium.Interactive
             //_object = GemeotryGenerator.LoadSingleModel("logo.obj");
             _object = GemeotryGenerator.CreateCube(0.5f);
 
+            var texture = TextureLoader.CreateDdsTexture("Assets/bricks3.dds");
+            var desc = new TextureDesc
+            {
+                Width = texture.Width,
+                Height = texture.Width,
+                DepthOrArraySize = (ushort)(texture.Depth == 0 ? texture.Depth : texture.ArraySize),
+                Format = texture.Format,
+                Dimension = texture.ResourceDimension,
+                MemoryKind = MemoryAccess.GpuOnly,
+                InitialResourceState = ResourceState.PixelShaderResource
+            };
+
+            _textures = DescriptorHeap.CreateConstantBufferShaderResourceUnorderedAccessViewHeap(_device, 1);
+
             _allocator.AllocateBuffer(11586 * 11586, MemoryAccess.CpuUpload, ResourceState.GenericRead);
 
-            var vertexUploadBuffer = _allocator.AllocateBuffer(_object.Vertices.Length * sizeof(Vertex), MemoryAccess.CpuUpload, ResourceState.GenericRead);
+            _texture = _allocator.AllocateTexture(desc);
             _vertexBuffer = _allocator.AllocateBuffer(_object.Vertices.Length * sizeof(Vertex), MemoryAccess.GpuOnly, ResourceState.CopyDestination);
-            var indexUploadBuffer = _allocator.AllocateBuffer(_object.Indices.Length * sizeof(ushort), MemoryAccess.CpuUpload, ResourceState.GenericRead);
             _indexBuffer = _allocator.AllocateBuffer(_object.Indices.Length * sizeof(ushort), MemoryAccess.GpuOnly, ResourceState.CopyDestination);
 
             _obj = _allocator.AllocateBuffer(sizeof(ObjectConstants), MemoryAccess.CpuUpload, ResourceState.GenericRead);
             _frame = _allocator.AllocateBuffer(sizeof(FrameConstants), MemoryAccess.CpuUpload, ResourceState.GenericRead);
             _light = _allocator.AllocateBuffer(sizeof(LightConstants), MemoryAccess.CpuUpload, ResourceState.GenericRead);
 
-            vertexUploadBuffer.WriteData<Vertex>(_object.Vertices);
-            indexUploadBuffer.WriteData<ushort>(_object.Indices);
-
             var list = _device.BeginGraphicsContext();
-            list.CopyResource(vertexUploadBuffer, _vertexBuffer);
-            list.CopyResource(indexUploadBuffer, _indexBuffer);
+            list.UploadResource(_allocator, MemoryMarshal.AsBytes(_object.Vertices.AsSpan()), _vertexBuffer);
+            list.UploadResource(_allocator, MemoryMarshal.AsBytes(_object.Indices.AsSpan()), _indexBuffer);
+            list.UploadResource(_allocator, texture.BitData.Span, texture.SubresourceData.Span, _texture);
             _device.End(list);
 
             var rootParams = new[]
@@ -128,7 +145,27 @@ namespace Voltium.Interactive
                 RootParameter.CreateDescriptor(RootParameterType.ConstantBufferView, 2, 0)
             };
 
-            _rootSig = RootSignature.Create(device.Device, rootParams, default);
+            var samplers = new[]
+            {
+                new StaticSampler(
+                    new Sampler(
+                        TextureAddressMode.BorderColor,
+                        TextureAddressMode.BorderColor,
+                        TextureAddressMode.BorderColor,
+                        SamplerFilterType.Anistropic,
+                        0,
+                        8,
+                        SampleComparisonFunc.LessThanOrEqual,
+                        StaticSampler.OpaqueBlack,
+                        0,
+                        Windows.D3D12_FLOAT32_MAX
+                    ),
+                    0,
+                    0,
+                    ShaderVisibility.All)
+            };
+
+            _rootSig = RootSignature.Create(device.Device, rootParams, samplers);
 
             var compilationFlags = new[]
             {
@@ -136,7 +173,7 @@ namespace Voltium.Interactive
             };
 
             var vertexShader = ShaderManager.CompileShader("Shaders/SimpleVertexShader.hlsl", DxcCompileTarget.Vs_6_0, compilationFlags);
-            var pixelShader = ShaderManager.CompileShader("Shaders/SimplePixelShader.hlsl", DxcCompileTarget.Ps_6_0, compilationFlags);
+            var pixelShader = ShaderManager.CompileShader("Shaders/TexturePixelShader.hlsl", DxcCompileTarget.Ps_6_0, compilationFlags);
 
             var psoDesc = new GraphicsPipelineDesc(_rootSig, config.BackBufferFormat, config.DepthStencilFormat, vertexShader, pixelShader);
 

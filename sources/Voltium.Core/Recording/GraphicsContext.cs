@@ -8,6 +8,7 @@ using Voltium.Core.Managers;
 using Voltium.Core.Memory.GpuResources;
 using Voltium.Core.Memory.GpuResources.ResourceViews;
 using Voltium.Core.Pipeline;
+using Voltium.TextureLoading;
 using static TerraFX.Interop.D3D_PRIMITIVE_TOPOLOGY;
 using Buffer = Voltium.Core.Memory.GpuResources.Buffer;
 
@@ -100,14 +101,24 @@ namespace Voltium.Core
         }
 
         /// <summary>
+        /// Copy an entire resource
+        /// </summary>
+        /// <param name="source">The resource to copy from</param>
+        /// <param name="destination">The resource to copy to</param>
+        public void CopyResource(Texture source, Texture destination)
+        {
+            _list.Get()->CopyResource(source.Resource.UnderlyingResource, destination.Resource.UnderlyingResource);
+        }
+
+        /// <summary>
         /// Uploads a buffer from the CPU to the GPU
         /// </summary>
         /// <param name="allocator"></param>
         /// <param name="buffer"></param>
         /// <param name="destination"></param>
-        public void UploadResource(GpuAllocator allocator, Span<byte> buffer, Buffer destination)
+        public void UploadResource(GpuAllocator allocator, ReadOnlySpan<byte> buffer, Buffer destination)
         {
-            var upload = allocator.AllocateBuffer(buffer.Length, MemoryAccess.CpuUpload, ResourceState.CopySource);
+            var upload = allocator.AllocateBuffer(buffer.Length, MemoryAccess.CpuUpload, ResourceState.GenericRead);
             upload.WriteData(buffer);
 
             CopyResource(upload, destination);
@@ -118,24 +129,36 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="allocator"></param>
         /// <param name="texture"></param>
+        /// <param name="subresources"></param>
         /// <param name="destination"></param>
-        public void UploadResource(GpuAllocator allocator, Span<byte> texture, Texture destination)
+        public void UploadResource(GpuAllocator allocator, ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, Texture destination)
         {
-            var uploadLength = Windows.GetRequiredIntermediateSize(destination.Resource.UnderlyingResource, 0, )
-            var upload = allocator.AllocateTexture(Windows.GetRequiredIntermediateSize(, MemoryAccess.CpuUpload, ResourceState.CopySource);
-            upload.WriteData(buffer);
+            var upload = allocator.AllocateBuffer(
+                (long)Windows.GetRequiredIntermediateSize(destination.Resource.UnderlyingResource, 0, (uint)subresources.Length),
+                MemoryAccess.CpuUpload,
+                ResourceState.GenericRead
+            );
 
-            CopyResource(upload, destination);
-        }
+            fixed (byte* pTextureData = texture)
+            fixed (SubresourceData* pSubresources = subresources)
+            {
+                // D3D12_SUBRESOURCE_DATA and SubresourceData are blittable, just SubresourceData contains an offset past the pointer
+                // Fix that here
+                for (var i = 0; i < subresources.Length; i++)
+                {
+                    ((D3D12_SUBRESOURCE_DATA*)&pSubresources[i])->pData = pTextureData + pSubresources[i].DataOffset;
+                }
 
-        /// <summary>
-        /// Copy an entire resource
-        /// </summary>
-        /// <param name="source">The resource to copy from</param>
-        /// <param name="destination">The resource to copy to</param>
-        public void CopyResource(Texture source, Texture destination)
-        {
-            _list.Get()->CopyResource(source.Resource.UnderlyingResource, destination.Resource.UnderlyingResource);
+                _ = Windows.UpdateSubresources(
+                    _list.Get(),
+                    destination.Resource.UnderlyingResource,
+                    upload.Resource.UnderlyingResource,
+                    0,
+                    0,
+                    (uint)subresources.Length,
+                    (D3D12_SUBRESOURCE_DATA*)pSubresources
+                );
+            }
         }
 
         /// <summary>

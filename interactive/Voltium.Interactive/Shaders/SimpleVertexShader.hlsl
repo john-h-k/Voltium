@@ -1,6 +1,6 @@
 #include "PixelFrag.hlsli"
 
-PixelFrag main(float3 position : POSITION, float3 normal : NORMAL)
+PixelFrag main(float3 position : POSITION, float3 normal : NORMAL, float texC : TEXC)
 {
     PixelFrag result;
 
@@ -10,6 +10,8 @@ PixelFrag main(float3 position : POSITION, float3 normal : NORMAL)
     result.Position = mul(result.Position, Frame.Projection);
 
     result.Normal = mul(normal, (float3x3)Object.World);
+
+    result.TexC = texC;
 
     return result;
 }

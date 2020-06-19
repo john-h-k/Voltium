@@ -69,7 +69,7 @@ namespace Voltium.Core.Memory.GpuResources
         /// Writes the <typeparamref name="T"/> to the buffer
         /// </summary>
         /// <typeparam name="T">The type to write</typeparam>
-        public void WriteData<T>(Span<T> data) where T : unmanaged
+        public void WriteData<T>(ReadOnlySpan<T> data) where T : unmanaged
         {
             if (_cpuAddress == null)
             {

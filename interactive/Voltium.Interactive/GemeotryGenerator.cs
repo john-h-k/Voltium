@@ -112,8 +112,9 @@ namespace Voltium.Interactive
 
                         var position = ToVector3(model.Vertices[vertex.VertexIndex - 1]);
                         var normal = ToVector3(model.Normals[vertex.NormalIndex - 1]);
+                        var tex = ToVector2(model.Textures[vertex.TextureIndex - 1]);
 
-                        vertices[c] = new Vertex(position, normal);
+                        vertices[c] = new Vertex(position, normal, tex);
                         indices[c] = (ushort)c;
 
                         c++;
@@ -132,6 +133,7 @@ namespace Voltium.Interactive
         private static Vector3 ToVector3(ObjVertex vertex) => new Vector3(vertex.X, vertex.Y, vertex.Z);
         private static Vector3 ToVector3(Normal normal) => new Vector3(normal.X, normal.Y, normal.Z);
         private static Vector3 ToVector3(Vec3 vec) => new Vector3(vec.X, vec.Y, vec.Z);
+        private static Vector2 ToVector2(Texture tex) => new Vector2(tex.X, tex.Y);
 
         private static Material ToMaterial(ObjMaterial material) => new Material
         {

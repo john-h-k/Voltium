@@ -41,7 +41,7 @@ namespace Voltium.Core
         }
 
         /// <summary>
-        /// Create a new <see cref="DescriptorHeap"/> representing a render target view using a <see cref="ID3D12Device"/>
+        /// Create a new <see cref="DescriptorHeap"/> that contains render target views using a <see cref="ID3D12Device"/>
         /// </summary>
         /// <param name="device">The device to use during creation</param>
         /// <param name="renderTargetCount">The number of render target view descriptors</param>
@@ -60,7 +60,7 @@ namespace Voltium.Core
         }
 
         /// <summary>
-        /// Create a new <see cref="DescriptorHeap"/> representing a depth stencil view using a <see cref="ID3D12Device"/>
+        /// Create a new <see cref="DescriptorHeap"/> that contains depth stencil views using a <see cref="ID3D12Device"/>
         /// </summary>
         /// <param name="device">The device to use during creation</param>
         /// <param name="depthStencilCount">The number of depth stencil view descriptors</param>
@@ -72,6 +72,25 @@ namespace Voltium.Core
             var desc = CreateDesc(
                 D3D12_DESCRIPTOR_HEAP_TYPE_DSV,
                 depthStencilCount,
+                false
+            );
+
+            return new DescriptorHeap(device, desc);
+        }
+
+        /// <summary>
+        /// Create a new <see cref="DescriptorHeap"/> that contains constant buffer, shader resource, and unordered access views using a <see cref="ID3D12Device"/>
+        /// </summary>
+        /// <param name="device">The device to use during creation</param>
+        /// <param name="shaderResourceCount">The number of depth stencil view descriptors</param>
+        public static DescriptorHeap CreateConstantBufferShaderResourceUnorderedAccessViewHeap(
+            GraphicsDevice device,
+            uint shaderResourceCount
+        )
+        {
+            var desc = CreateDesc(
+                D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
+                shaderResourceCount,
                 false
             );
 

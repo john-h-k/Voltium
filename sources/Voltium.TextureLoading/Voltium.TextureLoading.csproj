@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Voltium.Common\Voltium.Common.csproj" />
+    <ProjectReference Include="..\Voltium.Core\Voltium.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>

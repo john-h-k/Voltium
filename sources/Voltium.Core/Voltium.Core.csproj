@@ -13,7 +13,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Voltium.Common\Voltium.Common.csproj" />
-    <ProjectReference Include="..\Voltium.TextureLoading\Voltium.TextureLoading.csproj" />
   </ItemGroup>
 
 

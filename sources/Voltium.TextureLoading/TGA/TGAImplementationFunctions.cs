@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Buffers.Binary;
 using System.Linq.Expressions;
 using System.Numerics;
@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics.X86;
 using TerraFX.Interop;
 using Voltium.Common;
+using Voltium.Core;
 using Voltium.TextureLoading.DDS;
 using static TerraFX.Interop.DXGI_FORMAT;
 
@@ -65,11 +66,11 @@ namespace Voltium.TextureLoading.TGA
 
             return new TextureDescription(
                 data,
-                D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_TEXTURE2D,
+                Core.GpuResources.TextureDimension.Tex2D,
                 new Size3((uint)header.Height, (uint)header.Width, 0),
                 1,
                 1,
-                format,
+                (DataFormat)format,
                 loaderFlags,
                 false,
                 subresources,

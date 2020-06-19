@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using TerraFX.Interop;
 using Voltium.Common;
-using Voltium.TextureLoading.DDS;
 using static TerraFX.Interop.D3D12_HEAP_FLAGS;
 using static TerraFX.Interop.D3D12_RESOURCE_DIMENSION;
 
@@ -54,9 +53,9 @@ namespace Voltium.Core.GpuResources.OldStyle
             Debug.Assert(optimizedClearValue is null || resourceDesc.Dimension != D3D12_RESOURCE_DIMENSION_BUFFER,
                 "optimizedClearValue cannot be used with D3D12_RESOURCE_DIMENSION_BUFFER");
 
-            var sz = DXGISurfaceInfo.BitsPerPixel(resourceDesc.Format) / 8;
-            Guard.True(sz == ElementSize || ElementSize == 1, // 1 is untyped buffer
-                $"Invalid TElement (size: {ElementSize}) for DXGI_FORMAT {resourceDesc.Format} (size: {sz})");
+            //var sz = DXGISurfaceInfo.BitsPerPixel(resourceDesc.Format) / 8;
+            //Guard.True(sz == ElementSize || ElementSize == 1, // 1 is untyped buffer
+            //    $"Invalid TElement (size: {ElementSize}) for DXGI_FORMAT {resourceDesc.Format} (size: {sz})");
         }
 
     }
