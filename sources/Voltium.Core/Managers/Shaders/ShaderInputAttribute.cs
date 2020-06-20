@@ -10,4 +10,13 @@ namespace Voltium.Core.Managers.Shaders
     {
 
     }
+
+    /// <summary>
+    /// Signifies that a type should be ignored by the shader input generator
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Field)]
+    public class ShaderIgnoreAttribute : Attribute
+    {
+
+    }
 }

@@ -19,7 +19,7 @@ struct DirectionalLight
 struct Material
 {
     float4 DiffuseAlbedo;
-    float4 ReflectionFactor;
+    float3 ReflectionFactor;
     float Shininess;
 };
 

@@ -34,6 +34,19 @@ namespace Voltium.Core
         }
 
         /// <summary>
+        /// Offset the descriptor by a fixed offset
+        /// </summary>
+        /// <param name="handle"></param>
+        /// <param name="offset"></param>
+        /// <returns></returns>
+        public static DescriptorHandle operator +(DescriptorHandle handle, uint offset)
+        {
+            handle.CpuHandle += (int)(offset * (uint)handle.IncrementSize);
+            handle.GpuHandle += (int)(offset * (uint)handle.IncrementSize);
+            return handle;
+        }
+
+        /// <summary>
         /// Offset the descriptor by 1
         /// </summary>
         /// <param name="handle"></param>

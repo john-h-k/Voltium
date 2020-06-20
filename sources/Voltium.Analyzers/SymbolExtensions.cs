@@ -11,5 +11,10 @@ namespace Voltium.Analyzers
         public static bool HasAttribute(this INamedTypeSymbol type, string attributeName, Compilation comp)
             => type.GetAttributes().Any(attr
                 => SymbolEqualityComparer.Default.Equals(attr.AttributeClass, comp.GetTypeByMetadataName(attributeName)));
+
+
+        public static bool HasAttribute(this IFieldSymbol type, string attributeName, Compilation comp)
+            => type.GetAttributes().Any(attr
+                => SymbolEqualityComparer.Default.Equals(attr.AttributeClass, comp.GetTypeByMetadataName(attributeName)));
     }
 }

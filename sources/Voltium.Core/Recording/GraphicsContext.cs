@@ -63,6 +63,48 @@ namespace Voltium.Core
         }
 
         /// <summary>
+        /// Sets the descriptor heaps for the list
+        /// </summary>
+        /// <param name="heap">The <see cref="DescriptorHeap"/> to bind</param>
+        public void SetDescriptorHeaps(DescriptorHeap heap)
+        {
+            var pHeaps = heap.GetHeap();
+
+            _list.Get()->SetDescriptorHeaps(1, &pHeaps);
+        }
+
+        /// <summary>
+        /// Sets the descriptor heaps for the list
+        /// </summary>
+        /// <param name="heaps">The <see cref="DescriptorHeap"/>s to binds</param>
+        public void SetDescriptorHeaps(ReadOnlySpan<DescriptorHeap> heaps)
+        {
+            RentedArray<nuint> rented = default;
+            ID3D12DescriptorHeap** pHeaps = null;
+            if (!StackSentinel.SafeToStackallocPointers(heaps.Length))
+            {
+                var _ = stackalloc ID3D12DescriptorHeap*[heaps.Length];
+                pHeaps = _;
+            }
+            else
+            {
+                rented = RentedArray<nuint>.Create(heaps.Length);
+            }
+
+            Span<nuint> buff = pHeaps == null ? rented.Value.AsSpan() : new Span<nuint>(pHeaps, heaps.Length);
+
+            for (var i = 0; i < buff.Length; i++)
+            {
+                buff[i] = (nuint)heaps[i].GetHeap();
+            }
+
+            fixed (nuint* p = buff)
+            {
+                _list.Get()->SetDescriptorHeaps((uint)buff.Length, (ID3D12DescriptorHeap**)p);
+            }
+        }
+
+        /// <summary>
         /// Sets the viewport and scissor rectangle to encompass the entire screen
         /// </summary>
         /// <param name="fullscreen">The <see cref="ScreenData"/> representing the screen</param>
@@ -166,10 +208,20 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
-        /// <param name="offset"></param>
+        /// <param name="offset">The offset in bytes to start the view at</param>
         public void SetGraphicsConstantBufferDescriptor(uint paramIndex, Buffer cbuffer, uint offset = 0)
         {
             _list.Get()->SetGraphicsRootConstantBufferView(paramIndex, cbuffer.GpuAddress + offset);
+        }
+
+        /// <summary>
+        /// Sets a descriptor table to the graphics pipeline
+        /// </summary>
+        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
+        /// <param name="handle">The <see cref="DescriptorHandle"/> containing the first view</param>
+        public void SetGraphicsRootDescriptorTable(uint paramIndex, DescriptorHandle handle)
+        {
+            _list.Get()->SetGraphicsRootDescriptorTable(paramIndex, handle.GpuHandle.Value);
         }
 
         /// <summary>

@@ -84,6 +84,13 @@ namespace Voltium.Core.Memory.GpuResources
             _cpuAddress = null;
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        public uint GetMipLevels() => Resource.UnderlyingResource->GetDesc().MipLevels;
+
+
         // I don't like how this needs knowledge of DXGI. Should probably rewrite
         internal static Texture FromBackBuffer(IDXGISwapChain* swapChain, uint bufferIndex)
         {

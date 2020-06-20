@@ -147,7 +147,7 @@ namespace Voltium.TextureLoading.DDS
             uint numBlocksHigh = 0;
             if (height > 0)
             {
-                numBlocksWide = Math.Max(1, (height + 3) / 4);
+                numBlocksHigh = Math.Max(1, (height + 3) / 4);
             }
 
             uint rowBytes = numBlocksWide * bytesPerBlock;

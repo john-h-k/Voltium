@@ -124,7 +124,7 @@ namespace Voltium.Core
                             NumDescriptorRanges = (uint)inRootParam.DescriptorTable!.Length,
                             // IMPORTANT: we *know* this is pinned, because it can only come from RootParameter.CreateDescriptorTable, which strictly makes sure it is pinned
                             pDescriptorRanges = (D3D12_DESCRIPTOR_RANGE*)Unsafe.AsPointer(
-                                ref MemoryMarshal.GetReference(inRootParam.DescriptorTable.Span))
+                                ref MemoryMarshal.GetArrayDataReference(inRootParam.DescriptorTable))
                         };
                         break;
 

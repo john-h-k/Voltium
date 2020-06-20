@@ -25,6 +25,7 @@ namespace Voltium.Analyzers
             => InitBasicTypes(context.Compilation);
 
         private const string ShaderInputAttributeName = "Voltium.Core.Managers.Shaders.ShaderInputAttribute";
+        private const string ShaderIgnoreAttributeName = "Voltium.Core.Managers.Shaders.ShaderIgnoreAttribute";
 
         protected override bool Predicate(SourceGeneratorContext context, INamedTypeSymbol decl)
             => decl.HasAttribute(ShaderInputAttributeName, context.Compilation);
@@ -33,12 +34,12 @@ namespace Voltium.Analyzers
         {
             var builder = new IAInputDescBuilder();
 
-            ResolveType(builder, (typeSymbol.Name, typeSymbol));
+            ResolveType(builder, (typeSymbol.Name, typeSymbol), context.Compilation);
 
             context.AddSource($"{typeSymbol.Name}.IAInputLayout.cs", SourceText.From(builder.ToString(typeSymbol)!, Encoding.UTF8));
         }
 
-        private void ResolveType(IAInputDescBuilder builder, (string Name, ITypeSymbol TypeSymbol) args)
+        private void ResolveType(IAInputDescBuilder builder, (string Name, ITypeSymbol TypeSymbol) args, Compilation comp)
         {
             var (name, typeSymbol) = args;
             if (BasicTypes.TryGetValue(typeSymbol, out var format))
@@ -47,17 +48,17 @@ namespace Voltium.Analyzers
                 return;
             }
 
-            var layout = GetLayout(typeSymbol);
-            foreach (var fieldOrProp in layout)
+            var layout = GetLayout(typeSymbol, comp);
+            foreach (var field in layout)
             {
-                ResolveType(builder, fieldOrProp);
+                ResolveType(builder, field, comp);
             }
         }
 
-        private static IEnumerable<(string Name, ITypeSymbol Symbol)> GetLayout(ITypeSymbol type)
+        private static IEnumerable<(string Name, ITypeSymbol Symbol)> GetLayout(ITypeSymbol type, Compilation comp)
             => type.GetMembers()
-                    .Where(member => !member.IsStatic && (member.Kind == SymbolKind.Field || member.Kind == SymbolKind.Property))
-                    .Select(fieldOrProp => (fieldOrProp.Name, fieldOrProp is IFieldSymbol symbol ? symbol.Type : ((IPropertySymbol)fieldOrProp).Type));
+                    .Where(member => !member.IsStatic && member.Kind == SymbolKind.Field && !((IFieldSymbol)member).HasAttribute(ShaderIgnoreAttributeName, comp))
+                    .Select(field => (field.Name, ((IFieldSymbol)field).Type));
 
         private static INamedTypeSymbol GetSymbolForType<T>(Compilation comp) => comp.GetTypeByMetadataName(typeof(T).FullName!) ?? throw new ArgumentException("Invalid type");
 

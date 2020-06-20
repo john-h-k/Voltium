@@ -1,6 +1,6 @@
 #include "PixelFrag.hlsli"
 
-#define SCENE_LIGHTS 2
+#define SCENE_LIGHTS 3
 
 struct Lights
 {
@@ -17,17 +17,23 @@ float4 main(PixelFrag frag) : SV_TARGET
 
     float3 eye = normalize(Frame.CameraPosition - frag.WorldPosition);
 
-    float4 ambient = Frame.AmbientLight * Object.Material.DiffuseAlbedo * Texture.Sample(Sampler, frag.TexC);
+    float4 albedo = Object.Material.DiffuseAlbedo * Texture.Sample(Sampler, frag.TexC);
+    float4 ambient = Frame.AmbientLight * albedo;
 
     float3 shadowFactor = 1.0f;
 
     float3 directLight = 0;
 
+    Material mat;
+    mat.DiffuseAlbedo = albedo;
+    mat.ReflectionFactor = Object.Material.ReflectionFactor;
+    mat.Shininess = Object.Material.Shininess;
+
     for (int i = 0; i < SCENE_LIGHTS; i++)
     {
         directLight += ComputeDirectionalLight(
             SceneLight.Lights[i],
-            Object.Material,
+            mat,
             eye,
             frag.Normal,
             shadowFactor

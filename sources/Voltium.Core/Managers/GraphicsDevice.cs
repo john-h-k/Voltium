@@ -211,6 +211,24 @@ namespace Voltium.Core.Managers
             }
         }
 
+        internal void CreateShaderResourceView(ID3D12Resource* resource, D3D12_SHADER_RESOURCE_VIEW_DESC* desc, D3D12_CPU_DESCRIPTOR_HANDLE handle)
+            => Device->CreateShaderResourceView(resource, desc, handle);
+
+        internal void CreateConstantBufferView(D3D12_CONSTANT_BUFFER_VIEW_DESC* desc, D3D12_CPU_DESCRIPTOR_HANDLE handle)
+            => Device->CreateConstantBufferView(desc, handle);
+
+        internal void CreateUnorderedAccessView(ID3D12Resource* resource, ID3D12Resource* counterResource, D3D12_UNORDERED_ACCESS_VIEW_DESC* desc, D3D12_CPU_DESCRIPTOR_HANDLE handle)
+            => Device->CreateUnorderedAccessView(resource, counterResource, desc, handle);
+
+        internal void CreateRenderTargetView(ID3D12Resource* resource, D3D12_RENDER_TARGET_VIEW_DESC* desc, D3D12_CPU_DESCRIPTOR_HANDLE handle)
+            => Device->CreateRenderTargetView(resource, desc, handle);
+
+        internal void CreateDepthStencilView(ID3D12Resource* resource, D3D12_DEPTH_STENCIL_VIEW_DESC* desc, D3D12_CPU_DESCRIPTOR_HANDLE handle)
+            => Device->CreateDepthStencilView(resource, desc, handle);
+
+        internal void CreateSampler(D3D12_SAMPLER_DESC desc, D3D12_CPU_DESCRIPTOR_HANDLE handle)
+            => Device->CreateSampler(&desc, handle);
+
         /// <summary>
         /// Returns a <see cref="GraphicsContext"/> used for recording graphical commands
         /// </summary>
@@ -330,7 +348,7 @@ namespace Voltium.Core.Managers
         /// <returns>The size of the descriptor, in bytes</returns>
         public int GetDescriptorSizeForType(D3D12_DESCRIPTOR_HEAP_TYPE type)
         {
-            Debug.Assert(type > 0 && type < D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES);
+            Debug.Assert(type >= 0 && type < D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES);
 
             return type switch
             {

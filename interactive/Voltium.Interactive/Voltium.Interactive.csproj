@@ -34,7 +34,6 @@
     <None Include="Shaders\dxc.exe" />
     <None Include="Shaders\dxcompiler.dll" />
     <None Include="Shaders\dxil.dll" />
-    <None Include="Shaders\foo.cso" />
     <None Include="Shaders\Lighting.hlsli" />
     <None Include="Shaders\PixelFrag.hlsli" />
     <None Include="Shaders\SimplePixelShader.hlsl" />

@@ -75,16 +75,33 @@ namespace Voltium.Core
         /// Creates a new <see cref="Sampler"/>
         /// </summary>
         public unsafe Sampler(
+            TextureAddressMode texUWV,
+            SamplerFilterType filter,
+            float mipLODBias = 0,
+            uint maxAnisotropy = 16,
+            SampleComparisonFunc comparisonFunc = SampleComparisonFunc.LessThan,
+            RgbaColor borderColor = default,
+            float minLOD = 0,
+            float maxLOD = float.MaxValue
+        ) : this(texUWV, texUWV, texUWV, filter, mipLODBias, maxAnisotropy, comparisonFunc, borderColor, minLOD, maxLOD)
+        {
+
+        }
+
+        /// <summary>
+        /// Creates a new <see cref="Sampler"/>
+        /// </summary>
+        public unsafe Sampler(
             TextureAddressMode texU,
             TextureAddressMode texW,
             TextureAddressMode texV,
             SamplerFilterType filter,
-            float mipLODBias,
-            uint maxAnisotropy,
-            SampleComparisonFunc comparisonFunc,
-            RgbaColor borderColor,
-            float minLOD,
-            float maxLOD
+            float mipLODBias = 0,
+            uint maxAnisotropy = 16,
+            SampleComparisonFunc comparisonFunc = SampleComparisonFunc.LessThan,
+            RgbaColor borderColor = default,
+            float minLOD = 0,
+            float maxLOD = float.MaxValue
         )
         {
             Debug.Assert(maxAnisotropy <= 16);
