@@ -52,5 +52,16 @@ namespace Voltium.Core
             RegisterSpace = registerSpace;
             Visibility = visibility;
         }
+
+        /// <summary>
+        /// Creates a new instance of <see cref="StaticSampler"/>
+        /// </summary>
+        public StaticSampler(TextureAddressMode texUWV, SamplerFilterType samplerFilterType, uint shaderRegister, uint registerSpace, ShaderVisibility visibility, RgbaColor borderColor = default)
+        {
+            Sampler = new Sampler(texUWV, samplerFilterType, borderColor: borderColor);
+            ShaderRegister = shaderRegister;
+            RegisterSpace = registerSpace;
+            Visibility = visibility;
+        }
     }
 }

@@ -185,7 +185,7 @@ namespace Voltium.Core.Managers
             // we allocate space for all the strings and the pointers in one array, for efficiency
             // then the first sizeof(ptr) * numStrings bytes of it are used to store the pointers to the actual strings
 
-            // biggest target possible (althought invalid) would be "-T lib_255_255", 14 chars (15 with null char)
+            // biggest target possible (although invalid) would be "-T lib_255_255", 14 chars (15 with null char)
             // entrypoint is 0 if empty, else "-E " + length of entrypoint + null char
             // encoding is either 14 or 15 chars (UTF8 or UTF16) + null char
             Debug.Assert(encoding is OutputEncoding.Utf8 or OutputEncoding.Utf16);

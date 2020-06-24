@@ -3,13 +3,6 @@
 #define pow4(v) (v * v * v * v)
 #define pow5(v) (v * v * v * v * v)
 
-enum LightType
-{
-    Point,
-    Directional,
-    Spotlight
-};
-
 struct DirectionalLight
 {
     float3 Strength;

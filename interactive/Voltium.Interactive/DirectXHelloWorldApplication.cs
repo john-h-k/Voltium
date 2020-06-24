@@ -1,14 +1,10 @@
-using System.Diagnostics;
-using TerraFX.Interop;
-using Voltium.Core;
-using Voltium.Core.Managers;
-using static TerraFX.Interop.DXGI_FORMAT;
-using static TerraFX.Interop.Windows;
-using static TerraFX.Interop.D3D12_PRIMITIVE_TOPOLOGY_TYPE;
-using static TerraFX.Interop.D3D12_INPUT_CLASSIFICATION;
-using Voltium.Core.Configuration.Graphics;
+
 using System;
 using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics;
+using Voltium.Core;
+using Voltium.Core.Managers;
+using Voltium.Core.Configuration.Graphics;
 
 namespace Voltium.Interactive
 {
@@ -25,15 +21,11 @@ namespace Voltium.Interactive
             var config = new GraphicalConfiguration
             {
                 ForceFullscreenAsWindowed = false,
-                ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER.DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED,
                 VSyncCount = 0,
                 BackBufferFormat = DataFormat.R8G8B8A8UnsignedNormalized,
                 DepthStencilFormat = DataFormat.D32Single,
-                FullscreenScalingStrategy = DXGI_MODE_SCALING.DXGI_MODE_SCALING_UNSPECIFIED,
                 MultiSamplingStrategy = new MsaaDesc(1, 0),
-                RequiredDirect3DLevel = D3D_FEATURE_LEVEL.D3D_FEATURE_LEVEL_11_1,
-                ScalingStrategy = DXGI_SCALING.DXGI_SCALING_NONE,
-                SwapEffect = DXGI_SWAP_EFFECT.DXGI_SWAP_EFFECT_FLIP_DISCARD,
+                RequiredFeatureLevel = FeatureLevel.Level11_0,
                 SwapChainBufferCount = 3
             };
 
@@ -49,16 +41,14 @@ namespace Voltium.Interactive
         }
         public override unsafe void Render()
         {
-            var commandList = _device.BeginGraphicsContext(_renderer.GetInitialPso());
-
-            commandList.SetViewportAndScissor(_device.ScreenData);
-            _renderer.Render(commandList);
-
-            _device.End(commandList);
+            using (var commandList = _device.BeginGraphicsContext(_renderer.GetInitialPso()))
+            {
+                commandList.SetViewportAndScissor(_device.ScreenData);
+                _renderer.Render(commandList);
+            }
 
             _device.Present();
         }
-
         public override void Destroy()
         {
             _device.Dispose();

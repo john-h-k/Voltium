@@ -26,7 +26,7 @@ using Voltium.Core.Managers.Shaders;
 
 namespace {0}
 {{
-    partial struct {1} : IBindableShaderType
+    partial struct {1} : Voltium.Core.Managers.Shaders.IBindableShaderType
     {{
         ReadOnlyMemory<ShaderInput> IBindableShaderType.GetShaderInputs() => Elements;
         private static readonly ReadOnlyMemory<ShaderInput> Elements = new ShaderInput[] {{{2}}};

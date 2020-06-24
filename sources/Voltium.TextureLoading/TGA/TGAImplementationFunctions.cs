@@ -8,6 +8,7 @@ using System.Runtime.Intrinsics.X86;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core;
+using Voltium.Core.GpuResources;
 using Voltium.TextureLoading.DDS;
 using static TerraFX.Interop.DXGI_FORMAT;
 
@@ -19,7 +20,7 @@ namespace Voltium.TextureLoading.TGA
 {
     internal static unsafe class TGAImplementationFunctions
     {
-        public static TextureDescription CreateTgaTexture(Memory<byte> tgaData,
+        public static LoadedTexture CreateTgaTexture(Memory<byte> tgaData,
             LoaderFlags loaderFlags = LoaderFlags.None)
         {
             if (tgaData.Length < sizeof(TGAHeader))
@@ -64,13 +65,19 @@ namespace Voltium.TextureLoading.TGA
             var subresources = new SubresourceData[1];
             subresources[0] = new SubresourceData();
 
-            return new TextureDescription(
+            var desc = new TextureDesc
+            {
+                Width = (uint)header.Width,
+                Height = (uint)header.Height,
+                DepthOrArraySize = 0, // is this right?
+                Format = (DataFormat)format,
+                Dimension = TextureDimension.Tex2D
+            };
+
+            return new LoadedTexture(
                 data,
-                Core.GpuResources.TextureDimension.Tex2D,
-                new Size3((uint)header.Height, (uint)header.Width, 0),
+                desc,
                 1,
-                1,
-                (DataFormat)format,
                 loaderFlags,
                 false,
                 subresources,

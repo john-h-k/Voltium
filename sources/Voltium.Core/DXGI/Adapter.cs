@@ -14,7 +14,7 @@ namespace Voltium.Core.DXGI
         /// <summary>
         /// The value of the <see cref="IDXGIAdapter1"/>
         /// </summary>
-        public unsafe IDXGIAdapter1* UnderlyingAdapter => _adapter.Get();
+        internal unsafe IDXGIAdapter1* UnderlyingAdapter => _adapter.Get();
 
         private ComPtr<IDXGIAdapter1> _adapter;
 
@@ -61,7 +61,7 @@ namespace Voltium.Core.DXGI
         /// <summary>
         /// A locally-unique identifier for the adapter
         /// </summary>
-        public readonly LUID AdapterLuid;
+        public readonly ulong AdapterLuid;
 
         /// <summary>
         ///  <code>true</code> if this adapter is implemented in software, else <code>false</code>
@@ -71,7 +71,7 @@ namespace Voltium.Core.DXGI
         /// <summary>
         /// Create a new instance of <see cref="Adapter"/>
         /// </summary>
-        public Adapter(
+        internal unsafe Adapter(
             ComPtr<IDXGIAdapter1> adapter,
             string description,
             AdapterVendor vendorId,
@@ -94,7 +94,7 @@ namespace Voltium.Core.DXGI
             DedicatedVideoMemory = dedicatedVideoMemory;
             DedicatedSystemMemory = dedicatedSystemMemory;
             SharedSystemMemory = sharedSystemMemory;
-            AdapterLuid = adapterLuid;
+            AdapterLuid = adapterLuid.LowPart | ((uint)adapterLuid.HighPart << 32);
             IsSoftware = isSoftware;
         }
 
@@ -106,7 +106,7 @@ namespace Voltium.Core.DXGI
         /// </summary>
         /// <param name="factory">The factory used to enumerate</param>
         /// <returns>An <see cref="AdapterEnumerator"/></returns>
-        public static AdapterEnumerator EnumerateAdapters(ComPtr<IDXGIFactory2> factory) => new AdapterEnumerator(factory);
+        internal static AdapterEnumerator EnumerateAdapters(ComPtr<IDXGIFactory2> factory) => new AdapterEnumerator(factory);
     }
 
     /// <summary>

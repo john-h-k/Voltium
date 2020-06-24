@@ -84,12 +84,6 @@ namespace Voltium.Core.Memory.GpuResources
             _cpuAddress = null;
         }
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        public uint GetMipLevels() => Resource.UnderlyingResource->GetDesc().MipLevels;
-
 
         // I don't like how this needs knowledge of DXGI. Should probably rewrite
         internal static Texture FromBackBuffer(IDXGISwapChain* swapChain, uint bufferIndex)
@@ -104,6 +98,7 @@ namespace Voltium.Core.Memory.GpuResources
             var resDesc = buffer.Get()->GetDesc();
 
             var res = new GpuResource(buffer.Move(), new InternalAllocDesc { Desc = resDesc, InitialState = D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_COMMON });
+            DirectXHelpers.SetObjectName(res, $"BackBuffer #{bufferIndex}");
 
             var texDesc = new TextureDesc
             {
@@ -133,6 +128,15 @@ namespace Voltium.Core.Memory.GpuResources
 
                 return new Span<byte>(_cpuAddress, (int)_length);
             }
+        }
+
+        /// <summary>
+        /// The debug name of the texture
+        /// </summary>
+        public string Name
+        {
+            set => DirectXHelpers.SetObjectName(_resource, value);
+            get => DirectXHelpers.GetObjectName(_resource);
         }
 
         internal GpuResource Resource => _resource;

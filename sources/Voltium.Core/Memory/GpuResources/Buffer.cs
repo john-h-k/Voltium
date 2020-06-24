@@ -57,12 +57,42 @@ namespace Voltium.Core.Memory.GpuResources
         /// <typeparam name="T">The type to write</typeparam>
         public void WriteData<T>(ref T data, uint offset) where T : unmanaged
         {
-            if (_cpuAddress == null)
+            if (_cpuAddress is null)
             {
                 _cpuAddress = _resource.Map(0);
             }
 
-            *((T*)_cpuAddress + offset) = data;
+            ((T*)_cpuAddress)[offset] = data;
+        }
+
+        /// <summary>
+        /// Writes the <typeparamref name="T"/> to the buffer
+        /// </summary>
+        /// <typeparam name="T">The type to write</typeparam>
+        public void WriteConstantBufferData<T>(ref T data, uint offset) where T : unmanaged
+        {
+            if (_cpuAddress is null)
+            {
+                _cpuAddress = _resource.Map(0);
+            }
+
+            var alignedSize = (sizeof(T) + 255) & ~255;
+
+            *(T*)((byte*)_cpuAddress + (alignedSize * offset)) = data;
+        }
+
+        /// <summary>
+        /// Writes the <typeparamref name="T"/> to the buffer
+        /// </summary>
+        /// <typeparam name="T">The type to write</typeparam>
+        public void WriteDataByteOffset<T>(ref T data, uint offset) where T : unmanaged
+        {
+            if (_cpuAddress is null)
+            {
+                _cpuAddress = _resource.Map(0);
+            }
+
+            *(T*)((byte*)_cpuAddress + offset) = data;
         }
 
         /// <summary>
@@ -71,12 +101,20 @@ namespace Voltium.Core.Memory.GpuResources
         /// <typeparam name="T">The type to write</typeparam>
         public void WriteData<T>(ReadOnlySpan<T> data) where T : unmanaged
         {
-            if (_cpuAddress == null)
+            if (_cpuAddress is null)
             {
                 _cpuAddress = _resource.Map(0);
             }
 
             data.CopyTo(new Span<T>(_cpuAddress, (int)Length));
+        }
+
+        /// <summary>
+        /// The debug name of the buffer
+        /// </summary>
+        public string Name
+        {
+            set => DirectXHelpers.SetObjectName(_resource, value);
         }
 
         /// <inheritdoc/>

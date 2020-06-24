@@ -1,13 +1,8 @@
 using System.Diagnostics;
 using System.Drawing;
 using System.Resources;
-using TerraFX.Interop;
-using Voltium.Common;
 using Voltium.Core;
 using Voltium.Core.Managers;
-using static TerraFX.Interop.D3D12_RESOURCE_STATES;
-using static TerraFX.Interop.DXGI_FORMAT;
-using static TerraFX.Interop.D3D12_INPUT_CLASSIFICATION;
 using System.Numerics;
 using Voltium.Core.GpuResources;
 using Voltium.Core.Pipeline;
@@ -19,7 +14,9 @@ using System;
 using System.Runtime.InteropServices;
 using Buffer = Voltium.Core.Memory.GpuResources.Buffer;
 using Voltium.Core.D3D12;
+using Voltium.ModelLoading;
 using Voltium.TextureLoading;
+using System.Linq;
 
 namespace Voltium.Interactive
 {
@@ -27,6 +24,7 @@ namespace Voltium.Interactive
     public partial struct ObjectConstants
     {
         public Matrix4x4 World;
+        public Matrix4x4 Tex;
         public Material Material;
     }
 
@@ -56,6 +54,7 @@ namespace Voltium.Interactive
         private float _pad1;
     }
 
+    [ShaderType]
     [StructLayout(LayoutKind.Sequential)]
     public partial struct Material
     {
@@ -64,93 +63,90 @@ namespace Voltium.Interactive
         public float Shininess;
     };
 
-    [ShaderInput]
-    [StructLayout(LayoutKind.Sequential)]
-    public partial struct Vertex
-    {
-        public Vertex(Vector3 position, Vector3 normal, Vector2 texC)
-        {
-            Position = position;
-            Normal = normal;
-            TexC = texC;
-        }
+    //[ShaderInput]
+    //[StructLayout(LayoutKind.Sequential)]
+    //public partial struct Vertex
+    //{
+    //    public Vertex(Vector3 position, Vector3 normal, Vector2 texC)
+    //    {
+    //        Position = position;
+    //        Normal = normal;
+    //        TexC = texC;
+    //    }
 
-        public Vertex(
-            float vertexX, float vertexY, float vertexZ,
-            float normalX, float normalY, float normalZ,
-            float tangentX, float tangentY, float tangentZ,
-            float texU, float texV)
-        {
-            Position = new(vertexX, vertexY, vertexZ);
-            Normal = new(normalX, normalY, normalZ);
-            TexC = new(texU, texV);
-        }
+    //    public Vertex(
+    //        float vertexX, float vertexY, float vertexZ,
+    //        float normalX, float normalY, float normalZ,
+    //        float tangentX, float tangentY, float tangentZ,
+    //        float texU, float texV)
+    //    {
+    //        Position = new(vertexX, vertexY, vertexZ);
+    //        Normal = new(normalX, normalY, normalZ);
+    //        TexC = new(texU, texV);
+    //    }
 
-        public Vector3 Position;
-        public Vector3 Normal;
-        public Vector2 TexC;
-    }
+    //    public Vector3 Position;
+    //    public Vector3 Normal;
+    //    public Vector2 TexC;
+    //}
 
     public unsafe class DefaultRenderer : Renderer
     {
         private GpuAllocator _allocator = null!;
-        private Buffer _vertexBuffer;
-        private Buffer _indexBuffer;
+        private Buffer[] _vertexBuffer = null!;
+        private Buffer[] _indexBuffer = null!;
         private Texture _texture;
         private int _zoomDelta;
-        private Geometry _object;
+        private Geometry<TexturedVertex>[] _texturedObjects = null!;
+        //private Geometry<ColorVertex>[] _colorObjects = null!;
         private GraphicsDevice _device = null!;
-        private DescriptorHeap _textures;
+        private DescriptorHandle _texHandle;
 
         public override void Init(GraphicsDevice device, GraphicalConfiguration config, in ScreenData screen)
         {
             _device = device;
             _allocator = _device.Allocator;
 
-            //_object = GemeotryGenerator.LoadSingleModel("logo.obj");
-            _object = GemeotryGenerator.CreateCube(0.5f);
+            ModelLoader.Load("Assets/Handgun.gltf", out var meshes, out _);
+            //var meshes = new[] { GemeotryGenerator.LoadSingleModel("logo.obj") };
+            var texture = TextureLoader.CreateTexture("Assets/handgun_c.dds");
 
-            var texture = TextureLoader.CreateDdsTexture("Assets/WoodCrate01.dds");
-            var desc = new TextureDesc
+            _texturedObjects = new Geometry<TexturedVertex>[meshes.Length];
+            _vertexBuffer = new Buffer[meshes.Length];
+            _indexBuffer = new Buffer[meshes.Length];
+
+            using (var list = _device.BeginCopyContext())
             {
-                Width = texture.Width,
-                Height = texture.Width,
-                DepthOrArraySize = (ushort)(texture.Depth == 0 ? texture.Depth : texture.ArraySize),
-                Format = texture.Format,
-                Dimension = texture.ResourceDimension,
-                MemoryKind = MemoryAccess.GpuOnly,
-                InitialResourceState = ResourceState.PixelShaderResource
-            };
+                var buffIndex = 0;
+                for (var i = 0; i < _texturedObjects.Length; i++, buffIndex++)
+                {
+                    _texturedObjects[i] = new Geometry<TexturedVertex>(meshes[i].Vertices, meshes[i].Indices, world: meshes[i].World);
+                    list.UploadBuffer(_allocator, _texturedObjects[i].Vertices, MemoryAccess.GpuOnly, out _vertexBuffer[buffIndex]);
+                    list.UploadBuffer(_allocator, _texturedObjects[i].Indices, MemoryAccess.GpuOnly, out _indexBuffer[buffIndex]);
+                }
 
-            _textures = DescriptorHeap.CreateConstantBufferShaderResourceUnorderedAccessViewHeap(_device, 1);
-
-            _texture = _allocator.AllocateTexture(desc);
+                list.UploadTexture(_allocator, texture.BitData.Span, texture.SubresourceData.Span, texture.Desc, out _texture);
+            }
 
             var srvDesc = new TextureShaderResourceViewDesc
             {
-                MipLevels = _texture.GetMipLevels(),
-                Format = texture.Format,
+                MipLevels = texture.MipCount,
+                Format = texture.Desc.Format,
                 MostDetailedMip = 0
             };
 
-            _vertexBuffer = _allocator.AllocateBuffer(_object.Vertices.Length * sizeof(Vertex), MemoryAccess.GpuOnly, ResourceState.CopyDestination);
-            _indexBuffer = _allocator.AllocateBuffer(_object.Indices.Length * sizeof(ushort), MemoryAccess.GpuOnly, ResourceState.CopyDestination);
-            _textures.CreateShaderResourceView(0, _texture, srvDesc);
+            _texHandle = _device.CreateShaderResourceView(_texture, srvDesc);
+            _objectConstants = new ObjectConstants[_texturedObjects.Length];
 
-            _obj = _allocator.AllocateBuffer(sizeof(ObjectConstants), MemoryAccess.CpuUpload, ResourceState.GenericRead);
-            _frame = _allocator.AllocateBuffer(sizeof(FrameConstants), MemoryAccess.CpuUpload, ResourceState.GenericRead);
-            _light = _allocator.AllocateBuffer(sizeof(LightConstants), MemoryAccess.CpuUpload, ResourceState.GenericRead);
+            _obj = _allocator.AllocateBuffer(sizeof(ObjectConstants) * _texturedObjects.Length, MemoryAccess.CpuUpload);
+            _frame = _allocator.AllocateBuffer(sizeof(FrameConstants), MemoryAccess.CpuUpload);
+            _light = _allocator.AllocateBuffer(sizeof(LightConstants), MemoryAccess.CpuUpload);
 
-            Console.WriteLine("1");
-            var list = _device.BeginGraphicsContext();
-            list.UploadResource(_allocator, MemoryMarshal.AsBytes(_object.Vertices.AsSpan()), _vertexBuffer);
-            list.UploadResource(_allocator, MemoryMarshal.AsBytes(_object.Indices.AsSpan()), _indexBuffer);
+            CreatePipelines(config);
+        }
 
-            list.ResourceTransition(_texture, new ResourceTransition(ResourceState.CopyDestination));
-            list.UploadResource(_allocator, texture.BitData.Span, texture.SubresourceData.Span, _texture);
-            _device.End(list);
-            Console.WriteLine("2");
-
+        public void CreatePipelines(GraphicalConfiguration config)
+        {
             var rootParams = new[]
             {
                 RootParameter.CreateDescriptor(RootParameterType.ConstantBufferView, 0, 0),
@@ -162,12 +158,16 @@ namespace Voltium.Interactive
             var samplers = new[]
             {
                 new StaticSampler(
-                    new Sampler(TextureAddressMode.BorderColor, SamplerFilterType.MagPoint | SamplerFilterType.MinPoint | SamplerFilterType.MipPoint),
-                    0, 0, ShaderVisibility.All
+                    TextureAddressMode.Wrap,
+                    SamplerFilterType.MagPoint | SamplerFilterType.MinPoint | SamplerFilterType.MipPoint,
+                    shaderRegister: 0,
+                    registerSpace: 0,
+                    ShaderVisibility.All,
+                    StaticSampler.OpaqueWhite
                 )
             };
 
-            _rootSig = RootSignature.Create(device.Device, rootParams, samplers);
+            _rootSig = RootSignature.Create(_device, rootParams, samplers);
 
             var compilationFlags = new[]
             {
@@ -176,17 +176,15 @@ namespace Voltium.Interactive
                 DxcCompileFlags.WriteDebugInformationToFile()
             };
 
-            var vertexShader = ShaderManager.CompileShader("Shaders/SimpleVertexShader.hlsl", DxcCompileTarget.Vs_6_0, compilationFlags);
-            var pixelShader = ShaderManager.CompileShader("Shaders/TexturePixelShader.hlsl", DxcCompileTarget.Ps_6_0, compilationFlags);
+            var vertexShader = ShaderManager.CompileShader("Shaders/SimpleTexture/TextureVertexShader.hlsl", DxcCompileTarget.Vs_6_0, compilationFlags);
+            var pixelShader = ShaderManager.CompileShader("Shaders/SimpleTexture/TexturePixelShader.hlsl", DxcCompileTarget.Ps_6_0, compilationFlags);
 
             var psoDesc = new GraphicsPipelineDesc(_rootSig, config.BackBufferFormat, config.DepthStencilFormat, vertexShader, pixelShader);
 
-            _drawPso = PipelineManager.CreatePso<Vertex>(_device, "Default", psoDesc);
-
-            SetHueDegrees(MathF.PI / 500);
+            _texPso = PipelineManager.CreatePso<TexturedVertex>(_device, "Texture", psoDesc);
         }
 
-        private ObjectConstants _objectConstants;
+        private ObjectConstants[] _objectConstants = null!;
         private FrameConstants _frameConstants;
         private LightConstants _sceneLight;
 
@@ -199,16 +197,21 @@ namespace Voltium.Interactive
             var aspectRatio = (float)screen.Width / screen.Height;
             var fovAngleY = 70.0f * MathF.PI / 180.0f;
 
-            _objectConstants = new ObjectConstants
+            for (var i = 0; i < _texturedObjects.Length; i++)
             {
-                World = Matrix4x4.Identity,
-                Material = new Material
+                var geometry = _texturedObjects[i];
+                _objectConstants[i] = new ObjectConstants
                 {
-                    DiffuseAlbedo = new Vector4(1.0f, 1.0f, 1.0f, 1.0f),
-                    ReflectionFactor = new(0.05f),
-                    Shininess = 0.8f
-                }
-            };
+                    World = geometry.World,
+                    Tex = Matrix4x4.Identity,
+                    Material = new Material
+                    {
+                        DiffuseAlbedo = new Vector4(1.0f, 1.0f, 1.0f, 1.0f),
+                        ReflectionFactor = new(0.05f),
+                        Shininess = 0.8f
+                    }
+                };
+            }
 
             _frameConstants = new FrameConstants
             {
@@ -224,27 +227,27 @@ namespace Voltium.Interactive
 
             _sceneLight.Light0 = new DirectionalLight
             {
-                Strength = new Vector3(0.6f),
+                Strength = new Vector3(0, 0, 0.8f),
                 Direction = new Vector3(0.57735f, -0.57735f, 0.57735f)
             };
 
 
             _sceneLight.Light1 = new DirectionalLight
             {
-                Strength = new Vector3(0.3f),
+                Strength = new Vector3(0, 0, 0.7f),
                 Direction = new Vector3(-0.57735f, -0.57735f, 0.57735f)
             };
 
             _sceneLight.Light2 = new DirectionalLight
             {
-                Strength = new Vector3(0.15f),
+                Strength = new Vector3(0, 1, 0),
                 Direction = new Vector3(0.0f, -0.707f, -0.707f)
             };
         }
 
-        private RgbaColor _color = new RgbaColor(1, 0, 0, 1);
         private RootSignature _rootSig = null!;
-        private PipelineStateObject _drawPso = null!;
+        private PipelineStateObject _texPso = null!;
+        //private PipelineStateObject _colorPso = null!;
 
         private Matrix4x4 _perFrameRotation = Matrix4x4.CreateRotationY(10f)/* * Matrix4x4.CreateRotationX(0.001f)*/;
         //private int _totalCount = 0;
@@ -264,25 +267,26 @@ namespace Voltium.Interactive
                 scale = 1;
             }
 
-            _objectConstants.World *= Matrix4x4.CreateScale(scale);
-
-            Console.WriteLine(timer.ElapsedSeconds);
+            //_objectConstants.World *= Matrix4x4.CreateScale(scale);
 
             // rotate a small amount each frame
-            _objectConstants.World *= Matrix4x4.CreateRotationY(0.5f * (float)timer.ElapsedSeconds);
+            //
 
-            _obj.WriteData(ref _objectConstants, 0);
-            _frame.WriteData(ref _frameConstants, 0);
-            _light.WriteData(ref _sceneLight, 0);
+            for (var i = 0u; i < _objectConstants.Length; i++)
+            {
+                _objectConstants[i].World *= Matrix4x4.CreateRotationY(0.5f * (float)timer.ElapsedSeconds);
+                _obj.WriteConstantBufferData(ref _objectConstants[i], i);
+            }
+
+            _frame.WriteConstantBufferData(ref _frameConstants, 0);
+            _light.WriteConstantBufferData(ref _sceneLight, 0);
 
             _zoomDelta = 0;
-
-            //_color = ChangeHue(_color);
         }
 
         public override PipelineStateObject GetInitialPso()
         {
-            return _drawPso;
+            return _texPso;
         }
 
         public override void Render(GraphicsContext recorder)
@@ -291,32 +295,52 @@ namespace Voltium.Interactive
             var renderTargetView = _device.RenderTargetView;
             var depthStencilView = _device.DepthStencilView;
 
-            recorder.SetGraphicsRootSignature(_rootSig);
-
             recorder.ResourceTransition(renderTarget, ResourceState.RenderTarget);
-            recorder.ResourceTransition(_texture, ResourceState.PixelShaderResource);
 
-            recorder.SetDescriptorHeaps(_textures);
-
-            recorder.SetRenderTarget(renderTargetView.CpuHandle, 1, depthStencilView.CpuHandle);
-
-            recorder.ClearRenderTarget(renderTargetView, RgbaColor.Blue);
+            recorder.SetRenderTarget(renderTargetView, depthStencilView);
+            recorder.ClearRenderTarget(renderTargetView, RgbaColor.CornflowerBlue);
             recorder.ClearDepth(depthStencilView);
 
-            recorder.SetVertexBuffers<Vertex>(_vertexBuffer);
-            recorder.SetIndexBuffer<ushort>(_indexBuffer);
-
-            recorder.SetGraphicsConstantBufferDescriptor(0, _obj);
-            recorder.SetGraphicsConstantBufferDescriptor(1, _frame);
-            recorder.SetGraphicsConstantBufferDescriptor(2, _light);
-            recorder.SetGraphicsRootDescriptorTable(3, _textures.FirstDescriptor);
+            recorder.SetGraphicsRootSignature(_rootSig);
+            recorder.SetGraphicsConstantBuffer(1, _frame);
+            recorder.SetGraphicsConstantBuffer(2, _light);
+            recorder.SetGraphicsRootDescriptorTable(3, _texHandle);
 
             recorder.SetTopology(Topology.TriangeList);
-            recorder.DrawIndexed((uint)_object.Indices.Length);
+
+            RenderObjects<TexturedVertex, ushort>(recorder);
 
             recorder.ResourceTransition(renderTarget, ResourceState.Present);
         }
 
+        private void RenderObjects<TVertex, TIndex>(GraphicsContext recorder)
+            where TVertex : unmanaged
+            where TIndex : unmanaged
+        {
+            for (var i = 0u; i < _texturedObjects.Length; i++)
+            {
+                recorder.SetGraphicsConstantBuffer<ObjectConstants>(0, _obj, i);
+                recorder.SetVertexBuffers<TVertex>(_vertexBuffer[i]);
+                recorder.SetIndexBuffer<TIndex>(_indexBuffer[i]);
+
+                recorder.DrawIndexed(_texturedObjects[i].Indices.Length);
+            }
+        }
+
+        public override void Destroy()
+        {
+            _rootSig.Dispose();
+            _device.Dispose();
+        }
+
+        public override void OnMouseScroll(int scroll)
+        {
+            _zoomDelta = scroll;
+        }
+    }
+}
+
+/*
         private void SetHueDegrees(float radians)
         {
             var cosA = MathF.Cos(radians);
@@ -359,17 +383,4 @@ namespace Voltium.Interactive
             var fb0 = (r0 * HueMatrix[2, 0]) + (g0 * HueMatrix[2, 1]) + (b0 * HueMatrix[2, 2]);
 
             return new RgbaColor(Clamp(fr0) / 255f, Clamp(fg0) / 255f, Clamp(fb0) / 255f, 1);
-        }
-
-        public override void Destroy()
-        {
-            _rootSig.Dispose();
-            _device.Dispose();
-        }
-
-        public override void OnMouseScroll(int scroll)
-        {
-            _zoomDelta = scroll;
-        }
-    }
-}
+        }*/

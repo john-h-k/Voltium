@@ -10,8 +10,15 @@ namespace Voltium.Core.GpuResources
     /// <summary>
     /// Represents a GPU resource
     /// </summary>
-    internal unsafe class GpuResource : CriticalFinalizerObject, IDisposable
+    internal unsafe class GpuResource : CriticalFinalizerObject, IDisposable, INameable
     {
+        public string Name
+        {
+            set => DirectXHelpers.SetObjectName(this, value);
+        }
+
+        ID3D12Object* INameable.GetNameable() => (ID3D12Object*)UnderlyingResource;
+
         internal GpuResource(
             ComPtr<ID3D12Resource> resource,
             InternalAllocDesc desc,
@@ -124,7 +131,6 @@ namespace Voltium.Core.GpuResources
         ~GpuResource()
         {
             Guard.MarkDisposableFinalizerEntered();
-            ThrowHelper.NeverReached();
         }
 #endif
     }

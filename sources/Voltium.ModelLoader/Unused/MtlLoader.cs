@@ -3,7 +3,7 @@ using System.Buffers;
 using System.Collections.Generic;
 using Voltium.Common;
 
-namespace Voltium.ModelLoader
+namespace Voltium.ModelLoading
 {
     //internal sealed class MtlLoader
     //{

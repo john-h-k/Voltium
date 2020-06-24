@@ -11,7 +11,7 @@ namespace Voltium.TextureLoading.DDS
 {
     internal static class DDSImplementationFunctions
     {
-        public static TextureDescription CreateTextureFromDds12(
+        public static LoadedTexture CreateTextureFromDds12(
             DDSFileMetadata metadata,
             uint maxsize,
             LoaderFlags loaderFlags)
@@ -75,13 +75,19 @@ namespace Voltium.TextureLoading.DDS
                 //mipCount = Math.Min(Windows.D3D12_REQ_MIP_LEVELS, CountMips(width, height));
             }
 
-            return new TextureDescription(
+            var desc = new TextureDesc
+            {
+                Width = texSize.Width,
+                Height = texSize.Height,
+                DepthOrArraySize = (ushort)Math.Max(texSize.Depth, arraySize), // is this right?
+                Format = (DataFormat)format,
+                Dimension = (TextureDimension)resDim
+            };
+
+            return new LoadedTexture(
                 metadata.BitData,
-                (TextureDimension)resDim,
-                texSize,
+                desc,
                 mipCount - skipMip,
-                arraySize,
-                (DataFormat)format,
                 loaderFlags,
                 isCubeMap,
                 subresourceData,
@@ -237,8 +243,8 @@ namespace Voltium.TextureLoading.DDS
             uint count = 1;
             while (width > 1 || height > 1)
             {
-                width >>= 1;
-                height >>= 1;
+                width /= 2;
+                height /= 2;
                 count++;
             }
 
@@ -294,7 +300,7 @@ namespace Voltium.TextureLoading.DDS
             uint arraySize,
             DXGI_FORMAT format,
             uint maxsize,
-            Memory<byte> bitData,
+            ReadOnlyMemory<byte> bitData,
             out Size3 texSize,
             out uint skipMip
         )

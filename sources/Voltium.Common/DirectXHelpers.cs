@@ -13,20 +13,38 @@ namespace Voltium.Common
         {
             fixed (char* p = name)
             {
-                    // this will assert is is a valid cast in debug anyway
-                    Guard.ThrowIfFailed(ComPtr.UpCast<T, ID3D12Object>(obj).Get()->SetName((ushort*)p));
+                // this will assert is is a valid cast in debug anyway
+                Guard.True(ComPtr.TryQueryInterface(obj, out ID3D12Object* result));
+                Guard.ThrowIfFailed(result->SetName((ushort*)p));
+                result->Release();
             }
         }
 
+        [Conditional("DEBUG")]
+        [Conditional("EXTENDED_ERROR_INFORMATION")]
+        public static unsafe void SetObjectName<T>(T obj, [CallerArgumentExpression("obj")] string name) where T : INameable
+            => SetObjectName(obj.GetNameable(), name);
+
         public static unsafe string GetObjectName<T>(T* obj) where T : unmanaged
         {
-            int size = StackSentinel.MaxStackallocBytes;
+            uint size = StackSentinel.MaxStackallocBytes;
 
-            byte* buff = stackalloc byte[size];
+            byte* buff = stackalloc byte[(int)size];
 
             var guid = Windows.WKPDID_D3DDebugObjectNameW;
 
-            return new ReadOnlySpan<char>(buff, Math.Max(0, (size / sizeof(char)) - 1) /* remove null char */).ToString();
+            if (!ComPtr.TryQueryInterface(obj, out ID3D12Object* result))
+            {
+                return "Not ID3D12Object";
+            }
+
+            _ = result->GetPrivateData(&guid, &size, buff);
+            result->Release();
+
+            return new ReadOnlySpan<char>(buff, Math.Max(0, ((int)size / sizeof(char)) - 1) /* remove null char */).ToString();
         }
+
+        public static unsafe string GetObjectName<T>(T obj) where T : INameable
+            => GetObjectName(obj.GetNameable());
     }
 }

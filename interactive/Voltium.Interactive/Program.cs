@@ -1,16 +1,17 @@
 using System;
 using System.Diagnostics;
-using TerraFX.Interop;
+using Voltium.Core;
+using TerraFX;
 
 namespace Voltium.Interactive
 {
     internal static class Program
     {
-        private static unsafe void Main(string[] args)
+        private static int Main(string[] args)
         {
             Debug.WriteLine("Executing...");
             var application = new DirectXHelloWorldApplication();
-            Win32Application.Run(application, Windows.GetModuleHandleW(null), Windows.SW_SHOWDEFAULT);
+            return Win32Application.Run(application);
         }
     }
 }

@@ -1,4 +1,3 @@
-using TerraFX.Interop;
 using Voltium.Core.Configuration.Graphics;
 
 namespace Voltium.Core.Managers
@@ -26,32 +25,12 @@ namespace Voltium.Core.Managers
         /// <summary>
         /// The minimum feature level required for execution of the app
         /// </summary>
-        public D3D_FEATURE_LEVEL RequiredDirect3DLevel { get; set;  } = D3D_FEATURE_LEVEL.D3D_FEATURE_LEVEL_11_1;
+        public FeatureLevel RequiredFeatureLevel { get; set;  }
 
         /// <summary>
         /// The description of the multisampling state
         /// </summary>
         public MsaaDesc MultiSamplingStrategy { get; set;  }
-
-        /// <summary>
-        /// The scaling mode used
-        /// </summary>
-        public DXGI_SCALING ScalingStrategy { get; set;  }
-
-        /// <summary>
-        /// The scaling mode used in fullscreen
-        /// </summary>
-        public DXGI_MODE_SCALING FullscreenScalingStrategy { get; set;  }
-
-        /// <summary>
-        /// The swap effect used in the swapchain
-        /// </summary>
-        public DXGI_SWAP_EFFECT SwapEffect { get; set;  }
-
-        /// <summary>
-        /// The scan-line ordering used
-        /// </summary>
-        public DXGI_MODE_SCANLINE_ORDER ScanlineOrdering { get; set;  }
 
         /// <summary>
         /// Whether to force the fullscreen app to be windowed

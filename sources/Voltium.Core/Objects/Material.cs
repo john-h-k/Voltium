@@ -36,7 +36,7 @@ namespace Voltium.Core.Objects
 
         /// <inheritdoc/>
         public unsafe override int GetHashCode()
-            => ArbitraryHash.HashBytes(ref Unsafe.As<Material, byte>(ref this), (nuint)sizeof(Material));
+            => ArbitraryHash.HashBytes(ref Unsafe.As<Material, byte>(ref this), sizeof(Material));
 
         /// <inheritdoc/>
         public bool Equals(Material other)

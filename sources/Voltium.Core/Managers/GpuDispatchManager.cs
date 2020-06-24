@@ -95,11 +95,11 @@ namespace Voltium.Core.Managers
             _ => "Unknown"
         };
 
-        public FenceMarker End(GraphicsContext graphicsCommands)
+        public FenceMarker End(GpuContext graphicsCommands)
         {
             using (_listAccessLock.EnterScoped())
             {
-                InternalEndNoSync(graphicsCommands.Move());
+                InternalEndNoSync(graphicsCommands);
             }
 
             return _graphics.GetFenceForNextExecution();
@@ -146,7 +146,7 @@ namespace Voltium.Core.Managers
         /// Submit a set of recorded commands to the queue
         /// </summary>
         /// <param name="commands">The commands to submit for execution</param>
-        public FenceMarker End(ReadOnlySpan<GraphicsContext> commands)
+        public FenceMarker End(ReadOnlySpan<GpuContext> commands)
         {
             using (_listAccessLock.EnterScoped())
             {
@@ -154,17 +154,17 @@ namespace Voltium.Core.Managers
                 _graphicsLists.Capacity += commands.Length;
                 for (int i = 0; i < commands.Length; i++)
                 {
-                    InternalEndNoSync(commands[i].Move());
+                    InternalEndNoSync(commands[i]);
                 }
             }
 
             return _graphics.GetFenceForNextExecution();
         }
 
-        private unsafe void InternalEndNoSync(GraphicsContext graphicsCommands)
+        private unsafe void InternalEndNoSync(GpuContext graphicsCommands)
         {
-            var list = graphicsCommands.GetAndReleaseList();
-            var allocator = graphicsCommands.GetAndReleaseAllocator();
+            var list = graphicsCommands.List.Move();
+            var allocator = graphicsCommands.Allocator.Move();
 
             Guard.ThrowIfFailed(list.Get()->Close());
 
@@ -210,8 +210,9 @@ namespace Voltium.Core.Managers
             using var allocator = _graphics.RentAllocator();
             using var list = _listPool.Rent(ExecutionContext.Graphics, allocator.Get(), defaultPso is null ? null : defaultPso.GetPso());
 
-            using var ctx = new GraphicsContext(list.Move(), allocator.Move());
-            return ctx.Move();
+            throw new NotImplementedException();
+            //using var ctx = new GraphicsContext(list.Move(), allocator.Move());
+            //return ctx.Move();
         }
 
         //public unsafe void PrepareForRender()

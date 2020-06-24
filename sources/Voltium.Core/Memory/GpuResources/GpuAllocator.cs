@@ -124,11 +124,17 @@ namespace Voltium.Core.GpuResources
         /// Allocates a buffer
         /// </summary>
         /// <param name="desc">The <see cref="BufferDesc"/> describing the buffer</param>
+        /// <param name="memoryKind">The <see cref="MemoryAccess"/> to allocate the buffer in</param>
+        /// <param name="initialResourceState">The initial state of the resource</param>
+        /// <param name="allocFlags">Any additional allocation flags</param>
         /// <returns>A new <see cref="Buffer"/></returns>
         public Buffer AllocateBuffer(
-            in BufferDesc desc
+            in BufferDesc desc,
+            MemoryAccess memoryKind,
+            ResourceState initialResourceState,
+            AllocFlags allocFlags = AllocFlags.None
         )
-            => AllocateBuffer(desc.Length, desc.MemoryKind, desc.InitialResourceState, desc.ResourceFlags, desc.AllocFlags);
+            => AllocateBuffer(desc.Length, memoryKind, initialResourceState, desc.ResourceFlags, allocFlags);
 
         /// <summary>
         /// Allocates a buffer
@@ -142,11 +148,16 @@ namespace Voltium.Core.GpuResources
         public Buffer AllocateBuffer(
             long length,
             MemoryAccess memoryKind,
-            ResourceState initialResourceState,
+            ResourceState initialResourceState = ResourceState.Common,
             ResourceFlags resourceFlags = ResourceFlags.None,
             AllocFlags allocFlags = AllocFlags.None
         )
         {
+            if (memoryKind == MemoryAccess.CpuUpload)
+            {
+                initialResourceState = ResourceState.GenericRead;
+            }
+
             var desc = new D3D12_RESOURCE_DESC
             {
                 Width = (ulong)length,
@@ -169,71 +180,17 @@ namespace Voltium.Core.GpuResources
 
             return new Buffer((ulong)length, Allocate(resource));
         }
-
-        //public Texture AllocateTexture1D(
-        //    DataFormat format,
-        //    ushort width,
-        //    MemoryAccess memoryKind,
-        //    ResourceState initialResourceState,
-        //    ResourceFlags flags = ResourceFlags.None,
-        //    AllocFlags allocFlags = AllocFlags.None
-        //)
-        //    => AllocateTexture(format, TextureDimension.Tex1D, width, 1, 1, memoryKind, initialResourceState, flags);
-
-        //public Texture AllocateTexture2D(
-        //    DataFormat format,
-        //    ulong width,
-        //    uint height,
-        //    MemoryAccess memoryKind,
-        //    ResourceState initialResourceState,
-        //    ResourceFlags flags = ResourceFlags.None,
-        //    AllocFlags allocFlags = AllocFlags.None
-        //)
-        //    => AllocateTexture(format, TextureDimension.Tex2D, width, height, 1, memoryKind, initialResourceState, flags);
-
-        //public Texture AllocateTexture3D(
-        //    DataFormat format,
-        //    ulong width,
-        //    uint height,
-        //    ushort depth,
-        //    MemoryAccess memoryKind,
-        //    ResourceState initialResourceState,
-        //    ResourceFlags flags = ResourceFlags.None,
-        //    AllocFlags allocFlags = AllocFlags.None
-        //)
-        //    => AllocateTexture(format, TextureDimension.Tex3D, width, height, depth, memoryKind, initialResourceState, flags);
-
-        //public Texture AllocateTextureArray1D(
-        //    DataFormat format,
-        //    ulong width,
-        //    ushort arraySize,
-        //    MemoryAccess memoryKind,
-        //    ResourceState initialResourceState,
-        //    ResourceFlags flags = ResourceFlags.None,
-        //    AllocFlags allocFlags = AllocFlags.None
-        //)
-        //    => AllocateTexture(format, TextureDimension.Tex1D, width, 1, arraySize, memoryKind, initialResourceState, flags);
-
-        //public Texture AllocateTextureArray2D(
-        //    DataFormat format,
-        //    ulong width,
-        //    uint height,
-        //    ushort arraySize,
-        //    MemoryAccess memoryKind,
-        //    ResourceState initialResourceState,
-        //    ResourceFlags flags = ResourceFlags.None,
-        //    AllocFlags allocFlags = AllocFlags.None
-        //)
-        //    => AllocateTexture(format, TextureDimension.Tex2D, width, height, arraySize, memoryKind, initialResourceState, flags);
-
-
         /// <summary>
         /// Allocates a texture
         /// </summary>
         /// <param name="desc">The <see cref="TextureDesc"/> describing the texture</param>
+        /// <param name="initialResourceState">The state of the resource when it is allocated</param>
+        /// <param name="allocFlags">Any additional allocation flags</param>
         /// <returns>A new <see cref="Texture"/></returns>
         public Texture AllocateTexture(
-            in TextureDesc desc
+            in TextureDesc desc,
+            ResourceState initialResourceState,
+            AllocFlags allocFlags = AllocFlags.None
         )
         {
             var resDesc = new D3D12_RESOURCE_DESC
@@ -266,9 +223,9 @@ namespace Voltium.Core.GpuResources
             {
                 Desc = resDesc,
                 ClearValue = desc.ClearValue is null ? (D3D12_CLEAR_VALUE?)null : clearVal,
-                InitialState = (D3D12_RESOURCE_STATES)desc.InitialResourceState,
-                AllocFlags = desc.AllocFlags,
-                HeapType = (D3D12_HEAP_TYPE)desc.MemoryKind
+                InitialState = (D3D12_RESOURCE_STATES)initialResourceState,
+                AllocFlags = allocFlags,
+                HeapType = D3D12_HEAP_TYPE.D3D12_HEAP_TYPE_DEFAULT
             };
 
             return new Texture(desc, Allocate(resource));
@@ -288,13 +245,12 @@ namespace Voltium.Core.GpuResources
         {
             VerifyDesc(desc);
 
-            var info = _device.GetAllocationInfo(desc);
-
             if (desc.AllocFlags.HasFlag(AllocFlags.ForceAllocateComitted))
             {
-                return AllocateCommitted(desc, info);
+                return AllocateCommitted(desc);
             }
 
+            var info = _device.GetAllocationInfo(desc);
             return AllocatePlacedFromHeap(desc, info);
         }
 
@@ -455,7 +411,7 @@ namespace Voltium.Core.GpuResources
         private static uint CalculateConstantBufferSize(int size)
             => (uint)((size + 255) & ~255);
 
-        private GpuResource AllocateCommitted(InternalAllocDesc desc, D3D12_RESOURCE_ALLOCATION_INFO allocInfo)
+        private GpuResource AllocateCommitted(InternalAllocDesc desc)
         {
             var resource = _device.CreateComittedResource(desc);
 
@@ -604,24 +560,9 @@ namespace Voltium.Core.GpuResources
         public long Length;
 
         /// <summary>
-        /// The 
-        /// </summary>
-        public MemoryAccess MemoryKind;
-
-        /// <summary>
-        /// The state of the resource when it is allocated. This is ignored for <see cref="MemoryAccess.CpuUpload"/> buffers
-        /// </summary>
-        public ResourceState InitialResourceState;
-
-        /// <summary>
         /// Any addition resource flags
         /// </summary>
         public ResourceFlags ResourceFlags;
-
-        /// <summary>
-        /// Any additional allocation flags
-        /// </summary>
-        public AllocFlags AllocFlags;
     }
 
     /// <summary>
@@ -661,23 +602,8 @@ namespace Voltium.Core.GpuResources
         public TextureClearValue? ClearValue;
 
         /// <summary>
-        /// The 
-        /// </summary>
-        public MemoryAccess MemoryKind;
-
-        /// <summary>
-        /// The state of the resource when it is allocated. This is ignored for <see cref="MemoryAccess.CpuUpload"/> buffers
-        /// </summary>
-        public ResourceState InitialResourceState;
-
-        /// <summary>
         /// Any addition resource flags
         /// </summary>
         public ResourceFlags ResourceFlags;
-
-        /// <summary>
-        /// Any additional allocation flags
-        /// </summary>
-        public AllocFlags AllocFlags;
     }
 }

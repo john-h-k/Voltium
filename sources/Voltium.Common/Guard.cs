@@ -171,7 +171,7 @@ namespace Voltium.Common
 #if DEBUG || EXTENDED_ERROR_INFORMATION
                         Format(message, expression, memberName, lineNumber, filepath)
 #else
-                    message
+                        message
 #endif
                     );
                 }
@@ -191,7 +191,7 @@ namespace Voltium.Common
                 filepath!, memberName!, lineNumber
             );
 
-#if !DISPOSABLES_ALLOW_FINALIZE
+#if DISPOSABLES_ALLOW_FINALIZE
             Debug.Fail("OBJECT NOT DISPOSED ERROR - see logs");
 #endif
         }

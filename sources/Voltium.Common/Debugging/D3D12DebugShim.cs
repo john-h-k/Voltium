@@ -37,7 +37,8 @@ namespace Voltium.Common
             _infoQueue = infoQueue.Move();
 
             // we deny retrieving anything that isn't an error/warning/corruption
-            var deniedSeverities = stackalloc D3D12_MESSAGE_SEVERITY[2]
+            const int count = 2;
+            var deniedSeverities = stackalloc D3D12_MESSAGE_SEVERITY[count]
             {
                 D3D12_MESSAGE_SEVERITY.D3D12_MESSAGE_SEVERITY_INFO,
                 D3D12_MESSAGE_SEVERITY.D3D12_MESSAGE_SEVERITY_MESSAGE
@@ -45,7 +46,7 @@ namespace Voltium.Common
 
             var filter = new D3D12_INFO_QUEUE_FILTER
             {
-                DenyList = new D3D12_INFO_QUEUE_FILTER_DESC {NumSeverities = 2, pSeverityList = deniedSeverities}
+                DenyList = new D3D12_INFO_QUEUE_FILTER_DESC {NumSeverities = count, pSeverityList = deniedSeverities}
             };
 
             Guard.ThrowIfFailed(_infoQueue.Get()->AddRetrievalFilterEntries(&filter));
@@ -124,6 +125,6 @@ namespace Voltium.Common
             }
         }
 
-        public static void Destroy() => _infoQueue.Dispose();
+        public static void Dispose() => _infoQueue.Dispose();
     }
 }

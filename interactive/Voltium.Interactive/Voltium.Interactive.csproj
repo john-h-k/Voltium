@@ -31,13 +31,6 @@
     <None Include="Assets\cube.obj" />
     <None Include="Assets\logo.mtl" />
     <None Include="Assets\logo.obj" />
-    <None Include="Shaders\dxc.exe" />
-    <None Include="Shaders\dxcompiler.dll" />
-    <None Include="Shaders\dxil.dll" />
-    <None Include="Shaders\Lighting.hlsli" />
-    <None Include="Shaders\PixelFrag.hlsli" />
-    <None Include="Shaders\SimplePixelShader.hlsl" />
-    <None Include="Shaders\SimpleVertexShader.hlsl" />
   </ItemGroup>
 
   <ItemGroup>

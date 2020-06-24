@@ -17,22 +17,19 @@ namespace Voltium.Core
         /// <summary>
         /// Creates a new <see cref="RootSignature"/> from a <see cref="CompiledShader"/>
         /// </summary>
-        /// <param name="device">The <see cref="ID3D12Device"/> used to create the root signature</param>
+        /// <param name="device">The <see cref="GraphicsDevice"/> used to create the root signature</param>
         /// <param name="rootSignatureShader"></param>
         /// <param name="deserialize"></param>
         /// <returns>A new <see cref="RootSignature"/></returns>
-        public static RootSignature Create(ID3D12Device* device, CompiledShader rootSignatureShader, bool deserialize = false)
+        public static RootSignature Create(GraphicsDevice device, CompiledShader rootSignatureShader, bool deserialize = false)
         {
             fixed (byte* pSignature = rootSignatureShader)
             {
-                using ComPtr<ID3D12RootSignature> rootSig = default;
-                Guard.ThrowIfFailed(device->CreateRootSignature(
+                using ComPtr<ID3D12RootSignature> rootSig = device.CreateRootSignature(
                     0 /* TODO: MULTI-GPU */,
                     pSignature,
-                    (uint)rootSignatureShader.Length,
-                    rootSig.Guid,
-                    ComPtr.GetVoidAddressOf(&rootSig)
-                ));
+                    (uint)rootSignatureShader.Length
+                );
 
                 if (deserialize)
                 {
@@ -47,11 +44,11 @@ namespace Voltium.Core
         /// <summary>
         /// Creates a new <see cref="RootSignature"/>
         /// </summary>
-        /// <param name="device">The <see cref="ID3D12Device"/> used to create the root signature</param>
+        /// <param name="device">The <see cref="GraphicsDevice"/> used to create the root signature</param>
         /// <param name="rootParameters">The <see cref="RootParameter"/>s in the signature</param>
         /// <param name="staticSamplers">The <see cref="StaticSampler"/>s in the signature</param>
         /// <returns>A new <see cref="RootSignature"/></returns>
-        public static RootSignature Create(ID3D12Device* device, ReadOnlyMemory<RootParameter> rootParameters, ReadOnlyMemory<StaticSampler> staticSamplers)
+        public static RootSignature Create(GraphicsDevice device, ReadOnlyMemory<RootParameter> rootParameters, ReadOnlyMemory<StaticSampler> staticSamplers)
         {
             using var rootParams = RentedArray<D3D12_ROOT_PARAMETER>.Create(rootParameters.Length);
             using var samplers = RentedArray<D3D12_STATIC_SAMPLER_DESC>.Create(staticSamplers.Length);
@@ -91,14 +88,11 @@ namespace Voltium.Core
                     ThrowHelper.ErrorWithBlob(hr, pError);
                 }
 
-                using ComPtr<ID3D12RootSignature> rootSig = default;
-                Guard.ThrowIfFailed(device->CreateRootSignature(
+                using ComPtr<ID3D12RootSignature> rootSig = device.CreateRootSignature(
                     0 /* TODO: MULTI-GPU */,
                     pBlob->GetBufferPointer(),
-                    pBlob->GetBufferSize(),
-                    rootSig.Guid,
-                    ComPtr.GetVoidAddressOf(&rootSig)
-                ));
+                    (uint)pBlob->GetBufferSize()
+                );
 
                 return new RootSignature(rootSig.Move(), rootParameters, staticSamplers);
             }

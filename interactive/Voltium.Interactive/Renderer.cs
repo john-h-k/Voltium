@@ -1,6 +1,4 @@
 using System;
-using TerraFX.Interop;
-using Voltium.Common;
 using Voltium.Core;
 using Voltium.Core.D3D12;
 using Voltium.Core.Managers;

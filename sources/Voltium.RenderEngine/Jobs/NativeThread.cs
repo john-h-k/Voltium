@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Runtime.InteropServices;
 using Voltium.Common;
 using static TerraFX.Interop.Windows;

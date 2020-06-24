@@ -57,7 +57,7 @@ namespace Voltium.Analyzers
 
         private static IEnumerable<(string Name, ITypeSymbol Symbol)> GetLayout(ITypeSymbol type, Compilation comp)
             => type.GetMembers()
-                    .Where(member => !member.IsStatic && member.Kind == SymbolKind.Field && !((IFieldSymbol)member).HasAttribute(ShaderIgnoreAttributeName, comp))
+                    .Where(member => !member.IsStatic && member.Kind == SymbolKind.Field)
                     .Select(field => (field.Name, ((IFieldSymbol)field).Type));
 
         private static INamedTypeSymbol GetSymbolForType<T>(Compilation comp) => comp.GetTypeByMetadataName(typeof(T).FullName!) ?? throw new ArgumentException("Invalid type");

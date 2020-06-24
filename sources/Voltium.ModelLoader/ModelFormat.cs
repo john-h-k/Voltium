@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Voltium.ModelLoader
+namespace Voltium.ModelLoading
 {
     /// <summary>
     /// The format that a model can be

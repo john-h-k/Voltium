@@ -10,6 +10,8 @@ namespace Voltium.Common.HashHelper
 {
     internal unsafe static class ArbitraryHash
     {
+        public static int HashBytes(ref byte first, nint length)
+            => HashBytes(ref first, (nuint)length);
         public static int HashBytes(ref byte first, nuint length)
         {
             fixed (byte* p = &first)
@@ -37,7 +39,6 @@ namespace Voltium.Common.HashHelper
                 value = Hash(value, *first++);
                 length--;
             }
-
 
             ulong* pLong = (ulong*)first;
             byte* last = first + length;
