@@ -16,6 +16,7 @@ using Voltium.Core.Memory.GpuResources;
 using Voltium.Core.D3D12;
 using Buffer = Voltium.Core.Memory.GpuResources.Buffer;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace Voltium.Core.Managers
 {
@@ -136,26 +137,26 @@ namespace Voltium.Core.Managers
         private void InitializeDescriptorSizes()
         {
             ConstantBufferOrShaderResourceOrUnorderedAccessViewDescriptorSize =
-                (int)Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+                (int)DevicePointer->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
             RenderTargetViewDescriptorSize =
-                (int)Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+                (int)DevicePointer->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
             DepthStencilViewDescriptorSize =
-                (int)Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+                (int)DevicePointer->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
 
-            SamplerDescriptorSize = (int)Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+            SamplerDescriptorSize = (int)DevicePointer->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
         }
 
         /// <summary>
         /// Gets the <see cref="ID3D12Device"/> used by this application
         /// </summary>
-        public ID3D12Device* Device => _device.Get();
+        internal ID3D12Device* DevicePointer => _device.Get();
 
         internal ComPtr<ID3D12Heap> CreateHeap(D3D12_HEAP_DESC desc)
         {
             ComPtr<ID3D12Heap> heap = default;
-            Guard.ThrowIfFailed(Device->CreateHeap(
+            Guard.ThrowIfFailed(DevicePointer->CreateHeap(
                 &desc,
                 heap.Guid,
                 ComPtr.GetVoidAddressOf(&heap)
@@ -167,7 +168,7 @@ namespace Voltium.Core.Managers
         internal ComPtr<ID3D12RootSignature> CreateRootSignature(uint nodeMask, void* pSignature, uint signatureLength)
         {
             using ComPtr<ID3D12RootSignature> rootSig = default;
-            Guard.ThrowIfFailed(Device->CreateRootSignature(
+            Guard.ThrowIfFailed(DevicePointer->CreateRootSignature(
                 nodeMask,
                 pSignature,
                 signatureLength,
@@ -179,7 +180,7 @@ namespace Voltium.Core.Managers
         }
 
         internal D3D12_RESOURCE_ALLOCATION_INFO GetAllocationInfo(InternalAllocDesc desc)
-            => Device->GetResourceAllocationInfo(0, 1, &desc.Desc);
+            => DevicePointer->GetResourceAllocationInfo(0, 1, &desc.Desc);
 
         internal ComPtr<ID3D12Resource> CreatePlacedResource(ID3D12Heap* heap, ulong offset, InternalAllocDesc desc)
         {
@@ -187,7 +188,7 @@ namespace Voltium.Core.Managers
 
             using ComPtr<ID3D12Resource> resource = default;
 
-            Guard.ThrowIfFailed(Device->CreatePlacedResource(
+            Guard.ThrowIfFailed(DevicePointer->CreatePlacedResource(
                  heap,
                  offset,
                  &desc.Desc,
@@ -207,7 +208,7 @@ namespace Voltium.Core.Managers
 
             using ComPtr<ID3D12Resource> resource = default;
 
-            Guard.ThrowIfFailed(Device->CreateCommittedResource(
+            Guard.ThrowIfFailed(DevicePointer->CreateCommittedResource(
                  &heapProperties,
                  D3D12_HEAP_FLAGS.D3D12_HEAP_FLAG_NONE,
                  &desc.Desc,
@@ -233,9 +234,23 @@ namespace Voltium.Core.Managers
         private void CreateDescriptorHeaps()
         {
             _rtvs = DescriptorHeap.CreateRenderTargetViewHeap(this, _config.SwapChainBufferCount * 5);
-            _dsvs = DescriptorHeap.CreateDepthStencilViewHeap(this, 5);
+            _dsvs = DescriptorHeap.CreateDepthStencilViewHeap(this, 50);
             _samplers = DescriptorHeap.CreateSamplerHeap(this, 1);
-            _cbvSrvUav = DescriptorHeap.CreateConstantBufferShaderResourceUnorderedAccessViewHeap(this, 1);
+            _cbvSrvUav = DescriptorHeap.CreateConstantBufferShaderResourceUnorderedAccessViewHeap(this, 10);
+        }
+
+
+        /// <summary>
+        /// Creates a shader resource view to a <see cref="Texture"/>
+        /// </summary>
+        /// <param name="resource">The <see cref="Texture"/> resource to create the view for</param>
+        public DescriptorHandle CreateShaderResourceView(Texture resource)
+        {
+            var handle = _cbvSrvUav.GetNextHandle();
+
+            DevicePointer->CreateShaderResourceView(resource.Resource.UnderlyingResource, null, handle.CpuHandle);
+
+            return handle;
         }
 
         /// <summary>
@@ -281,7 +296,7 @@ namespace Voltium.Core.Managers
 
             var handle = _cbvSrvUav.GetNextHandle();
 
-            CreateShaderResourceView(resource.Resource.UnderlyingResource, &srvDesc, handle.CpuHandle);
+            DevicePointer->CreateShaderResourceView(resource.Resource.UnderlyingResource, &srvDesc, handle.CpuHandle);
 
             return handle;
         }
@@ -289,40 +304,168 @@ namespace Voltium.Core.Managers
         /// <summary>
         /// Creates a shader resource view to a <see cref="Buffer"/>
         /// </summary>
-        /// <param name="index">The index in this <see cref="DescriptorHeap"/> to create the view at</param>
         /// <param name="resource">The <see cref="Buffer"/> resource to create the view for</param>
         /// <param name="desc">The <see cref="BufferShaderResourceViewDesc"/> describing the metadata used to create the view</param>
-        public void CreateShaderResourceView(uint index, Buffer resource, in BufferShaderResourceViewDesc desc)
+        public DescriptorHandle CreateShaderResourceView(Buffer resource, in BufferShaderResourceViewDesc desc)
         {
             Unsafe.SkipInit(out D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc);
             srvDesc.Format = (DXGI_FORMAT)desc.Format;
             srvDesc.ViewDimension = D3D12_SRV_DIMENSION.D3D12_SRV_DIMENSION_BUFFER;
-            srvDesc.Shader4ComponentMapping = Windows.D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING; // TODO
+            srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING; // TODO
             srvDesc.Anonymous.Buffer.FirstElement = desc.Offset;
             srvDesc.Anonymous.Buffer.Flags = desc.Raw ? D3D12_BUFFER_SRV_FLAGS.D3D12_BUFFER_SRV_FLAG_RAW : D3D12_BUFFER_SRV_FLAGS.D3D12_BUFFER_SRV_FLAG_NONE;
             srvDesc.Anonymous.Buffer.NumElements = desc.ElementCount;
             srvDesc.Anonymous.Buffer.StructureByteStride = desc.ElementStride;
 
-            CreateShaderResourceView(resource.Resource.UnderlyingResource, &srvDesc, _cbvSrvUav.GetNextHandle().CpuHandle);
+            var handle = _cbvSrvUav.GetNextHandle();
+
+            DevicePointer->CreateShaderResourceView(resource.Resource.UnderlyingResource, &srvDesc, _cbvSrvUav.GetNextHandle().CpuHandle);
+            
+            return handle;
         }
 
-        internal void CreateShaderResourceView(ID3D12Resource* resource, D3D12_SHADER_RESOURCE_VIEW_DESC* desc, D3D12_CPU_DESCRIPTOR_HANDLE handle)
-            => Device->CreateShaderResourceView(resource, desc, handle);
+        /// <summary>
+        /// Creates a shader resource view to a <see cref="Buffer"/>
+        /// </summary>
+        /// <param name="resource">The <see cref="Buffer"/> resource to create the view for</param>
+        public DescriptorHandle CreateShaderResourceView(Buffer resource)
+        {
+            var handle = _cbvSrvUav.GetNextHandle();
 
-        internal void CreateConstantBufferView(D3D12_CONSTANT_BUFFER_VIEW_DESC* desc, D3D12_CPU_DESCRIPTOR_HANDLE handle)
-            => Device->CreateConstantBufferView(desc, handle);
+            DevicePointer->CreateShaderResourceView(resource.Resource.UnderlyingResource, null, handle.CpuHandle);
 
-        internal void CreateUnorderedAccessView(ID3D12Resource* resource, ID3D12Resource* counterResource, D3D12_UNORDERED_ACCESS_VIEW_DESC* desc, D3D12_CPU_DESCRIPTOR_HANDLE handle)
-            => Device->CreateUnorderedAccessView(resource, counterResource, desc, handle);
+            return handle;
+        }
 
-        internal void CreateRenderTargetView(ID3D12Resource* resource, D3D12_RENDER_TARGET_VIEW_DESC* desc, D3D12_CPU_DESCRIPTOR_HANDLE handle)
-            => Device->CreateRenderTargetView(resource, desc, handle);
+        /// <summary>
+        /// Creates a render target view to a <see cref="Texture"/>
+        /// </summary>
+        /// <param name="resource">The <see cref="Texture"/> resource to create the view for</param>
+        /// <param name="desc">The <see cref="TextureShaderResourceViewDesc"/> describing the metadata used to create the view</param>
+        public DescriptorHandle CreateRenderTargetView(Texture resource, in TextureRenderTargetViewDesc desc)
+        {
+            D3D12_RENDER_TARGET_VIEW_DESC rtvDesc;
 
-        internal void CreateDepthStencilView(ID3D12Resource* resource, D3D12_DEPTH_STENCIL_VIEW_DESC* desc, D3D12_CPU_DESCRIPTOR_HANDLE handle)
-            => Device->CreateDepthStencilView(resource, desc, handle);
+            if (desc.IsMultiSampled)
+            {
+                switch (resource.Dimension)
+                {
+                    case TextureDimension.Tex1D:
+                        ThrowHelper.ThrowArgumentException("Cannot multisample 1D render target view");
+                        break;
+                    case TextureDimension.Tex2D:
+                        rtvDesc.ViewDimension = D3D12_RTV_DIMENSION.D3D12_RTV_DIMENSION_TEXTURE2DMS;
+                        break;
+                    case TextureDimension.Tex3D:
+                        ThrowHelper.ThrowArgumentException("Cannot multisample 3D render target view");
+                        break;
+                }
+            }
+            else
+            {
+                switch (resource.Dimension)
+                {
+                    case TextureDimension.Tex1D:
+                        rtvDesc.Anonymous.Texture1D.MipSlice = desc.MipIndex;
+                        rtvDesc.ViewDimension = D3D12_RTV_DIMENSION.D3D12_RTV_DIMENSION_TEXTURE1D;
+                        break;
+                    case TextureDimension.Tex2D:
+                        rtvDesc.Anonymous.Texture2D.MipSlice = desc.MipIndex;
+                        rtvDesc.Anonymous.Texture2D.PlaneSlice = desc.PlaneSlice;
+                        rtvDesc.ViewDimension = D3D12_RTV_DIMENSION.D3D12_RTV_DIMENSION_TEXTURE2D;
+                        break;
+                    case TextureDimension.Tex3D:
+                        rtvDesc.Anonymous.Texture3D.MipSlice = desc.MipIndex;
+                        rtvDesc.ViewDimension = D3D12_RTV_DIMENSION.D3D12_RTV_DIMENSION_TEXTURE3D;
+                        break;
+                }
+            }
 
-        internal void CreateSampler(D3D12_SAMPLER_DESC desc, D3D12_CPU_DESCRIPTOR_HANDLE handle)
-            => Device->CreateSampler(&desc, handle);
+            rtvDesc.Format = (DXGI_FORMAT)desc.Format;
+
+            var handle = _rtvs.GetNextHandle();
+
+            DevicePointer->CreateRenderTargetView(resource.Resource.UnderlyingResource, &rtvDesc, handle.CpuHandle);
+
+            return handle;
+        }
+
+        /// <summary>
+        /// Creates a render target view to a <see cref="Texture"/>
+        /// </summary>
+        /// <param name="resource">The <see cref="Texture"/> resource to create the view for</param>
+        public DescriptorHandle CreateRenderTargetView(Texture resource)
+        {
+            var handle = _rtvs.GetNextHandle();
+
+            DevicePointer->CreateRenderTargetView(resource.Resource.UnderlyingResource, null, handle.CpuHandle);
+
+            return handle;
+        }
+
+        /// <summary>
+        /// Creates a depth stencil view to a <see cref="Texture"/>
+        /// </summary>
+        /// <param name="resource">The <see cref="Texture"/> resource to create the view for</param>
+        /// <param name="desc">The <see cref="TextureShaderResourceViewDesc"/> describing the metadata used to create the view</param>
+        public DescriptorHandle CreateDepthStencilView(Texture resource, in TextureDepthStencilViewDesc desc)
+        {
+            D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
+
+            if (desc.IsMultiSampled)
+            {
+                switch (resource.Dimension)
+                {
+                    case TextureDimension.Tex1D:
+                        ThrowHelper.ThrowArgumentException("Cannot multisample 1D depth stencil view");
+                        break;
+                    case TextureDimension.Tex2D:
+                        dsvDesc.ViewDimension = D3D12_DSV_DIMENSION.D3D12_DSV_DIMENSION_TEXTURE2DMS;
+                        break;
+                    case TextureDimension.Tex3D:
+                        ThrowHelper.ThrowArgumentException("Cannot have 3D depth stencil view");
+                        break;
+                }
+            }
+            else
+            {
+                switch (resource.Dimension)
+                {
+                    case TextureDimension.Tex1D:
+                        dsvDesc.Anonymous.Texture1D.MipSlice = desc.MipIndex;
+                        dsvDesc.ViewDimension = D3D12_DSV_DIMENSION.D3D12_DSV_DIMENSION_TEXTURE1D;
+                        break;
+                    case TextureDimension.Tex2D:
+                        dsvDesc.Anonymous.Texture2D.MipSlice = desc.MipIndex;
+                        dsvDesc.ViewDimension = D3D12_DSV_DIMENSION.D3D12_DSV_DIMENSION_TEXTURE2D;
+                        break;
+                    case TextureDimension.Tex3D:
+                        ThrowHelper.ThrowArgumentException("Cannot have 3D depth stencil view");
+                        break;
+                }
+            }
+
+            dsvDesc.Format = (DXGI_FORMAT)desc.Format;
+
+            var handle = _dsvs.GetNextHandle();
+
+            DevicePointer->CreateDepthStencilView(resource.GetResourcePointer(), &dsvDesc, handle.CpuHandle);
+
+            return handle;
+        }
+
+        /// <summary>
+        /// Creates a depth stencil view to a <see cref="Texture"/>
+        /// </summary>
+        /// <param name="resource">The <see cref="Texture"/> resource to create the view for</param>
+        public DescriptorHandle CreateDepthStencilView(Texture resource)
+        {
+            var handle = _dsvs.GetNextHandle();
+
+            DevicePointer->CreateDepthStencilView(resource.GetResourcePointer(), null, handle.CpuHandle);
+
+            return handle;
+        }
 
         /// <summary>
         /// 
@@ -330,11 +473,21 @@ namespace Voltium.Core.Managers
         /// <returns></returns>
         public CopyContext BeginCopyContext()
         {
-            return BeginGraphicsContext().AsCopyContext();
+            var ctx = BeginGraphicsContext();
+            return ctx.AsCopyContext();
         }
 
-        //public ComputeContext BeginComputeContext(PipelineStateObject? pso = null)
-
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="pso"></param>
+        /// <returns></returns>
+        public ComputeContext BeginComputeContext(PipelineStateObject? pso = null)
+        {
+            Debug.Assert(pso is not GraphicsPso);
+            var ctx = BeginGraphicsContext(pso);
+            return ctx.AsComputeContext();
+        }
 
         /// <summary>
         /// Returns a <see cref="GraphicsContext"/> used for recording graphical commands
@@ -349,8 +502,8 @@ namespace Voltium.Core.Managers
 
                 var iid0 = IID_ID3D12CommandAllocator;
                 var iid1 = IID_ID3D12GraphicsCommandList;
-                Guard.ThrowIfFailed(Device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE.D3D12_COMMAND_LIST_TYPE_DIRECT, &iid0, (void**)&allocator));
-                Guard.ThrowIfFailed(Device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE.D3D12_COMMAND_LIST_TYPE_DIRECT, allocator, pso is null ? null : pso.GetPso(), &iid1, (void**)&list));
+                Guard.ThrowIfFailed(DevicePointer->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE.D3D12_COMMAND_LIST_TYPE_DIRECT, &iid0, (void**)&allocator));
+                Guard.ThrowIfFailed(DevicePointer->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE.D3D12_COMMAND_LIST_TYPE_DIRECT, allocator, pso is null ? null : pso.GetPso(), &iid1, (void**)&list));
 
                 Guard.ThrowIfFailed(list->Close());
 
@@ -360,6 +513,15 @@ namespace Voltium.Core.Managers
 
             Guard.ThrowIfFailed(_allocator->Reset());
             Guard.ThrowIfFailed(_list->Reset(_allocator, pso is null ? null : pso.GetPso()));
+
+            if (pso is ComputePso)
+            {
+                _list->SetComputeRootSignature(pso.GetRootSig());
+            }
+            else if (pso is GraphicsPso)
+            {
+                _list->SetGraphicsRootSignature(pso is null ? null : pso.GetRootSig());
+            }
 
             SetDescriptorHeaps(_list);
 
@@ -377,7 +539,10 @@ namespace Voltium.Core.Managers
             list->SetDescriptorHeaps(numHeaps, heaps);
         }
 
+        [ThreadStatic]
         private ID3D12GraphicsCommandList* _list;
+
+        [ThreadStatic]
         private ID3D12CommandAllocator* _allocator;
 
         /// <summary>
@@ -414,13 +579,13 @@ namespace Voltium.Core.Managers
         /// </summary>
         public Rectangle Scissor;
 
-        private DescriptorHandle _rtv;
+        private DescriptorHandle[] _rtv = null!;
         private DescriptorHandle _dsv;
 
         /// <summary>
         /// The render target view for the current frame
         /// </summary>
-        public DescriptorHandle RenderTargetView => _rtv + (int)BackBufferIndex;
+        public DescriptorHandle RenderTargetView => _rtv[(int)BackBufferIndex];
 
         /// <summary>
         /// The depth stencil view for the current frame
@@ -430,7 +595,7 @@ namespace Voltium.Core.Managers
         /// <summary>
         /// The <see cref="GpuResource"/> for the current render target resource
         /// </summary>
-        public Texture RenderTarget => _renderTargets[BackBufferIndex];
+        public Texture BackBuffer => _renderTargets[BackBufferIndex];
 
         /// <summary>
         /// The <see cref="GpuResource"/> for the current depth stencil resource
@@ -736,32 +901,24 @@ namespace Voltium.Core.Managers
         private void CreateRtvAndDsvViews()
         {
             /* TODO */ //var desc = CreateRenderTargetViewDesc();
-            _rtv = _rtvs.GetNextHandle();
-            _dsv = _dsvs.GetNextHandle();
+            _rtv = new DescriptorHandle[_renderTargets.Length];
 
             for (uint i = 0; i < _renderTargets.Length; i++)
             {
-                var handle = _rtv + i;
-                Device->CreateRenderTargetView(_renderTargets[i].Resource.UnderlyingResource, null /* TODO */, handle.CpuHandle);
+                _rtv[i] = CreateRenderTargetView(_renderTargets[i]);
             }
 
-            var desc = new D3D12_DEPTH_STENCIL_VIEW_DESC
-            {
-                Format = (DXGI_FORMAT)_config.DepthStencilFormat,
-                Flags = D3D12_DSV_FLAGS.D3D12_DSV_FLAG_NONE,
-                ViewDimension = D3D12_DSV_DIMENSION.D3D12_DSV_DIMENSION_TEXTURE2D
-            };
+            //var dsv = new TextureDepthStencilViewDesc
+            //{
+            //    Format = _config.DepthStencilFormat,
+            //    IsMultiSampled = false,
+            //    MipIndex = 0,
+            //    PlaneSlice = 0
+            //};
 
-            Debug.Assert(_depthStencil.Resource.UnderlyingResource != null);
+            //_dsv = CreateDepthStencilView(_depthStencil, dsv);
 
-            Device->CreateDepthStencilView(
-                _depthStencil.Resource.UnderlyingResource,
-                &desc,
-                DepthStencilView.CpuHandle
-            );
-
-
-            SetObjectName(_depthStencil.Resource.UnderlyingResource, nameof(_depthStencil));
+            //SetObjectName(_depthStencil.Resource.UnderlyingResource, nameof(_depthStencil));
         }
 
         private D3D12_RENDER_TARGET_VIEW_DESC CreateRenderTargetViewDesc()

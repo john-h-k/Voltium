@@ -91,7 +91,7 @@ namespace Voltium.Core.Managers
                 desc.InputLayout = new D3D12_INPUT_LAYOUT_DESC { NumElements = (uint)graphicsDesc.Inputs.Length, pInputElementDescs = pDesc };
 
                 using ComPtr<ID3D12PipelineState> pso = default;
-                Guard.ThrowIfFailed(device.Device->CreateGraphicsPipelineState(
+                Guard.ThrowIfFailed(device.DevicePointer->CreateGraphicsPipelineState(
                     &desc,
                     pso.Guid,
                     ComPtr.GetVoidAddressOf(&pso)
@@ -124,7 +124,7 @@ namespace Voltium.Core.Managers
                 };
 
                 using ComPtr<ID3D12PipelineState> pso = default;
-                Guard.ThrowIfFailed(device.Device->CreateComputePipelineState(
+                Guard.ThrowIfFailed(device.DevicePointer->CreateComputePipelineState(
                     &desc,
                     pso.Guid,
                     ComPtr.GetVoidAddressOf(&pso)

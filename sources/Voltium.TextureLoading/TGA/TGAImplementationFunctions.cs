@@ -20,15 +20,17 @@ namespace Voltium.TextureLoading.TGA
 {
     internal static unsafe class TGAImplementationFunctions
     {
-        public static LoadedTexture CreateTgaTexture(Memory<byte> tgaData,
-            LoaderFlags loaderFlags = LoaderFlags.None)
+        public static LoadedTexture CreateTgaTexture(
+            ReadOnlyMemory<byte> tgaData,
+            LoaderFlags loaderFlags = LoaderFlags.None
+        )
         {
             if (tgaData.Length < sizeof(TGAHeader))
             {
                 ThrowHelper.ThrowInvalidDataException("Too small");
             }
 
-            Span<byte> span = tgaData.Span;
+            ReadOnlySpan<byte> span = tgaData.Span;
 
             TGAHeader header = MemoryMarshal.Read<TGAHeader>(span);
 

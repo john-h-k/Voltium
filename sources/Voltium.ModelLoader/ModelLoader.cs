@@ -14,11 +14,13 @@ using SharpGLTF.Schema2;
 using SharpGLTF.Geometry;
 using Voltium.Core.Managers.Shaders;
 using System.Runtime.InteropServices;
-using SharpGLTF.Memory;
 using System.Collections.Generic;
 using Voltium.Core;
 using System;
+using SharpGLTF.Memory;
+using GlMaterial = SharpGLTF.Schema2.Material;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
 
 namespace Voltium.ModelLoading
@@ -27,10 +29,11 @@ namespace Voltium.ModelLoading
     [StructLayout(LayoutKind.Sequential)]
     public partial struct TexturedVertex
     {
-        public TexturedVertex(Vector3 position, Vector3 normal, Vector2 texC)
+        public TexturedVertex(Vector3 position, Vector3 normal, Vector3 tangent, Vector2 texC)
         {
             Position = position;
             Normal = normal;
+            Tangent = tangent;
             TexC = texC;
         }
 
@@ -43,11 +46,15 @@ namespace Voltium.ModelLoading
         {
             Position = new(vertexX, vertexY, vertexZ);
             Normal = new(normalX, normalY, normalZ);
+            Tangent = new(tangentX, tangentY, tangentZ);
             TexC = new(texU, texV);
         }
 
         public Vector3 Position;
         public Vector3 Normal;
+        public Vector3 Tangent;
+
+        [InputLayout(Name = "TexCoord")]
         public Vector2 TexC;
     }
 
@@ -79,18 +86,52 @@ namespace Voltium.ModelLoading
         public Vector4 Color;
     }
 
+    public struct Material
+    {
+        public Vector4 DiffuseAlbedo;
+        public Vector4 ReflectionFactor;
+        public float Shininess;
+    }
+
+    public readonly struct Mesh<TVertex>
+    {
+        public readonly TVertex[] Vertices;
+        public readonly ushort[] Indices;
+        public readonly Material Material;
+        public readonly Matrix4x4 World;
+
+        public Mesh(TVertex[] vertices, ushort[] indices, Material material = default, Matrix4x4 world = default)
+        {
+            if (world == default)
+            {
+                world = Matrix4x4.Identity;
+            }
+
+            Vertices = vertices;
+            Indices = indices;
+            Material = material;
+            World = world;
+        }
+    }
+
     /// <summary>
     /// The type used for loading of 2 and 3D models
     /// </summary>
     public static class ModelLoader
     {
+        private static readonly ObjLoaderFactory _factory = new ObjLoaderFactory();
+        private static readonly IObjLoader _loader = _factory.Create(new MaterialStreamProvider());
+
+        public static void LoadObj(string filename)
+        {
+        }
+
         // TODO improve
-        public static void Load(string filename, out (TexturedVertex[] Vertices, ushort[] Indices, Matrix4x4 World)[] texturedVertices, out (ColorVertex[] Vertices, ushort[] Indices)[] coloredVertices)
+        public static Mesh<TexturedVertex>[] LoadGl(string filename)
         {
             var m = ModelRoot.Load(filename);
             
-            var texturedObjs = new List<(TexturedVertex[] Vertices, ushort[] Indices, Matrix4x4 World)>(m.LogicalMeshes.Count);
-            var coloredObjs = new List<(ColorVertex[] Vertices, ushort[] Indices)>(m.LogicalMeshes.Count);
+            var texturedObjs = new List<Mesh<TexturedVertex>>(m.LogicalMeshes.Count);
 
             //Hemi.001
             //Hemi
@@ -114,10 +155,38 @@ namespace Voltium.ModelLoading
                 var world = node.WorldMatrix;
                 foreach (var mesh in node.Mesh.Primitives)
                 {
+                    var glMat = mesh.Material;
+                    Material mat = default;
+                    float metal = 0;
+
+                    foreach (var channel in glMat.Channels)
+                    {
+                        //BaseColor
+                        //MetallicRoughness
+                        //Normal
+                        //Occlusion
+                        //Emissive
+
+                        switch (channel.Key)
+                        {
+                            case "BaseColor":
+                                mat.DiffuseAlbedo = channel.Parameter;
+                                break;
+                            case "MetallicRoughness":
+                                mat.Shininess = channel.Parameter.Y;
+                                metal = channel.Parameter.Z;
+                                break;
+                        }
+
+                        mat.ReflectionFactor = new Vector4(Vector3.Lerp(new(0.4f), Unsafe.As<Vector4, Vector3>(ref mat.DiffuseAlbedo), metal), 0);
+                        mat.ReflectionFactor.W = mat.ReflectionFactor.X;
+                    }
+
                     var positions = mesh.GetVertexAccessor("POSITION")?.AsVector3Array();
                     var normals = mesh.GetVertexAccessor("NORMAL")?.AsVector3Array();
                     var texCoords = mesh.GetVertexAccessor("TEXCOORD_0")?.AsVector2Array();
                     var colors = mesh.GetVertexAccessor("COLOR")?.AsColorArray();
+                    var tangents = mesh.GetVertexAccessor("TANGENT")?.AsVector4Array();
                     var triangleIndices = mesh.GetTriangleIndices()?.ToArray();
 
                     var indices = triangleIndices?.SelectMany(i => new[] { (ushort)i.A, (ushort)i.B, (ushort)i.C }).ToArray();
@@ -127,16 +196,16 @@ namespace Voltium.ModelLoading
                         var vertices = new TexturedVertex[positions?.Count ?? 0];
                         for (var i = 0; i < vertices.Length; i++)
                         {
-                            vertices![i] = new TexturedVertex(positions![i], normals![i], texCoords![i]);
+                            var tangent = tangents![i];
+                            vertices![i] = new TexturedVertex(positions![i], normals![i], Unsafe.As<Vector4, Vector3>(ref tangent), texCoords![i]);
                         }
 
-                        texturedObjs.Add((vertices, indices!, world));
+                        texturedObjs.Add(new (vertices, indices!, mat, world));
                     }
                 }
             }
 
-            texturedVertices = texturedObjs.ToArray();
-            coloredVertices = coloredObjs.ToArray();
+            return texturedObjs.ToArray();
 
             //foreach (var texture in m.LogicalTextures)
             //{

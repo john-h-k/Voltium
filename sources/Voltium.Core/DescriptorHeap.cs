@@ -77,6 +77,59 @@ namespace Voltium.Core
         public bool IsMultiSampled;
     }
 
+
+    /// <summary>
+    /// Describes the metadata used to create a render target view to a <see cref="Texture"/>
+    /// </summary>
+    public struct TextureRenderTargetViewDesc
+    {
+        /// <summary>
+        /// The <see cref="DataFormat"/> the texture will be viewed as
+        /// </summary>
+        public DataFormat Format;
+
+        /// <summary>
+        /// The mip index to use as the render target
+        /// </summary>
+        public uint MipIndex;
+
+        /// <summary>
+        /// For 2D views to 2D arrays or 3D textures, the index to the plane to view
+        /// </summary>
+        public uint PlaneSlice;
+
+        /// <summary>
+        /// Whether the view should be multisampled
+        /// </summary>
+        public bool IsMultiSampled;
+    }
+
+    /// <summary>
+    /// Describes the metadata used to create a depth stencil view to a <see cref="Texture"/>
+    /// </summary>
+    public struct TextureDepthStencilViewDesc
+    {
+        /// <summary>
+        /// The <see cref="DataFormat"/> the texture will be viewed as
+        /// </summary>
+        public DataFormat Format;
+
+        /// <summary>
+        /// The mip index to use as the render target
+        /// </summary>
+        public uint MipIndex;
+
+        /// <summary>
+        /// For 2D views to 2D arrays or 3D textures, the index to the plane to view
+        /// </summary>
+        public uint PlaneSlice;
+
+        /// <summary>
+        /// Whether the view should be multisampled
+        /// </summary>
+        public bool IsMultiSampled;
+    }
+
     /// <summary>
     /// A heap of descriptors for resources
     /// </summary>
@@ -193,7 +246,7 @@ namespace Voltium.Core
         private DescriptorHeap(GraphicsDevice device, D3D12_DESCRIPTOR_HEAP_DESC desc)
         {
             ComPtr<ID3D12DescriptorHeap> heap = default;
-            Guard.ThrowIfFailed(device.Device->CreateDescriptorHeap(&desc, heap.Guid, (void**)&heap));
+            Guard.ThrowIfFailed(device.DevicePointer->CreateDescriptorHeap(&desc, heap.Guid, (void**)&heap));
 
             _heap = heap.Move();
             var cpu = _heap.Get()->GetCPUDescriptorHandleForHeapStart();
@@ -227,6 +280,22 @@ namespace Voltium.Core
             return _firstHandle + _offset++;
         }
 
+        /// <summary>
+        /// Gets the next <paramref name="count"/> handles in the heap
+        /// </summary>
+        public DescriptorHandle GetNextHandles(int count)
+            => GetNextHandles((uint)count);
+
+        /// <summary>
+        /// Gets the next <paramref name="count"/> handles in the heap
+        /// </summary>
+        public DescriptorHandle GetNextHandles(uint count)
+        {
+            Guard.True(_offset + count <= _count, "Too many descriptors");
+            var next = _firstHandle + _offset;
+            _offset += count;
+            return next;
+        }
         /// <summary>
         /// Resets the heap for reuse
         /// </summary>

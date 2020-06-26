@@ -54,7 +54,7 @@ namespace Voltium.Core.Pool
         protected override ComPtr<ID3D12GraphicsCommandList> Create(ListCreationParams state)
         {
             using ComPtr<ID3D12GraphicsCommandList> list = default;
-            Guard.ThrowIfFailed(_device.Device->CreateCommandList(
+            Guard.ThrowIfFailed(_device.DevicePointer->CreateCommandList(
                 0, // TODO: MULTI-GPU
                 state.Type,
                 state.Allocator,

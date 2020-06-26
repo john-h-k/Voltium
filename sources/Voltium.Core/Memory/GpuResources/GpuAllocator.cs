@@ -11,6 +11,7 @@ using Voltium.Core.Managers;
 using Voltium.Core.Memory.GpuResources;
 using Buffer = Voltium.Core.Memory.GpuResources.Buffer;
 using System.Runtime.CompilerServices;
+using Voltium.Core.Configuration.Graphics;
 
 namespace Voltium.Core.GpuResources
 {
@@ -115,7 +116,7 @@ namespace Voltium.Core.GpuResources
             Debug.Assert(device is object);
             _device = device;
 
-            _hasMergedHeapSupport = CheckMergedHeapSupport(_device.Device);
+            _hasMergedHeapSupport = CheckMergedHeapSupport(_device.DevicePointer);
 
             CreateOriginalHeaps();
         }
@@ -186,13 +187,24 @@ namespace Voltium.Core.GpuResources
         /// <param name="desc">The <see cref="TextureDesc"/> describing the texture</param>
         /// <param name="initialResourceState">The state of the resource when it is allocated</param>
         /// <param name="allocFlags">Any additional allocation flags</param>
+        /// <param name="msaa">If the <paramref name="desc"/> is a render target or depth stencil, the
+        /// <see cref="MsaaDesc"/> describing multi-sampling</param>
         /// <returns>A new <see cref="Texture"/></returns>
         public Texture AllocateTexture(
             in TextureDesc desc,
             ResourceState initialResourceState,
-            AllocFlags allocFlags = AllocFlags.None
+            AllocFlags allocFlags = AllocFlags.None,
+            MsaaDesc msaa = default
         )
         {
+            DXGI_SAMPLE_DESC sample = new DXGI_SAMPLE_DESC(msaa.SampleCount, msaa.QualityLevel);
+
+            // Normalize default
+            if (msaa.SampleCount == 0)
+            {
+                sample.Count = 1;
+            }
+
             var resDesc = new D3D12_RESOURCE_DESC
             {
                 Dimension = (D3D12_RESOURCE_DIMENSION)desc.Dimension,
@@ -200,10 +212,10 @@ namespace Voltium.Core.GpuResources
                 Width = desc.Width,
                 Height = desc.Height,
                 DepthOrArraySize = desc.DepthOrArraySize,
-                MipLevels = 0,
+                MipLevels = (ushort)(desc.ResourceFlags.HasFlag(ResourceFlags.AllowDepthStencil) || desc.ResourceFlags.HasFlag(ResourceFlags.AllowRenderTarget) ? 1u : 0u),
                 Format = (DXGI_FORMAT)desc.Format,
                 Flags = (D3D12_RESOURCE_FLAGS)desc.ResourceFlags,
-                SampleDesc = new DXGI_SAMPLE_DESC(1, 0) // TODO: MSAA
+                SampleDesc = sample // TODO: MSAA
             };
 
             D3D12_CLEAR_VALUE clearVal = new D3D12_CLEAR_VALUE { Format = resDesc.Format };
@@ -338,6 +350,7 @@ namespace Voltium.Core.GpuResources
             return ind;
         }
 
+        private const ulong DefaultHeapAlignment = 4 * 1024 * 1024; // 4mb for MSAA textures
         private AllocatorHeap CreateNewHeap(D3D12_HEAP_TYPE mem, GpuResourceType res)
         {
             D3D12_HEAP_FLAGS flags = default;
@@ -355,7 +368,7 @@ namespace Voltium.Core.GpuResources
             }
 
             D3D12_HEAP_PROPERTIES props = new(mem);
-            D3D12_HEAP_DESC desc = new(GetNewHeapSize(mem, res), props, flags: flags);
+            D3D12_HEAP_DESC desc = new(GetNewHeapSize(mem, res), props, alignment: DefaultHeapAlignment, flags: flags);
 
             var heap = _device.CreateHeap(desc);
 
@@ -488,20 +501,20 @@ namespace Voltium.Core.GpuResources
             );
         }
 
-        private void MarkFreeBlockUsed(AllocatorHeap heap, D3D12_RESOURCE_ALLOCATION_INFO info, HeapBlock freeBlock, HeapBlock allocBlock)
+        private void MarkFreeBlockUsed(AllocatorHeap heap,HeapBlock wholeBlock, HeapBlock usedBlock)
         {
-            heap.FreeBlocks.Remove(freeBlock);
+            heap.FreeBlocks.Remove(wholeBlock);
 
-            var alignOffset = allocBlock.Offset - freeBlock.Offset;
+            var alignOffset = usedBlock.Offset - wholeBlock.Offset;
 
             if (alignOffset != 0)
             {
-                var loBlock = new HeapBlock { Offset = freeBlock.Offset, Size = allocBlock.Offset - freeBlock.Offset };
+                var loBlock = new HeapBlock { Offset = wholeBlock.Offset, Size = usedBlock.Offset - wholeBlock.Offset };
                 heap.FreeBlocks.Add(loBlock);
             }
-            if (allocBlock.Size != freeBlock.Size)
+            if (usedBlock.Size != wholeBlock.Size)
             {
-                var hiBlock = new HeapBlock { Offset = allocBlock.Offset + info.SizeInBytes, Size = freeBlock.Size - allocBlock.Size - alignOffset };
+                var hiBlock = new HeapBlock { Offset = usedBlock.Offset + usedBlock.Size, Size = wholeBlock.Size - usedBlock.Size - alignOffset };
                 heap.FreeBlocks.Add(hiBlock);
             }
         }
@@ -517,8 +530,8 @@ namespace Voltium.Core.GpuResources
                     // because we assume the heap start is aligned, just check if the offset is too
                     && MathHelpers.IsAligned(block.Offset, info.Alignment))
                 {
-                    freeBlock = block;
-                    MarkFreeBlockUsed(heap, info, freeBlock, freeBlock);
+                    freeBlock = new HeapBlock { Offset = block.Offset, Size = info.SizeInBytes };
+                    MarkFreeBlockUsed(heap, block, freeBlock);
                     return true;
                 }
             }
@@ -532,7 +545,7 @@ namespace Voltium.Core.GpuResources
                 if (alignedSize >= info.SizeInBytes)
                 {
                     freeBlock = new HeapBlock { Offset = alignedOffset, Size = alignedSize };
-                    MarkFreeBlockUsed(heap, info, block, freeBlock);
+                    MarkFreeBlockUsed(heap, block, freeBlock);
                     return true;
                 }
             }

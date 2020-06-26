@@ -670,6 +670,6 @@
     ],
     "buffers": [{
         "byteLength": 69180,
-        "uri": "Handgun.bin"
+        "uri": "Handgun_NoTangent.bin"
     }]
 }

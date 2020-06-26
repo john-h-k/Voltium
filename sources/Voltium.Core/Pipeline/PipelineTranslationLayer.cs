@@ -40,9 +40,11 @@ namespace Voltium.Core.Managers
 
                 *pCurDesc = default;
                 pCurDesc->SemanticName = (sbyte*)Unsafe.AsPointer(ref MemoryMarshal.GetReference(asciiBuff));
-                pCurDesc->AlignedByteOffset = Windows.D3D12_APPEND_ALIGNED_ELEMENT;
+                pCurDesc->SemanticIndex = elem.NameIndex;
+                pCurDesc->AlignedByteOffset = elem.Offset;
                 pCurDesc->Format = (DXGI_FORMAT)elem.Type;
-                pCurDesc->InputSlotClass = D3D12_INPUT_CLASSIFICATION.D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA;
+                pCurDesc->InputSlot = elem.Channel;
+                pCurDesc->InputSlotClass = (D3D12_INPUT_CLASSIFICATION)elem.InputClass;
 
                 asciiBuff = asciiBuff.Slice(read);
             }

@@ -10,7 +10,20 @@ struct Lights
 
 ConstantBuffer<Lights> SceneLight : register(b2);
 Texture2D Texture : register(t0);
+Texture2D Normals : register(t1);
 SamplerState Sampler : register(s0);
+
+float3 NormalToWorld(float3 normal, float3 unitNormal, float3 tangent)
+{
+    normal = (2 * normal) - 1;
+
+    float3 t = normalize(tangent - (dot(tangent, unitNormal) * unitNormal));
+    float3 b = cross(unitNormal, t);
+
+    float3x3 transform = float3x3(t, b, unitNormal);
+
+    return normal * (float1x3) transform;
+}
 
 float4 main(PixelFrag frag) : SV_TARGET
 {
@@ -20,6 +33,9 @@ float4 main(PixelFrag frag) : SV_TARGET
 
     float4 albedo = Object.Material.DiffuseAlbedo * Texture.Sample(Sampler, frag.TexC);
     float4 ambient = Frame.AmbientLight * albedo;
+
+    float3 normal = (float3) Normals.Sample(Sampler, frag.TexC);
+    normal = NormalToWorld(normal, frag.Normal, frag.Tangent);
 
     float3 shadowFactor = 1.0f;
 
@@ -36,7 +52,7 @@ float4 main(PixelFrag frag) : SV_TARGET
             SceneLight.Lights[i],
             mat,
             eye,
-            frag.Normal,
+            normal,
             shadowFactor
         );
     }

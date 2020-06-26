@@ -62,7 +62,7 @@ namespace Voltium.Core.Managers
             _marker = new FenceMarker(device.BackBufferCount);
             _executingAllocators = new();
             Guard.ThrowIfFailed(_queue.Get()->Signal(_fence.Get(), _marker.FenceValue));
-            _allocatorPool = new(ComPtr<ID3D12Device>.CopyFromPointer(device.Device), context);
+            _allocatorPool = new(ComPtr<ID3D12Device>.CopyFromPointer(device.DevicePointer), context);
         }
 
         private static unsafe ComPtr<ID3D12CommandQueue> CreateQueue(GraphicsDevice device, ExecutionContext type)
@@ -77,7 +77,7 @@ namespace Voltium.Core.Managers
 
             ComPtr<ID3D12CommandQueue> p = default;
 
-            Guard.ThrowIfFailed(device.Device->CreateCommandQueue(
+            Guard.ThrowIfFailed(device.DevicePointer->CreateCommandQueue(
                 &desc,
                 p.Guid,
                 ComPtr.GetVoidAddressOf(&p)
@@ -90,7 +90,7 @@ namespace Voltium.Core.Managers
         {
             ComPtr<ID3D12Fence> fence = default;
 
-            Guard.ThrowIfFailed(device.Device->CreateFence(
+            Guard.ThrowIfFailed(device.DevicePointer->CreateFence(
                 0,
                 0,
                 fence.Guid,

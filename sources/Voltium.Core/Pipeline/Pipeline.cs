@@ -17,6 +17,7 @@ namespace Voltium.Core.Pipeline
         private ComPtr<ID3D12PipelineState> _pso;
 
         internal ID3D12PipelineState* GetPso() => _pso.Get();
+        internal virtual ID3D12RootSignature* GetRootSig() => null;
 
         internal PipelineStateObject(ComPtr<ID3D12PipelineState> pso)
         {
@@ -36,7 +37,6 @@ namespace Voltium.Core.Pipeline
         ~PipelineStateObject()
         {
             Guard.MarkDisposableFinalizerEntered();
-            ThrowHelper.NeverReached();
         }
 #endif
     }

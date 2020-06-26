@@ -21,5 +21,7 @@ namespace Voltium.Interactive
         public abstract void Update(ApplicationTimer timer);
 
         public abstract void OnMouseScroll(int scroll);
+
+        public abstract void ToggleMsaa();
     }
 }

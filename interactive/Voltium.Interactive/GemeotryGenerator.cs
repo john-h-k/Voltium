@@ -13,35 +13,17 @@ using ObjLoader.Loader.Data.Elements;
 using ObjLoader.Loader.Data.VertexData;
 using ObjLoader.Loader.Loaders;
 using Voltium.Core;
+using Voltium.ModelLoading;
 using ObjVertex = ObjLoader.Loader.Data.VertexData.Vertex;
 using ObjMaterial = ObjLoader.Loader.Data.Material;
 using Vertex = Voltium.ModelLoading.TexturedVertex;
+using Material = Voltium.ModelLoading.Material;
 
 namespace Voltium.Interactive
 {
-    public readonly struct Geometry<TVertex>
-    {
-        public readonly TVertex[] Vertices;
-        public readonly ushort[] Indices;
-        public readonly Material Material;
-        public readonly Matrix4x4 World;
-
-        public Geometry(TVertex[] vertices, ushort[] indices, Material material = default, Matrix4x4 world = default)
-        {
-            if (world == default)
-            {
-                world = Matrix4x4.Identity;
-            }
-
-            Vertices = vertices;
-            Indices = indices;
-            Material = material;
-            World = world;
-        }
-    }
     public static class GemeotryGenerator
     {
-        public static Geometry<Vertex> CreateCube(float radius)
+        public static Mesh<Vertex>CreateCube(float radius)
         {
             var cubeVertices = new Vertex[24]
             {
@@ -82,7 +64,7 @@ namespace Voltium.Interactive
                 new Vertex(+radius, -radius, +radius, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f)
             };
 
-            return new Geometry<Vertex>(cubeVertices, CubeIndices);
+            return new Mesh<Vertex>(cubeVertices, CubeIndices);
         }
 
         private const string AssetsFolder = "Assets/";
@@ -96,7 +78,7 @@ namespace Voltium.Interactive
         private static readonly IMaterialStreamProvider _assetsProvider = new AssetsProvider();
         private static ThreadLocal<IObjLoader> _loader = new(() => { lock (_factory) { return _factory.Create(_assetsProvider); } });
 
-        public static Geometry<Vertex> LoadSingleModel(string filename, Material material = default)
+        public static Mesh<Vertex> LoadSingleModel(string filename, Material material = default)
         {
             var model = _loader.Value!.Load(File.OpenRead(AssetsFolder + filename));
 
@@ -124,7 +106,7 @@ namespace Voltium.Interactive
                         var normal = ToVector3(model.Normals[vertex.NormalIndex - 1]);
                         var tex = ToVector2(model.Textures[vertex.TextureIndex - 1]);
 
-                        vertices[c] = new Vertex(position, normal, tex);
+                        //vertices[c] = new Vertex(position, normal, tex);
                         indices[c] = (ushort)c;
 
                         c++;
@@ -132,12 +114,7 @@ namespace Voltium.Interactive
                 }
             }
 
-            return new Geometry<Vertex>(vertices, indices, material);
-        }
-
-        public static Geometry<Vertex>[] LoadAllModel(string filename)
-        {
-            throw new NotImplementedException();
+            return new Mesh<Vertex>(vertices, indices, material);
         }
 
         private static Vector3 ToVector3(ObjVertex vertex) => new Vector3(vertex.X, vertex.Y, vertex.Z);

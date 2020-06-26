@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Common.Debugging;
@@ -16,7 +17,6 @@ namespace Voltium.Core
 {
     internal struct GpuContext : IDisposable
     {
-
         public GraphicsDevice Device;
         public ComPtr<ID3D12GraphicsCommandList> List;
         public ComPtr<ID3D12CommandAllocator> Allocator;
@@ -52,20 +52,38 @@ namespace Voltium.Core
         /// Copy an entire resource
         /// </summary>
         /// <param name="source">The resource to copy from</param>
-        /// <param name="destination">The resource to copy to</param>
-        public void CopyResource(Buffer source, Buffer destination)
+        /// <param name="dest">The resource to copy to</param>
+        public void CopyResource(Buffer source, Buffer dest)
         {
-            _context.List.Get()->CopyResource(destination.Resource.UnderlyingResource, source.Resource.UnderlyingResource);
+            if (!source.Resource.State.HasFlag(ResourceState.CopySource))
+            {
+                ResourceTransition(source, ResourceState.CopySource, 0xFFFFFFFF);
+            }
+            if (!dest.Resource.State.HasFlag(ResourceState.CopyDestination))
+            {
+                ResourceTransition(dest, ResourceState.CopyDestination, 0xFFFFFFFF);
+            }
+
+            _context.List.Get()->CopyResource(dest.Resource.UnderlyingResource, source.Resource.UnderlyingResource);
         }
 
         /// <summary>
         /// Copy an entire resource
         /// </summary>
         /// <param name="source">The resource to copy from</param>
-        /// <param name="destination">The resource to copy to</param>
-        public void CopyResource(Texture source, Texture destination)
+        /// <param name="dest">The resource to copy to</param>
+        public void CopyResource(Texture source, Texture dest)
         {
-            _context.List.Get()->CopyResource(source.Resource.UnderlyingResource, destination.Resource.UnderlyingResource);
+            if (!source.Resource.State.HasFlag(ResourceState.CopySource))
+            {
+                ResourceTransition(source, ResourceState.CopySource, 0xFFFFFFFF);
+            }
+            if (!dest.Resource.State.HasFlag(ResourceState.CopyDestination))
+            {
+                ResourceTransition(dest, ResourceState.CopyDestination, 0xFFFFFFFF);
+            }
+
+            _context.List.Get()->CopyResource(dest.Resource.UnderlyingResource, source.Resource.UnderlyingResource);
         }
 
         /// <summary>
@@ -176,7 +194,7 @@ namespace Voltium.Core
             fixed (byte* pTextureData = texture)
             fixed (SubresourceData* pSubresources = subresources)
             {
-                // D3D12_SUBRESOURCE_DATA and SubresourceData are blittable, just SubresourceData contains an offset past the pointer
+                // D3D12_SUBRESOURCE_DATA and SubresourceData are blittable, just SubresourceData contains an offset past the pointer rather than the pointer
                 // Fix that here
                 for (var i = 0; i < subresources.Length; i++)
                 {
@@ -195,53 +213,276 @@ namespace Voltium.Core
             }
         }
 
+        /// <summary>
+        /// Mark a resource barrier on the command list
+        /// </summary>
+        /// <param name="resource">The resource to transition</param>
+        /// <param name="transition">The transition</param>
+        /// <param name="subresource">The subresource to transition</param>
+        public void ResourceTransition(Buffer resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
+            => ResourceTransition(resource.Resource, transition, subresource);
+
+        /// <summary>
+        /// Mark a resource barrier on the command list
+        /// </summary>
+        /// <param name="resource">The resource to transition</param>
+        /// <param name="transition">The transition</param>
+        /// <param name="subresource">The subresource to transition</param>
+        public void ResourceTransition(Texture resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
+            => ResourceTransition(resource.Resource, transition, subresource);
+
+        private void ResourceTransition(GpuResource resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
+        {
+            // don't do unnecessary work
+            if (resource.State == transition)
+            {
+                return;
+            }
+
+            var barrier = new D3D12_RESOURCE_BARRIER
+            {
+                Type = D3D12_RESOURCE_BARRIER_TYPE.D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
+                Flags = D3D12_RESOURCE_BARRIER_FLAGS.D3D12_RESOURCE_BARRIER_FLAG_NONE,
+                Anonymous = new D3D12_RESOURCE_BARRIER._Anonymous_e__Union
+                {
+                    Transition = new D3D12_RESOURCE_TRANSITION_BARRIER
+                    {
+                        pResource = resource.UnderlyingResource,
+                        StateBefore = (D3D12_RESOURCE_STATES)resource.State,
+                        StateAfter = (D3D12_RESOURCE_STATES)transition,
+                        Subresource = subresource
+                    }
+                }
+            };
+
+            resource.State = transition;
+            _context.List.Get()->ResourceBarrier(1, &barrier);
+        }
+
         /// <inheritdoc/>
         public void Dispose() => _context.Dispose();
     }
 
-    ///// <summary>
-    ///// Represents a context on which GPU commands can be recorded
-    ///// </summary>
-    //public unsafe partial struct ComputeContext : IDisposable
-    //{
-    //    //AtomicCopyBufferUINT
-    //    //AtomicCopyBufferUINT64
-    //    //CopyBufferRegion
-    //    //CopyResource
-    //    //CopyTextureRegion
-    //    //CopyTiles
-    //    //EndQuery
-    //    //ResolveQueryData
-    //    //ResourceBarrier
-    //    //SetProtectedResourceSession
-    //    //WriteBufferImmediate
+    /// <summary>
+    /// Represents a context on which GPU commands can be recorded
+    /// </summary>
+    public unsafe partial struct ComputeContext : IDisposable
+    {
+        private GpuContext _context;
 
-    //    //BuildRaytracingAccelerationStructure
-    //    //ClearState
-    //    //ClearUnorderedAccessViewFloat
-    //    //ClearUnorderedAccessViewUint
-    //    //CopyRaytracingAccelerationStructure
-    //    //DiscardResource
-    //    //Dispatch
-    //    //DispatchRays
-    //    //EmitRaytracingAccelerationStructurePostbuildInfo
-    //    //ExecuteIndirect
-    //    //ExecuteMetaCommand
-    //    //InitializeMetaCommand
-    //    //ResolveQueryData
-    //    //ResourceBarrier
-    //    //SetComputeRoot32BitConstant
-    //    //SetComputeRoot32BitConstants
-    //    //SetComputeRootConstantBufferView
-    //    //SetComputeRootDescriptorTable
-    //    //SetComputeRootShaderResourceView
-    //    //SetComputeRootSignature
-    //    //SetComputeRootUnorderedAccessView
-    //    //SetDescriptorHeaps
-    //    //SetPipelineState
-    //    //SetPipelineState1
-    //    //SetPredication
-    //}
+        /// <inheritdoc/>
+        public void Dispose() => _context.Dispose();
+        //AtomicCopyBufferUINT
+        //AtomicCopyBufferUINT64
+        //CopyBufferRegion
+        //CopyResource
+        //CopyTextureRegion
+        //CopyTiles
+        //EndQuery
+        //ResolveQueryData
+        //ResourceBarrier
+        //SetProtectedResourceSession
+        //WriteBufferImmediate
+
+        //BuildRaytracingAccelerationStructure
+        //ClearState
+        //ClearUnorderedAccessViewFloat
+        //ClearUnorderedAccessViewUint
+        //CopyRaytracingAccelerationStructure
+        //DiscardResource
+        //Dispatch
+        //DispatchRays
+        //EmitRaytracingAccelerationStructurePostbuildInfo
+        //ExecuteIndirect
+        //ExecuteMetaCommand
+        //InitializeMetaCommand
+        //ResolveQueryData
+        //ResourceBarrier
+        //SetComputeRoot32BitConstant
+        //SetComputeRoot32BitConstants
+        //SetComputeRootConstantBufferView
+        //SetComputeRootDescriptorTable
+        //SetComputeRootShaderResourceView
+        //SetComputeRootSignature
+        //SetComputeRootUnorderedAccessView
+        //SetDescriptorHeaps
+        //SetPipelineState
+        //SetPipelineState1
+        //SetPredication
+
+        /// <summary>
+        /// Sets a directly-bound constant buffer view descriptor to the compute pipeline
+        /// </summary>
+        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
+        /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
+        public void SetConstantBuffer(uint paramIndex, Buffer cbuffer)
+            => SetConstantBuffer<byte>(paramIndex, cbuffer, 0);
+
+        /// <summary>
+        /// Sets a directly-bound constant buffer view descriptor to the compute pipeline
+        /// </summary>
+        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
+        /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
+        /// <param name="offset">The offset in bytes to start the view at</param>
+        public void SetConstantBuffer<T>(uint paramIndex, Buffer cbuffer, uint offset = 0) where T : unmanaged
+        {
+            var alignedSize = (sizeof(T) + 255) & ~255;
+
+            _context.List.Get()->SetComputeRootConstantBufferView(paramIndex, cbuffer.GpuAddress + (ulong)(alignedSize * offset));
+        }
+
+        /// <summary>
+        /// Sets a directly-bound constant buffer view descriptor to the compute pipeline
+        /// </summary>
+        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
+        /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
+        /// <param name="offset">The offset in bytes to start the view at</param>
+        public void SetConstantBufferByteOffset(uint paramIndex, Buffer cbuffer, uint offset = 0)
+        {
+            _context.List.Get()->SetComputeRootConstantBufferView(paramIndex, cbuffer.GpuAddress + offset);
+        }
+
+        /// <summary>
+        /// Sets a descriptor table to the compute pipeline
+        /// </summary>
+        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
+        /// <param name="handle">The <see cref="DescriptorHandle"/> containing the first view</param>
+        public void SetRootDescriptorTable(uint paramIndex, DescriptorHandle handle)
+        {
+            _context.List.Get()->SetComputeRootDescriptorTable(paramIndex, handle.GpuHandle);
+        }
+
+        /// <summary>
+        /// Set the compute root signature for the command list
+        /// </summary>
+        /// <param name="signature">The signature to set to</param>
+        public void SetRootSignature(RootSignature signature)
+        {
+            _context.List.Get()->SetComputeRootSignature(signature.Value);
+        }
+
+        #region CopyContext Methods
+
+        /// <summary>
+        /// Copy an entire resource
+        /// </summary>
+        /// <param name="source">The resource to copy from</param>
+        /// <param name="dest">The resource to copy to</param>
+        public void CopyResource(Buffer source, Buffer dest)
+            => this.AsCopyContext().CopyResource(source, dest);
+
+        /// <summary>
+        /// Copy an entire resource
+        /// </summary>
+        /// <param name="source">The resource to copy from</param>
+        /// <param name="dest">The resource to copy to</param>
+        public void CopyResource(Texture source, Texture dest)
+            => this.AsCopyContext().CopyResource(source, dest);
+
+        /// <summary>
+        /// Uploads a buffer from the CPU to the GPU
+        /// </summary>
+        /// <param name="allocator"></param>
+        /// <param name="buffer"></param>
+        /// <param name="destination"></param>
+        public void UploadBuffer<T>(GpuAllocator allocator, T[] buffer, Buffer destination) where T : unmanaged
+            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, destination);
+
+
+        /// <summary>
+        /// Uploads a buffer from the CPU to the GPU
+        /// </summary>
+        /// <param name="allocator"></param>
+        /// <param name="buffer"></param>
+        /// <param name="destination"></param>
+        public void UploadBuffer<T>(GpuAllocator allocator, Span<T> buffer, Buffer destination) where T : unmanaged
+            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, destination);
+
+
+        /// <summary>
+        /// Uploads a buffer from the CPU to the GPU
+        /// </summary>
+        /// <param name="allocator"></param>
+        /// <param name="buffer"></param>
+        /// <param name="destination"></param>
+        public void UploadBuffer<T>(GpuAllocator allocator, ReadOnlySpan<T> buffer, Buffer destination) where T : unmanaged
+            => this.AsCopyContext().UploadBuffer<T>(allocator, buffer, destination);
+
+        /// <summary>
+        /// Uploads a buffer from the CPU to the GPU
+        /// </summary>
+        /// <param name="allocator"></param>
+        /// <param name="buffer"></param>
+        /// <param name="access"></param>
+        /// <param name="destination"></param>
+        public void UploadBuffer<T>(GpuAllocator allocator, T[] buffer, MemoryAccess access, out Buffer destination) where T : unmanaged
+            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, access, out destination);
+
+
+        /// <summary>
+        /// Uploads a buffer from the CPU to the GPU
+        /// </summary>
+        /// <param name="allocator"></param>
+        /// <param name="buffer"></param>
+        /// <param name="access"></param>
+        /// <param name="destination"></param>
+        public void UploadBuffer<T>(GpuAllocator allocator, Span<T> buffer, MemoryAccess access, out Buffer destination) where T : unmanaged
+            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, access, out destination);
+
+
+        /// <summary>
+        /// Uploads a buffer from the CPU to the GPU
+        /// </summary>
+        /// <param name="allocator"></param>
+        /// <param name="buffer"></param>
+        /// <param name="access"></param>
+        /// <param name="destination"></param>
+        public void UploadBuffer<T>(GpuAllocator allocator, ReadOnlySpan<T> buffer, MemoryAccess access, out Buffer destination) where T : unmanaged
+            => this.AsCopyContext().UploadBuffer<T>(allocator, buffer, access, out destination);
+
+        /// <summary>
+        /// Uploads a buffer from the CPU to the GPU
+        /// </summary>
+        /// <param name="allocator"></param>
+        /// <param name="texture"></param>
+        /// <param name="subresources"></param>
+        /// <param name="tex"></param>
+        /// <param name="destination"></param>
+        public void UploadTexture(GpuAllocator allocator, ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, TextureDesc tex, out Texture destination)
+            => this.AsCopyContext().UploadTexture(allocator, texture, subresources, tex, out destination);
+
+            /// <summary>
+            /// Uploads a buffer from the CPU to the GPU
+            /// </summary>
+            /// <param name="allocator"></param>
+            /// <param name="texture"></param>
+            /// <param name="subresources"></param>
+            /// <param name="destination"></param>
+            public void UploadTexture(GpuAllocator allocator, ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, Texture destination)
+            => this.AsCopyContext().UploadTexture(allocator, texture, subresources, destination);
+
+
+        /// <summary>
+        /// Mark a resource barrier on the command list
+        /// </summary>
+        /// <param name="resource">The resource to transition</param>
+        /// <param name="transition">The transition</param>
+        /// <param name="subresource">The subresource to transition</param>
+        public void ResourceTransition(Buffer resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
+            => this.AsCopyContext().ResourceTransition(resource, transition, subresource);
+
+
+        /// <summary>
+        /// Mark a resource barrier on the command list
+        /// </summary>
+        /// <param name="resource">The resource to transition</param>
+        /// <param name="transition">The transition</param>
+        /// <param name="subresource">The subresource to transition</param>
+        public void ResourceTransition(Texture resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
+            => this.AsCopyContext().ResourceTransition(resource, transition, subresource);
+
+        #endregion
+    }
 
     /// <summary>
     /// Represents a context on which GPU commands can be recorded
@@ -249,8 +490,6 @@ namespace Voltium.Core
     public unsafe partial struct GraphicsContext : IDisposable
     {
         private GpuContext _context;
-
-        internal CopyContext AsCopyContext() => new CopyContext(_context);
 
         internal GraphicsContext(GraphicsDevice device, ComPtr<ID3D12GraphicsCommandList> list, ComPtr<ID3D12CommandAllocator> allocator)
         {
@@ -320,7 +559,7 @@ namespace Voltium.Core
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
         public void SetGraphicsConstantBuffer(uint paramIndex, Buffer cbuffer)
-            => SetGraphicsConstantBuffer<byte>(paramIndex, cbuffer, 0);
+            => SetConstantBuffer<byte>(paramIndex, cbuffer, 0);
 
         /// <summary>
         /// Sets a directly-bound constant buffer view descriptor to the graphics pipeline
@@ -328,7 +567,7 @@ namespace Voltium.Core
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
         /// <param name="offset">The offset in bytes to start the view at</param>
-        public void SetGraphicsConstantBuffer<T>(uint paramIndex, Buffer cbuffer, uint offset = 0) where T : unmanaged
+        public void SetConstantBuffer<T>(uint paramIndex, Buffer cbuffer, uint offset = 0) where T : unmanaged
         {
             var alignedSize = (sizeof(T) + 255) & ~255;
 
@@ -341,7 +580,7 @@ namespace Voltium.Core
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
         /// <param name="offset">The offset in bytes to start the view at</param>
-        public void SetGraphicsConstantBufferByteOffset(uint paramIndex, Buffer cbuffer, uint offset = 0)
+        public void SetConstantBufferByteOffset(uint paramIndex, Buffer cbuffer, uint offset = 0)
         {
             _context.List.Get()->SetGraphicsRootConstantBufferView(paramIndex, cbuffer.GpuAddress + offset);
         }
@@ -351,7 +590,7 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="handle">The <see cref="DescriptorHandle"/> containing the first view</param>
-        public void SetGraphicsRootDescriptorTable(uint paramIndex, DescriptorHandle handle)
+        public void SetRootDescriptorTable(uint paramIndex, DescriptorHandle handle)
         {
             _context.List.Get()->SetGraphicsRootDescriptorTable(paramIndex, handle.GpuHandle);
         }
@@ -360,58 +599,9 @@ namespace Voltium.Core
         /// Set the graphics root signature for the command list
         /// </summary>
         /// <param name="signature">The signature to set to</param>
-        public void SetGraphicsRootSignature(RootSignature signature)
+        public void SetRootSignature(RootSignature signature)
         {
             _context.List.Get()->SetGraphicsRootSignature(signature.Value);
-        }
-
-        /// <summary>
-        /// Mark a resource barrier on the command list
-        /// </summary>
-        /// <param name="resource">The resource to transition</param>
-        /// <param name="transition">The transition</param>
-        public void ResourceTransition<T>(Buffer resource, ResourceTransition transition) where T : unmanaged
-            => ResourceTransition(resource.Resource, transition);
-
-        /// <summary>
-        /// Mark a resource barrier on the command list
-        /// </summary>
-        /// <param name="resource">The resource to transition</param>
-        /// <param name="transition">The transition</param>
-        public void ResourceTransition(Texture resource, ResourceTransition transition)
-            => ResourceTransition(resource.Resource, transition);
-
-        private void ResourceTransition(GpuResource resource, ResourceTransition transition)
-        {
-            // don't do unnecessary work
-            if (resource.State == transition.NewState)
-            {
-                return;
-            }
-
-            var barrier = new D3D12_RESOURCE_BARRIER
-            {
-                Type = D3D12_RESOURCE_BARRIER_TYPE.D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
-                Flags = D3D12_RESOURCE_BARRIER_FLAGS.D3D12_RESOURCE_BARRIER_FLAG_NONE,
-                Anonymous = new D3D12_RESOURCE_BARRIER._Anonymous_e__Union
-                {
-                    Transition = CreateD3D12Transition(resource, transition)
-                }
-            };
-
-            resource.State = transition.NewState;
-            _context.List.Get()->ResourceBarrier(1, &barrier);
-        }
-
-        private D3D12_RESOURCE_TRANSITION_BARRIER CreateD3D12Transition(GpuResource resource, ResourceTransition transition)
-        {
-            return new D3D12_RESOURCE_TRANSITION_BARRIER
-            {
-                pResource = resource.UnderlyingResource,
-                StateBefore = (D3D12_RESOURCE_STATES)resource.State,
-                StateAfter = (D3D12_RESOURCE_STATES)transition.NewState,
-                Subresource = transition.Subresource
-            };
         }
 
         /// <summary>
@@ -419,7 +609,7 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="renderTargets">A span of <see cref="CpuHandle"/>s representing each render target</param>
         /// <param name="depthStencilHandle">The handle to the depth stencil descriptor</param>
-        public void SetRenderTarget(Span<DescriptorHandle> renderTargets, DescriptorHandle? depthStencilHandle = null)
+        public void SetRenderTargets(Span<DescriptorHandle> renderTargets, DescriptorHandle? depthStencilHandle = null)
         {
             Debug.Assert(StackSentinel.SafeToStackalloc<D3D12_CPU_DESCRIPTOR_HANDLE>(renderTargets.Length));
 
@@ -440,28 +630,20 @@ namespace Voltium.Core
         }
 
         /// <summary>
-        /// Sets a single render target
-        /// </summary>
-        /// <param name="renderTargetHandle">The handle to the render target</param>
-        /// <param name="depthStencilHandle">The handle to the depth stencil descriptor</param>
-        public void SetRenderTarget(in DescriptorHandle renderTargetHandle, in DescriptorHandle? depthStencilHandle = null)
-            => SetRenderTarget(renderTargetHandle, 1, depthStencilHandle);
-
-        /// <summary>
         /// Sets a range of continuous render targets
         /// </summary>
         /// <param name="renderTargetHandle">The handle to the start of the continuous array of render targets</param>
         /// <param name="renderTargetCount">The number of render targets pointed to be <paramref name="renderTargetHandle"/></param>
         /// <param name="depthStencilHandle">The handle to the depth stencil descriptor</param>
-        public void SetRenderTarget(in DescriptorHandle renderTargetHandle, uint renderTargetCount, in DescriptorHandle? depthStencilHandle = null)
+        public void SetRenderTargets(in DescriptorHandle? renderTargetHandle = null, uint renderTargetCount = 1, in DescriptorHandle? depthStencilHandle = null)
         {
-            var rtv = renderTargetHandle.CpuHandle;
+            var rtv = renderTargetHandle.GetValueOrDefault().CpuHandle;
             var dsv = depthStencilHandle.GetValueOrDefault().CpuHandle;
 
             var depthStencil = depthStencilHandle.GetValueOrDefault();
             _context.List.Get()->OMSetRenderTargets(
-                renderTargetCount,
-                &rtv,
+                renderTargetHandle is null ? 0 : renderTargetCount,
+                renderTargetHandle is null ? null : &rtv,
                 Windows.TRUE,
                 depthStencilHandle is null ? null : &dsv
             );
@@ -498,6 +680,40 @@ namespace Voltium.Core
         }
 
         /// <summary>
+        /// Clear the render target and the depth stencil
+        /// </summary>
+        /// <param name="rtv">The render target to clear</param>
+        /// <param name="dsv">The depth stencil target to clear</param>
+        /// <param name="color">The RGBA color to clear it to</param>
+        /// <param name="renderTargetRects">The rectangles representing the sections to clear. By default, this will clear the entire resource</param>
+        /// <param name="depth">The <see cref="float"/> value to set the depth resource to. By default, this is <c>1</c></param>
+        /// <param name="stencil">The <see cref="byte"/> value to set the stencil resource to. By default, this is <c>0</c></param>
+        /// <param name="depthRects">The rectangles representing the sections to clear. By default, this will clear the entire resource</param>
+        public void ClearRenderTargetAndDepthStencil(
+            DescriptorHandle rtv,
+            DescriptorHandle dsv,
+            RgbaColor color = default,
+            float depth = 1,
+            byte stencil = 0,
+            ReadOnlySpan<Rectangle> renderTargetRects = default,
+            ReadOnlySpan<Rectangle> depthRects = default)
+        {
+            fixed (Rectangle* pRt = renderTargetRects)
+            fixed (Rectangle* pDs = depthRects)
+            {
+                _context.List.Get()->ClearRenderTargetView(rtv.CpuHandle, &color.R, (uint)renderTargetRects.Length, (RECT*)pRt);
+
+                _context.List.Get()->ClearDepthStencilView(
+                    dsv.CpuHandle,
+                    D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_STENCIL,
+                    depth, stencil,
+                    (uint)depthRects.Length,
+                    (RECT*)pDs
+                );
+            }
+        }
+
+        /// <summary>
         /// Clear the render target
         /// </summary>
         /// <param name="rtv">The render target to clear</param>
@@ -526,7 +742,7 @@ namespace Voltium.Core
         }
 
         /// <summary>
-        /// Clear the render target
+        /// Clear the stencil element of the depth stencil
         /// </summary>
         /// <param name="dsv">The depth stencil target to clear</param>
         /// <param name="stencil">The <see cref="byte"/> value to set the stencil resource to. By default, this is <c>0</c></param>
@@ -686,6 +902,42 @@ namespace Voltium.Core
         }
 
         /// <summary>
+        /// Resolves a multi-sampled resource to a single-sampled resource
+        /// </summary>
+        /// <param name="source">The multi-sampled source <see cref="Texture"/></param>
+        /// <param name="dest">The single-sampled dest <see cref="Texture"/></param>
+        /// <param name="sourceSubresource">The index of the subresource from <paramref name="source"/> to use</param>
+        /// <param name="destSubresource">The index of the subresource from <paramref name="dest"/> to use</param>
+        public void ResolveSubresource(Texture source, Texture dest, uint sourceSubresource = 0, uint destSubresource = 0)
+        {
+            DataFormat format = source.Format == DataFormat.Unknown ? dest.Format : source.Format;
+
+            if (!source.Resource.State.HasFlag(ResourceState.ResolveSource))
+            {
+                ResourceTransition(source, ResourceState.ResolveSource, sourceSubresource);
+            }
+            if (!dest.Resource.State.HasFlag(ResourceState.ResolveDestination))
+            {
+                ResourceTransition(dest, ResourceState.ResolveDestination, destSubresource);
+            }
+
+            _context.List.Get()->ResolveSubresource(dest.GetResourcePointer(), destSubresource, source.GetResourcePointer(), sourceSubresource, (DXGI_FORMAT)format);
+        }
+
+        /// <summary>
+        /// Resolves a multi-sampled resource to a single-sampled resource
+        /// </summary>
+        /// <param name="source">The multi-sampled source <see cref="Texture"/></param>
+        /// <param name="dest">The single-sampled dest <see cref="Texture"/></param>
+        /// <param name="format">The <see cref="DataFormat"/> to resolve as</param>
+        /// <param name="sourceSubresource">The index of the subresource from <paramref name="source"/> to use</param>
+        /// <param name="destSubresource">The index of the subresource from <paramref name="dest"/> to use</param>
+        public void ResolveSubresource(Texture source, Texture dest, DataFormat format, uint sourceSubresource = 0, uint destSubresource = 0)
+        {
+            _context.List.Get()->ResolveSubresource(dest.GetResourcePointer(), destSubresource, source.GetResourcePointer(), sourceSubresource, (DXGI_FORMAT)format);
+        }
+
+        /// <summary>
         /// Submits a draw call
         /// </summary>
         public void Draw(int vertexCountPerInstance, int startVertexLocation = 0)
@@ -736,6 +988,126 @@ namespace Voltium.Core
             );
         }
 
+        #region CopyContext Methods
+
+        /// <summary>
+        /// Copy an entire resource
+        /// </summary>
+        /// <param name="source">The resource to copy from</param>
+        /// <param name="dest">The resource to copy to</param>
+        public void CopyResource(Buffer source, Buffer dest)
+            => this.AsCopyContext().CopyResource(source, dest);
+
+        /// <summary>
+        /// Copy an entire resource
+        /// </summary>
+        /// <param name="source">The resource to copy from</param>
+        /// <param name="dest">The resource to copy to</param>
+        public void CopyResource(Texture source, Texture dest)
+            => this.AsCopyContext().CopyResource(source, dest);
+
+        /// <summary>
+        /// Uploads a buffer from the CPU to the GPU
+        /// </summary>
+        /// <param name="allocator"></param>
+        /// <param name="buffer"></param>
+        /// <param name="destination"></param>
+        public void UploadBuffer<T>(GpuAllocator allocator, T[] buffer, Buffer destination) where T : unmanaged
+            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, destination);
+
+
+        /// <summary>
+        /// Uploads a buffer from the CPU to the GPU
+        /// </summary>
+        /// <param name="allocator"></param>
+        /// <param name="buffer"></param>
+        /// <param name="destination"></param>
+        public void UploadBuffer<T>(GpuAllocator allocator, Span<T> buffer, Buffer destination) where T : unmanaged
+            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, destination);
+
+
+        /// <summary>
+        /// Uploads a buffer from the CPU to the GPU
+        /// </summary>
+        /// <param name="allocator"></param>
+        /// <param name="buffer"></param>
+        /// <param name="destination"></param>
+        public void UploadBuffer<T>(GpuAllocator allocator, ReadOnlySpan<T> buffer, Buffer destination) where T : unmanaged
+            => this.AsCopyContext().UploadBuffer<T>(allocator, buffer, destination);
+
+        /// <summary>
+        /// Uploads a buffer from the CPU to the GPU
+        /// </summary>
+        /// <param name="allocator"></param>
+        /// <param name="buffer"></param>
+        /// <param name="access"></param>
+        /// <param name="destination"></param>
+        public void UploadBuffer<T>(GpuAllocator allocator, T[] buffer, MemoryAccess access, out Buffer destination) where T : unmanaged
+            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, access, out destination);
+
+
+        /// <summary>
+        /// Uploads a buffer from the CPU to the GPU
+        /// </summary>
+        /// <param name="allocator"></param>
+        /// <param name="buffer"></param>
+        /// <param name="access"></param>
+        /// <param name="destination"></param>
+        public void UploadBuffer<T>(GpuAllocator allocator, Span<T> buffer, MemoryAccess access, out Buffer destination) where T : unmanaged
+            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, access, out destination);
+
+
+        /// <summary>
+        /// Uploads a buffer from the CPU to the GPU
+        /// </summary>
+        /// <param name="allocator"></param>
+        /// <param name="buffer"></param>
+        /// <param name="access"></param>
+        /// <param name="destination"></param>
+        public void UploadBuffer<T>(GpuAllocator allocator, ReadOnlySpan<T> buffer, MemoryAccess access, out Buffer destination) where T : unmanaged
+            => this.AsCopyContext().UploadBuffer<T>(allocator, buffer, access, out destination);
+
+        /// <summary>
+        /// Uploads a buffer from the CPU to the GPU
+        /// </summary>
+        /// <param name="allocator"></param>
+        /// <param name="texture"></param>
+        /// <param name="subresources"></param>
+        /// <param name="tex"></param>
+        /// <param name="destination"></param>
+        public void UploadTexture(GpuAllocator allocator, ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, TextureDesc tex, out Texture destination)
+            => this.AsCopyContext().UploadTexture(allocator, texture, subresources, tex, out destination);
+
+        /// <summary>
+        /// Uploads a buffer from the CPU to the GPU
+        /// </summary>
+        /// <param name="allocator"></param>
+        /// <param name="texture"></param>
+        /// <param name="subresources"></param>
+        /// <param name="destination"></param>
+        public void UploadTexture(GpuAllocator allocator, ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, Texture destination)
+            => this.AsCopyContext().UploadTexture(allocator, texture, subresources, destination);
+
+        /// <summary>
+        /// Mark a resource barrier on the command list
+        /// </summary>
+        /// <param name="resource">The resource to transition</param>
+        /// <param name="transition">The transition</param>
+        /// <param name="subresource">The subresource to transition</param>
+        public void ResourceTransition(Buffer resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
+            => this.AsCopyContext().ResourceTransition(resource, transition, subresource);
+
+        /// <summary>
+        /// Mark a resource barrier on the command list
+        /// </summary>
+        /// <param name="resource">The resource to transition</param>
+        /// <param name="transition">The transition</param>
+        /// <param name="subresource">The subresource to transition</param>
+        public void ResourceTransition(Texture resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
+            => this.AsCopyContext().ResourceTransition(resource, transition, subresource);
+
+        #endregion
+
         /// <inheritdoc/>
         public void Dispose() => _context.Dispose();
     }
@@ -780,5 +1152,32 @@ namespace Voltium.Core
             StartVertexLocation = startVertexLocation;
             StartInstanceLocation = startInstanceLocation;
         }
+    }
+
+    /// <summary>
+    /// Extensions for <see cref="GraphicsContext"/>, <see cref="ComputeContext"/>, and <see cref="CopyContext"/>
+    /// </summary>
+    public static class ContextExtensions
+    {
+        /// <summary>
+        /// Returns the <see cref="CopyContext"/> for a given <see cref="GraphicsContext"/>
+        /// </summary>
+        /// <param name="context">The <see cref="GraphicsContext"/> to convert</param>
+        /// <returns>A <see cref="CopyContext"/> recording to the same list as <paramref name="context"/></returns>
+        public static ref CopyContext AsCopyContext(this ref GraphicsContext context) => ref Unsafe.As<GraphicsContext, CopyContext>(ref context);
+
+        /// <summary>
+        /// Returns the <see cref="CopyContext"/> for a given <see cref="ComputeContext"/>
+        /// </summary>
+        /// <param name="context">The <see cref="ComputeContext"/> to convert</param>
+        /// <returns>A <see cref="CopyContext"/> recording to the same list as <paramref name="context"/></returns>
+        public static ref CopyContext AsCopyContext(this ref ComputeContext context) => ref Unsafe.As<ComputeContext, CopyContext>(ref context);
+
+        /// <summary>
+        /// Returns the <see cref="ComputeContext"/> for a given <see cref="GraphicsContext"/>
+        /// </summary>
+        /// <param name="context">The <see cref="GraphicsContext"/> to convert</param>
+        /// <returns>A <see cref="ComputeContext"/> recording to the same list as <paramref name="context"/></returns>
+        public static ref ComputeContext AsComputeContext(this ref GraphicsContext context) => ref Unsafe.As<GraphicsContext, ComputeContext>(ref context);
     }
 }

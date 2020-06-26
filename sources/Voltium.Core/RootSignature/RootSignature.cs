@@ -231,7 +231,6 @@ namespace Voltium.Core
         ~RootSignature()
         {
             Guard.MarkDisposableFinalizerEntered();
-            ThrowHelper.NeverReached();
         }
 #endif
     }

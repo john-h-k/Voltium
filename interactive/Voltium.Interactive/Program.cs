@@ -1,7 +1,6 @@
 using System;
 using System.Diagnostics;
 using Voltium.Core;
-using TerraFX;
 
 namespace Voltium.Interactive
 {

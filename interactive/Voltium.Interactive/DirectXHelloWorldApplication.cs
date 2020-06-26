@@ -5,6 +5,7 @@ using System.Diagnostics;
 using Voltium.Core;
 using Voltium.Core.Managers;
 using Voltium.Core.Configuration.Graphics;
+using TerraFX.Interop;
 
 namespace Voltium.Interactive
 {
@@ -14,6 +15,8 @@ namespace Voltium.Interactive
         private Renderer _renderer = new DefaultRenderer();
 
         private GraphicsDevice _device = null!;
+        private GraphicalConfiguration _config = null!;
+        private ScreenData _screen;
 
         [MemberNotNull(nameof(_device))]
         public override unsafe void Init(ScreenData data)
@@ -29,10 +32,11 @@ namespace Voltium.Interactive
                 SwapChainBufferCount = 3
             };
 
+            _config = config;
+            _screen = data;
             _device = GraphicsDevice.Create(config, data);
 
             _renderer.Init(_device, config, data);
-            _renderer.Resize(data);
         }
 
         public override void Update(ApplicationTimer timer)
@@ -56,13 +60,18 @@ namespace Voltium.Interactive
 
         public override void OnResize(ScreenData newScreenData)
         {
+            _screen = newScreenData;
             _device.Resize(newScreenData);
-            _renderer.Resize(newScreenData);
+            _renderer.Init(_device, _config, newScreenData);
         }
 
         public override void OnKeyDown(byte key)
         {
-
+            if (key == 0x4D)
+            {
+                _renderer.ToggleMsaa();
+                _renderer.Init(_device, _config, _screen);
+            }
         }
 
         public override void OnKeyUp(byte key)

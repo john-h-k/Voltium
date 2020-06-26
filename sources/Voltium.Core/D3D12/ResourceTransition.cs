@@ -31,12 +31,5 @@ namespace Voltium.Core
             NewState = newState;
             Subresource = subresource;
         }
-
-        /// <summary>
-        /// The implicit conversion between <see cref="ResourceState"/> and <see cref="ResourceTransition"/>, which
-        /// applies the transition to all subresources
-        /// </summary>
-        /// <param name="newState">The state to transition the resource to</param>
-        public static implicit operator ResourceTransition(ResourceState newState) => new ResourceTransition(newState);
     }
 }
