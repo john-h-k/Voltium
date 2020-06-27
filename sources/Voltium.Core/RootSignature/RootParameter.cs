@@ -42,6 +42,20 @@ namespace Voltium.Core
         /// <summary>
         /// Creates a new descriptor table root parameter
         /// </summary>
+        /// <returns>A new <see cref="RootParameter"/> representing a descriptor table</returns>
+        public static RootParameter CreateDescriptorTable(
+            DescriptorRangeType type,
+            uint baseShaderRegister,
+            uint descriptorCount,
+            uint registerSpace,
+            uint offsetInDescriptorsFromTableStart = DescriptorRange.AppendAfterLastDescriptor,
+            ShaderVisibility visibility = ShaderVisibility.All
+        )
+            => CreateDescriptorTable(new DescriptorRange(type, baseShaderRegister, descriptorCount, registerSpace, offsetInDescriptorsFromTableStart), visibility);
+
+        /// <summary>
+        /// Creates a new descriptor table root parameter
+        /// </summary>
         /// <param name="range">The <see cref="DescriptorRange"/> to bind</param>
         /// <param name="visibility">Indicates which shaders have access to this parameter</param>
         /// <returns>A new <see cref="RootParameter"/> representing a descriptor table</returns>

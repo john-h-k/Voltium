@@ -9,7 +9,6 @@ using System.Threading.Tasks;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.GpuResources;
-using Voltium.Core.Memory.GpuResources.ResourceViews;
 
 namespace Voltium.Core.Memory.GpuResources
 {

@@ -48,58 +48,60 @@ namespace Voltium.Common
 
         static Logger()
         {
-            //var factory = LoggerFactory.Create(builder =>
-            //{
-            //    _ = builder.ClearProviders()
-            //               .SetMinimumLevel(MinimumLogLevel)
-            //               .AddZLoggerConsole();
-            //});
+            var factory = LoggerFactory.Create(builder =>
+            {
+                _ = builder.ClearProviders()
+                           .SetMinimumLevel(MinimumLogLevel)
+                           .AddZLoggerConsole();
+            });
 
-            //factory.CreateLogger("DefaultLogContext");
+            Default = factory.CreateLogger("DefaultLogContext");
         }
+
+        private static ILogger Default;
 
         // TODO
 
         //[Conditional("LOG")]
         public static void Log(LogLevel level, string format, params object[]objects)
         {
-            Console.WriteLine(format); //Default.ZLog(level, format);
+            Default.ZLog(level, format);
         }
 
         //[Conditional("LOG")]
         public static void LogTrace(string format, params object[]objects)
         {
-            Console.WriteLine(format); //Default.ZLogTrace(format);
+            Default.ZLogTrace(format);
         }
 
         //[Conditional("LOG")]
         public static void LogDebug(string format, params object[]objects)
         {
-            Console.WriteLine(format); //Default.ZLogDebug(format);
+            Default.ZLogDebug(format);
         }
 
         //[Conditional("LOG")]
         public static void LogInformation(string format, params object[]objects)
         {
-            Console.WriteLine(format); //Default.ZLogInformation(format);
+            Default.ZLogInformation(format);
         }
 
         //[Conditional("LOG")]
         public static void LogWarning(string format, params object[]objects)
         {
-            Console.WriteLine(format); //Default.ZLogWarning(format);
+            Default.ZLogWarning(format);
         }
 
         //[Conditional("LOG")]
         public static void LogCritical(string format, params object[]objects)
         {
-            Console.WriteLine(format); //Default.ZLogCritical(format);
+            Default.ZLogCritical(format);
         }
 
         //[Conditional("LOG")]
         public static void LogError(string format, params object[]objects)
         {
-            Console.WriteLine(format); //Default.ZLogError(format);
+            Default.ZLogError(format);
         }
     }
 }

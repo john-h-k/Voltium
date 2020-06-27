@@ -101,10 +101,16 @@ namespace Voltium.Core.Managers
 
                 DirectXHelpers.SetObjectName(pso.Get(), $"Graphics pipeline state object '{name}'");
 
-                return new GraphicsPso(pso.Move(), graphicsDesc);
+                var pipeline = new GraphicsPso(pso.Move(), graphicsDesc);
+                _psos.Add(name, pipeline);
+                return pipeline;
             }
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        public static void Reset() => _psos.Clear();
 
         /// <summary>
         /// Creates a new named pipeline state object and registers it in the library for retrieval with
@@ -132,7 +138,9 @@ namespace Voltium.Core.Managers
 
                 DirectXHelpers.SetObjectName(pso.Get(), $"Compute pipeline state object '{name}'");
 
-                return new ComputePso(pso.Move(), computeDesc);
+                var pipeline = new ComputePso(pso.Move(), computeDesc);
+                _psos.Add(name, pipeline);
+                return pipeline;
             }
         }
 

@@ -5,7 +5,6 @@ using System.Runtime.Loader;
 using TerraFX.Interop;
 using static TerraFX.Interop.D3D12_RESOURCE_STATES;
 using Voltium.Common;
-using Voltium.Core.Memory.GpuResources.ResourceViews;
 using System.Runtime.InteropServices;
 using Voltium.Core.Managers;
 using Voltium.Core.Memory.GpuResources;
@@ -187,20 +186,17 @@ namespace Voltium.Core.GpuResources
         /// <param name="desc">The <see cref="TextureDesc"/> describing the texture</param>
         /// <param name="initialResourceState">The state of the resource when it is allocated</param>
         /// <param name="allocFlags">Any additional allocation flags</param>
-        /// <param name="msaa">If the <paramref name="desc"/> is a render target or depth stencil, the
-        /// <see cref="MsaaDesc"/> describing multi-sampling</param>
         /// <returns>A new <see cref="Texture"/></returns>
         public Texture AllocateTexture(
             in TextureDesc desc,
             ResourceState initialResourceState,
-            AllocFlags allocFlags = AllocFlags.None,
-            MsaaDesc msaa = default
+            AllocFlags allocFlags = AllocFlags.None
         )
         {
-            DXGI_SAMPLE_DESC sample = new DXGI_SAMPLE_DESC(msaa.SampleCount, msaa.QualityLevel);
+            DXGI_SAMPLE_DESC sample = new DXGI_SAMPLE_DESC(desc.Msaa.SampleCount, desc.Msaa.QualityLevel);
 
             // Normalize default
-            if (msaa.SampleCount == 0)
+            if (desc.Msaa.SampleCount == 0)
             {
                 sample.Count = 1;
             }
@@ -584,6 +580,100 @@ namespace Voltium.Core.GpuResources
     public struct TextureDesc
     {
         /// <summary>
+        /// Creates a new <see cref="TextureDesc"/> representing a 2D render target
+        /// </summary>
+        /// <param name="format">The <see cref="DataFormat"/> for the render target</param>
+        /// <param name="height">The height, in texels, of the target</param>
+        /// <param name="width">The width, in texels, of the target</param>
+        /// <param name="clearColor">The <see cref="RgbaColor"/> to set to be the optimized clear value</param>
+        /// <param name="msaa">Optionally, the <see cref="MsaaDesc"/> for the render target</param>
+        /// <returns>A new <see cref="TextureDesc"/> representing a render target</returns>
+        public static TextureDesc CreateRenderTargetDesc(DataFormat format, uint height, uint width, RgbaColor clearColor, MsaaDesc msaa = default)
+        {
+            return new TextureDesc
+            {
+                Height = height,
+                Width = width,
+                DepthOrArraySize = 1,
+                Dimension = TextureDimension.Tex2D,
+                Format = format,
+                ClearValue = TextureClearValue.CreateForRenderTarget(clearColor),
+                Msaa = msaa,
+                ResourceFlags = ResourceFlags.AllowRenderTarget
+            };
+        }
+
+        /// <summary>
+        /// Creates a new <see cref="TextureDesc"/> representing a 2D depth stencil
+        /// </summary>
+        /// <param name="format">The <see cref="DataFormat"/> for the depth stencil</param>
+        /// <param name="height">The height, in texels, of the depth stencil</param>
+        /// <param name="width">The width, in texels, of the depth stencil</param>
+        /// <param name="clearDepth">The <see cref="float"/> to set to be the optimized clear value for the depth element</param>
+        /// <param name="clearStencil">The <see cref="byte"/> to set to be the optimized clear value for the stencil element</param>
+        /// <param name="msaa">Optionally, the <see cref="MsaaDesc"/> for the depth stencil</param>
+        /// <returns>A new <see cref="TextureDesc"/> representing a depth stencil</returns>
+        public static TextureDesc CreateDepthStencilDesc(DataFormat format, uint height, uint width, float clearDepth, byte clearStencil, MsaaDesc msaa = default)
+        {
+            return new TextureDesc
+            {
+                Height = height,
+                Width = width,
+                DepthOrArraySize = 1,
+                Dimension = TextureDimension.Tex2D,
+                Format = format,
+                ClearValue = TextureClearValue.CreateForDepthStencil(clearDepth, clearStencil),
+                Msaa = msaa,
+                ResourceFlags = ResourceFlags.AllowDepthStencil,
+            };
+        }
+
+        /// <summary>
+        /// Creates a new <see cref="TextureDesc"/> representing a shader resource
+        /// </summary>
+        /// <param name="format">The <see cref="DataFormat"/> for the shader resource</param>
+        /// <param name="dimension">The <see cref="TextureDimension"/> of the resource</param>
+        /// <param name="height">The height, in texels, of the resource</param>
+        /// <param name="width">The width, in texels, of the resource</param>
+        /// <param name="depthOrArraySize">The depth, in texels, of the resource, if <paramref name="dimension"/>
+        /// is <see cref="TextureDimension.Tex3D"/>, else, the number of textures in the array</param>
+        /// <returns>A new <see cref="TextureDesc"/> representing a shader resource</returns>
+        public static TextureDesc CreateShaderResourceDesc(DataFormat format, TextureDimension dimension, uint height, uint width = 1, ushort depthOrArraySize = 1)
+        {
+            return new TextureDesc
+            {
+                Height = height,
+                Width = width,
+                DepthOrArraySize = depthOrArraySize,
+                Dimension = dimension,
+                Format = format,
+            };
+        }
+
+        /// <summary>
+        /// Creates a new <see cref="TextureDesc"/> representing a unordered access resource
+        /// </summary>
+        /// <param name="format">The <see cref="DataFormat"/> for the unordered access resource</param>
+        /// <param name="dimension">The <see cref="TextureDimension"/> of the unordered access resource</param>
+        /// <param name="height">The height, in texels, of the resource</param>
+        /// <param name="width">The width, in texels, of the resource</param>
+        /// <param name="depthOrArraySize">The depth, in texels, of the resource, if <paramref name="dimension"/>
+        /// is <see cref="TextureDimension.Tex3D"/>, else, the number of textures in the array</param>
+        /// <returns>A new <see cref="TextureDesc"/> representing a shader resource</returns>
+        public static TextureDesc CreateUnorderedAccessResourceDesc(DataFormat format, TextureDimension dimension, uint height, uint width = 1, ushort depthOrArraySize = 1)
+        {
+            return new TextureDesc
+            {
+                Height = height,
+                Width = width,
+                DepthOrArraySize = depthOrArraySize,
+                Dimension = dimension,
+                Format = format,
+                ResourceFlags = ResourceFlags.AllowUnorderedAccess
+            };
+        }
+
+        /// <summary>
         /// The format of the texture
         /// </summary>
         public DataFormat Format;
@@ -618,5 +708,11 @@ namespace Voltium.Core.GpuResources
         /// Any addition resource flags
         /// </summary>
         public ResourceFlags ResourceFlags;
+
+        /// <summary>
+        /// Optionally, the <see cref="MsaaDesc"/> describing multi-sampling for this texture.
+        /// This is only meaningful when used with a render target or depth stencil
+        /// </summary>
+        public MsaaDesc Msaa;
     }
 }

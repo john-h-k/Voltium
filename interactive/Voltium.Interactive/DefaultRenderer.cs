@@ -55,14 +55,6 @@ namespace Voltium.Interactive
         private float _pad1;
     }
 
-    //[StructLayout(LayoutKind.Sequential)]
-    //public partial struct Material
-    //{
-    //    public Vector4 DiffuseAlbedo;
-    //    public Vector4 ReflectionFactor;
-    //    public float Shininess;
-    //};
-
     public unsafe class DefaultRenderer : Renderer
     {
         private GpuAllocator _allocator = null!;
@@ -72,54 +64,35 @@ namespace Voltium.Interactive
         private Texture _normals;
         private int _zoomDelta;
         private Mesh<TexturedVertex>[] _texturedObjects = null!;
-        //private Geometry<ColorVertex>[] _colorObjects = null!;
         private GraphicsDevice _device = null!;
         private DescriptorHandle _texHandle;
         private DescriptorHandle _normalHandle;
 
-        private MsaaDesc _msaaDesc = new MsaaDesc(8, 0);
+        private MsaaDesc _msaaDesc = MsaaDesc.None;
 
         public override void Init(GraphicsDevice device, GraphicalConfiguration config, in ScreenData screen)
         {
+            PipelineManager.Reset();
+
             _device = device;
             _allocator = _device.Allocator;
 
             _texturedObjects = ModelLoader.LoadGl("Assets/Gltf/Handgun_Tangent.gltf");
-            //var meshes = new[] { GemeotryGenerator.LoadSingleModel("logo.obj") };
             var texture = TextureLoader.CreateTexture("Assets/Textures/handgun_c.dds");
             var normals = TextureLoader.CreateTexture("Assets/Textures/handgun_n.dds");
 
             _vertexBuffer = new Buffer[_texturedObjects.Length];
             _indexBuffer = new Buffer[_texturedObjects.Length];
 
-            var dsDesc = new TextureDesc
-            {
-                Width = screen.Width,
-                Height = screen.Height,
-                Format = config.DepthStencilFormat,
-                Dimension = TextureDimension.Tex2D,
-                DepthOrArraySize = 1,
-                ClearValue = TextureClearValue.CreateForDepthStencil(1, 0),
-                ResourceFlags = ResourceFlags.AllowDepthStencil,
-            };
+            var dsDesc = TextureDesc.CreateDepthStencilDesc(DataFormat.D32Single, screen.Height, screen.Width, 1, 0, _msaaDesc);
+            var rtDesc = TextureDesc.CreateRenderTargetDesc(config.BackBufferFormat, screen.Height, screen.Width, RgbaColor.CornflowerBlue, _msaaDesc);
 
-            var rtDesc = new TextureDesc
-            {
-                Width = screen.Width,
-                Height = screen.Height,
-                Format = config.BackBufferFormat,
-                Dimension = TextureDimension.Tex2D,
-                DepthOrArraySize = 1,
-                ClearValue = TextureClearValue.CreateForRenderTarget(RgbaColor.CornflowerBlue),
-                ResourceFlags = ResourceFlags.AllowRenderTarget
-            };
-
-            _depthStencil = _allocator.AllocateTexture(dsDesc, ResourceState.DepthWrite, AllocFlags.None, _msaa ? _msaaDesc : default);
-            _renderTarget = _allocator.AllocateTexture(rtDesc, ResourceState.RenderTarget, AllocFlags.None, _msaa ? _msaaDesc : default);
+            _depthStencil = _allocator.AllocateTexture(dsDesc, ResourceState.DepthWrite);
+            _renderTarget = _allocator.AllocateTexture(rtDesc, ResourceState.RenderTarget);
 
             var dsv = new TextureDepthStencilViewDesc
             {
-                Format = config.DepthStencilFormat,
+                Format = dsDesc.Format,
                 IsMultiSampled = _msaa,
                 MipIndex = 0,
                 PlaneSlice = 0
@@ -142,11 +115,15 @@ namespace Voltium.Interactive
                 for (var i = 0; i < _texturedObjects.Length; i++, buffIndex++)
                 {
                     list.UploadBuffer(_allocator, _texturedObjects[i].Vertices, MemoryAccess.GpuOnly, out _vertexBuffer[buffIndex]);
+                    list.ResourceTransition(_vertexBuffer[buffIndex], ResourceState.VertexBuffer);
                     list.UploadBuffer(_allocator, _texturedObjects[i].Indices, MemoryAccess.GpuOnly, out _indexBuffer[buffIndex]);
+                    list.ResourceTransition(_indexBuffer[buffIndex], ResourceState.IndexBuffer);
                 }
 
                 list.UploadTexture(_allocator, texture.BitData.Span, texture.SubresourceData.Span, texture.Desc, out _texture);
+                list.ResourceTransition(_texture, ResourceState.PixelShaderResource);
                 list.UploadTexture(_allocator, normals.BitData.Span, normals.SubresourceData.Span, normals.Desc, out _normals);
+                list.ResourceTransition(_normals, ResourceState.PixelShaderResource);
             }
 
             var srvDesc = new TextureShaderResourceViewDesc
@@ -164,27 +141,24 @@ namespace Voltium.Interactive
             _frame = _allocator.AllocateBuffer(sizeof(FrameConstants), MemoryAccess.CpuUpload);
             _light = _allocator.AllocateBuffer(sizeof(LightConstants), MemoryAccess.CpuUpload);
 
-            CreatePipelines(config);
-
+            CreatePipelines();
             InitializeConstants(screen);
         }
 
-
-
-        public void CreatePipelines(GraphicalConfiguration config)
+        public void CreatePipelines()
         {
             var rootParams = new[]
             {
                 RootParameter.CreateDescriptor(RootParameterType.ConstantBufferView, 0, 0),
                 RootParameter.CreateDescriptor(RootParameterType.ConstantBufferView, 1, 0),
                 RootParameter.CreateDescriptor(RootParameterType.ConstantBufferView, 2, 0),
-                RootParameter.CreateDescriptorTable(new DescriptorRange(DescriptorRangeType.ShaderResourceView, 0, 2, 0))
+                RootParameter.CreateDescriptorTable(DescriptorRangeType.ShaderResourceView, 0, 2, 0)
             };
 
             var samplers = new[]
             {
                 new StaticSampler(
-                    TextureAddressMode.Wrap,
+                    TextureAddressMode.Clamp,
                     SamplerFilterType.Anistropic,
                     //SamplerFilterType.MagLinear | SamplerFilterType.MinLinear | SamplerFilterType.MipLinear,
                     shaderRegister: 0,
@@ -198,18 +172,19 @@ namespace Voltium.Interactive
 
             var compilationFlags = new[]
             {
-                DxcCompileFlags.PackMatricesInRowMajorOrder
+                DxcCompileFlags.PackMatricesInRowMajorOrder,
+                //DxcCompileFlags.DefineMacro("NORMALS")
             };
 
             var vertexShader = ShaderManager.CompileShader("Shaders/SimpleTexture/TextureVertexShader.hlsl", DxcCompileTarget.Vs_6_0, compilationFlags);
             var pixelShader = ShaderManager.CompileShader("Shaders/SimpleTexture/TexturePixelShader.hlsl", DxcCompileTarget.Ps_6_0, compilationFlags);
 
-            var psoDesc = new GraphicsPipelineDesc(_rootSig, config.BackBufferFormat, config.DepthStencilFormat, vertexShader, pixelShader);
+            var psoDesc = new GraphicsPipelineDesc(_rootSig, _renderTarget.Format, _depthStencil.Format, vertexShader, pixelShader);
 
-            _texPso = PipelineManager.CreatePso<TexturedVertex>(_device, "Texture", psoDesc);
+            PipelineManager.CreatePso<TexturedVertex>(_device, "Texture", psoDesc);
 
             psoDesc.Msaa = _msaaDesc;
-            _msaaTexPso = PipelineManager.CreatePso<TexturedVertex>(_device, "TextureMSAA4x", psoDesc);
+            PipelineManager.CreatePso<TexturedVertex>(_device, "TextureMSAA", psoDesc);
         }
 
         private ObjectConstants[] _objectConstants = null!;
@@ -260,7 +235,6 @@ namespace Voltium.Interactive
                 Direction = new Vector3(0.57735f, -0.57735f, 0.57735f)
             };
 
-
             _sceneLight.Light1 = new DirectionalLight
             {
                 Strength = new Vector3(0.5f),
@@ -275,8 +249,8 @@ namespace Voltium.Interactive
         }
 
         private RootSignature _rootSig = null!;
-        private PipelineStateObject _texPso = null!;
-        private PipelineStateObject _msaaTexPso = null!;
+        //private PipelineStateObject _texPso = null!;
+        //private PipelineStateObject _msaaTexPso = null!;
         //private PipelineStateObject _colorPso = null!;
 
         private Matrix4x4 _perFrameRotation = Matrix4x4.CreateRotationY(10f)/* * Matrix4x4.CreateRotationX(0.001f)*/;
@@ -304,7 +278,7 @@ namespace Voltium.Interactive
 
             for (var i = 0u; i < _objectConstants.Length; i++)
             {
-                //_objectConstants[i].World *= Matrix4x4.CreateRotationY(0.5f * (float)timer.ElapsedSeconds);
+                _objectConstants[i].World *= Matrix4x4.CreateRotationY(0.5f * (float)timer.ElapsedSeconds);
                 _obj.WriteConstantBufferData(ref _objectConstants[i], i);
             }
 
@@ -314,11 +288,15 @@ namespace Voltium.Interactive
             _zoomDelta = 0;
         }
 
-        public override void ToggleMsaa() => _msaa = !_msaa;
+        public override void ToggleMsaa()
+        {
+            _msaa = !_msaa;
+            _msaaDesc = _msaa ? MsaaDesc.X8 : MsaaDesc.None;
+        }
 
         public override PipelineStateObject GetInitialPso()
         {
-            return _msaa ? _msaaTexPso : _texPso;
+            return _msaa ? PipelineManager.RetrievePso("TextureMSAA")  : PipelineManager.RetrievePso("Texture");
         }
 
         private Texture _renderTarget;
@@ -328,7 +306,7 @@ namespace Voltium.Interactive
         private Texture _depthStencil;
         private DescriptorHandle _depthStencilView;
 
-        private bool _msaa = true;
+        private bool _msaa = false;
 
         public override void Render(GraphicsContext recorder)
         {
@@ -337,8 +315,8 @@ namespace Voltium.Interactive
             recorder.SetRenderTargets(_renderTargetView, 1, _depthStencilView);
             recorder.ClearRenderTargetAndDepthStencil(_renderTargetView, _depthStencilView, RgbaColor.CornflowerBlue);
 
-            recorder.SetGraphicsConstantBuffer(1, _frame);
-            recorder.SetGraphicsConstantBuffer(2, _light);
+            recorder.SetConstantBuffer(1, _frame);
+            recorder.SetConstantBuffer(2, _light);
             recorder.SetRootDescriptorTable(3, _texHandle);
 
             recorder.SetTopology(Topology.TriangeList);

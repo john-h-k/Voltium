@@ -4,39 +4,33 @@ using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.DXGI;
 using Voltium.Core.GpuResources;
-using static TerraFX.Interop.Windows;
-using static TerraFX.Interop.D3D12_DESCRIPTOR_HEAP_TYPE;
-using static Voltium.Common.DirectXHelpers;
-using static TerraFX.Interop.D3D12_DRED_ENABLEMENT;
-using static TerraFX.Interop.DXGI_DEBUG_RLO_FLAGS;
-using static TerraFX.Interop.DXGI_SWAP_CHAIN_FLAG;
-using Voltium.Common.Debugging;
 using Voltium.Core.Pipeline;
 using Voltium.Core.Memory.GpuResources;
-using Voltium.Core.D3D12;
-using Buffer = Voltium.Core.Memory.GpuResources.Buffer;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
+
+using static TerraFX.Interop.D3D12_DESCRIPTOR_HEAP_TYPE;
+using static TerraFX.Interop.D3D12_DRED_ENABLEMENT;
+using static TerraFX.Interop.DXGI_DEBUG_RLO_FLAGS;
+using static Voltium.Common.DirectXHelpers;
+using static TerraFX.Interop.Windows;
 
 namespace Voltium.Core.Managers
 {
     /// <summary>
     /// The top-level manager for application resources
     /// </summary>
-    public unsafe class GraphicsDevice
+    public unsafe partial class GraphicsDevice
     {
         private ComPtr<ID3D12Device> _device;
-        private Adapter _adapter;
+        private SwapChain _swapChain;
         private ComPtr<IDXGIDebug1> _debugLayer;
-        private ComPtr<IDXGIFactory2> _factory;
-        private ComPtr<IDXGISwapChain3> _swapChain;
-        private uint _syncInterval;
-        internal ulong TotalFramesRendered = 0;
-        private Texture[] _renderTargets = null!;
-        private Texture _depthStencil;
-        internal uint BackBufferIndex;
+        private Texture[] _backBuffer = null!;
         private GraphicalConfiguration _config = null!;
         private SynchronizedCommandQueue _graphicsQueue;
+
+        private Adapter _adapter;
+        private uint _syncInterval;
+        internal ulong TotalFramesRendered = 0;
+        internal uint BackBufferIndex;
         //private GpuDispatchManager _dispatch = null!;
 
         /// <summary>
@@ -69,16 +63,7 @@ namespace Voltium.Core.Managers
 
             EnableDebugLayer();
 
-            using ComPtr<IDXGIFactory2> factory = default;
-
-            Guard.ThrowIfFailed(CreateDXGIFactory(
-                factory.Guid,
-                ComPtr.GetVoidAddressOf(&factory)
-            ));
-
-            _factory = factory.Move();
-
-            foreach (Adapter adapter in Adapter.EnumerateAdapters(_factory))
+            foreach (Adapter adapter in AdapterFactory.Create())
             {
                 if (adapter.IsSoftware)
                 {
@@ -88,7 +73,7 @@ namespace Voltium.Core.Managers
                 if (TryCreateNewDevice(adapter, (D3D_FEATURE_LEVEL)config.RequiredFeatureLevel, out _device))
                 {
                     _adapter = adapter;
-                    Logger.LogInformation($"New ID3D12Device created: {adapter.Description}");
+                    Logger.LogInformation($"New ID3D12Device created: \n{adapter}\n");
                     break;
                 }
             }
@@ -101,7 +86,7 @@ namespace Voltium.Core.Managers
             }
 
 #if DEBUG || EXTENDED_ERROR_INFORMATION
-            if (!_device.TryQueryInterface(out ComPtr<ID3D12InfoQueue> infoQueue))
+            if (!_device.TryQueryInterface<ID3D12InfoQueue>(out var infoQueue))
             {
                 Logger.LogError("Failed creation of ID3D12InfoQueue");
                 ThrowHelper.ThrowPlatformNotSupportedException(
@@ -126,7 +111,7 @@ namespace Voltium.Core.Managers
             Viewport = new Viewport(0.0f, 0.0f, ScreenData.Width, ScreenData.Height, 0.0f, 1.0f);
             Scissor = new Rectangle(0, 0, (int)ScreenData.Width, (int)ScreenData.Height);
 
-            BackBufferIndex = _swapChain.Get()->GetCurrentBackBufferIndex();
+            BackBufferIndex = _swapChain.BackBufferIndex;
         }
 
         /// <summary>
@@ -134,19 +119,6 @@ namespace Voltium.Core.Managers
         /// </summary>
         public GpuAllocator Allocator { get; private set; } = null!;
 
-        private void InitializeDescriptorSizes()
-        {
-            ConstantBufferOrShaderResourceOrUnorderedAccessViewDescriptorSize =
-                (int)DevicePointer->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-
-            RenderTargetViewDescriptorSize =
-                (int)DevicePointer->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-
-            DepthStencilViewDescriptorSize =
-                (int)DevicePointer->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
-
-            SamplerDescriptorSize = (int)DevicePointer->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
-        }
 
         /// <summary>
         /// Gets the <see cref="ID3D12Device"/> used by this application
@@ -224,247 +196,6 @@ namespace Voltium.Core.Managers
             {
                 return new D3D12_HEAP_PROPERTIES(desc.HeapType);
             }
-        }
-
-        private DescriptorHeap _samplers;
-        private DescriptorHeap _rtvs;
-        private DescriptorHeap _dsvs;
-        private DescriptorHeap _cbvSrvUav;
-
-        private void CreateDescriptorHeaps()
-        {
-            _rtvs = DescriptorHeap.CreateRenderTargetViewHeap(this, _config.SwapChainBufferCount * 5);
-            _dsvs = DescriptorHeap.CreateDepthStencilViewHeap(this, 50);
-            _samplers = DescriptorHeap.CreateSamplerHeap(this, 1);
-            _cbvSrvUav = DescriptorHeap.CreateConstantBufferShaderResourceUnorderedAccessViewHeap(this, 10);
-        }
-
-
-        /// <summary>
-        /// Creates a shader resource view to a <see cref="Texture"/>
-        /// </summary>
-        /// <param name="resource">The <see cref="Texture"/> resource to create the view for</param>
-        public DescriptorHandle CreateShaderResourceView(Texture resource)
-        {
-            var handle = _cbvSrvUav.GetNextHandle();
-
-            DevicePointer->CreateShaderResourceView(resource.Resource.UnderlyingResource, null, handle.CpuHandle);
-
-            return handle;
-        }
-
-        /// <summary>
-        /// Creates a shader resource view to a <see cref="Texture"/>
-        /// </summary>
-        /// <param name="resource">The <see cref="Texture"/> resource to create the view for</param>
-        /// <param name="desc">The <see cref="TextureShaderResourceViewDesc"/> describing the metadata used to create the view</param>
-        public DescriptorHandle CreateShaderResourceView(Texture resource, in TextureShaderResourceViewDesc desc)
-        {
-            D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc;
-
-            if (desc.IsMultiSampled)
-            {
-                ThrowHelper.ThrowNotImplementedException("TODO");
-            }
-
-            switch (resource.Dimension)
-            {
-                case TextureDimension.Tex1D:
-                    srvDesc.Anonymous.Texture1D.MipLevels = desc.MipLevels;
-                    srvDesc.Anonymous.Texture1D.MostDetailedMip = desc.MostDetailedMip;
-                    srvDesc.Anonymous.Texture1D.ResourceMinLODClamp = desc.ResourceMinLODClamp;
-                    srvDesc.ViewDimension = D3D12_SRV_DIMENSION.D3D12_SRV_DIMENSION_TEXTURE1D;
-                    break;
-                case TextureDimension.Tex2D:
-                    srvDesc.Anonymous.Texture2D.MipLevels = desc.MipLevels;
-                    srvDesc.Anonymous.Texture2D.MostDetailedMip = desc.MostDetailedMip;
-                    srvDesc.Anonymous.Texture2D.ResourceMinLODClamp = desc.ResourceMinLODClamp;
-                    srvDesc.Anonymous.Texture2D.PlaneSlice = desc.PlaneSlice;
-                    srvDesc.ViewDimension = D3D12_SRV_DIMENSION.D3D12_SRV_DIMENSION_TEXTURE2D;
-                    break;
-                case TextureDimension.Tex3D:
-
-                    srvDesc.Anonymous.Texture3D.MipLevels = desc.MipLevels;
-                    srvDesc.Anonymous.Texture3D.MostDetailedMip = desc.MostDetailedMip;
-                    srvDesc.Anonymous.Texture3D.ResourceMinLODClamp = desc.ResourceMinLODClamp;
-                    srvDesc.ViewDimension = D3D12_SRV_DIMENSION.D3D12_SRV_DIMENSION_TEXTURE3D;
-                    break;
-            }
-
-            srvDesc.Format = (DXGI_FORMAT)desc.Format;
-            srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING; // TODO
-
-            var handle = _cbvSrvUav.GetNextHandle();
-
-            DevicePointer->CreateShaderResourceView(resource.Resource.UnderlyingResource, &srvDesc, handle.CpuHandle);
-
-            return handle;
-        }
-
-        /// <summary>
-        /// Creates a shader resource view to a <see cref="Buffer"/>
-        /// </summary>
-        /// <param name="resource">The <see cref="Buffer"/> resource to create the view for</param>
-        /// <param name="desc">The <see cref="BufferShaderResourceViewDesc"/> describing the metadata used to create the view</param>
-        public DescriptorHandle CreateShaderResourceView(Buffer resource, in BufferShaderResourceViewDesc desc)
-        {
-            Unsafe.SkipInit(out D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc);
-            srvDesc.Format = (DXGI_FORMAT)desc.Format;
-            srvDesc.ViewDimension = D3D12_SRV_DIMENSION.D3D12_SRV_DIMENSION_BUFFER;
-            srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING; // TODO
-            srvDesc.Anonymous.Buffer.FirstElement = desc.Offset;
-            srvDesc.Anonymous.Buffer.Flags = desc.Raw ? D3D12_BUFFER_SRV_FLAGS.D3D12_BUFFER_SRV_FLAG_RAW : D3D12_BUFFER_SRV_FLAGS.D3D12_BUFFER_SRV_FLAG_NONE;
-            srvDesc.Anonymous.Buffer.NumElements = desc.ElementCount;
-            srvDesc.Anonymous.Buffer.StructureByteStride = desc.ElementStride;
-
-            var handle = _cbvSrvUav.GetNextHandle();
-
-            DevicePointer->CreateShaderResourceView(resource.Resource.UnderlyingResource, &srvDesc, _cbvSrvUav.GetNextHandle().CpuHandle);
-            
-            return handle;
-        }
-
-        /// <summary>
-        /// Creates a shader resource view to a <see cref="Buffer"/>
-        /// </summary>
-        /// <param name="resource">The <see cref="Buffer"/> resource to create the view for</param>
-        public DescriptorHandle CreateShaderResourceView(Buffer resource)
-        {
-            var handle = _cbvSrvUav.GetNextHandle();
-
-            DevicePointer->CreateShaderResourceView(resource.Resource.UnderlyingResource, null, handle.CpuHandle);
-
-            return handle;
-        }
-
-        /// <summary>
-        /// Creates a render target view to a <see cref="Texture"/>
-        /// </summary>
-        /// <param name="resource">The <see cref="Texture"/> resource to create the view for</param>
-        /// <param name="desc">The <see cref="TextureShaderResourceViewDesc"/> describing the metadata used to create the view</param>
-        public DescriptorHandle CreateRenderTargetView(Texture resource, in TextureRenderTargetViewDesc desc)
-        {
-            D3D12_RENDER_TARGET_VIEW_DESC rtvDesc;
-
-            if (desc.IsMultiSampled)
-            {
-                switch (resource.Dimension)
-                {
-                    case TextureDimension.Tex1D:
-                        ThrowHelper.ThrowArgumentException("Cannot multisample 1D render target view");
-                        break;
-                    case TextureDimension.Tex2D:
-                        rtvDesc.ViewDimension = D3D12_RTV_DIMENSION.D3D12_RTV_DIMENSION_TEXTURE2DMS;
-                        break;
-                    case TextureDimension.Tex3D:
-                        ThrowHelper.ThrowArgumentException("Cannot multisample 3D render target view");
-                        break;
-                }
-            }
-            else
-            {
-                switch (resource.Dimension)
-                {
-                    case TextureDimension.Tex1D:
-                        rtvDesc.Anonymous.Texture1D.MipSlice = desc.MipIndex;
-                        rtvDesc.ViewDimension = D3D12_RTV_DIMENSION.D3D12_RTV_DIMENSION_TEXTURE1D;
-                        break;
-                    case TextureDimension.Tex2D:
-                        rtvDesc.Anonymous.Texture2D.MipSlice = desc.MipIndex;
-                        rtvDesc.Anonymous.Texture2D.PlaneSlice = desc.PlaneSlice;
-                        rtvDesc.ViewDimension = D3D12_RTV_DIMENSION.D3D12_RTV_DIMENSION_TEXTURE2D;
-                        break;
-                    case TextureDimension.Tex3D:
-                        rtvDesc.Anonymous.Texture3D.MipSlice = desc.MipIndex;
-                        rtvDesc.ViewDimension = D3D12_RTV_DIMENSION.D3D12_RTV_DIMENSION_TEXTURE3D;
-                        break;
-                }
-            }
-
-            rtvDesc.Format = (DXGI_FORMAT)desc.Format;
-
-            var handle = _rtvs.GetNextHandle();
-
-            DevicePointer->CreateRenderTargetView(resource.Resource.UnderlyingResource, &rtvDesc, handle.CpuHandle);
-
-            return handle;
-        }
-
-        /// <summary>
-        /// Creates a render target view to a <see cref="Texture"/>
-        /// </summary>
-        /// <param name="resource">The <see cref="Texture"/> resource to create the view for</param>
-        public DescriptorHandle CreateRenderTargetView(Texture resource)
-        {
-            var handle = _rtvs.GetNextHandle();
-
-            DevicePointer->CreateRenderTargetView(resource.Resource.UnderlyingResource, null, handle.CpuHandle);
-
-            return handle;
-        }
-
-        /// <summary>
-        /// Creates a depth stencil view to a <see cref="Texture"/>
-        /// </summary>
-        /// <param name="resource">The <see cref="Texture"/> resource to create the view for</param>
-        /// <param name="desc">The <see cref="TextureShaderResourceViewDesc"/> describing the metadata used to create the view</param>
-        public DescriptorHandle CreateDepthStencilView(Texture resource, in TextureDepthStencilViewDesc desc)
-        {
-            D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
-
-            if (desc.IsMultiSampled)
-            {
-                switch (resource.Dimension)
-                {
-                    case TextureDimension.Tex1D:
-                        ThrowHelper.ThrowArgumentException("Cannot multisample 1D depth stencil view");
-                        break;
-                    case TextureDimension.Tex2D:
-                        dsvDesc.ViewDimension = D3D12_DSV_DIMENSION.D3D12_DSV_DIMENSION_TEXTURE2DMS;
-                        break;
-                    case TextureDimension.Tex3D:
-                        ThrowHelper.ThrowArgumentException("Cannot have 3D depth stencil view");
-                        break;
-                }
-            }
-            else
-            {
-                switch (resource.Dimension)
-                {
-                    case TextureDimension.Tex1D:
-                        dsvDesc.Anonymous.Texture1D.MipSlice = desc.MipIndex;
-                        dsvDesc.ViewDimension = D3D12_DSV_DIMENSION.D3D12_DSV_DIMENSION_TEXTURE1D;
-                        break;
-                    case TextureDimension.Tex2D:
-                        dsvDesc.Anonymous.Texture2D.MipSlice = desc.MipIndex;
-                        dsvDesc.ViewDimension = D3D12_DSV_DIMENSION.D3D12_DSV_DIMENSION_TEXTURE2D;
-                        break;
-                    case TextureDimension.Tex3D:
-                        ThrowHelper.ThrowArgumentException("Cannot have 3D depth stencil view");
-                        break;
-                }
-            }
-
-            dsvDesc.Format = (DXGI_FORMAT)desc.Format;
-
-            var handle = _dsvs.GetNextHandle();
-
-            DevicePointer->CreateDepthStencilView(resource.GetResourcePointer(), &dsvDesc, handle.CpuHandle);
-
-            return handle;
-        }
-
-        /// <summary>
-        /// Creates a depth stencil view to a <see cref="Texture"/>
-        /// </summary>
-        /// <param name="resource">The <see cref="Texture"/> resource to create the view for</param>
-        public DescriptorHandle CreateDepthStencilView(Texture resource)
-        {
-            var handle = _dsvs.GetNextHandle();
-
-            DevicePointer->CreateDepthStencilView(resource.GetResourcePointer(), null, handle.CpuHandle);
-
-            return handle;
         }
 
         /// <summary>
@@ -579,13 +310,13 @@ namespace Voltium.Core.Managers
         /// </summary>
         public Rectangle Scissor;
 
-        private DescriptorHandle[] _rtv = null!;
+        private DescriptorHandle[] _backBufferViews = null!;
         private DescriptorHandle _dsv;
 
         /// <summary>
         /// The render target view for the current frame
         /// </summary>
-        public DescriptorHandle RenderTargetView => _rtv[(int)BackBufferIndex];
+        public DescriptorHandle RenderTargetView => _backBufferViews[(int)BackBufferIndex];
 
         /// <summary>
         /// The depth stencil view for the current frame
@@ -595,12 +326,7 @@ namespace Voltium.Core.Managers
         /// <summary>
         /// The <see cref="GpuResource"/> for the current render target resource
         /// </summary>
-        public Texture BackBuffer => _renderTargets[BackBufferIndex];
-
-        /// <summary>
-        /// The <see cref="GpuResource"/> for the current depth stencil resource
-        /// </summary>
-        public Texture DepthStencil => _depthStencil;
+        public Texture BackBuffer => _backBuffer[BackBufferIndex];
 
         /// <summary>
         /// The number of CPU buffered resources
@@ -659,7 +385,7 @@ namespace Voltium.Core.Managers
                 AlphaMode = DXGI_ALPHA_MODE.DXGI_ALPHA_MODE_IGNORE, // todo document
                 BufferCount = _config.SwapChainBufferCount,
                 BufferUsage = (int)DXGI_USAGE_RENDER_TARGET_OUTPUT, // this is the output chain
-                Flags = (uint)DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH,
+                Flags = 0,
                 Format = (DXGI_FORMAT)_config.BackBufferFormat,
                 Height = ScreenData.Height,
                 Width = ScreenData.Width,
@@ -669,8 +395,29 @@ namespace Voltium.Core.Managers
                 SwapEffect = DXGI_SWAP_EFFECT.DXGI_SWAP_EFFECT_FLIP_DISCARD
             };
 
+            using ComPtr<IDXGIFactory2> factory = default;
+
+            int hr;
+            if (ComPtr.TryQueryInterface(_adapter.UnderlyingAdapter, out IDXGIAdapter* dxgiAdapter))
+            {
+                hr = dxgiAdapter->GetParent(factory.Guid, ComPtr.GetVoidAddressOf(&factory));
+                dxgiAdapter->Release();
+            }
+            else
+            {
+                hr = CreateDXGIFactory1(factory.Guid, ComPtr.GetVoidAddressOf(&factory));
+            }
+
+            if (hr == E_NOINTERFACE)
+            {
+                // we don't actually *need* IDXGIFactory2, we just need to do CreateSwapChain (rather than CreateSwapChainForHwnd etc) without it which is currently not implemented
+                ThrowHelper.ThrowPlatformNotSupportedException("Platform does not support IDXGIFactory2, which is required");
+            }
+
+            Guard.ThrowIfFailed(hr, "GraphicsDevice.CreateSwapChain -- at IDXGIFactory2 creation");
+
             using ComPtr<IDXGISwapChain1> swapChain = default;
-            Guard.ThrowIfFailed(_factory.Get()->CreateSwapChainForHwnd(
+            Guard.ThrowIfFailed(factory.Get()->CreateSwapChainForHwnd(
                 (IUnknown*)_graphicsQueue.GetQueue(),
                 ScreenData.Handle,
                 &desc,
@@ -684,27 +431,21 @@ namespace Voltium.Core.Managers
                 ThrowHelper.ThrowPlatformNotSupportedException("Couldn't create swapchain3");
             }
 
-            _swapChain = swapChain3.Move();
+            _swapChain = new(swapChain3.Move());
 
             // TODO rotation
         }
 
         private void ResizeSwapChain()
         {
-            for (var i = 0; i < (_renderTargets?.Length ?? 0); i++)
+            for (var i = 0; i < (_backBuffer?.Length ?? 0); i++)
             {
-                _renderTargets![i].Dispose();
+                _backBuffer![i].Dispose();
             }
 
-            Guard.ThrowIfFailed(_swapChain.Get()->ResizeBuffers(
-                _config.SwapChainBufferCount,
-                ScreenData.Width,
-                ScreenData.Height,
-                (DXGI_FORMAT)_config.BackBufferFormat,
-                (uint)DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH
-            ));
+            _swapChain.ResizeBuffers(ScreenData.Width, ScreenData.Height);
 
-            BackBufferIndex = _swapChain.Get()->GetCurrentBackBufferIndex();
+            BackBufferIndex = _swapChain.BackBufferIndex;
         }
 
         /// <summary>
@@ -721,7 +462,7 @@ namespace Voltium.Core.Managers
             _graphicsQueue.GetSynchronizerForIdle().Block();
 
             ResizeSwapChain();
-            CreateRenderTargets();
+            InitializeBackBuffers();
         }
 
         internal void ReportLiveObjects(bool internalObjects = false)
@@ -742,7 +483,7 @@ namespace Voltium.Core.Managers
         {
             //_dispatch.ExecuteSubmissions();
 
-            var hr = _swapChain.Get()->Present(_syncInterval, 0);
+            var hr = _swapChain.Present(_syncInterval, 0);
 
             TotalFramesRendered++;
 
@@ -788,11 +529,6 @@ namespace Voltium.Core.Managers
             // TODO dred logging
         }
 
-        private void CreateRenderTargets()
-        {
-            CreateRtvAndDsvResources();
-            CreateRtvAndDsvViews();
-        }
 
         [Conditional("DEBUG")]
         [Conditional("D3D12_DEBUG_LAYER")]
@@ -807,6 +543,14 @@ namespace Voltium.Core.Managers
             ));
 
             debugLayer.Get()->EnableDebugLayer();
+
+            if (debugLayer.TryQueryInterface<ID3D12Debug1>(out var debugLayer1))
+            {
+                using (debugLayer1)
+                {
+                    debugLayer1.Get()->SetEnableGPUBasedValidation(TRUE);
+                }
+            }
 
             using ComPtr<IDXGIDebug1> dxgiDebugLayer = default;
 
@@ -853,7 +597,7 @@ namespace Voltium.Core.Managers
         {
             using ComPtr<ID3D12Device> p = default;
             bool success = SUCCEEDED(D3D12CreateDevice(
-                (IUnknown*)adapter.UnderlyingAdapter,
+                adapter.UnderlyingAdapter,
                 requiredLevel,
                 p.Guid,
                 ComPtr.GetVoidAddressOf(&p)
@@ -869,56 +613,18 @@ namespace Voltium.Core.Managers
             return success;
         }
 
-        private void CreateRtvAndDsvResources()
+        private void InitializeBackBuffers()
         {
-            _renderTargets = new Texture[BackBufferCount];
+            _backBuffer = new Texture[BackBufferCount];
+            _backBufferViews = new DescriptorHandle[_backBuffer.Length];
 
-            for (uint i = 0; i < _renderTargets.Length; i++)
+            for (uint i = 0; i < _backBuffer.Length; i++)
             {
-                _renderTargets[i].Dispose();
-                _renderTargets[i] = Texture.FromBackBuffer((IDXGISwapChain*)_swapChain.Get(), i);
-                SetObjectName(_renderTargets[i].Resource.UnderlyingResource, $"Render target #{i}");
+                // Dispose if it is still alive, else nop
+                _backBuffer[i].Dispose();
+                _backBuffer[i] = _swapChain.GetBackBuffer(i);
+                _backBufferViews[i] = CreateRenderTargetView(_backBuffer[i]);
             }
-
-            _depthStencil.Dispose();
-
-            var texDesc = new TextureDesc
-            {
-                Format = _config.DepthStencilFormat,
-                Dimension = TextureDimension.Tex2D,
-                Width = ScreenData.Width,
-                Height = ScreenData.Height,
-                DepthOrArraySize = 1,
-                ClearValue = TextureClearValue.CreateForDepthStencil(1.0f, 0),
-                ResourceFlags = ResourceFlags.AllowDepthStencil
-            };
-
-            _depthStencil = Allocator.AllocateTexture(texDesc, ResourceState.DepthWrite);
-
-            SetObjectName(_depthStencil.Resource.UnderlyingResource, nameof(_depthStencil));
-        }
-
-        private void CreateRtvAndDsvViews()
-        {
-            /* TODO */ //var desc = CreateRenderTargetViewDesc();
-            _rtv = new DescriptorHandle[_renderTargets.Length];
-
-            for (uint i = 0; i < _renderTargets.Length; i++)
-            {
-                _rtv[i] = CreateRenderTargetView(_renderTargets[i]);
-            }
-
-            //var dsv = new TextureDepthStencilViewDesc
-            //{
-            //    Format = _config.DepthStencilFormat,
-            //    IsMultiSampled = false,
-            //    MipIndex = 0,
-            //    PlaneSlice = 0
-            //};
-
-            //_dsv = CreateDepthStencilView(_depthStencil, dsv);
-
-            //SetObjectName(_depthStencil.Resource.UnderlyingResource, nameof(_depthStencil));
         }
 
         private D3D12_RENDER_TARGET_VIEW_DESC CreateRenderTargetViewDesc()

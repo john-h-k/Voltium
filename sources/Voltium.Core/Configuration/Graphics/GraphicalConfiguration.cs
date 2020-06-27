@@ -18,11 +18,6 @@ namespace Voltium.Core.Managers
         public DataFormat BackBufferFormat { get; set; }
 
         /// <summary>
-        /// The format of the depth stencil
-        /// </summary>
-        public DataFormat DepthStencilFormat { get; set;  }
-
-        /// <summary>
         /// The minimum feature level required for execution of the app
         /// </summary>
         public FeatureLevel RequiredFeatureLevel { get; set;  }

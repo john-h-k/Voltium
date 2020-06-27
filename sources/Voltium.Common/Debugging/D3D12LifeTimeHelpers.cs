@@ -10,7 +10,7 @@ using TerraFX.Interop;
 
 namespace Voltium.Common.Debugging
 {
-    internal static unsafe class D3D12DeletionNotification
+    internal static unsafe class D3D12LifeTimeHelpers
     {
         public static void RegisterForDeletionCallback<T>(T* ptr, delegate* stdcall<void*, void> callback, object? data = null) where T : unmanaged
         {

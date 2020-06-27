@@ -1,54 +1,43 @@
-﻿using System;
+using System;
 using TerraFX.Interop;
 using Voltium.Common;
+using Voltium.Core.Managers;
+using Voltium.Core.Memory.GpuResources;
 
 namespace Voltium.Core.DXGI
 {
     /// <summary>
     /// Represents a swapchain to a window
     /// </summary>
-    public unsafe struct SwapChain : IDisposable
+    internal unsafe struct SwapChain : IDisposable
     {
-        /// <summary>
-        /// The underlying value of the swapchain
-        /// </summary>
-        public IDXGISwapChain1* Value => _swapChain.Get();
+        private ComPtr<IDXGISwapChain3> _swapChain;
 
-        private ComPtr<IDXGISwapChain1> _swapChain;
+        public SwapChain(ComPtr<IDXGISwapChain3> swapChain) => _swapChain = swapChain.Move();
 
-        private SwapChain(IDXGISwapChain1* value) => _swapChain = value;
+        public uint BackBufferIndex => _swapChain.Get()->GetCurrentBackBufferIndex();
+        public int Present(uint syncInterval, uint flags) => _swapChain.Get()->Present(syncInterval, flags);
 
-        /// <summary>
-        /// Create a new <see cref="SwapChain"/>
-        /// </summary>
-        /// <param name="factory">The DXGI factory to use</param>
-        /// <param name="queue">The command queue to create the <see cref="SwapChain"/> on</param>
-        /// <param name="window">The <see cref="HWND"/> window handle to the render target window</param>
-        /// <param name="desc">The swapchain description</param>
-        /// <param name="fullscreenDesc">The fullscreen swapchain description</param>
-        /// <param name="output">The DXGI output</param>
-        /// <returns>A new swapchain</returns>
-        public static SwapChain CreateForWindow(
-            IDXGIFactory2* factory,
-            ID3D12CommandQueue* queue,
-            HWND window,
-            DXGI_SWAP_CHAIN_DESC1 desc,
-            DXGI_SWAP_CHAIN_FULLSCREEN_DESC fullscreenDesc,
-            IDXGIOutput* output
-        )
+        public void ResizeBuffers(uint width, uint height)
         {
-            IDXGISwapChain1* p;
-
-            Guard.ThrowIfFailed(factory->CreateSwapChainForHwnd(
-                (IUnknown*)queue,
-                window,
-                &desc,
-                &fullscreenDesc,
-                output,
-                &p
+            DXGI_SWAP_CHAIN_DESC1 desc;
+            Guard.ThrowIfFailed(_swapChain.Get()->GetDesc1(&desc));
+            Guard.ThrowIfFailed(_swapChain.Get()->ResizeBuffers(
+                desc.BufferCount,
+                width,
+                height,
+                desc.Format,
+                0
             ));
+        }
 
-            return new SwapChain(p);
+        public Texture GetBackBuffer(uint index)
+        {
+            using ComPtr<ID3D12Resource> buffer = default;
+            Guard.ThrowIfFailed(_swapChain.Get()->GetBuffer(index, buffer.Guid, ComPtr.GetVoidAddressOf(&buffer)));
+            DirectXHelpers.SetObjectName(buffer.Get(), $"BackBuffer #{index}");
+
+            return Texture.FromResource(buffer.Move());
         }
 
         /// <inheritdoc cref="IDisposable"/>

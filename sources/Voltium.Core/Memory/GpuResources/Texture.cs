@@ -86,26 +86,17 @@ namespace Voltium.Core.Memory.GpuResources
 
 
         // I don't like how this needs knowledge of DXGI. Should probably rewrite
-        internal static Texture FromBackBuffer(IDXGISwapChain* swapChain, uint bufferIndex)
+        internal static Texture FromResource(ComPtr<ID3D12Resource> buffer)
         {
-            using ComPtr<ID3D12Resource> buffer = default;
-            Guard.ThrowIfFailed(swapChain->GetBuffer(bufferIndex, buffer.Guid, ComPtr.GetVoidAddressOf(&buffer)));
-
-            DXGI_SWAP_CHAIN_DESC desc;
-            Guard.ThrowIfFailed(swapChain->GetDesc(&desc));
-            var bufferDesc = desc.BufferDesc;
-
             var resDesc = buffer.Get()->GetDesc();
-
             var res = new GpuResource(buffer.Move(), new InternalAllocDesc { Desc = resDesc, InitialState = D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_COMMON });
-            DirectXHelpers.SetObjectName(res, $"BackBuffer #{bufferIndex}");
 
             var texDesc = new TextureDesc
             {
-                Format = (DataFormat)bufferDesc.Format,
+                Format = (DataFormat)resDesc.Format,
                 Dimension = TextureDimension.Tex2D,
-                Width = bufferDesc.Width,
-                Height = bufferDesc.Height,
+                Width = resDesc.Width,
+                Height = resDesc.Height,
                 DepthOrArraySize = 1,
             };
 

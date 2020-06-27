@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using TerraFX.Interop;
@@ -58,7 +58,7 @@ namespace Voltium.Core.DXGI
         /// Enumerate adapters for a given factory
         /// </summary>
         /// <param name="adapter">The factory used to enumerate</param>
-        /// <returns>An <see cref="AdapterEnumerator"/></returns>
+        /// <returns>An <see cref="OutputEnumerator"/></returns>
         public static OutputEnumerator EnumerateOutputs(ComPtr<IDXGIAdapter> adapter) => new OutputEnumerator(adapter);
     }
 

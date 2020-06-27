@@ -202,6 +202,21 @@ namespace Voltium.Common
         /// <returns><code>true</code> if they are <see cref="ComPtr{T}"/> which point to different instances, else <code>false</code></returns>
         public override bool Equals(object? obj) => obj is ComPtr<T> other && Equals(other);
 
+        /// <summary>
+        /// Casts a <see cref="ComPtr{T}"/> to a <see cref="ComPtr{TUp}"/> without dynamic type checking
+        /// </summary>
+        /// <typeparam name="TBase">The desired type of the pointer</typeparam>
+        /// <returns>The casted pointer</returns>
+        public ComPtr<TBase> AsBase<TBase>() where TBase : unmanaged
+            => ComPtr.UpCast<T, TBase>(this);
+
+        /// <summary>
+        /// Casts a <see cref="ComPtr{T}"/> to a <see cref="ComPtr{IUnknown}"/>
+        /// </summary>
+        /// <returns>The casted pointer</returns>
+        public ComPtr<IUnknown> AsIUnknown()
+            => AsBase<IUnknown>();
+
         /// <inheritdoc cref="object.GetHashCode"/>
         // ReSharper disable once NonReadonlyMemberInGetHashCode
         public override int GetHashCode() => ((ulong)_ptr).GetHashCode();

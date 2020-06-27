@@ -26,7 +26,6 @@ namespace Voltium.Interactive
                 ForceFullscreenAsWindowed = false,
                 VSyncCount = 0,
                 BackBufferFormat = DataFormat.R8G8B8A8UnsignedNormalized,
-                DepthStencilFormat = DataFormat.D32Single,
                 MultiSamplingStrategy = new MsaaDesc(1, 0),
                 RequiredFeatureLevel = FeatureLevel.Level11_0,
                 SwapChainBufferCount = 3

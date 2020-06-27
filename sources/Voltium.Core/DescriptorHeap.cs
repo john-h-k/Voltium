@@ -70,11 +70,6 @@ namespace Voltium.Core
         /// For 2D views to 2D arrays or 3D textures, the index to the plane to view
         /// </summary>
         public uint PlaneSlice;
-
-        /// <summary>
-        /// Whether the view should be multisampled
-        /// </summary>
-        public bool IsMultiSampled;
     }
 
 

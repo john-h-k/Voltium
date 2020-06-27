@@ -7,7 +7,6 @@ using Voltium.Common.Debugging;
 using Voltium.Core.GpuResources;
 using Voltium.Core.Managers;
 using Voltium.Core.Memory.GpuResources;
-using Voltium.Core.Memory.GpuResources.ResourceViews;
 using Voltium.Core.Pipeline;
 using Voltium.TextureLoading;
 using static TerraFX.Interop.D3D_PRIMITIVE_TOPOLOGY;
@@ -558,7 +557,7 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
-        public void SetGraphicsConstantBuffer(uint paramIndex, Buffer cbuffer)
+        public void SetConstantBuffer(uint paramIndex, Buffer cbuffer)
             => SetConstantBuffer<byte>(paramIndex, cbuffer, 0);
 
         /// <summary>
