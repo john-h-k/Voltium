@@ -92,13 +92,13 @@ namespace Voltium.Core
         /// <summary>
         /// Creates a new constant values root parameter
         /// </summary>
-        /// <param name="sizeOfConstants">The size, in bytes, of all the constants combined</param>
+        /// <param name="sizeOfConstants">The size, in 32 bit values, of all the constants combined</param>
         /// <param name="shaderRegister">The shader register to bind this parameter to</param>
         /// <param name="registerSpace">The space to bind this parameter in</param>
         /// <param name="visibility">Indicates which shaders have access to this parameter</param>
         /// <returns>A new <see cref="RootParameter"/> representing a set of constants</returns>
         public static RootParameter CreateConstants(uint sizeOfConstants, uint shaderRegister, uint registerSpace, ShaderVisibility visibility = ShaderVisibility.All)
-            => new RootParameter(new D3D12_ROOT_CONSTANTS { Num32BitValues = sizeOfConstants / 4, ShaderRegister = shaderRegister, RegisterSpace = registerSpace }, visibility);
+            => new RootParameter(new D3D12_ROOT_CONSTANTS { Num32BitValues = sizeOfConstants, ShaderRegister = shaderRegister, RegisterSpace = registerSpace }, visibility);
 
         private RootParameter(D3D12_DESCRIPTOR_RANGE[] descriptorTable, ShaderVisibility visibility)
         {

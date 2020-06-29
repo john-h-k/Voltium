@@ -78,9 +78,9 @@ namespace Voltium.Core
                 );
             }
 
-            _screenData = new ScreenData(height, width, Hwnd);
+            _screenData = new ScreenData(height, width);
 
-            application.Init(_screenData);
+            application.Init(_screenData, Hwnd);
 
             _ = ShowWindow(Hwnd, SW_SHOWDEFAULT);
 
@@ -161,10 +161,10 @@ namespace Voltium.Core
                 case WM_SIZE:
                 { 
                     var sz = (uint)lParam;
+                    _screenData = new ScreenData(HIWORD(sz), LOWORD(sz));
 
                     if (!_isResizing && lParam != 0) // why do we sometimes get zero size lParams?
                     {
-                        _screenData = new ScreenData(HIWORD(sz), LOWORD(sz), hWnd);
                         _application.OnResize(_screenData);
                     }
 

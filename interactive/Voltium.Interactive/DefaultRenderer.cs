@@ -114,16 +114,12 @@ namespace Voltium.Interactive
                 var buffIndex = 0;
                 for (var i = 0; i < _texturedObjects.Length; i++, buffIndex++)
                 {
-                    list.UploadBuffer(_allocator, _texturedObjects[i].Vertices, MemoryAccess.GpuOnly, out _vertexBuffer[buffIndex]);
-                    list.ResourceTransition(_vertexBuffer[buffIndex], ResourceState.VertexBuffer);
-                    list.UploadBuffer(_allocator, _texturedObjects[i].Indices, MemoryAccess.GpuOnly, out _indexBuffer[buffIndex]);
-                    list.ResourceTransition(_indexBuffer[buffIndex], ResourceState.IndexBuffer);
+                    list.UploadBuffer(_allocator, _texturedObjects[i].Vertices, out _vertexBuffer[buffIndex]);
+                    list.UploadBuffer(_allocator, _texturedObjects[i].Indices, out _indexBuffer[buffIndex]);
                 }
 
-                list.UploadTexture(_allocator, texture.BitData.Span, texture.SubresourceData.Span, texture.Desc, out _texture);
-                list.ResourceTransition(_texture, ResourceState.PixelShaderResource);
-                list.UploadTexture(_allocator, normals.BitData.Span, normals.SubresourceData.Span, normals.Desc, out _normals);
-                list.ResourceTransition(_normals, ResourceState.PixelShaderResource);
+                list.UploadTexture(_allocator, texture.Data.Span, texture.SubresourceData.Span, texture.Desc, out _texture);
+                list.UploadTexture(_allocator, normals.Data.Span, normals.SubresourceData.Span, normals.Desc, out _normals);
             }
 
             var srvDesc = new TextureShaderResourceViewDesc
@@ -308,8 +304,9 @@ namespace Voltium.Interactive
 
         private bool _msaa = false;
 
-        public override void Render(GraphicsContext recorder)
+        public override void Render(ref GraphicsContext recorder)
         {
+            recorder.SetViewportAndScissor(_device.ScreenData.Width, _device.ScreenData.Height);
             recorder.ResourceTransition(_renderTarget, ResourceState.RenderTarget);
 
             recorder.SetRenderTargets(_renderTargetView, 1, _depthStencilView);
@@ -342,7 +339,7 @@ namespace Voltium.Interactive
             recorder.ResourceTransition(_device.BackBuffer, ResourceState.Present);
         }
 
-        public override void Destroy()
+        public override void Dispose()
         {
             _rootSig.Dispose();
             _device.Dispose();

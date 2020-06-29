@@ -97,6 +97,7 @@ namespace Voltium.Core.Managers
                     ComPtr.GetVoidAddressOf(&pso)
                 ));
 
+                // Prevent GC disposing it while translation occurs etc
                 GC.KeepAlive(strBuff);
 
                 DirectXHelpers.SetObjectName(pso.Get(), $"Graphics pipeline state object '{name}'");

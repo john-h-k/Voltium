@@ -12,15 +12,15 @@ using static TerraFX.Interop.D3D12_DRED_ENABLEMENT;
 using static TerraFX.Interop.DXGI_DEBUG_RLO_FLAGS;
 using static Voltium.Common.DirectXHelpers;
 using static TerraFX.Interop.Windows;
+using Voltium.Core.Devices;
 
 namespace Voltium.Core.Managers
 {
     /// <summary>
     /// The top-level manager for application resources
     /// </summary>
-    public unsafe partial class GraphicsDevice
+    public unsafe partial class GraphicsDevice : ComputeDevice
     {
-        private ComPtr<ID3D12Device> _device;
         private SwapChain _swapChain;
         private ComPtr<IDXGIDebug1> _debugLayer;
         private Texture[] _backBuffer = null!;
@@ -41,14 +41,77 @@ namespace Voltium.Core.Managers
         private GraphicsDevice() { }
 
         /// <summary>
+        /// Queries the GPU and timestamp
+        /// </summary>
+        /// <param name="context">The <see cref="ExecutionContext"/> indicating which queue should be queried</param>
+        /// <param name="gpu">The <see cref="TimeSpan"/> representing the GPU clock</param>
+        public void QueryTimestamp(ExecutionContext context, out TimeSpan gpu)
+            => QueryTimestamps(context, out gpu, out _);
+
+        /// <summary>
+        /// Queries the GPU and CPU timestamps in close succession
+        /// </summary>
+        /// <param name="context">The <see cref="ExecutionContext"/> indicating which queue should be queried</param>
+        /// <param name="gpu">The <see cref="TimeSpan"/> representing the GPU clock</param>
+        /// <param name="cpu">The <see cref="TimeSpan"/> representing the CPU clock</param>
+        public void QueryTimestamps(ExecutionContext context, out TimeSpan gpu, out TimeSpan cpu)
+        {
+            if (context != ExecutionContext.Graphics)
+            {
+                ThrowHelper.ThrowNotImplementedException("TODO");
+            }
+
+            ulong gpuTick, cpuTick;
+
+            var queue = _graphicsQueue;
+
+            if (!queue.TryQueryTimestamps(&gpuTick, &cpuTick))
+            {
+                ThrowHelper.ThrowExternalException("GPU timestamp query failed");
+            }
+
+            gpu = TimeSpan.FromSeconds(gpuTick / (double)queue.Frequency);
+            cpu = TimeSpan.FromSeconds(cpuTick / (double)_cpuFrequency);
+        }
+
+        private ulong _cpuFrequency;
+
+        /// <summary>
         /// Initialize the single instance of this type
         /// </summary>
-        public static GraphicsDevice Create(GraphicalConfiguration config, in ScreenData screenData)
+        public static GraphicsDevice Create(GraphicalConfiguration config, in ScreenData screenData, HWND output)
         {
             var device = new GraphicsDevice();
+            device._hwnd = output;
             device.InternalCreate(config, in screenData);
             return device;
         }
+
+        /// <summary>
+        /// Initialize the single instance of this type
+        /// </summary>
+        public static GraphicsDevice Create(GraphicalConfiguration config, in ScreenData screenData, IHwndOwner output)
+            => Create(config, screenData, output.GetHwnd());
+
+        /// <summary>
+        /// Initialize the single instance of this type
+        /// </summary>
+        public static GraphicsDevice Create(GraphicalConfiguration config, in ScreenData screenData, void* unknownOutput)
+        {
+            var device = new GraphicsDevice();
+            device._output = (IUnknown*)unknownOutput;
+            device.InternalCreate(config, in screenData);
+            return device;
+        }
+
+        /// <summary>
+        /// Initialize the single instance of this type
+        /// </summary>
+        public static GraphicsDevice Create(GraphicalConfiguration config, in ScreenData screenData, ICoreWindowsOwner output)
+            => Create(config, screenData, output.GetIUnknownForWindow());
+
+        private HWND _hwnd;
+        private IUnknown* _output;
 
         private void InternalCreate(GraphicalConfiguration config, in ScreenData screenData)
         {
@@ -60,6 +123,10 @@ namespace Voltium.Core.Managers
             _config = config;
             _syncInterval = _config.VSyncCount;
             ScreenData = screenData;
+
+            ulong frequency;
+            QueryPerformanceFrequency((LARGE_INTEGER*) /* <- can we do that? */ &frequency);
+            _cpuFrequency = frequency;
 
             EnableDebugLayer();
 
@@ -101,7 +168,6 @@ namespace Voltium.Core.Managers
 
             Allocator = new GpuAllocator(this);
 
-            InitializeDescriptorSizes();
             _graphicsQueue = new SynchronizedCommandQueue(this, ExecutionContext.Graphics);
 
             CreateSwapChain();
@@ -119,11 +185,6 @@ namespace Voltium.Core.Managers
         /// </summary>
         public GpuAllocator Allocator { get; private set; } = null!;
 
-
-        /// <summary>
-        /// Gets the <see cref="ID3D12Device"/> used by this application
-        /// </summary>
-        internal ID3D12Device* DevicePointer => _device.Get();
 
         internal ComPtr<ID3D12Heap> CreateHeap(D3D12_HEAP_DESC desc)
         {
@@ -173,7 +234,7 @@ namespace Voltium.Core.Managers
             return resource.Move();
         }
 
-        internal ComPtr<ID3D12Resource> CreateComittedResource(InternalAllocDesc desc)
+        internal ComPtr<ID3D12Resource> CreateCommittedResource(InternalAllocDesc desc)
         {
             var heapProperties = GetHeapProperties(desc);
             var clearVal = desc.ClearValue.GetValueOrDefault();
@@ -202,7 +263,7 @@ namespace Voltium.Core.Managers
         /// 
         /// </summary>
         /// <returns></returns>
-        public CopyContext BeginCopyContext()
+        public new CopyContext BeginCopyContext()
         {
             var ctx = BeginGraphicsContext();
             return ctx.AsCopyContext();
@@ -213,9 +274,8 @@ namespace Voltium.Core.Managers
         /// </summary>
         /// <param name="pso"></param>
         /// <returns></returns>
-        public ComputeContext BeginComputeContext(PipelineStateObject? pso = null)
+        public new ComputeContext BeginComputeContext(ComputePso? pso = null)
         {
-            Debug.Assert(pso is not GraphicsPso);
             var ctx = BeginGraphicsContext(pso);
             return ctx.AsComputeContext();
         }
@@ -245,27 +305,27 @@ namespace Voltium.Core.Managers
             Guard.ThrowIfFailed(_allocator->Reset());
             Guard.ThrowIfFailed(_list->Reset(_allocator, pso is null ? null : pso.GetPso()));
 
+            var rootSig = pso is null ? null : pso.GetRootSig();
             if (pso is ComputePso)
             {
-                _list->SetComputeRootSignature(pso.GetRootSig());
+                _list->SetComputeRootSignature(rootSig);
             }
             else if (pso is GraphicsPso)
             {
-                _list->SetGraphicsRootSignature(pso is null ? null : pso.GetRootSig());
+                _list->SetGraphicsRootSignature(rootSig);
             }
 
-            SetDescriptorHeaps(_list);
+            SetDefaultDescriptorHeaps(_list);
 
-            return new GraphicsContext(this, _list, _allocator);
+            return new GraphicsContext(new(this, _list, _allocator));
 
             //return _dispatch.BeginGraphicsContext(pso);
         }
 
-
-        private void SetDescriptorHeaps(ID3D12GraphicsCommandList* list)
+        private void SetDefaultDescriptorHeaps(ID3D12GraphicsCommandList* list)
         {
             const int numHeaps = 2;
-            var heaps = stackalloc ID3D12DescriptorHeap*[numHeaps] { _cbvSrvUav.GetHeap(), _samplers.GetHeap() };
+            var heaps = stackalloc ID3D12DescriptorHeap*[numHeaps] { ResourceDescriptors.GetHeap(), _samplers.GetHeap() };
 
             list->SetDescriptorHeaps(numHeaps, heaps);
         }
@@ -282,7 +342,7 @@ namespace Voltium.Core.Managers
         /// <param name="context">The commands to submit for execution</param>
         internal void End(ref GpuContext context)
         {
-            var list = context.List.Move();
+            ComPtr<ID3D12GraphicsCommandList> list = context.List;
             list.Get()->Close();
             _graphicsQueue.GetQueue()->ExecuteCommandLists(1, (ID3D12CommandList**)&list);
             _graphicsQueue.GetSynchronizerForIdle().Block();
@@ -333,46 +393,6 @@ namespace Voltium.Core.Managers
         /// </summary>
         public uint BackBufferCount => _config.SwapChainBufferCount;
 
-        /// <summary>
-        /// The size of a descriptor of type <see cref="D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV"/>
-        /// </summary>
-        // why the fuck did i call it this
-        public int ConstantBufferOrShaderResourceOrUnorderedAccessViewDescriptorSize { get; private set; }
-
-        /// <summary>
-        /// The size of a descriptor of type <see cref="D3D12_DESCRIPTOR_HEAP_TYPE_RTV"/>
-        /// </summary>
-        public int RenderTargetViewDescriptorSize { get; private set; }
-
-        /// <summary>
-        /// The size of a descriptor of type <see cref="D3D12_DESCRIPTOR_HEAP_TYPE_DSV"/>
-        /// </summary>
-        public int DepthStencilViewDescriptorSize { get; private set; }
-
-        /// <summary>
-        /// The size of a descriptor of type <see cref="D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER"/>
-        /// </summary>
-        public int SamplerDescriptorSize { get; private set; }
-
-        /// <summary>
-        /// Gets the size of a descriptor for a given <see cref="D3D12_DESCRIPTOR_HEAP_TYPE"/>
-        /// </summary>
-        /// <param name="type">The type of the descriptor</param>
-        /// <returns>The size of the descriptor, in bytes</returns>
-        public uint GetDescriptorSizeForType(D3D12_DESCRIPTOR_HEAP_TYPE type)
-        {
-            Debug.Assert(type >= 0 && type < D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES);
-
-            return (uint)(type switch
-            {
-                D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV => ConstantBufferOrShaderResourceOrUnorderedAccessViewDescriptorSize,
-                D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER => SamplerDescriptorSize,
-                D3D12_DESCRIPTOR_HEAP_TYPE_RTV => RenderTargetViewDescriptorSize,
-                D3D12_DESCRIPTOR_HEAP_TYPE_DSV => DepthStencilViewDescriptorSize,
-                _ => 0
-            });
-        }
-
         internal void ReleaseResourceAtFrameEnd(GpuResource resource)
         {
 
@@ -417,18 +437,37 @@ namespace Voltium.Core.Managers
             Guard.ThrowIfFailed(hr, "GraphicsDevice.CreateSwapChain -- at IDXGIFactory2 creation");
 
             using ComPtr<IDXGISwapChain1> swapChain = default;
-            Guard.ThrowIfFailed(factory.Get()->CreateSwapChainForHwnd(
-                (IUnknown*)_graphicsQueue.GetQueue(),
-                ScreenData.Handle,
-                &desc,
-                null, //&fullscreenDesc,
-                null, // TODO maybe implement
-                ComPtr.GetAddressOf(&swapChain)
-            ));
+
+            // we handle the platform differences. UWP uses CoreWindow through IUnknown, Win32 uses HWND
+            if (_output is not null)
+            {
+                Debug.Assert(_hwnd == HWND.NULL);
+
+                Guard.ThrowIfFailed(factory.Get()->CreateSwapChainForCoreWindow(
+                    (IUnknown*)_graphicsQueue.GetQueue(),
+                    _output,
+                    &desc,
+                    null, // TODO maybe implement
+                    ComPtr.GetAddressOf(&swapChain)
+                ));
+            }
+            else
+            {
+                Debug.Assert(_output == null);
+
+                Guard.ThrowIfFailed(factory.Get()->CreateSwapChainForHwnd(
+                    (IUnknown*)_graphicsQueue.GetQueue(),
+                    _hwnd,
+                    &desc,
+                    null, //&fullscreenDesc,
+                    null, // TODO maybe implement
+                    ComPtr.GetAddressOf(&swapChain)
+                ));
+            }
 
             if (!swapChain.TryQueryInterface(out ComPtr<IDXGISwapChain3> swapChain3))
             {
-                ThrowHelper.ThrowPlatformNotSupportedException("Couldn't create swapchain3");
+                ThrowHelper.ThrowPlatformNotSupportedException("Couldn't create IDXGISwapChain3, which is required for DX12");
             }
 
             _swapChain = new(swapChain3.Move());

@@ -8,6 +8,7 @@ using System.Text;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Common.Strings;
+using Voltium.Core.Configuration.Graphics;
 using Voltium.Core.Managers.Shaders;
 using Voltium.Core.Pipeline;
 using static TerraFX.Interop.D3D12_CONSERVATIVE_RASTERIZATION_MODE;
@@ -39,6 +40,7 @@ namespace Voltium.Core.Managers
                 D3D12_INPUT_ELEMENT_DESC* pCurDesc = &pDesc[i];
 
                 *pCurDesc = default;
+                // This is the pinned array above so we can just take the pointer
                 pCurDesc->SemanticName = (sbyte*)Unsafe.AsPointer(ref MemoryMarshal.GetReference(asciiBuff));
                 pCurDesc->SemanticIndex = elem.NameIndex;
                 pCurDesc->AlignedByteOffset = elem.Offset;
@@ -54,26 +56,62 @@ namespace Voltium.Core.Managers
 
         public unsafe static void TranslateGraphicsPipelineDescriptionWithoutShadersOrShaderInputLayoutElements(in GraphicsPipelineDesc inDesc, out D3D12_GRAPHICS_PIPELINE_STATE_DESC outDesc)
         {
-            TranslateBlendState(inDesc.Blend, out D3D12_BLEND_DESC blendDesc);
-            TranslateRasterizerState(inDesc.Rasterizer, out D3D12_RASTERIZER_DESC rasterizerDesc);
-            TranslateDepthStencilState(inDesc.DepthStencil, out D3D12_DEPTH_STENCIL_DESC depthStencilDesc);
+            var blend = inDesc.Blend ?? BlendDesc.Default;
+            var rasterizer = inDesc.Rasterizer ?? RasterizerDesc.Default;
+            var depthStencil = inDesc.DepthStencil ?? DepthStencilDesc.Default;
 
+            TranslateBlendState(blend, out D3D12_BLEND_DESC blendDesc);
+            TranslateRasterizerState(rasterizer, out D3D12_RASTERIZER_DESC rasterizerDesc);
+            TranslateDepthStencilState(depthStencil, out D3D12_DEPTH_STENCIL_DESC depthStencilDesc);
+
+            var msaa = inDesc.Msaa ?? MsaaDesc.None;
+
+
+            // We calculate num render targets by going through the buffer until we find a 0 value DataFormat (DataFormat.Unknown)
+            // as this is never a valid value for a render target
+            // this is effectively what the debug layer uses to verify NumRenderTargets
+            // We ensure there aren't any non-Unknown formats after that one to catch user error
+            uint numRenderTargets = 0;
+            bool invalidFormat = false;
+            for (var i = 0; i < sizeof(FormatBuffer8) / sizeof(DataFormat); i++)
+            {
+                if (inDesc.RenderTargetFormats[i] == 0)
+                {
+                    invalidFormat = true;
+                    continue;
+                }
+
+                if (inDesc.RenderTargetFormats[i] != 0)
+                {
+                    if (!invalidFormat)
+                    {
+                        numRenderTargets++;
+                    }
+                    else
+                    {
+                        ThrowHelper.ThrowArgumentException("Render target format with value DataFormat.Unknown was encountered, " +
+                            "but it was followed by a non-DataForm.Unknown format. This is invalid");
+                    }
+                }
+            }
+            
             outDesc = new D3D12_GRAPHICS_PIPELINE_STATE_DESC
             {
-                pRootSignature = inDesc.ShaderSignature.Value,
+                pRootSignature = inDesc.RootSignature.Value,
                 DSVFormat = (DXGI_FORMAT)inDesc.DepthStencilFormat,
                 BlendState = blendDesc,
                 RasterizerState = rasterizerDesc,
                 DepthStencilState = depthStencilDesc,
                 SampleMask = 0xFFFFFFFF,
-                NumRenderTargets = inDesc.NumRenderTargets,
-                SampleDesc = new DXGI_SAMPLE_DESC(inDesc.Msaa.SampleCount, inDesc.Msaa.QualityLevel),
+                NumRenderTargets = numRenderTargets,
+                SampleDesc = new DXGI_SAMPLE_DESC(msaa.SampleCount, msaa.QualityLevel),
                 NodeMask = inDesc.NodeMask,
                 PrimitiveTopologyType = (D3D12_PRIMITIVE_TOPOLOGY_TYPE)inDesc.Topology,
                 Flags = D3D12_PIPELINE_STATE_FLAGS.D3D12_PIPELINE_STATE_FLAG_NONE
             };
 
             Unsafe.As<D3D12_GRAPHICS_PIPELINE_STATE_DESC._RTVFormats_e__FixedBuffer, FormatBuffer8>(ref outDesc.RTVFormats) = inDesc.RenderTargetFormats;
+
         }
 
         public static void TranslateDepthStencilState(in DepthStencilDesc desc, out D3D12_DEPTH_STENCIL_DESC depthStencilDesc)

@@ -228,7 +228,7 @@ namespace Voltium.TextureLoading
                     cmdList->ResourceBarrier(1, &commonToCopyDest);
 
                     fixed (SubresourceData* pManagedSubresourceData = texture.SubresourceData.Span)
-                    fixed (byte* pBitData = texture.BitData.Span)
+                    fixed (byte* pBitData = texture.Data.Span)
                     {
                         // Convert the ManagedSubresourceData to D3D12_SUBRESOURCE_DATA
                         // Just involves changing the offset (int32, relative to start of data) to an absolute pointer

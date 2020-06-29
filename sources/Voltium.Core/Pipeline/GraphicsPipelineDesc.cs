@@ -27,18 +27,14 @@ namespace Voltium.Core.Pipeline
             CompiledShader pixelShader
             ) : this()
         {
-            ShaderSignature = sig;
+            RootSignature = sig;
             Blend = BlendDesc.Default;
             Rasterizer = RasterizerDesc.Default;
             DepthStencil = DepthStencilDesc.Default;
             DepthStencilFormat = depthStencilFormat;
             Topology = TopologyClass.Triangle;
-            NumRenderTargets = 1;
             Msaa = new MsaaDesc(1, 0);
-            RenderTargetFormats = new()
-            {
-                [0] = backBufferFormat
-            };
+            RenderTargetFormats = new(backBufferFormat);
             VertexShader = vertexShader;
             PixelShader = pixelShader;
         }
@@ -46,7 +42,7 @@ namespace Voltium.Core.Pipeline
         /// <summary>
         /// The root signature for the pipeline
         /// </summary>
-        public RootSignature ShaderSignature;
+        public RootSignature RootSignature;
 
         /// <summary>
         /// The optional vertex shader for the pipeline
@@ -76,17 +72,17 @@ namespace Voltium.Core.Pipeline
         /// <summary>
         /// The blend settings for the pipeline
         /// </summary>
-        public BlendDesc Blend;
+        public BlendDesc? Blend;
 
         /// <summary>
         /// The rasterizer settings for the pipeline
         /// </summary>
-        public RasterizerDesc Rasterizer;
+        public RasterizerDesc? Rasterizer;
 
         /// <summary>
         /// The depth stencil settings for the pipeline
         /// </summary>
-        public DepthStencilDesc DepthStencil;
+        public DepthStencilDesc? DepthStencil;
 
         /// <summary>
         /// The inputs to the input-assembler stage of the pipeline
@@ -97,12 +93,7 @@ namespace Voltium.Core.Pipeline
         /// The MSAA (multi-sample anti-aliasing) settings for the
         /// pipeline
         /// </summary>
-        public MsaaDesc Msaa;
-
-        /// <summary>
-        /// The number of render targets used by this pipeline
-        /// </summary>
-        public uint NumRenderTargets;
+        public MsaaDesc? Msaa;
 
         /// <summary>
         /// The <see cref="TopologyClass"/> for this type 
@@ -130,6 +121,30 @@ namespace Voltium.Core.Pipeline
         public unsafe struct FormatBuffer8
         {
             private fixed uint _formats[8];
+
+            /// <summary>
+            /// Creates a new <see cref="FormatBuffer8"/>
+            /// </summary>
+            public FormatBuffer8(
+                DataFormat e0 = DataFormat.Unknown,
+                DataFormat e1 = DataFormat.Unknown,
+                DataFormat e2 = DataFormat.Unknown,
+                DataFormat e3 = DataFormat.Unknown,
+                DataFormat e4 = DataFormat.Unknown,
+                DataFormat e5 = DataFormat.Unknown,
+                DataFormat e6 = DataFormat.Unknown,
+                DataFormat e7 = DataFormat.Unknown
+            )
+            {
+                this[0] = e0;
+                this[1] = e1;
+                this[2] = e2;
+                this[3] = e3;
+                this[4] = e4;
+                this[5] = e5;
+                this[6] = e6;
+                this[7] = e7;
+            }
 
             /// <summary>
             /// Retrieves the <see cref="DataFormat"/> for a given index

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using TerraFX.Interop;
 using Voltium.Common;
+using Voltium.Core.Devices;
 using Voltium.Core.GpuResources;
 using Voltium.Core.Managers;
 using Voltium.Core.Memory.GpuResources;
@@ -33,12 +34,12 @@ namespace Voltium.Core
         /// <summary>
         /// The offset, in bytes, to start the view at
         /// </summary>
-        public ulong Offset;
+        public uint Offset;
 
         /// <summary>
         /// Whether the buffer should be viewed as a raw buffer
         /// </summary>
-        public bool Raw;
+        public bool IsRaw;
     }
 
     /// <summary>
@@ -162,83 +163,28 @@ namespace Voltium.Core
         }
 
         /// <summary>
-        /// Create a new <see cref="DescriptorHeap"/> that contains render target views using a <see cref="ID3D12Device"/>
+        /// Create a new <see cref="DescriptorHeap"/>
         /// </summary>
         /// <param name="device">The device to use during creation</param>
-        /// <param name="renderTargetCount">The number of render target view descriptors</param>
-        public static DescriptorHeap CreateRenderTargetViewHeap(
-            GraphicsDevice device,
-            uint renderTargetCount
+        /// <param name="type">The <see cref="DescriptorHeapType"/> for this heap</param>
+        /// <param name="descriptorCount">The number of descriptors</param>
+        public static DescriptorHeap Create(
+            ComputeDevice device,
+            DescriptorHeapType type,
+            uint descriptorCount
         )
         {
             var desc = CreateDesc(
-                D3D12_DESCRIPTOR_HEAP_TYPE_RTV,
-                renderTargetCount,
-                false
-            );
-
-            return new DescriptorHeap(device, desc);
-        }
-
-        /// <summary>
-        /// Create a new <see cref="DescriptorHeap"/> that contains depth stencil views using a <see cref="ID3D12Device"/>
-        /// </summary>
-        /// <param name="device">The device to use during creation</param>
-        /// <param name="depthStencilCount">The number of depth stencil view descriptors</param>
-        public static DescriptorHeap CreateDepthStencilViewHeap(
-            GraphicsDevice device,
-            uint depthStencilCount
-        )
-        {
-            var desc = CreateDesc(
-                D3D12_DESCRIPTOR_HEAP_TYPE_DSV,
-                depthStencilCount,
-                false
-            );
-
-            return new DescriptorHeap(device, desc);
-        }
-
-        /// <summary>
-        /// Create a new <see cref="DescriptorHeap"/> that contains constant buffer, shader resource, and unordered access views using a <see cref="ID3D12Device"/>
-        /// </summary>
-        /// <param name="device">The device to use during creation</param>
-        /// <param name="shaderResourceCount">The number of view descriptors</param>
-        public static DescriptorHeap CreateConstantBufferShaderResourceUnorderedAccessViewHeap(
-            GraphicsDevice device,
-            uint shaderResourceCount
-        )
-        {
-            var desc = CreateDesc(
-                D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-                shaderResourceCount,
-                true // always want this shader visible
-            );
-
-            return new DescriptorHeap(device, desc);
-        }
-
-        /// <summary>
-        /// Create a new <see cref="DescriptorHeap"/> that contains samplers using a <see cref="ID3D12Device"/>
-        /// </summary>
-        /// <param name="device">The device to use during creation</param>
-        /// <param name="samplerCount">The number of sampler descriptors</param>
-        public static DescriptorHeap CreateSamplerHeap(
-            GraphicsDevice device,
-            uint samplerCount
-        )
-        {
-            var desc = CreateDesc(
-                D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER,
-                samplerCount,
-                true // always want this shader visible
+                (D3D12_DESCRIPTOR_HEAP_TYPE)type,
+                descriptorCount,
+                type is DescriptorHeapType.Sampler or DescriptorHeapType.ConstantBufferShaderResourceOrUnorderedAccessView
             );
 
             return new DescriptorHeap(device, desc);
         }
 
 
-        private DescriptorHeap(GraphicsDevice device, D3D12_DESCRIPTOR_HEAP_DESC desc)
+        private DescriptorHeap(ComputeDevice device, D3D12_DESCRIPTOR_HEAP_DESC desc)
         {
             ComPtr<ID3D12DescriptorHeap> heap = default;
             Guard.ThrowIfFailed(device.DevicePointer->CreateDescriptorHeap(&desc, heap.Guid, (void**)&heap));
@@ -247,7 +193,7 @@ namespace Voltium.Core
             var cpu = _heap.Get()->GetCPUDescriptorHandleForHeapStart();
             var gpu = _heap.Get()->GetGPUDescriptorHandleForHeapStart();
 
-            _firstHandle = new DescriptorHandle(device, cpu, gpu, desc.Type);
+            _firstHandle = new DescriptorHandle(device.DevicePointer->GetDescriptorHandleIncrementSize(desc.Type), cpu, gpu);
             _offset = 0;
             _count = desc.NumDescriptors;
 
@@ -310,12 +256,10 @@ namespace Voltium.Core
         /// </summary>
         ConstantBufferShaderResourceOrUnorderedAccessView = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
 
-
         /// <summary>
         /// The descriptor represents a sampler
         /// </summary>
         Sampler = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER,
-
 
         /// <summary>
         /// The descriptor represents a render target view

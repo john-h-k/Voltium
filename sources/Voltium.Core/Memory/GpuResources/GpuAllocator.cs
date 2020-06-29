@@ -385,7 +385,8 @@ namespace Voltium.Core.GpuResources
             {
                 GpuResourceType.Meaningless => 256 * megabyte , // shouldn't be reached
                 GpuResourceType.Tex => 256 * megabyte,
-                GpuResourceType.RtOrDs => 64 * megabyte,
+               // GpuResourceType.RtOrDs => 64 * megabyte,
+                GpuResourceType.RtOrDs => 1024 * megabyte,
                 GpuResourceType.Buffer => 256 * megabyte,
                 _ => ulong.MaxValue, // shouldn't be reached
             };
@@ -422,7 +423,7 @@ namespace Voltium.Core.GpuResources
 
         private GpuResource AllocateCommitted(InternalAllocDesc desc)
         {
-            var resource = _device.CreateComittedResource(desc);
+            var resource = _device.CreateCommittedResource(desc);
 
             return new GpuResource(
                 resource.Move(),
@@ -459,7 +460,17 @@ namespace Voltium.Core.GpuResources
             // No free blocks available anywhere. Create a new heap
             var newHeap = CreateNewHeap(desc.HeapType, resType);
             var result = TryAllocateFromHeap(desc, info, newHeap, out allocation);
-            Debug.Assert(result);
+            if (!result) // too big to fit in heap, realloc as comitted
+            {
+                if (desc.AllocFlags.HasFlag(AllocFlags.ForceAllocateNotComitted))
+                {
+                    ThrowHelper.ThrowInsufficientMemoryException(
+                        $"Could not satisfy allocation - required {info.SizeInBytes} bytes, but this " +
+                        "is larget than the maximum heap size, and AllocFlags.ForceAllocateNonComitted prevented it being allocated committed"
+                    );
+                }
+                return AllocateCommitted(desc);
+            }
             return allocation;
         }
 

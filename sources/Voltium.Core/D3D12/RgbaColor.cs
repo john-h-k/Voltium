@@ -49,6 +49,16 @@ namespace Voltium.Core
         }
 
         /// <summary>
+        /// Create a new instance of <see cref="RgbaColor"/> from 4 byte values
+        /// </summary>
+        /// <param name="r">The red component of this color</param>
+        /// <param name="g">The green component of this color</param>
+        /// <param name="b">The blue component of this color</param>
+        /// <param name="a">The alpha, or additional, component of this color></param>
+        public static RgbaColor FromPacked(byte r, byte g, byte b, byte a)
+            => new RgbaColor(r / 255f, g / 255f, b / 255f, a / 255f);
+
+        /// <summary>
         /// Converts <paramref name="color"/> to an RGB <see cref="Vector3"/>
         /// </summary>
         /// <param name="color">The <see cref="RgbaColor"/> to convert</param>

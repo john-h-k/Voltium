@@ -6,20 +6,21 @@ using Voltium.Core;
 using Voltium.Core.Managers;
 using Voltium.Core.Configuration.Graphics;
 using TerraFX.Interop;
+using System.Runtime.CompilerServices;
 
 namespace Voltium.Interactive
 {
-    internal class DirectXHelloWorldApplication : Application
+    internal class DirectXHelloWorldApplication<TRenderer> : Application where TRenderer : Renderer, new()
     {
         public override string Title => "Hello DirectX!";
-        private Renderer _renderer = new DefaultRenderer();
+        private Renderer _renderer = new TRenderer();
 
         private GraphicsDevice _device = null!;
         private GraphicalConfiguration _config = null!;
         private ScreenData _screen;
 
         [MemberNotNull(nameof(_device))]
-        public override unsafe void Init(ScreenData data)
+        public override unsafe void Init(ScreenData data, HWND hwnd)
         {
             var config = new GraphicalConfiguration
             {
@@ -33,7 +34,7 @@ namespace Voltium.Interactive
 
             _config = config;
             _screen = data;
-            _device = GraphicsDevice.Create(config, data);
+            _device = GraphicsDevice.Create(config, data, hwnd);
 
             _renderer.Init(_device, config, data);
         }
@@ -46,8 +47,7 @@ namespace Voltium.Interactive
         {
             using (var commandList = _device.BeginGraphicsContext(_renderer.GetInitialPso()))
             {
-                commandList.SetViewportAndScissor(_device.ScreenData);
-                _renderer.Render(commandList);
+                _renderer.Render(ref Unsafe.AsRef(in commandList));
             }
 
             _device.Present();

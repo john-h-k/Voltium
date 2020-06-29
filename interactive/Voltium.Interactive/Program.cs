@@ -9,7 +9,8 @@ namespace Voltium.Interactive
         private static int Main(string[] args)
         {
             Debug.WriteLine("Executing...");
-            var application = new DirectXHelloWorldApplication();
+
+            var application = new DirectXHelloWorldApplication<MandelbrotRenderer>();
             return Win32Application.Run(application);
         }
     }

@@ -133,15 +133,6 @@ namespace Voltium.Core.Managers
             _frameMarker++;
         }
 
-        private unsafe ComPtr<ID3D12GraphicsCommandList> GetCommandList(
-            ExecutionContext context,
-            ID3D12CommandAllocator* allocator,
-            ID3D12PipelineState* defaultPso
-        )
-        {
-            return _listPool.Rent(context, allocator, defaultPso).Move();
-        }
-
         /// <summary>
         /// Submit a set of recorded commands to the queue
         /// </summary>
@@ -163,8 +154,8 @@ namespace Voltium.Core.Managers
 
         private unsafe void InternalEndNoSync(GpuContext graphicsCommands)
         {
-            var list = graphicsCommands.List.Move();
-            var allocator = graphicsCommands.Allocator.Move();
+            ComPtr<ID3D12GraphicsCommandList> list = graphicsCommands.List;
+            ComPtr<ID3D12CommandAllocator> allocator = graphicsCommands.Allocator;
 
             Guard.ThrowIfFailed(list.Get()->Close());
 

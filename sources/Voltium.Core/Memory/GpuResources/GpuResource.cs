@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Runtime.ConstrainedExecution;
 using TerraFX.Interop;
 using Voltium.Common;
+using Voltium.Core.Configuration.Graphics;
 using Voltium.Core.Memory;
 
 namespace Voltium.Core.GpuResources
@@ -30,6 +31,7 @@ namespace Voltium.Core.GpuResources
             _value = resource.Move();
             State = (ResourceState)desc.InitialState;
             ResourceFormat = (DataFormat)desc.Desc.Format;
+            Msaa = new (desc.Desc.SampleDesc.Count, desc.Desc.SampleDesc.Quality);
             Heap = heap;
             Block = block;
             _allocator = allocator;
@@ -70,6 +72,11 @@ namespace Voltium.Core.GpuResources
         /// The current state of the resource
         /// </summary>
         public ResourceState State { get; internal set; }
+
+        /// <summary>
+        /// If applicable, the multisampling description for the resource
+        /// </summary>
+        public MsaaDesc Msaa { get; internal set; }
 
         private ComPtr<ID3D12Resource> _value;
 

@@ -24,7 +24,7 @@ namespace Voltium.TextureLoading
             AlphaMode alphaMode,
             TexType underlyingTextureType)
         {
-            BitData = bitData;
+            Data = bitData;
             Desc = desc;
             MipCount = mipCount;
             LoaderFlags = loaderFlags;
@@ -36,14 +36,14 @@ namespace Voltium.TextureLoading
 
         /// <summary>
         /// The original type of the texture. Note, as texture formats may be normalised by the loader, this may not reflect the type
-        /// or format of <see cref="BitData"/>
+        /// or format of <see cref="Data"/>
         /// </summary>
         public TexType UnderlyingTextureType { get; }
 
         /// <summary>
         /// The buffer that contains the data referenced by <see cref="SubresourceData"/>
         /// </summary>
-        public ReadOnlyMemory<byte> BitData { get; }
+        public ReadOnlyMemory<byte> Data { get; }
 
         /// <summary>
         /// The <see cref="TextureDesc"/> for the texture
@@ -66,7 +66,7 @@ namespace Voltium.TextureLoading
         public uint MipCount { get; }
 
         /// <summary>
-        /// The subresource data, relative to <see cref="BitData"/>, for upload
+        /// The subresource data, relative to <see cref="Data"/>, for upload
         /// </summary>
         public ReadOnlyMemory<SubresourceData> SubresourceData { get; }
 
@@ -82,7 +82,7 @@ namespace Voltium.TextureLoading
             using RentedStringBuilder val = StringHelper.RentStringBuilder();
 
             val.AppendLine($"UnderlyingTextureType: {UnderlyingTextureType}");
-            val.AppendLine($"BitData: {BitData}");
+            val.AppendLine($"BitData: {Data}");
             val.AppendLine($"ResourceDimension: {Desc.Dimension}");
             val.AppendLine($"Height: {Desc.Height}");
             val.AppendLine($"Width: {Desc.Width}");

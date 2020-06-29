@@ -21,6 +21,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Remove="Shaders\EntireScreenCopyVS.hlsl" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Shaders\Mandelbrot\EntireScreenCopyVS.hlsl" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\sources\Voltium.Core\Voltium.Core.csproj" />
     <ProjectReference Include="..\..\sources\Voltium.Analyzers\Voltium.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\..\sources\Voltium.ModelLoader\Voltium.ModelLoading.csproj" />

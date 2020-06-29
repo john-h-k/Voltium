@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using TerraFX.Interop;
@@ -150,6 +151,8 @@ namespace Voltium.Common
             return "<unmapped>";
         }
 
+
+
         [MethodImpl(MethodTypes.Validates)]
         public static void True(
             bool condition,
@@ -196,4 +199,8 @@ namespace Voltium.Common
 #endif
         }
     }
+
+    //public class GraphicsException : Exception
+    //{
+    //}
 }

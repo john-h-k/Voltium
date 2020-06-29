@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Common.Debugging;
@@ -14,13 +15,78 @@ using Buffer = Voltium.Core.Memory.GpuResources.Buffer;
 
 namespace Voltium.Core
 {
-    internal struct GpuContext : IDisposable
+    internal unsafe struct GpuContext : IDisposable
     {
         public GraphicsDevice Device;
-        public ComPtr<ID3D12GraphicsCommandList> List;
-        public ComPtr<ID3D12CommandAllocator> Allocator;
+        public ComPtr<ID3D12GraphicsCommandList> _list;
+        public ComPtr<ID3D12CommandAllocator> _allocator;
 
-        public void Dispose() => Device.End(ref this);
+        public ID3D12GraphicsCommandList* List => _list.Get();
+        public ID3D12CommandAllocator* Allocator => _allocator.Get();
+
+        private ResourceBarrier8 _barrierBuffer;
+        private uint _currentBarrierCount;
+        private const uint MaxNumBarriers = 8;
+
+        public GpuContext(GraphicsDevice device, ComPtr<ID3D12GraphicsCommandList> list, ComPtr<ID3D12CommandAllocator> allocator)
+        {
+            Device = device;
+            _list = list.Move();
+            _allocator = allocator.Move();
+            // We can't read past this many buffers as we skip init'ing them
+            _currentBarrierCount = 0;
+
+            // Don't bother zero'ing expensive buffer
+            Unsafe.SkipInit(out _barrierBuffer);
+        }
+
+        public void AddBarrier(in D3D12_RESOURCE_BARRIER barrier)
+        {
+            if (_currentBarrierCount == MaxNumBarriers)
+            {
+                FlushBarriers();
+            }
+
+            _barrierBuffer[_currentBarrierCount++] = barrier;
+        }
+
+        public void FlushBarriers()
+        {
+            if (_currentBarrierCount == 0)
+            {
+                return;
+            }
+
+            fixed (D3D12_RESOURCE_BARRIER* pBarriers = _barrierBuffer)
+            {
+                List->ResourceBarrier(_currentBarrierCount, pBarriers);
+            }
+
+            _currentBarrierCount = 0;
+        }
+
+        private struct ResourceBarrier8
+        {
+            public D3D12_RESOURCE_BARRIER E0;
+            public D3D12_RESOURCE_BARRIER E1;
+            public D3D12_RESOURCE_BARRIER E2;
+            public D3D12_RESOURCE_BARRIER E3;
+            public D3D12_RESOURCE_BARRIER E4;
+            public D3D12_RESOURCE_BARRIER E5;
+            public D3D12_RESOURCE_BARRIER E6;
+            public D3D12_RESOURCE_BARRIER E7;
+
+            public ref D3D12_RESOURCE_BARRIER this[uint index]
+                => ref Unsafe.Add(ref GetPinnableReference(), (int)index);
+
+            public ref D3D12_RESOURCE_BARRIER GetPinnableReference() => ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref E0, 0));
+        }
+
+        public void Dispose()
+        {
+            FlushBarriers();
+            Device.End(ref this);
+        }
     }
 
     /// <summary>
@@ -63,7 +129,8 @@ namespace Voltium.Core
                 ResourceTransition(dest, ResourceState.CopyDestination, 0xFFFFFFFF);
             }
 
-            _context.List.Get()->CopyResource(dest.Resource.UnderlyingResource, source.Resource.UnderlyingResource);
+            _context.FlushBarriers();
+            _context.List->CopyResource(dest.Resource.UnderlyingResource, source.Resource.UnderlyingResource);
         }
 
         /// <summary>
@@ -73,16 +140,11 @@ namespace Voltium.Core
         /// <param name="dest">The resource to copy to</param>
         public void CopyResource(Texture source, Texture dest)
         {
-            if (!source.Resource.State.HasFlag(ResourceState.CopySource))
-            {
-                ResourceTransition(source, ResourceState.CopySource, 0xFFFFFFFF);
-            }
-            if (!dest.Resource.State.HasFlag(ResourceState.CopyDestination))
-            {
-                ResourceTransition(dest, ResourceState.CopyDestination, 0xFFFFFFFF);
-            }
+            ResourceTransition(source, ResourceState.CopySource, 0xFFFFFFFF);
+            ResourceTransition(dest, ResourceState.CopyDestination, 0xFFFFFFFF);
 
-            _context.List.Get()->CopyResource(dest.Resource.UnderlyingResource, source.Resource.UnderlyingResource);
+            _context.FlushBarriers();
+            _context.List->CopyResource(dest.Resource.UnderlyingResource, source.Resource.UnderlyingResource);
         }
 
         /// <summary>
@@ -124,10 +186,9 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="allocator"></param>
         /// <param name="buffer"></param>
-        /// <param name="access"></param>
         /// <param name="destination"></param>
-        public void UploadBuffer<T>(GpuAllocator allocator, T[] buffer, MemoryAccess access, out Buffer destination) where T : unmanaged
-            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, access, out destination);
+        public void UploadBuffer<T>(GpuAllocator allocator, T[] buffer, out Buffer destination) where T : unmanaged
+            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, out destination);
 
 
         /// <summary>
@@ -135,10 +196,9 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="allocator"></param>
         /// <param name="buffer"></param>
-        /// <param name="access"></param>
         /// <param name="destination"></param>
-        public void UploadBuffer<T>(GpuAllocator allocator, Span<T> buffer, MemoryAccess access, out Buffer destination) where T : unmanaged
-            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, access, out destination);
+        public void UploadBuffer<T>(GpuAllocator allocator, Span<T> buffer, out Buffer destination) where T : unmanaged
+            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, out destination);
 
 
         /// <summary>
@@ -146,19 +206,14 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="allocator"></param>
         /// <param name="buffer"></param>
-        /// <param name="access"></param>
         /// <param name="destination"></param>
-        public void UploadBuffer<T>(GpuAllocator allocator, ReadOnlySpan<T> buffer, MemoryAccess access, out Buffer destination) where T : unmanaged
+        public void UploadBuffer<T>(GpuAllocator allocator, ReadOnlySpan<T> buffer, out Buffer destination) where T : unmanaged
         {
-            destination = allocator.AllocateBuffer(buffer.Length * sizeof(T), MemoryAccess.CpuUpload, ResourceState.GenericRead);
-            destination.WriteData(buffer);
+            var upload = allocator.AllocateBuffer(buffer.Length * sizeof(T), MemoryAccess.CpuUpload, ResourceState.GenericRead);
+            upload.WriteData(buffer);
 
-            if (access == MemoryAccess.GpuOnly)
-            {
-                var tmp = allocator.AllocateBuffer(buffer.Length * sizeof(T), MemoryAccess.GpuOnly, ResourceState.CopyDestination);
-                CopyResource(destination, tmp);
-                destination = tmp;
-            }
+            destination = allocator.AllocateBuffer(buffer.Length * sizeof(T), MemoryAccess.GpuOnly, ResourceState.CopyDestination);
+            CopyResource(upload, destination);
         }
 
         /// <summary>
@@ -200,8 +255,9 @@ namespace Voltium.Core
                     ((D3D12_SUBRESOURCE_DATA*)&pSubresources[i])->pData = pTextureData + pSubresources[i].DataOffset;
                 }
 
+                _context.FlushBarriers();
                 _ = Windows.UpdateSubresources(
-                    _context.List.Get(),
+                    _context.List,
                     destination.Resource.UnderlyingResource,
                     upload.Resource.UnderlyingResource,
                     0,
@@ -211,6 +267,8 @@ namespace Voltium.Core
                 );
             }
         }
+
+
 
         /// <summary>
         /// Mark a resource barrier on the command list
@@ -233,29 +291,27 @@ namespace Voltium.Core
         private void ResourceTransition(GpuResource resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
         {
             // don't do unnecessary work
-            if (resource.State == transition)
+            // ResourceState.Common is 0 and must be transitioned to. Same applies for present (also 0)
+            if (transition != ResourceState.Common && (resource.State & transition) == transition)
             {
                 return;
             }
 
-            var barrier = new D3D12_RESOURCE_BARRIER
+            Unsafe.SkipInit(out D3D12_RESOURCE_BARRIER barrier);
             {
-                Type = D3D12_RESOURCE_BARRIER_TYPE.D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
-                Flags = D3D12_RESOURCE_BARRIER_FLAGS.D3D12_RESOURCE_BARRIER_FLAG_NONE,
-                Anonymous = new D3D12_RESOURCE_BARRIER._Anonymous_e__Union
+                barrier.Type = D3D12_RESOURCE_BARRIER_TYPE.D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+                barrier.Flags = D3D12_RESOURCE_BARRIER_FLAGS.D3D12_RESOURCE_BARRIER_FLAG_NONE;
+                barrier.Anonymous.Transition = new D3D12_RESOURCE_TRANSITION_BARRIER
                 {
-                    Transition = new D3D12_RESOURCE_TRANSITION_BARRIER
-                    {
-                        pResource = resource.UnderlyingResource,
-                        StateBefore = (D3D12_RESOURCE_STATES)resource.State,
-                        StateAfter = (D3D12_RESOURCE_STATES)transition,
-                        Subresource = subresource
-                    }
-                }
+                    pResource = resource.UnderlyingResource,
+                    StateBefore = (D3D12_RESOURCE_STATES)resource.State,
+                    StateAfter = (D3D12_RESOURCE_STATES)transition,
+                    Subresource = subresource
+                };
             };
 
             resource.State = transition;
-            _context.List.Get()->ResourceBarrier(1, &barrier);
+            _context.AddBarrier(barrier);
         }
 
         /// <inheritdoc/>
@@ -268,6 +324,11 @@ namespace Voltium.Core
     public unsafe partial struct ComputeContext : IDisposable
     {
         private GpuContext _context;
+
+        internal ComputeContext(GpuContext context)
+        {
+            _context = context;
+        }
 
         /// <inheritdoc/>
         public void Dispose() => _context.Dispose();
@@ -309,6 +370,33 @@ namespace Voltium.Core
         //SetPipelineState1
         //SetPredication
 
+        //BeginEvent
+        //BeginQuery
+        //ClearState
+        //ClearUnorderedAccessViewFloat
+        //ClearUnorderedAccessViewUint
+        //Close
+        //CopyBufferRegion
+        //CopyResource
+        //CopyTextureRegion
+        //Dispatch
+        //EndEvent
+        //EndQuery
+        //Reset
+        //ResolveQueryData
+        //ResourceBarrier
+        //SetComputeRoot32BitConstant
+        //SetComputeRoot32BitConstants
+        //SetComputeRootConstantBufferView
+        //SetComputeRootDescriptorTable
+        //SetComputeRootShaderResourceView
+        //SetComputeRootSignature
+        //SetComputeRootUnorderedAccessView
+        //SetDescriptorHeaps
+        //SetMarker
+        //SetPipelineState
+        //SetPredication
+
         /// <summary>
         /// Sets a directly-bound constant buffer view descriptor to the compute pipeline
         /// </summary>
@@ -327,7 +415,7 @@ namespace Voltium.Core
         {
             var alignedSize = (sizeof(T) + 255) & ~255;
 
-            _context.List.Get()->SetComputeRootConstantBufferView(paramIndex, cbuffer.GpuAddress + (ulong)(alignedSize * offset));
+            _context.List->SetComputeRootConstantBufferView(paramIndex, cbuffer.GpuAddress + (ulong)(alignedSize * offset));
         }
 
         /// <summary>
@@ -338,7 +426,7 @@ namespace Voltium.Core
         /// <param name="offset">The offset in bytes to start the view at</param>
         public void SetConstantBufferByteOffset(uint paramIndex, Buffer cbuffer, uint offset = 0)
         {
-            _context.List.Get()->SetComputeRootConstantBufferView(paramIndex, cbuffer.GpuAddress + offset);
+            _context.List->SetComputeRootConstantBufferView(paramIndex, cbuffer.GpuAddress + offset);
         }
 
         /// <summary>
@@ -348,7 +436,7 @@ namespace Voltium.Core
         /// <param name="handle">The <see cref="DescriptorHandle"/> containing the first view</param>
         public void SetRootDescriptorTable(uint paramIndex, DescriptorHandle handle)
         {
-            _context.List.Get()->SetComputeRootDescriptorTable(paramIndex, handle.GpuHandle);
+            _context.List->SetComputeRootDescriptorTable(paramIndex, handle.GpuHandle);
         }
 
         /// <summary>
@@ -357,7 +445,7 @@ namespace Voltium.Core
         /// <param name="signature">The signature to set to</param>
         public void SetRootSignature(RootSignature signature)
         {
-            _context.List.Get()->SetComputeRootSignature(signature.Value);
+            _context.List->SetComputeRootSignature(signature.Value);
         }
 
         #region CopyContext Methods
@@ -412,10 +500,9 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="allocator"></param>
         /// <param name="buffer"></param>
-        /// <param name="access"></param>
         /// <param name="destination"></param>
-        public void UploadBuffer<T>(GpuAllocator allocator, T[] buffer, MemoryAccess access, out Buffer destination) where T : unmanaged
-            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, access, out destination);
+        public void UploadBuffer<T>(GpuAllocator allocator, T[] buffer, out Buffer destination) where T : unmanaged
+            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, out destination);
 
 
         /// <summary>
@@ -423,10 +510,9 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="allocator"></param>
         /// <param name="buffer"></param>
-        /// <param name="access"></param>
         /// <param name="destination"></param>
-        public void UploadBuffer<T>(GpuAllocator allocator, Span<T> buffer, MemoryAccess access, out Buffer destination) where T : unmanaged
-            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, access, out destination);
+        public void UploadBuffer<T>(GpuAllocator allocator, Span<T> buffer, out Buffer destination) where T : unmanaged
+            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, out destination);
 
 
         /// <summary>
@@ -434,10 +520,9 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="allocator"></param>
         /// <param name="buffer"></param>
-        /// <param name="access"></param>
         /// <param name="destination"></param>
-        public void UploadBuffer<T>(GpuAllocator allocator, ReadOnlySpan<T> buffer, MemoryAccess access, out Buffer destination) where T : unmanaged
-            => this.AsCopyContext().UploadBuffer<T>(allocator, buffer, access, out destination);
+        public void UploadBuffer<T>(GpuAllocator allocator, ReadOnlySpan<T> buffer, out Buffer destination) where T : unmanaged
+            => this.AsCopyContext().UploadBuffer<T>(allocator, buffer, out destination);
 
         /// <summary>
         /// Uploads a buffer from the CPU to the GPU
@@ -450,15 +535,15 @@ namespace Voltium.Core
         public void UploadTexture(GpuAllocator allocator, ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, TextureDesc tex, out Texture destination)
             => this.AsCopyContext().UploadTexture(allocator, texture, subresources, tex, out destination);
 
-            /// <summary>
-            /// Uploads a buffer from the CPU to the GPU
-            /// </summary>
-            /// <param name="allocator"></param>
-            /// <param name="texture"></param>
-            /// <param name="subresources"></param>
-            /// <param name="destination"></param>
-            public void UploadTexture(GpuAllocator allocator, ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, Texture destination)
-            => this.AsCopyContext().UploadTexture(allocator, texture, subresources, destination);
+        /// <summary>
+        /// Uploads a buffer from the CPU to the GPU
+        /// </summary>
+        /// <param name="allocator"></param>
+        /// <param name="texture"></param>
+        /// <param name="subresources"></param>
+        /// <param name="destination"></param>
+        public void UploadTexture(GpuAllocator allocator, ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, Texture destination)
+        => this.AsCopyContext().UploadTexture(allocator, texture, subresources, destination);
 
 
         /// <summary>
@@ -490,17 +575,9 @@ namespace Voltium.Core
     {
         private GpuContext _context;
 
-        internal GraphicsContext(GraphicsDevice device, ComPtr<ID3D12GraphicsCommandList> list, ComPtr<ID3D12CommandAllocator> allocator)
+        internal GraphicsContext(GpuContext context)
         {
-            Debug.Assert(list.Exists);
-            Debug.Assert(allocator.Exists);
-
-            _context = new GpuContext
-            {
-                Device = device,
-                List = list.Move(),
-                Allocator = allocator.Move()
-            };
+            _context = context;
         }
 
         private static bool AreCopyable(GpuResource source, GpuResource destination)
@@ -520,17 +597,18 @@ namespace Voltium.Core
         /// <param name="pso">The <see cref="PipelineStateObject"/> to set</param>
         public void SetPipelineState(PipelineStateObject pso)
         {
-            _context.List.Get()->SetPipelineState(pso.GetPso());
+            _context.List->SetPipelineState(pso.GetPso());
         }
 
         /// <summary>
-        /// Sets the viewport and scissor rectangle to encompass the entire screen
+        /// Sets the viewport and scissor rectangle
         /// </summary>
-        /// <param name="fullscreen">The <see cref="ScreenData"/> representing the screen</param>
-        public void SetViewportAndScissor(in ScreenData fullscreen)
+        /// <param name="width">The width, in pixels</param>
+        /// <param name="height">The height, in pixels</param>
+        public void SetViewportAndScissor(uint width, uint height)
         {
-            SetViewports(new Viewport(0, 0, fullscreen.Width, fullscreen.Height, 0, 1));
-            SetScissorRectangles(new Rectangle(0, 0, (int)fullscreen.Width, (int)fullscreen.Height));
+            SetViewports(new Viewport(0, 0, width, height, 0, 1));
+            SetScissorRectangles(new Rectangle(0, 0, (int)width, (int)height));
         }
 
         /// <summary>
@@ -539,7 +617,7 @@ namespace Voltium.Core
         /// <param name="value">The value of the blend factor</param>
         public void SetBlendFactor(RgbaColor value)
         {
-            _context.List.Get()->OMSetBlendFactor(&value.R);
+            _context.List->OMSetBlendFactor(&value.R);
         }
 
         /// <summary>
@@ -548,9 +626,38 @@ namespace Voltium.Core
         /// <param name="value">The value of the stencil ref</param>
         public void SetStencilRef(uint value)
         {
-            _context.List.Get()->OMSetStencilRef(value);
+            _context.List->OMSetStencilRef(value);
         }
 
+        /// <summary>
+        /// Sets a directly-bound constant buffer view descriptor to the graphics pipeline
+        /// </summary>
+        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
+        /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
+        public void SetBuffer(uint paramIndex, Buffer cbuffer)
+            => SetBuffer<byte>(paramIndex, cbuffer, 0);
+
+        /// <summary>
+        /// Sets a directly-bound constant buffer view descriptor to the graphics pipeline
+        /// </summary>
+        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
+        /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
+        /// <param name="offset">The offset in elements of <typeparamref name="T"/> to start the view at</param>
+        public void SetBuffer<T>(uint paramIndex, Buffer cbuffer, uint offset = 0) where T : unmanaged
+        {
+            _context.List->SetGraphicsRootShaderResourceView(paramIndex, cbuffer.GpuAddress + (ulong)(sizeof(T) * offset));
+        }
+
+        /// <summary>
+        /// Sets a directly-bound constant buffer view descriptor to the graphics pipeline
+        /// </summary>
+        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
+        /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
+        /// <param name="offset">The offset in bytes to start the view at</param>
+        public void SetBufferByteOffset(uint paramIndex, Buffer cbuffer, uint offset = 0)
+        {
+            _context.List->SetGraphicsRootShaderResourceView(paramIndex, cbuffer.GpuAddress + offset);
+        }
 
         /// <summary>
         /// Sets a directly-bound constant buffer view descriptor to the graphics pipeline
@@ -565,12 +672,12 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
-        /// <param name="offset">The offset in bytes to start the view at</param>
+        /// <param name="offset">The offset in elements of <typeparamref name="T"/> to start the view at</param>
         public void SetConstantBuffer<T>(uint paramIndex, Buffer cbuffer, uint offset = 0) where T : unmanaged
         {
             var alignedSize = (sizeof(T) + 255) & ~255;
 
-            _context.List.Get()->SetGraphicsRootConstantBufferView(paramIndex, cbuffer.GpuAddress + (ulong)(alignedSize * offset));
+            _context.List->SetGraphicsRootConstantBufferView(paramIndex, cbuffer.GpuAddress + (ulong)(alignedSize * offset));
         }
 
         /// <summary>
@@ -581,7 +688,7 @@ namespace Voltium.Core
         /// <param name="offset">The offset in bytes to start the view at</param>
         public void SetConstantBufferByteOffset(uint paramIndex, Buffer cbuffer, uint offset = 0)
         {
-            _context.List.Get()->SetGraphicsRootConstantBufferView(paramIndex, cbuffer.GpuAddress + offset);
+            _context.List->SetGraphicsRootConstantBufferView(paramIndex, cbuffer.GpuAddress + offset);
         }
 
         /// <summary>
@@ -591,7 +698,48 @@ namespace Voltium.Core
         /// <param name="handle">The <see cref="DescriptorHandle"/> containing the first view</param>
         public void SetRootDescriptorTable(uint paramIndex, DescriptorHandle handle)
         {
-            _context.List.Get()->SetGraphicsRootDescriptorTable(paramIndex, handle.GpuHandle);
+            _context.List->SetGraphicsRootDescriptorTable(paramIndex, handle.GpuHandle);
+        }
+
+        /// <summary>
+        /// Sets a group of 32 bit values to the graphics pipeline
+        /// </summary>
+        /// <typeparam name="T">The type of the elements used. This must have a size that is a multiple of 4</typeparam>
+        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which these constants represents</param>
+        /// <param name="value">The 32 bit values to set</param>
+        /// <param name="offset">The offset, in 32 bit offsets, to bind this at</param>
+        public void SetRoot32BitConstants<T>(uint paramIndex, T value, uint offset = 0) where T : unmanaged
+        {
+            if (sizeof(T) % 4 != 0)
+            {
+                ThrowHelper.ThrowArgumentException(
+                    $"Type '{typeof(T).Name}' has size '{sizeof(T)}' but {nameof(SetRoot32BitConstants)} requires param '{nameof(value)} '" +
+                    "to have size divisble by 4"
+                );
+            }
+
+            _context.List->SetGraphicsRoot32BitConstants(paramIndex, (uint)sizeof(T) / 4, &value, offset);
+        }
+
+
+        /// <summary>
+        /// Sets a 32 bit value to the graphics pipeline
+        /// </summary>
+        /// <typeparam name="T">The type of the element used. This must have a size that is 4</typeparam>
+        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which these constants represents</param>
+        /// <param name="value">The 32 bit value to set</param>
+        /// <param name="offset">The offset, in 32 bit offsets, to bind this at</param>
+        public void SetRoot32BitConstant<T>(uint paramIndex, T value, uint offset = 0) where T : unmanaged
+        {
+            if (sizeof(T) != 4)
+            {
+                ThrowHelper.ThrowArgumentException(
+                    $"Type '{typeof(T).Name}' has size '{sizeof(T)}' but {nameof(SetRoot32BitConstant)} requires param '{nameof(value)} '" +
+                    "to have size 4"
+                );
+            }
+
+            _context.List->SetGraphicsRoot32BitConstant(paramIndex, Unsafe.As<T, uint>(ref value), offset);
         }
 
         /// <summary>
@@ -600,13 +748,13 @@ namespace Voltium.Core
         /// <param name="signature">The signature to set to</param>
         public void SetRootSignature(RootSignature signature)
         {
-            _context.List.Get()->SetGraphicsRootSignature(signature.Value);
+            _context.List->SetGraphicsRootSignature(signature.Value);
         }
 
         /// <summary>
         /// Sets a range of non-continuous render targets
         /// </summary>
-        /// <param name="renderTargets">A span of <see cref="CpuHandle"/>s representing each render target</param>
+        /// <param name="renderTargets">A span of <see cref="DescriptorHandle"/>s representing each render target</param>
         /// <param name="depthStencilHandle">The handle to the depth stencil descriptor</param>
         public void SetRenderTargets(Span<DescriptorHandle> renderTargets, DescriptorHandle? depthStencilHandle = null)
         {
@@ -620,7 +768,8 @@ namespace Voltium.Core
             }
 
             var depthStencil = depthStencilHandle.GetValueOrDefault();
-            _context.List.Get()->OMSetRenderTargets(
+            _context.FlushBarriers();
+            _context.List->OMSetRenderTargets(
                 (uint)renderTargets.Length,
                 pRenderTargets,
                 Windows.FALSE,
@@ -640,7 +789,8 @@ namespace Voltium.Core
             var dsv = depthStencilHandle.GetValueOrDefault().CpuHandle;
 
             var depthStencil = depthStencilHandle.GetValueOrDefault();
-            _context.List.Get()->OMSetRenderTargets(
+            _context.FlushBarriers();
+            _context.List->OMSetRenderTargets(
                 renderTargetHandle is null ? 0 : renderTargetCount,
                 renderTargetHandle is null ? null : &rtv,
                 Windows.TRUE,
@@ -654,7 +804,7 @@ namespace Voltium.Core
         /// <param name="topology">The <see cref="D3D_PRIMITIVE_TOPOLOGY"/> to use</param>
         public void SetTopology(Topology topology)
         {
-            _context.List.Get()->IASetPrimitiveTopology((D3D_PRIMITIVE_TOPOLOGY)topology);
+            _context.List->IASetPrimitiveTopology((D3D_PRIMITIVE_TOPOLOGY)topology);
         }
 
         /// <summary>
@@ -664,7 +814,7 @@ namespace Voltium.Core
         public void SetControlPatchPointCount(byte count)
         {
             Guard.InRangeInclusive(1, 32, count);
-            _context.List.Get()->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_1_CONTROL_POINT_PATCHLIST + (count - 1));
+            _context.List->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_1_CONTROL_POINT_PATCHLIST + (count - 1));
         }
 
         /// <summary>
@@ -675,7 +825,7 @@ namespace Voltium.Core
         /// <param name="rect">The rectangle representing the section to clear</param>
         public void ClearRenderTarget(DescriptorHandle rtv, RgbaColor color, Rectangle rect)
         {
-            _context.List.Get()->ClearRenderTargetView(rtv.CpuHandle, &color.R, 1, (RECT*)&rect);
+            _context.List->ClearRenderTargetView(rtv.CpuHandle, &color.R, 1, (RECT*)&rect);
         }
 
         /// <summary>
@@ -700,9 +850,12 @@ namespace Voltium.Core
             fixed (Rectangle* pRt = renderTargetRects)
             fixed (Rectangle* pDs = depthRects)
             {
-                _context.List.Get()->ClearRenderTargetView(rtv.CpuHandle, &color.R, (uint)renderTargetRects.Length, (RECT*)pRt);
+                _context.FlushBarriers();
 
-                _context.List.Get()->ClearDepthStencilView(
+                _context.List->ClearRenderTargetView(rtv.CpuHandle, &color.R, (uint)renderTargetRects.Length, (RECT*)pRt);
+
+
+                _context.List->ClearDepthStencilView(
                     dsv.CpuHandle,
                     D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_STENCIL,
                     depth, stencil,
@@ -722,7 +875,8 @@ namespace Voltium.Core
         {
             fixed (Rectangle* p = rect)
             {
-                _context.List.Get()->ClearRenderTargetView(rtv.CpuHandle, &color.R, (uint)rect.Length, (RECT*)p);
+                _context.FlushBarriers();
+                _context.List->ClearRenderTargetView(rtv.CpuHandle, &color.R, (uint)rect.Length, (RECT*)p);
             }
         }
 
@@ -736,7 +890,8 @@ namespace Voltium.Core
         {
             fixed (Rectangle* p = rect)
             {
-                _context.List.Get()->ClearDepthStencilView(dsv.CpuHandle, D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH, depth, 0, (uint)rect.Length, (RECT*)p);
+                _context.FlushBarriers();
+                _context.List->ClearDepthStencilView(dsv.CpuHandle, D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH, depth, 0, (uint)rect.Length, (RECT*)p);
             }
         }
 
@@ -750,7 +905,8 @@ namespace Voltium.Core
         {
             fixed (Rectangle* p = rect)
             {
-                _context.List.Get()->ClearDepthStencilView(dsv.CpuHandle, D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_STENCIL, 0, stencil, (uint)rect.Length, (RECT*)p);
+                _context.FlushBarriers();
+                _context.List->ClearDepthStencilView(dsv.CpuHandle, D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_STENCIL, 0, stencil, (uint)rect.Length, (RECT*)p);
             }
         }
 
@@ -765,7 +921,8 @@ namespace Voltium.Core
         {
             fixed (Rectangle* p = rect)
             {
-                _context.List.Get()->ClearDepthStencilView(dsv.CpuHandle, D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_STENCIL | D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH, depth, stencil, (uint)rect.Length, (RECT*)p);
+                _context.FlushBarriers();
+                _context.List->ClearDepthStencilView(dsv.CpuHandle, D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_STENCIL | D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH, depth, stencil, (uint)rect.Length, (RECT*)p);
             }
         }
 
@@ -775,7 +932,7 @@ namespace Voltium.Core
         /// <param name="viewport">The viewport to set</param>
         public void SetViewports(Viewport viewport)
         {
-            _context.List.Get()->RSSetViewports(1, (D3D12_VIEWPORT*)&viewport);
+            _context.List->RSSetViewports(1, (D3D12_VIEWPORT*)&viewport);
         }
 
         /// <summary>
@@ -786,7 +943,7 @@ namespace Voltium.Core
         {
             fixed (Rectangle* pRects = rectangles)
             {
-                _context.List.Get()->RSSetScissorRects((uint)rectangles.Length, (RECT*)pRects);
+                _context.List->RSSetScissorRects((uint)rectangles.Length, (RECT*)pRects);
             }
         }
 
@@ -796,7 +953,7 @@ namespace Voltium.Core
         /// <param name="rectangle">The rectangle to set</param>
         public void SetScissorRectangles(Rectangle rectangle)
         {
-            _context.List.Get()->RSSetScissorRects(1, (RECT*)&rectangle);
+            _context.List->RSSetScissorRects(1, (RECT*)&rectangle);
         }
 
         /// <summary>
@@ -807,7 +964,7 @@ namespace Voltium.Core
         {
             fixed (Viewport* pViewports = viewports)
             {
-                _context.List.Get()->RSSetViewports((uint)viewports.Length, (D3D12_VIEWPORT*)pViewports);
+                _context.List->RSSetViewports((uint)viewports.Length, (D3D12_VIEWPORT*)pViewports);
             }
         }
 
@@ -821,7 +978,9 @@ namespace Voltium.Core
             where T : unmanaged
         {
             var desc = CreateVertexBufferView<T>(vertexResource);
-            _context.List.Get()->IASetVertexBuffers(startSlot, 1, &desc);
+
+            _context.FlushBarriers();
+            _context.List->IASetVertexBuffers(startSlot, 1, &desc);
         }
 
         /// <summary>
@@ -841,7 +1000,8 @@ namespace Voltium.Core
                 views[i] = CreateVertexBufferView<T>(vertexBuffers[i]);
             }
 
-            _context.List.Get()->IASetVertexBuffers(startSlot, (uint)vertexBuffers.Length, views);
+            _context.FlushBarriers();
+            _context.List->IASetVertexBuffers(startSlot, (uint)vertexBuffers.Length, views);
         }
 
         private static D3D12_VERTEX_BUFFER_VIEW CreateVertexBufferView<T>(Buffer buffer)
@@ -864,7 +1024,7 @@ namespace Voltium.Core
             where T : unmanaged
         {
             var desc = CreateIndexBufferView(indexResource);
-            _context.List.Get()->IASetIndexBuffer(&desc);
+            _context.List->IASetIndexBuffer(&desc);
 
             static D3D12_INDEX_BUFFER_VIEW CreateIndexBufferView(Buffer buffer)
             {
@@ -920,7 +1080,8 @@ namespace Voltium.Core
                 ResourceTransition(dest, ResourceState.ResolveDestination, destSubresource);
             }
 
-            _context.List.Get()->ResolveSubresource(dest.GetResourcePointer(), destSubresource, source.GetResourcePointer(), sourceSubresource, (DXGI_FORMAT)format);
+            _context.FlushBarriers();
+            _context.List->ResolveSubresource(dest.GetResourcePointer(), destSubresource, source.GetResourcePointer(), sourceSubresource, (DXGI_FORMAT)format);
         }
 
         /// <summary>
@@ -933,7 +1094,17 @@ namespace Voltium.Core
         /// <param name="destSubresource">The index of the subresource from <paramref name="dest"/> to use</param>
         public void ResolveSubresource(Texture source, Texture dest, DataFormat format, uint sourceSubresource = 0, uint destSubresource = 0)
         {
-            _context.List.Get()->ResolveSubresource(dest.GetResourcePointer(), destSubresource, source.GetResourcePointer(), sourceSubresource, (DXGI_FORMAT)format);
+            if (!source.Resource.State.HasFlag(ResourceState.ResolveSource))
+            {
+                ResourceTransition(source, ResourceState.ResolveSource, sourceSubresource);
+            }
+            if (!dest.Resource.State.HasFlag(ResourceState.ResolveDestination))
+            {
+                ResourceTransition(dest, ResourceState.ResolveDestination, destSubresource);
+            }
+
+            _context.FlushBarriers();
+            _context.List->ResolveSubresource(dest.GetResourcePointer(), destSubresource, source.GetResourcePointer(), sourceSubresource, (DXGI_FORMAT)format);
         }
 
         /// <summary>
@@ -965,7 +1136,8 @@ namespace Voltium.Core
         /// </summary>
         public void DrawInstanced(uint vertexCountPerInstance, uint instanceCount, uint startVertexLocation, uint startInstanceLocation)
         {
-            _context.List.Get()->DrawInstanced(
+            _context.FlushBarriers();
+            _context.List->DrawInstanced(
                 vertexCountPerInstance,
                 instanceCount,
                 startVertexLocation,
@@ -978,7 +1150,8 @@ namespace Voltium.Core
         /// </summary>
         public void DrawIndexedInstanced(uint indexCountPerInstance, uint instanceCount, uint startIndexLocation, int baseVertexLocation, uint startInstanceLocation)
         {
-            _context.List.Get()->DrawIndexedInstanced(
+            _context.FlushBarriers();
+            _context.List->DrawIndexedInstanced(
                 indexCountPerInstance,
                 instanceCount,
                 startIndexLocation,
@@ -1039,10 +1212,9 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="allocator"></param>
         /// <param name="buffer"></param>
-        /// <param name="access"></param>
         /// <param name="destination"></param>
-        public void UploadBuffer<T>(GpuAllocator allocator, T[] buffer, MemoryAccess access, out Buffer destination) where T : unmanaged
-            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, access, out destination);
+        public void UploadBuffer<T>(GpuAllocator allocator, T[] buffer, out Buffer destination) where T : unmanaged
+            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, out destination);
 
 
         /// <summary>
@@ -1050,10 +1222,9 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="allocator"></param>
         /// <param name="buffer"></param>
-        /// <param name="access"></param>
         /// <param name="destination"></param>
-        public void UploadBuffer<T>(GpuAllocator allocator, Span<T> buffer, MemoryAccess access, out Buffer destination) where T : unmanaged
-            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, access, out destination);
+        public void UploadBuffer<T>(GpuAllocator allocator, Span<T> buffer, out Buffer destination) where T : unmanaged
+            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, out destination);
 
 
         /// <summary>
@@ -1061,10 +1232,9 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="allocator"></param>
         /// <param name="buffer"></param>
-        /// <param name="access"></param>
         /// <param name="destination"></param>
-        public void UploadBuffer<T>(GpuAllocator allocator, ReadOnlySpan<T> buffer, MemoryAccess access, out Buffer destination) where T : unmanaged
-            => this.AsCopyContext().UploadBuffer<T>(allocator, buffer, access, out destination);
+        public void UploadBuffer<T>(GpuAllocator allocator, ReadOnlySpan<T> buffer, out Buffer destination) where T : unmanaged
+            => this.AsCopyContext().UploadBuffer<T>(allocator, buffer, out destination);
 
         /// <summary>
         /// Uploads a buffer from the CPU to the GPU

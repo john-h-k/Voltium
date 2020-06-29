@@ -41,6 +41,7 @@ namespace Voltium.Core.Managers
         private FenceMarker _marker;
         private Queue<ExecutingAllocator> _executingAllocators;
         private CommandAllocatorPool _allocatorPool;
+        public readonly ulong Frequency;
 
         public ID3D12CommandQueue* GetQueue() => _queue.Get();
 
@@ -63,6 +64,15 @@ namespace Voltium.Core.Managers
             _executingAllocators = new();
             Guard.ThrowIfFailed(_queue.Get()->Signal(_fence.Get(), _marker.FenceValue));
             _allocatorPool = new(ComPtr<ID3D12Device>.CopyFromPointer(device.DevicePointer), context);
+
+            ulong frequency;
+            int hr = _queue.Get()->GetTimestampFrequency(&frequency);
+            Frequency = Windows.SUCCEEDED(hr) ? frequency : 0;
+        }
+
+        public bool TryQueryTimestamps(ulong* gpu, ulong* cpu)
+        {
+            return Windows.SUCCEEDED(_queue.Get()->GetClockCalibration(gpu, cpu));
         }
 
         private static unsafe ComPtr<ID3D12CommandQueue> CreateQueue(GraphicsDevice device, ExecutionContext type)

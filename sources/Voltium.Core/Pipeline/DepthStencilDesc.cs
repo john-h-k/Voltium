@@ -24,6 +24,22 @@ namespace Voltium.Core.Pipeline
         };
 
         /// <summary>
+        /// The default <see cref="DepthStencilDesc"/>. This correspends
+        /// to <c>new CD3DX12_DEPTH_STENCIL_DESC(DEFAULT)</c>
+        /// </summary>
+        public static DepthStencilDesc DisableDepthStencil { get; } = new DepthStencilDesc
+        {
+            EnableDepthTesting = false,
+            DepthWriteMask = DepthWriteMask.Zero,
+            DepthComparison = Comparison.LessThan,
+            EnableStencilTesting = false,
+            StencilReadMask = 0,
+            StencilWriteMask = 0,
+            FrontFace = StencilFuncDesc.Default,
+            BackFace = StencilFuncDesc.Default
+        };
+
+        /// <summary>
         /// Whether depth testing should occur
         /// </summary>
         public bool EnableDepthTesting;
