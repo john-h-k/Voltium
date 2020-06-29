@@ -94,7 +94,6 @@ namespace Voltium.Common
         {
             using var builder = StringHelper.RentStringBuilder();
 
-
             builder.AppendLine(message);
             builder.AppendLine($"At file: {filePath}");
             builder.AppendLine($"At line: {line}");

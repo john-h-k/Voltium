@@ -180,23 +180,6 @@ namespace Voltium.Core.Managers
             BackBufferIndex = _swapChain.BackBufferIndex;
         }
 
-        /// <summary>
-        /// The default allocator for the device
-        /// </summary>
-        public GpuAllocator Allocator { get; private set; } = null!;
-
-
-        internal ComPtr<ID3D12Heap> CreateHeap(D3D12_HEAP_DESC desc)
-        {
-            ComPtr<ID3D12Heap> heap = default;
-            Guard.ThrowIfFailed(DevicePointer->CreateHeap(
-                &desc,
-                heap.Guid,
-                ComPtr.GetVoidAddressOf(&heap)
-            ));
-
-            return heap.Move();
-        }
 
         internal ComPtr<ID3D12RootSignature> CreateRootSignature(uint nodeMask, void* pSignature, uint signatureLength)
         {
@@ -210,53 +193,6 @@ namespace Voltium.Core.Managers
             ));
 
             return rootSig.Move();
-        }
-
-        internal D3D12_RESOURCE_ALLOCATION_INFO GetAllocationInfo(InternalAllocDesc desc)
-            => DevicePointer->GetResourceAllocationInfo(0, 1, &desc.Desc);
-
-        internal ComPtr<ID3D12Resource> CreatePlacedResource(ID3D12Heap* heap, ulong offset, InternalAllocDesc desc)
-        {
-            var clearVal = desc.ClearValue.GetValueOrDefault();
-
-            using ComPtr<ID3D12Resource> resource = default;
-
-            Guard.ThrowIfFailed(DevicePointer->CreatePlacedResource(
-                 heap,
-                 offset,
-                 &desc.Desc,
-                 desc.InitialState,
-                 desc.ClearValue is null ? null : &clearVal,
-                 resource.Guid,
-                 ComPtr.GetVoidAddressOf(&resource)
-             ));
-
-            return resource.Move();
-        }
-
-        internal ComPtr<ID3D12Resource> CreateCommittedResource(InternalAllocDesc desc)
-        {
-            var heapProperties = GetHeapProperties(desc);
-            var clearVal = desc.ClearValue.GetValueOrDefault();
-
-            using ComPtr<ID3D12Resource> resource = default;
-
-            Guard.ThrowIfFailed(DevicePointer->CreateCommittedResource(
-                 &heapProperties,
-                 D3D12_HEAP_FLAGS.D3D12_HEAP_FLAG_NONE,
-                 &desc.Desc,
-                 desc.InitialState,
-                 desc.ClearValue is null ? null : &clearVal,
-                 resource.Guid,
-                 ComPtr.GetVoidAddressOf(&resource)
-            ));
-
-            return resource;
-
-            static D3D12_HEAP_PROPERTIES GetHeapProperties(InternalAllocDesc desc)
-            {
-                return new D3D12_HEAP_PROPERTIES(desc.HeapType);
-            }
         }
 
         /// <summary>
@@ -409,7 +345,7 @@ namespace Voltium.Core.Managers
                 Format = (DXGI_FORMAT)_config.BackBufferFormat,
                 Height = ScreenData.Height,
                 Width = ScreenData.Width,
-                SampleDesc = new DXGI_SAMPLE_DESC(_config.MultiSamplingStrategy.SampleCount, _config.MultiSamplingStrategy.QualityLevel),
+                SampleDesc = new DXGI_SAMPLE_DESC(count: 1, quality: 0), // backbuffer MSAA is not supported in D3D12
                 Scaling = DXGI_SCALING.DXGI_SCALING_NONE,
                 Stereo = FALSE, // stereoscopic rendering, 2 images, e.g VR or 3D holo
                 SwapEffect = DXGI_SWAP_EFFECT.DXGI_SWAP_EFFECT_FLIP_DISCARD
@@ -672,14 +608,15 @@ namespace Voltium.Core.Managers
         }
 
         /// <inheritdoc cref="IDisposable"/>
-        public void Dispose()
+        public override void Dispose()
         {
+            base.Dispose();
+
             ReportLiveObjects();
 
             _swapChain.Dispose();
             _debugLayer.Dispose();
             _graphicsQueue.Dispose();
-            _device.Dispose();
         }
     }
 }

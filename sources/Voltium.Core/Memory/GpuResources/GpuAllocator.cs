@@ -11,6 +11,7 @@ using Voltium.Core.Memory.GpuResources;
 using Buffer = Voltium.Core.Memory.GpuResources.Buffer;
 using System.Runtime.CompilerServices;
 using Voltium.Core.Configuration.Graphics;
+using Voltium.Core.Devices;
 
 namespace Voltium.Core.GpuResources
 {
@@ -101,7 +102,7 @@ namespace Voltium.Core.GpuResources
     public unsafe sealed class GpuAllocator : IDisposable
     {
         private List<AllocatorHeap>[] _heapPools = null!;
-        private GraphicsDevice _device;
+        private ComputeDevice _device;
         private const ulong HighestRequiredAlign = 1024 * 1024 * 4; // 4mb
 
         private bool _hasMergedHeapSupport;

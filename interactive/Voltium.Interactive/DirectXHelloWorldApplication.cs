@@ -19,15 +19,12 @@ namespace Voltium.Interactive
         private GraphicalConfiguration _config = null!;
         private ScreenData _screen;
 
-        [MemberNotNull(nameof(_device))]
         public override unsafe void Init(ScreenData data, HWND hwnd)
         {
             var config = new GraphicalConfiguration
             {
-                ForceFullscreenAsWindowed = false,
                 VSyncCount = 0,
-                BackBufferFormat = DataFormat.R8G8B8A8UnsignedNormalized,
-                MultiSamplingStrategy = new MsaaDesc(1, 0),
+                BackBufferFormat = BackBufferFormat.R8G8B8A8UnsignedNormalized,
                 RequiredFeatureLevel = FeatureLevel.Level11_0,
                 SwapChainBufferCount = 3
             };

@@ -15,22 +15,12 @@ namespace Voltium.Core.Managers
         /// <summary>
         /// The format of the back buffer
         /// </summary>
-        public DataFormat BackBufferFormat { get; set; }
+        public BackBufferFormat BackBufferFormat { get; set; } = BackBufferFormat.R8G8B8A8UnsignedNormalized;
 
         /// <summary>
         /// The minimum feature level required for execution of the app
         /// </summary>
-        public FeatureLevel RequiredFeatureLevel { get; set;  }
-
-        /// <summary>
-        /// The description of the multisampling state
-        /// </summary>
-        public MsaaDesc MultiSamplingStrategy { get; set;  }
-
-        /// <summary>
-        /// Whether to force the fullscreen app to be windowed
-        /// </summary>
-        public bool ForceFullscreenAsWindowed { get; set; }
+        public FeatureLevel RequiredFeatureLevel { get; set; } = FeatureLevel.Level11_0;
 
         /// <summary>
         /// The number of frames rendered before presenting

@@ -13,7 +13,7 @@ namespace Voltium.Common.Threading
     /// scenarios with a low hold time
     /// </summary>
 #if TRACE_SPINLOCK_THREADS
-    [DebuggerDisplay(Acquired = {" + nameof(_acquired) + " != 0}, OwnerThreadId = {" + nameof(_acquired) + "}")]
+    [DebuggerDisplay("Acquired = {" + nameof(_acquired) + " != 0}, OwnerThreadId = {" + nameof(_acquired) + "}")]
 #else
     [DebuggerDisplay("Define 'TRACE_SPINLOCK_THREADS' for best debugging. Acquired = {_acquire == 1 ? true : false}")]
 #endif

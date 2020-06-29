@@ -31,7 +31,6 @@ namespace Voltium.Common
     internal static class StringHelper
     {
         [ThreadStatic]
-
         private static StringBuilder? _perThreadBuilder;
 
         public static RentedStringBuilder RentStringBuilder()
@@ -53,7 +52,7 @@ namespace Voltium.Common
             _perThreadBuilder ??= val.Value;
         }
 
-        [MethodImplAttribute(MethodTypes.SlowPath)]
+        [MethodImpl(MethodTypes.SlowPath)]
         private static StringBuilder GetNewStringBuilder() => new StringBuilder(DefaultSize);
         private const int DefaultSize = 64;
 
