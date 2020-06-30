@@ -37,7 +37,7 @@ namespace Voltium.Core.Infrastructure
                                 index + _skipSoftwareAdapterOffset,
                                 // DXGI preference doesn't allow preferring hardware adapters, so we do that manually after filtering out the other hardware types
                                 // We remove the hardware flag so DXGI doesn't complain
-                                (DXGI_GPU_PREFERENCE)(_preference &~ DevicePreference.Hardware),
+                                (DXGI_GPU_PREFERENCE)(_preference & ~DevicePreference.Hardware),
                                 dxgiAdapter.Guid,
                                 ComPtr.GetVoidAddressOf(&dxgiAdapter)
                         )
