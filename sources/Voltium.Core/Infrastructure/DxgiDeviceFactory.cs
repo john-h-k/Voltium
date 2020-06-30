@@ -13,7 +13,7 @@ namespace Voltium.Core.Infrastructure
         private DevicePreference _preference;
 
         // used to skip software adapters, by adding to the index everytime we encounter one
-        private uint _skipSoftwareAdapterOffset;
+        private uint _skipAdapterOffset;
 
         public DxgiDeviceFactory()
         {
@@ -24,53 +24,63 @@ namespace Voltium.Core.Infrastructure
 
         internal override bool TryGetAdapterByIndex(uint index, out Adapter adapter)
         {
-            using ComPtr<IDXGIAdapter1> dxgiAdapter = default;
 
             // We only set this to true in TryOrderByPreference which checks we have IDXGIFactory6 so we can hard cast _factory
             if (_enumByPreference)
             {
                 while (true)
                 {
+                    using ComPtr<IDXGIAdapter1> dxgiAdapter = default;
+
+
                     Guard.ThrowIfFailed(
                         _factory.AsBase<IDXGIFactory6>()
                         .Get()->EnumAdapterByGpuPreference(
-                                index + _skipSoftwareAdapterOffset,
-                                // DXGI preference doesn't allow preferring hardware adapters, so we do that manually after filtering out the other hardware types
-                                // We remove the hardware flag so DXGI doesn't complain
-                                (DXGI_GPU_PREFERENCE)(_preference & ~DevicePreference.Hardware),
+                                index + _skipAdapterOffset,
+                                // DXGI preference doesn't allow preferring hardware/software adapters, so we do that manually after filtering out the other hardware types
+                                // We remove the hardware and software flag so DXGI doesn't complain
+                                (DXGI_GPU_PREFERENCE)(_preference & ~(DevicePreference.Hardware | DevicePreference.Software)),
                                 dxgiAdapter.Guid,
                                 ComPtr.GetVoidAddressOf(&dxgiAdapter)
                         )
                     );
 
+                    // null adapter means we have reached end of list
+                    if (!dxgiAdapter.Exists)
+                    {
+                        adapter = default;
+                        return false;
+                    }
 
-                    if (_preference.HasFlag(DevicePreference.Hardware))
+                    // if it only supports hardware of software, we have to filter them out. If both or neither are set, we allow all adapters through
+                    if (_preference.HasFlag(DevicePreference.Hardware) != _preference.HasFlag(DevicePreference.Software))
                     {
                         DXGI_ADAPTER_DESC1 desc;
                         Guard.ThrowIfFailed(dxgiAdapter.Get()->GetDesc1(&desc));
+                        bool isHardware = (desc.Flags & (int)DXGI_ADAPTER_FLAG.DXGI_ADAPTER_FLAG_SOFTWARE) == 0;
 
-                        if ((desc.Flags & (int)DXGI_ADAPTER_FLAG.DXGI_ADAPTER_FLAG_SOFTWARE) != 0)
+                        // If they want hardware but we don't have it, or they want software and we don't have it, skip this adapter
+                        if (_preference.HasFlag(DevicePreference.Hardware) != isHardware)
                         {
-                            _skipSoftwareAdapterOffset++;
+                            _skipAdapterOffset++;
                             continue;
                         }
                     }
+
+                    adapter = CreateAdapter(dxgiAdapter.Move());
+
+                    return true;
                 }
             }
             else
             {
+                using ComPtr<IDXGIAdapter1> dxgiAdapter = default;
+
                 Guard.ThrowIfFailed(_factory.Get()->EnumAdapters1(index, ComPtr.GetAddressOf(&dxgiAdapter)));
+                adapter = CreateAdapter(dxgiAdapter.Move());
+
+                return true;
             }
-
-            if (!dxgiAdapter.Exists)
-            {
-                adapter = default;
-                return false;
-            }
-
-            adapter = CreateAdapter(dxgiAdapter.Move());
-
-            return true;
         }
 
         private static Adapter CreateAdapter(ComPtr<IDXGIAdapter1> dxgiAdapter)

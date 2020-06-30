@@ -12,6 +12,8 @@ namespace Voltium.Core.Infrastructure
     {
         private ComPtr<IDXCoreAdapterFactory> _factory;
         private ComPtr<IDXCoreAdapterList> _list;
+        private uint _hardwareAdapterSkip;
+        private bool _softwareOnly;
 
         public DxCoreDeviceFactory(DeviceType types = DeviceType.GraphicsAndCompute)
         {
@@ -41,25 +43,34 @@ namespace Voltium.Core.Infrastructure
 
         internal override bool TryGetAdapterByIndex(uint index, out Adapter adapter)
         {
-            using ComPtr<IDXCoreAdapter> dxcoreAdapter = default;
-
-            if (_list.Get()->GetAdapterCount() == 0)
+            while (true)
             {
-                adapter = default;
-                return false;
+                using ComPtr<IDXCoreAdapter> dxcoreAdapter = default;
+
+                // Reached end of list
+                if (_list.Get()->GetAdapterCount() - (index + _hardwareAdapterSkip) == 0)
+                {
+                    adapter = default;
+                    return false;
+                }
+
+                Guard.ThrowIfFailed(_list.Get()->GetAdapter(index, dxcoreAdapter.Guid, ComPtr.GetVoidAddressOf(&dxcoreAdapter)));
+
+                if (_softwareOnly)
+                {
+                    bool isSoftware;
+                    Guard.ThrowIfFailed(dxcoreAdapter.Get()->GetProperty(DXCoreAdapterProperty.IsHardware, sizeof(bool), &isSoftware));
+
+                    if (!isSoftware)
+                    {
+                        _hardwareAdapterSkip++;
+                        continue;
+                    }
+                }
+
+                adapter = CreateAdapter(dxcoreAdapter.Move());
+                return true;
             }
-
-            Guard.ThrowIfFailed(_list.Get()->GetAdapter(index, dxcoreAdapter.Guid, ComPtr.GetVoidAddressOf(&dxcoreAdapter)));
-
-            if (!dxcoreAdapter.Exists)
-            {
-                adapter = default;
-                return false;
-            }
-
-            adapter = CreateAdapter(dxcoreAdapter.Move());
-
-            return true;
         }
 
         private static Adapter CreateAdapter(ComPtr<IDXCoreAdapter> adapter)
@@ -135,6 +146,8 @@ namespace Voltium.Core.Infrastructure
         {
             DXCoreAdapterPreference* pPreferences = stackalloc DXCoreAdapterPreference[4];
             int i = 0;
+
+            _softwareOnly = preference.HasFlag(DevicePreference.Software) && !preference.HasFlag(DevicePreference.Hardware);
 
             if (!TryAdd(DevicePreference.Hardware, DXCoreAdapterPreference.Hardware))
             {

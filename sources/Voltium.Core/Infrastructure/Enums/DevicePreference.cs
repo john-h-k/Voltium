@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace Voltium.Core.Infrastructure
 {
@@ -16,16 +16,21 @@ namespace Voltium.Core.Infrastructure
         /// <summary>
         /// The app prefers low power consumption devices
         /// </summary>
-        LowPower = 1,
+        LowPower = 1 << 0,
 
         /// <summary>
         /// The app prefers high performance devices
         /// </summary>
-        HighPerformance = 2,
+        HighPerformance = 1 << 1,
 
         /// <summary>
         /// The app prefers hardware devices, rather than software drivers
         /// </summary>
-        Hardware = 4,
+        Hardware = 1 << 2,
+
+        /// <summary>
+        /// The app prefers software drivers, rather than hardware devices
+        /// </summary>
+        Software = 1 << 4,
     }
 }
