@@ -1,4 +1,4 @@
-namespace Voltium.Core.DXGI
+namespace Voltium.Core.Infrastructure
 {
     /// <summary>
     /// Defines the IHV (Independent Hardware Vendor) of an <see cref="Adapter"/>

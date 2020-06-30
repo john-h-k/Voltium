@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using TerraFX.Interop;
 using Voltium.Common;
 
-namespace Voltium.Core.DXGI
+namespace Voltium.Core.Infrastructure
 {
     /// <summary>
     /// Represents a DXGI output

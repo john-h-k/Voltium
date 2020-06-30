@@ -2,7 +2,7 @@ using System;
 using System.Diagnostics;
 using TerraFX.Interop;
 using Voltium.Common;
-using Voltium.Core.DXGI;
+using Voltium.Core.Infrastructure;
 using Voltium.Core.GpuResources;
 using Voltium.Core.Pipeline;
 using Voltium.Core.Memory.GpuResources;

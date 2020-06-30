@@ -2,7 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 
-namespace Voltium.Core.DXGI
+namespace Voltium.Core.Infrastructure
 {
     /// <summary>
     /// The type used for enumerating physical adapters and creating devices

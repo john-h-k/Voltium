@@ -1,4 +1,4 @@
-﻿namespace Voltium.Core.DXGI
+namespace Voltium.Core.Infrastructure
 {
     /// <summary>
     /// The API to use when enumerating devices

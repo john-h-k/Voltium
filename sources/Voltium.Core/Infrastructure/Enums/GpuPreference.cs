@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Voltium.Core.DXGI
+namespace Voltium.Core.Infrastructure
 {
     /// <summary>
     /// Defines the application preferences when enumerating devices

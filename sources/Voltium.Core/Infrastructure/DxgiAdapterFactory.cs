@@ -4,7 +4,7 @@ using Voltium.Common;
 
 using static TerraFX.Interop.Windows;
 
-namespace Voltium.Core.DXGI
+namespace Voltium.Core.Infrastructure
 {
     internal sealed unsafe class DxgiAdapterFactory : DeviceFactory
     {

@@ -4,7 +4,7 @@ using Voltium.Common;
 using Voltium.Core.Managers;
 using Voltium.Core.Memory.GpuResources;
 
-namespace Voltium.Core.DXGI
+namespace Voltium.Core.Infrastructure
 {
     /// <summary>
     /// Represents a swapchain to a window
