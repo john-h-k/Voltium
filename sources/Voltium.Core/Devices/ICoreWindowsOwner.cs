@@ -1,4 +1,4 @@
-﻿namespace Voltium.Core.Managers
+namespace Voltium.Core.Managers
 {
     /// <summary>
     /// Indicates a type owns a WinRt ICoreWindow and can be used as an output

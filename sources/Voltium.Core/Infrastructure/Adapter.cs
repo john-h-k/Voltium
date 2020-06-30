@@ -70,6 +70,12 @@ namespace Voltium.Core.DXGI
         public readonly bool IsSoftware;
 
         /// <summary>
+        /// The <see cref="DeviceType"/> for this adapter, specifying whether it is a <see cref="DeviceType.ComputeOnly"/> device or a general purpose
+        /// <see cref="DeviceType.GraphicsAndCompute"/> device
+        /// </summary>
+        public readonly DeviceType Type;
+
+        /// <summary>
         /// Create a new instance of <see cref="Adapter"/>
         /// </summary>
         internal unsafe Adapter(
@@ -83,7 +89,8 @@ namespace Voltium.Core.DXGI
             ulong dedicatedSystemMemory,
             ulong sharedSystemMemory,
             LUID adapterLuid,
-            bool isSoftware
+            bool isSoftware,
+            DeviceType type
         )
         {
             _adapter = adapter;
@@ -97,6 +104,7 @@ namespace Voltium.Core.DXGI
             SharedSystemMemory = sharedSystemMemory;
             AdapterLuid = adapterLuid.LowPart | ((uint)adapterLuid.HighPart << 32);
             IsSoftware = isSoftware;
+            Type = type;
         }
 
         /// <inheritdoc/>

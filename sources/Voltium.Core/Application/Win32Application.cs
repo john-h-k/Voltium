@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -26,7 +27,7 @@ namespace Voltium.Core
         internal static readonly int Height = 1080 / 2, Width = 1920 / 2;
         private static HWND Hwnd;
 
-        private static ScreenData _screenData;
+        private static Size _screenData;
 
         /// <summary>
         /// Run a <see cref="Application"/> on Win32
@@ -78,7 +79,7 @@ namespace Voltium.Core
                 );
             }
 
-            _screenData = new ScreenData(height, width);
+            _screenData = new Size((int)height, (int)width);
 
             application.Init(_screenData, Hwnd);
 
@@ -161,7 +162,7 @@ namespace Voltium.Core
                 case WM_SIZE:
                 { 
                     var sz = (uint)lParam;
-                    _screenData = new ScreenData(HIWORD(sz), LOWORD(sz));
+                    _screenData = new Size(LOWORD(sz), HIWORD(sz));
 
                     if (!_isResizing && lParam != 0) // why do we sometimes get zero size lParams?
                     {

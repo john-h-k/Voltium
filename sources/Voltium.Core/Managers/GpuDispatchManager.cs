@@ -20,7 +20,7 @@ namespace Voltium.Core.Managers
     /// <summary>
     /// In charge of managing submission of command lists, bundled, and queries, to a GPU
     /// </summary>
-    internal sealed class GpuDispatchManager : IDisposable
+    internal unsafe sealed class GpuDispatchManager
     {
         private SynchronizedCommandQueue _graphics;
         private SynchronizedCommandQueue _compute;
@@ -60,7 +60,7 @@ namespace Voltium.Core.Managers
 
             _listPool = new CommandListPool(device);
 
-            _graphics = new (device, ExecutionContext.Graphics);
+            _graphics = new(device, ExecutionContext.Graphics);
             _compute = new(device, ExecutionContext.Compute);
             _copy = new(device, ExecutionContext.Copy);
         }

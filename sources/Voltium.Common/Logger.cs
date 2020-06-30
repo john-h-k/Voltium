@@ -81,7 +81,7 @@ namespace Voltium.Common
         }
 
         //[Conditional("LOG")]
-        public static void LogInformation(string format, params object[]objects)
+        public static void LogInfo(string format, params object[]objects)
         {
             Default.ZLogInformation(format);
         }

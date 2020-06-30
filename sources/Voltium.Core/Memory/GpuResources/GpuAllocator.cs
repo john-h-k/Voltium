@@ -594,6 +594,30 @@ namespace Voltium.Core.GpuResources
         /// <summary>
         /// Creates a new <see cref="TextureDesc"/> representing a 2D render target
         /// </summary>
+        /// <param name="format">The <see cref="BackBufferFormat"/> for the render target</param>
+        /// <param name="height">The height, in texels, of the target</param>
+        /// <param name="width">The width, in texels, of the target</param>
+        /// <param name="clearColor">The <see cref="RgbaColor"/> to set to be the optimized clear value</param>
+        /// <param name="msaa">Optionally, the <see cref="MsaaDesc"/> for the render target</param>
+        /// <returns>A new <see cref="TextureDesc"/> representing a render target</returns>
+        public static TextureDesc CreateRenderTargetDesc(BackBufferFormat format, uint height, uint width, RgbaColor clearColor, MsaaDesc msaa = default)
+        {
+            return new TextureDesc
+            {
+                Height = height,
+                Width = width,
+                DepthOrArraySize = 1,
+                Dimension = TextureDimension.Tex2D,
+                Format = (DataFormat)format,
+                ClearValue = TextureClearValue.CreateForRenderTarget(clearColor),
+                Msaa = msaa,
+                ResourceFlags = ResourceFlags.AllowRenderTarget
+            };
+        }
+
+        /// <summary>
+        /// Creates a new <see cref="TextureDesc"/> representing a 2D render target
+        /// </summary>
         /// <param name="format">The <see cref="DataFormat"/> for the render target</param>
         /// <param name="height">The height, in texels, of the target</param>
         /// <param name="width">The width, in texels, of the target</param>

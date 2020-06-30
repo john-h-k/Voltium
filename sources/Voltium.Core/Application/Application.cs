@@ -1,3 +1,4 @@
+using System.Drawing;
 using TerraFX.Interop;
 using Voltium.Core;
 using Voltium.Core.Managers;
@@ -9,13 +10,13 @@ namespace Voltium.Core
     {
         public abstract string Title { get; }
 
-        public abstract void Init(ScreenData data, HWND hwnd);
+        public abstract void Init(Size data, HWND hwnd);
         public abstract void Update(ApplicationTimer timer);
         public abstract void Render();
         public abstract void Destroy();
 
 
-        public virtual void OnResize(ScreenData newScreenData) { }
+        public virtual void OnResize(Size newScreenData) { }
         public virtual void OnKeyDown(byte key) { }
         public virtual void OnKeyUp(byte key) { }
 

@@ -28,5 +28,13 @@ namespace Voltium.Common
                 Environment.FailFast("buffer overrun!!! AAA!!! scary!");
             }
         }
+
+        public static void StackAssert(bool cond)
+        {
+            if (!cond)
+            {
+                Environment.FailFast("Possible stack overrun detected");
+            }
+        }
     }
 }

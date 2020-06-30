@@ -7,6 +7,7 @@ using Voltium.Core.Managers;
 using Voltium.Core.Configuration.Graphics;
 using TerraFX.Interop;
 using System.Runtime.CompilerServices;
+using System.Drawing;
 
 namespace Voltium.Interactive
 {
@@ -17,9 +18,9 @@ namespace Voltium.Interactive
 
         private GraphicsDevice _device = null!;
         private GraphicalConfiguration _config = null!;
-        private ScreenData _screen;
+        private Size _screen;
 
-        public override unsafe void Init(ScreenData data, HWND hwnd)
+        public override unsafe void Init(Size data, HWND hwnd)
         {
             var config = new GraphicalConfiguration
             {
@@ -31,7 +32,7 @@ namespace Voltium.Interactive
 
             _config = config;
             _screen = data;
-            _device = GraphicsDevice.Create(config, data, hwnd);
+            _device = GraphicsDevice.CreateWithOutput(config, data, hwnd);
 
             _renderer.Init(_device, config, data);
         }
@@ -54,7 +55,7 @@ namespace Voltium.Interactive
             _device.Dispose();
         }
 
-        public override void OnResize(ScreenData newScreenData)
+        public override void OnResize(Size newScreenData)
         {
             _screen = newScreenData;
             _device.Resize(newScreenData);

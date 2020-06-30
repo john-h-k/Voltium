@@ -1,4 +1,5 @@
 using System;
+using System.Numerics;
 using System.Text;
 using TerraFX.Interop;
 using Voltium.Common;
@@ -7,21 +8,32 @@ using static TerraFX.Interop.Windows;
 
 namespace Voltium.Core.DXGI
 {
-    internal sealed unsafe class DxCoreAdapterFactory : AdapterFactory
+    internal sealed unsafe class DxCoreAdapterFactory : DeviceFactory
     {
         private ComPtr<IDXCoreAdapterFactory> _factory;
         private ComPtr<IDXCoreAdapterList> _list;
 
-        public DxCoreAdapterFactory()
+        public DxCoreAdapterFactory(DeviceType types = DeviceType.GraphicsAndCompute)
         {
             using ComPtr<IDXCoreAdapterFactory> factory = default;
             using ComPtr<IDXCoreAdapterList> list = default;
 
             Guard.ThrowIfFailed(DXCoreCreateAdapterFactory(factory.Guid, ComPtr.GetVoidAddressOf(&factory)));
 
-            const int numFilterAttributes = 1;
-            Guid* filterAttributes = stackalloc Guid[numFilterAttributes] { DXCORE_ADAPTER_ATTRIBUTE_D3D12_GRAPHICS };
-            Guard.ThrowIfFailed(factory.Get()->CreateAdapterList(numFilterAttributes, filterAttributes, list.Guid, ComPtr.GetVoidAddressOf(&list)));
+            const int MaxNumFilterAttributes = 2;
+            Guid* filterAttributes = stackalloc Guid[MaxNumFilterAttributes];
+
+            uint i = 0;
+            if (types.HasFlag(DeviceType.ComputeOnly))
+            {
+                filterAttributes[i++] = DXCORE_ADAPTER_ATTRIBUTE_D3D12_CORE_COMPUTE;
+            }
+            if (types.HasFlag(DeviceType.GraphicsAndCompute))
+            {
+                filterAttributes[i++] = DXCORE_ADAPTER_ATTRIBUTE_D3D12_GRAPHICS;
+            }
+
+            Guard.ThrowIfFailed(factory.Get()->CreateAdapterList(i, filterAttributes, list.Guid, ComPtr.GetVoidAddressOf(&list)));
 
             _factory = factory.Move();
             _list = list.Move();
@@ -30,6 +42,12 @@ namespace Voltium.Core.DXGI
         internal override bool TryGetAdapterByIndex(uint index, out Adapter adapter)
         {
             using ComPtr<IDXCoreAdapter> dxcoreAdapter = default;
+
+            if (_list.Get()->GetAdapterCount() == 0)
+            {
+                adapter = default;
+                return false;
+            }
 
             Guard.ThrowIfFailed(_list.Get()->GetAdapter(index, dxcoreAdapter.Guid, ComPtr.GetVoidAddressOf(&dxcoreAdapter)));
 
@@ -67,6 +85,23 @@ namespace Voltium.Core.DXGI
             GetProperty<ulong>(DXCoreAdapterProperty.DedicatedSystemMemory, out var dedicatedSystemMemory);
             GetProperty<ulong>(DXCoreAdapterProperty.SharedSystemMemory, out var sharedSystemMemory);
 
+            DeviceType type;
+            Guid graphics = DXCORE_ADAPTER_ATTRIBUTE_D3D12_GRAPHICS;
+            Guid compute = DXCORE_ADAPTER_ATTRIBUTE_D3D12_CORE_COMPUTE;
+            if (adapter.Get()->IsAttributeSupported(&graphics))
+            {
+                type = DeviceType.GraphicsAndCompute;
+            }
+            else if (adapter.Get()->IsAttributeSupported(&compute))
+            {
+                type = DeviceType.ComputeOnly;
+            }
+            else
+            {
+                ThrowHelper.ThrowPlatformNotSupportedException("Adapter does not support DXCore compute or D3D12 graphics");
+                type = default;
+            }
+
             return new Adapter(
                 adapter.AsIUnknown(),
                 Encoding.UTF8.GetString(buff.Value),
@@ -78,14 +113,61 @@ namespace Voltium.Core.DXGI
                 dedicatedSystemMemory,
                 sharedSystemMemory,
                 luid,
-                !isHardware
+                !isHardware,
+                type
             );
 
             void GetProperty<T>(DXCoreAdapterProperty property, out T val) where T : unmanaged
             {
+                if (!adapter.Get()->IsPropertySupported(property))
+                {
+                    val = default;
+                    Logger.LogInfo("DXCoreProperty '{0}' not supported by adapter", property);
+                }
+
                 T data;
                 Guard.ThrowIfFailed(adapter.Get()->GetProperty(property, (uint)sizeof(T), &data));
                 val = data;
+            }
+        }
+
+        public override bool TryEnablePreferentialOrdering(DevicePreference preference)
+        {
+            DXCoreAdapterPreference* pPreferences = stackalloc DXCoreAdapterPreference[4];
+            int i = 0;
+
+            if (!TryAdd(DevicePreference.Hardware, DXCoreAdapterPreference.Hardware))
+            {
+                return false;
+            }
+            if (!TryAdd(DevicePreference.LowPower, DXCoreAdapterPreference.MinimumPower))
+            {
+                return false;
+            }
+            if (!TryAdd(DevicePreference.HighPerformance, DXCoreAdapterPreference.HighPerformance))
+            {
+                return false;
+            }
+
+            Guard.ThrowIfFailed(_list.Get()->Sort((uint)i, pPreferences));
+
+            return true;
+
+            bool TryAdd(DevicePreference devicePref, DXCoreAdapterPreference dxCorePref)
+            {
+                if (!preference.HasFlag(devicePref))
+                {
+                    return true;
+                }
+
+                if (!_list.Get()->IsAdapterPreferenceSupported(dxCorePref))
+                {
+                    return false;
+                }
+
+                StackSentinel.StackAssert(i < 4);
+                pPreferences[i++] = dxCorePref;
+                return true;
             }
         }
 

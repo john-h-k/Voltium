@@ -1,3 +1,4 @@
+using System.Drawing;
 using Voltium.Core.Configuration.Graphics;
 
 namespace Voltium.Core.Managers
@@ -10,7 +11,7 @@ namespace Voltium.Core.Managers
         /// <summary>
         /// The number of buffers (usually 2 or 3) used by the swapchain
         /// </summary>
-        public uint SwapChainBufferCount { get; set; }
+        public uint SwapChainBufferCount { get; set; } = 2;
 
         /// <summary>
         /// The format of the back buffer

@@ -55,7 +55,7 @@ namespace Voltium.Interactive
         private float _pad1;
     }
 
-    public unsafe class DefaultRenderer : Renderer
+    public unsafe class BasicSceneRenderer : Renderer
     {
         private GpuAllocator _allocator = null!;
         private Buffer[] _vertexBuffer = null!;
@@ -70,7 +70,7 @@ namespace Voltium.Interactive
 
         private MsaaDesc _msaaDesc = MsaaDesc.None;
 
-        public override void Init(GraphicsDevice device, GraphicalConfiguration config, in ScreenData screen)
+        public override void Init(GraphicsDevice device, GraphicalConfiguration config, in Size screen)
         {
             PipelineManager.Reset();
 
@@ -84,8 +84,8 @@ namespace Voltium.Interactive
             _vertexBuffer = new Buffer[_texturedObjects.Length];
             _indexBuffer = new Buffer[_texturedObjects.Length];
 
-            var dsDesc = TextureDesc.CreateDepthStencilDesc(DataFormat.D32Single, screen.Height, screen.Width, 1, 0, _msaaDesc);
-            var rtDesc = TextureDesc.CreateRenderTargetDesc(config.BackBufferFormat, screen.Height, screen.Width, RgbaColor.CornflowerBlue, _msaaDesc);
+            var dsDesc = TextureDesc.CreateDepthStencilDesc(DataFormat.D32Single, (uint)screen.Height, (uint)screen.Width, 1, 0, _msaaDesc);
+            var rtDesc = TextureDesc.CreateRenderTargetDesc(config.BackBufferFormat, (uint)screen.Height, (uint)screen.Width, RgbaColor.CornflowerBlue, _msaaDesc);
 
             _depthStencil = _allocator.AllocateTexture(dsDesc, ResourceState.DepthWrite);
             _renderTarget = _allocator.AllocateTexture(rtDesc, ResourceState.RenderTarget);
@@ -100,8 +100,7 @@ namespace Voltium.Interactive
 
             var rtv = new TextureRenderTargetViewDesc
             {
-                Format = config.BackBufferFormat,
-                IsMultiSampled = _msaa,
+                Format = _texture.Format,
                 MipIndex = 0,
                 PlaneSlice = 0
             };
@@ -191,7 +190,7 @@ namespace Voltium.Interactive
         private Buffer _frame;
         private Buffer _light;
 
-        public void InitializeConstants(ScreenData screen)
+        public void InitializeConstants(Size screen)
         {
             var aspectRatio = (float)screen.Width / screen.Height;
             var fovAngleY = 70.0f * MathF.PI / 180.0f;
@@ -306,7 +305,7 @@ namespace Voltium.Interactive
 
         public override void Render(ref GraphicsContext recorder)
         {
-            recorder.SetViewportAndScissor(_device.ScreenData.Width, _device.ScreenData.Height);
+            recorder.SetViewportAndScissor(_device.OutputRectangle);
             recorder.ResourceTransition(_renderTarget, ResourceState.RenderTarget);
 
             recorder.SetRenderTargets(_renderTargetView, 1, _depthStencilView);

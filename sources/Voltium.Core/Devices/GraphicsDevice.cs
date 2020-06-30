@@ -13,6 +13,7 @@ using static TerraFX.Interop.DXGI_DEBUG_RLO_FLAGS;
 using static Voltium.Common.DirectXHelpers;
 using static TerraFX.Interop.Windows;
 using Voltium.Core.Devices;
+using System.Drawing;
 
 namespace Voltium.Core.Managers
 {
@@ -31,12 +32,14 @@ namespace Voltium.Core.Managers
         private uint _syncInterval;
         internal ulong TotalFramesRendered = 0;
         internal uint BackBufferIndex;
-        //private GpuDispatchManager _dispatch = null!;
+        private GpuDispatchManager _dispatch = null!;
+
+        private bool _disposed;
 
         /// <summary>
         /// The <see cref="ScreenData"/> for the output
         /// </summary>
-        public ScreenData ScreenData { get; private set; }
+        public Size OutputRectangle { get; private set; }
 
         private GraphicsDevice() { }
 
@@ -77,52 +80,52 @@ namespace Voltium.Core.Managers
         private ulong _cpuFrequency;
 
         /// <summary>
-        /// Initialize the single instance of this type
+        /// Create a new <see cref="GraphicsDevice"/> with an output to a Win32 HWND
         /// </summary>
-        public static GraphicsDevice Create(GraphicalConfiguration config, in ScreenData screenData, HWND output)
+        public static GraphicsDevice CreateWithOutput(GraphicalConfiguration config, Size outputArea, IHwndOwner output)
+            => CreateWithOutput(config, outputArea, output.GetHwnd());
+
+        /// <summary>
+        /// Create a new <see cref="GraphicsDevice"/> with an output to a WinRT ICoreWindow
+        /// </summary>
+        public static GraphicsDevice CreateWithOutput(GraphicalConfiguration config, Size outputArea, ICoreWindowsOwner output)
+            => CreateWithOutput(config, outputArea, output.GetIUnknownForWindow());
+
+        /// <summary>
+        /// Create a new <see cref="GraphicsDevice"/> with an output to a Win32 HWND
+        /// </summary>
+        public static GraphicsDevice CreateWithOutput(GraphicalConfiguration config, Size outputArea, HWND output)
         {
             var device = new GraphicsDevice();
             device._hwnd = output;
-            device.InternalCreate(config, in screenData);
+            device.InternalCreate(config, outputArea);
             return device;
         }
 
         /// <summary>
-        /// Initialize the single instance of this type
+        /// Create a new <see cref="GraphicsDevice"/> with an output to a WinRT ICoreWindow
         /// </summary>
-        public static GraphicsDevice Create(GraphicalConfiguration config, in ScreenData screenData, IHwndOwner output)
-            => Create(config, screenData, output.GetHwnd());
-
-        /// <summary>
-        /// Initialize the single instance of this type
-        /// </summary>
-        public static GraphicsDevice Create(GraphicalConfiguration config, in ScreenData screenData, void* unknownOutput)
+        public static GraphicsDevice CreateWithOutput(GraphicalConfiguration config, Size outputArea, void* unknownOutput)
         {
             var device = new GraphicsDevice();
             device._output = (IUnknown*)unknownOutput;
-            device.InternalCreate(config, in screenData);
+            device.InternalCreate(config, outputArea);
             return device;
         }
-
-        /// <summary>
-        /// Initialize the single instance of this type
-        /// </summary>
-        public static GraphicsDevice Create(GraphicalConfiguration config, in ScreenData screenData, ICoreWindowsOwner output)
-            => Create(config, screenData, output.GetIUnknownForWindow());
 
         private HWND _hwnd;
         private IUnknown* _output;
 
-        private void InternalCreate(GraphicalConfiguration config, in ScreenData screenData)
+        private void InternalCreate(GraphicalConfiguration config, Size outputArea)
         {
             Guard.NotNull(config);
 
             _config = config;
-            ScreenData = screenData;
+            OutputRectangle = outputArea;
 
             _config = config;
             _syncInterval = _config.VSyncCount;
-            ScreenData = screenData;
+            OutputRectangle = outputArea;
 
             ulong frequency;
             QueryPerformanceFrequency((LARGE_INTEGER*) /* <- can we do that? */ &frequency);
@@ -130,7 +133,7 @@ namespace Voltium.Core.Managers
 
             EnableDebugLayer();
 
-            foreach (Adapter adapter in AdapterFactory.Create())
+            foreach (Adapter adapter in DeviceFactory.Create())
             {
                 if (adapter.IsSoftware)
                 {
@@ -140,7 +143,7 @@ namespace Voltium.Core.Managers
                 if (TryCreateNewDevice(adapter, (D3D_FEATURE_LEVEL)config.RequiredFeatureLevel, out _device))
                 {
                     _adapter = adapter;
-                    Logger.LogInformation($"New ID3D12Device created: \n{adapter}\n");
+                    Logger.LogInfo($"New ID3D12Device created: \n{adapter}\n");
                     break;
                 }
             }
@@ -172,10 +175,10 @@ namespace Voltium.Core.Managers
 
             CreateSwapChain();
             CreateDescriptorHeaps();
-            Resize(ScreenData);
+            Resize(OutputRectangle);
 
-            Viewport = new Viewport(0.0f, 0.0f, ScreenData.Width, ScreenData.Height, 0.0f, 1.0f);
-            Scissor = new Rectangle(0, 0, (int)ScreenData.Width, (int)ScreenData.Height);
+            Viewport = new Viewport(0.0f, 0.0f, OutputRectangle.Width, OutputRectangle.Height, 0.0f, 1.0f);
+            Scissor = new Rectangle(0, 0, OutputRectangle.Width, OutputRectangle.Height);
 
             BackBufferIndex = _swapChain.BackBufferIndex;
         }
@@ -343,8 +346,8 @@ namespace Voltium.Core.Managers
                 BufferUsage = (int)DXGI_USAGE_RENDER_TARGET_OUTPUT, // this is the output chain
                 Flags = 0,
                 Format = (DXGI_FORMAT)_config.BackBufferFormat,
-                Height = ScreenData.Height,
-                Width = ScreenData.Width,
+                Height = (uint)OutputRectangle.Height,
+                Width = (uint)OutputRectangle.Width,
                 SampleDesc = new DXGI_SAMPLE_DESC(count: 1, quality: 0), // backbuffer MSAA is not supported in D3D12
                 Scaling = DXGI_SCALING.DXGI_SCALING_NONE,
                 Stereo = FALSE, // stereoscopic rendering, 2 images, e.g VR or 3D holo
@@ -418,7 +421,7 @@ namespace Voltium.Core.Managers
                 _backBuffer![i].Dispose();
             }
 
-            _swapChain.ResizeBuffers(ScreenData.Width, ScreenData.Height);
+            _swapChain.ResizeBuffers((uint)OutputRectangle.Width, (uint)OutputRectangle.Height);
 
             BackBufferIndex = _swapChain.BackBufferIndex;
         }
@@ -426,10 +429,10 @@ namespace Voltium.Core.Managers
         /// <summary>
         /// Resize the render resources
         /// </summary>
-        /// <param name="newScreenData">The <see cref="ScreenData"/> indicating the size to resize to</param>
-        public void Resize(ScreenData newScreenData)
+        /// <param name="newOutputSize">The <see cref="Size"/> indicating the size to resize to</param>
+        public void Resize(Size newOutputSize)
         {
-            ScreenData = newScreenData;
+            OutputRectangle = newOutputSize;
 
             _rtvs.ResetHeap();
             _dsvs.ResetHeap();
@@ -610,6 +613,14 @@ namespace Voltium.Core.Managers
         /// <inheritdoc cref="IDisposable"/>
         public override void Dispose()
         {
+            if (_disposed)
+            {
+                return;
+            }
+
+
+            _disposed = true;
+
             base.Dispose();
 
             ReportLiveObjects();

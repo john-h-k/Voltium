@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Drawing;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using TerraFX.Interop;
@@ -610,6 +611,13 @@ namespace Voltium.Core
             SetViewports(new Viewport(0, 0, width, height, 0, 1));
             SetScissorRectangles(new Rectangle(0, 0, (int)width, (int)height));
         }
+
+        /// <summary>
+        /// Sets the viewport and scissor rectangle
+        /// </summary>
+        /// <param name="size">The size, in pixels</param>
+        public void SetViewportAndScissor(Size size)
+            => SetViewportAndScissor((uint)size.Width, (uint)size.Height);
 
         /// <summary>
         /// Sets the blend factor for the pipeline <see cref="BlendDesc"/>

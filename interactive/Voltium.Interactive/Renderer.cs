@@ -1,4 +1,5 @@
 using System;
+using System.Drawing;
 using Voltium.Core;
 using Voltium.Core.D3D12;
 using Voltium.Core.Managers;
@@ -8,7 +9,7 @@ namespace Voltium.Interactive
 {
     public abstract unsafe class Renderer : IDisposable
     {
-        public abstract void Init(GraphicsDevice device, GraphicalConfiguration config, in ScreenData screen);
+        public abstract void Init(GraphicsDevice device, GraphicalConfiguration config, in Size screen);
 
         public abstract void Render(ref GraphicsContext recorder);
 
@@ -16,7 +17,7 @@ namespace Voltium.Interactive
 
         public virtual PipelineStateObject? GetInitialPso() => null;
 
-        public virtual void Resize(ScreenData newScreenData) { }
+        public virtual void Resize(Size newScreenData) { }
 
         public virtual void OnMouseScroll(int scroll) { }
 

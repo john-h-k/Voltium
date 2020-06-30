@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing;
 using System.Linq;
 using System.Numerics;
 using System.Text;
@@ -26,13 +27,19 @@ namespace Voltium.Interactive
         private Buffer _colors;
         private GraphicsDevice _device = null!;
 
+        private Size _outputResolution;
+        private Size _ssaaOutputResolution;
+
         private uint SsaaFactor { get; set; } = 8;
 
-        public override void Init(GraphicsDevice device, GraphicalConfiguration config, in ScreenData screen)
+        public override void Init(GraphicsDevice device, GraphicalConfiguration config, in Size screen)
         {
             _device = device;
+            _outputResolution = screen;
             //uint width = 16384, height = 16384;
-            uint width = screen.Width, height = screen.Height;
+            uint width = (uint)screen.Width, height = (uint)screen.Height;
+
+            _ssaaOutputResolution = new Size((int)(width * SsaaFactor), (int)(height * SsaaFactor));
             var target = TextureDesc.CreateRenderTargetDesc(DataFormat.R8G8B8A8UnsignedNormalized, height, width, RgbaColor.Black);
 
             _renderTarget = device.Allocator.AllocateTexture(target, ResourceState.RenderTarget);
@@ -97,8 +104,7 @@ namespace Voltium.Interactive
         {
             recorder.ResourceTransition(_ssaaRenderTarget, ResourceState.RenderTarget);
 
-            ScreenData d = new (_device.ScreenData.Height * SsaaFactor, _device.ScreenData.Width * SsaaFactor);
-            recorder.SetViewportAndScissor(d.Width, d.Height);
+            recorder.SetViewportAndScissor(_ssaaOutputResolution);
             recorder.SetRenderTargets(_ssaaRenderTargetView);
             recorder.SetTopology(Topology.TriangeList);
             recorder.SetBuffer(0, _colors);
@@ -107,7 +113,7 @@ namespace Voltium.Interactive
             recorder.ResourceTransition(_renderTarget, ResourceState.RenderTarget);
             recorder.ResourceTransition(_ssaaRenderTarget, ResourceState.PixelShaderResource);
 
-            recorder.SetViewportAndScissor(_device.ScreenData.Width, _device.ScreenData.Height);
+            recorder.SetViewportAndScissor(_outputResolution);
             recorder.SetPipelineState(_ssaaPso);
             recorder.SetRootSignature(_ssaaPso.Desc.RootSignature);
             recorder.SetRenderTargets(_renderTargetView);
