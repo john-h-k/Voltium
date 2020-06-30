@@ -96,7 +96,7 @@ namespace Voltium.Core.Managers
             return p.Move();
         }
 
-        private static unsafe ComPtr<ID3D12Fence> CreateFence(GraphicsDevice device)
+        private static unsafe ComPtr<ID3D12Fence> CreateFence(GraphicsDevice device, ref ComPtr<ID3D12Fence> target)
         {
             ComPtr<ID3D12Fence> fence = default;
 
@@ -106,8 +106,6 @@ namespace Voltium.Core.Managers
                 fence.Guid,
                 (void**)&fence
             ));
-
-
 
             return fence;
         }

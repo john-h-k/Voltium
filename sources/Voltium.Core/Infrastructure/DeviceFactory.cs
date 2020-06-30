@@ -33,8 +33,8 @@ namespace Voltium.Core.Infrastructure
         /// Creates a new <see cref="DeviceFactory"/> to enumerate a specific <see cref="DeviceType"/>
         /// </summary>
         /// <returns>A new <see cref="DeviceFactory"/></returns>
-        public static DeviceFactory Create(DeviceType layer)
-            => new DxCoreDeviceFactory(layer); // only DXCore supports non-graphics devices
+        public static DeviceFactory Create(DeviceType type)
+            => new DxCoreDeviceFactory(type); // only DXCore supports non-graphics devices
 
         /// <summary>
         /// Try and enable the <see cref="DeviceFactory"/> into enumerating devices by a <see cref="DevicePreference"/>

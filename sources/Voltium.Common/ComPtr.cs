@@ -234,7 +234,10 @@ namespace Voltium.Common
         /// <typeparam name="T">The type of the underlying pointer</typeparam>
         /// <returns>A pointer to the underlying pointer</returns>
         public static T** GetAddressOf<T>(ComPtr<T>* comPtr) where T : unmanaged
-            => (T**)comPtr;
+        {
+            comPtr->Dispose();
+            return (T**)comPtr;
+        }
 
         /// <summary>
         /// Try and cast <typeparamref name="T"/> to <typeparamref name="TInterface"/>
@@ -260,7 +263,10 @@ namespace Voltium.Common
         /// <typeparam name="T">The type of the underlying pointer</typeparam>
         /// <returns>A pointer to the underlying pointer</returns>
         public static void** GetVoidAddressOf<T>(ComPtr<T>* comPtr) where T : unmanaged
-            => (void**)comPtr;
+        {
+            comPtr->Dispose();
+            return (void**)comPtr;
+        }
 
         /// <summary>
         /// Casts a <see cref="ComPtr{T}"/> to a <see cref="ComPtr{TUp}"/> without dynamic type checking

@@ -605,11 +605,6 @@ namespace Voltium.Core.Managers
             }
         }
 
-        private D3D12_RENDER_TARGET_VIEW_DESC CreateRenderTargetViewDesc()
-        {
-            throw new NotImplementedException();
-        }
-
         /// <inheritdoc cref="IDisposable"/>
         public override void Dispose()
         {
@@ -617,7 +612,6 @@ namespace Voltium.Core.Managers
             {
                 return;
             }
-
 
             _disposed = true;
 
