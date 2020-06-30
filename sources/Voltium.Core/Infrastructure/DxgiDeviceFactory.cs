@@ -6,7 +6,7 @@ using static TerraFX.Interop.Windows;
 
 namespace Voltium.Core.Infrastructure
 {
-    internal sealed unsafe class DxgiAdapterFactory : DeviceFactory
+    internal sealed unsafe class DxgiDeviceFactory : DeviceFactory
     {
         private ComPtr<IDXGIFactory2> _factory;
         private bool _enumByPreference;
@@ -15,7 +15,7 @@ namespace Voltium.Core.Infrastructure
         // used to skip software adapters, by adding to the index everytime we encounter one
         private uint _skipSoftwareAdapterOffset;
 
-        public DxgiAdapterFactory()
+        public DxgiDeviceFactory()
         {
             using ComPtr<IDXGIFactory2> factory = default;
             Guard.ThrowIfFailed(CreateDXGIFactory1(factory.Guid, ComPtr.GetVoidAddressOf(&factory)));

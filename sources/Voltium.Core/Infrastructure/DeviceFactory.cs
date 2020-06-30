@@ -13,7 +13,7 @@ namespace Voltium.Core.Infrastructure
         /// Creates a new <see cref="DeviceFactory"/>
         /// </summary>
         /// <returns>A new <see cref="DeviceFactory"/></returns>
-        public static DeviceFactory Create() => /* DXCore is a bit more flexible than DXGI */ new DxCoreAdapterFactory();
+        public static DeviceFactory Create() => /* DXCore is a bit more flexible than DXGI */ new DxCoreDeviceFactory();
 
         /// <summary>
         /// Creates a new <see cref="DeviceFactory"/> using a specific <see cref="DeviceEnumerationLayer"/>
@@ -23,8 +23,8 @@ namespace Voltium.Core.Infrastructure
         {
             return layer switch
             {
-                DeviceEnumerationLayer.Dxgi => new DxgiAdapterFactory(),
-                DeviceEnumerationLayer.DxCore => new DxCoreAdapterFactory(),
+                DeviceEnumerationLayer.Dxgi => new DxgiDeviceFactory(),
+                DeviceEnumerationLayer.DxCore => new DxCoreDeviceFactory(),
                 _ => throw new ArgumentException("Invalid DeviceEnumerationLayer", nameof(layer))
             };
         }
@@ -34,7 +34,7 @@ namespace Voltium.Core.Infrastructure
         /// </summary>
         /// <returns>A new <see cref="DeviceFactory"/></returns>
         public static DeviceFactory Create(DeviceType layer)
-            => new DxCoreAdapterFactory(layer); // only DXCore supports non-graphics devices
+            => new DxCoreDeviceFactory(layer); // only DXCore supports non-graphics devices
 
         /// <summary>
         /// Try and enable the <see cref="DeviceFactory"/> into enumerating devices by a <see cref="DevicePreference"/>
