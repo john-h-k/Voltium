@@ -18,7 +18,7 @@ namespace Voltium.Core.Infrastructure
 
         /// <summary>
         /// The device supports compute and graphics work, and can be used to create a
-        /// <see cref="GraphicsDevice"/>
+        /// <see cref="GraphicsDevice"/> or a <see cref="ComputeDevice"/>
         /// </summary>
         GraphicsAndCompute = 1 << 1
     }
