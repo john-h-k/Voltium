@@ -1,9 +1,12 @@
-﻿using System;
+using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using TerraFX.Interop;
 using Voltium.Common;
+using Voltium.Core.GpuResources;
 using Voltium.Core.Managers;
+using Voltium.Core.Memory.GpuResources;
+using Buffer = Voltium.Core.Memory.GpuResources.Buffer;
 
 namespace Voltium.Core
 {

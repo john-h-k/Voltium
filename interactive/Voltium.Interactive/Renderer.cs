@@ -17,7 +17,7 @@ namespace Voltium.Interactive
 
         public virtual PipelineStateObject? GetInitialPso() => null;
 
-        public virtual void Resize(Size newScreenData) { }
+        public abstract void Resize(Size newScreenData);
 
         public virtual void OnMouseScroll(int scroll) { }
 

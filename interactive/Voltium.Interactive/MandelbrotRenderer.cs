@@ -1,11 +1,19 @@
+#define DOUBLE
+
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.Drawing.Imaging;
+using System.IO;
 using System.Linq;
 using System.Numerics;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
+
 using Voltium.Core;
 using Voltium.Core.GpuResources;
 using Voltium.Core.Managers;
@@ -15,126 +23,181 @@ using Voltium.Core.Pipeline;
 using static Voltium.Core.Pipeline.GraphicsPipelineDesc;
 using Buffer = Voltium.Core.Memory.GpuResources.Buffer;
 
+#if DOUBLE
+using FP = System.Double;
+#else
+using FP = System.Single;
+#endif
+
 namespace Voltium.Interactive
 {
     public sealed unsafe class MandelbrotRenderer : Renderer
     {
         private Texture _renderTarget;
-        private Texture _ssaaRenderTarget;
         private DescriptorHandle _renderTargetView;
-        private DescriptorHandle _ssaaRenderTargetView;
-        private DescriptorHandle _shaderResourceView;
         private Buffer _colors;
         private GraphicsDevice _device = null!;
 
         private Size _outputResolution;
-        private Size _ssaaOutputResolution;
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MandelbrotConstants
+        {
+            public FP Scale;
+            public FP CenterX;
+            public FP CenterY;
+            public float AspectRatio;
+            public uint ColorCount;
+        }
+
+        private MandelbrotConstants _constants;
 
         private uint SsaaFactor { get; set; } = 8;
 
         public override void Init(GraphicsDevice device, GraphicalConfiguration config, in Size screen)
         {
             _device = device;
-            _outputResolution = screen;
-            //uint width = 16384, height = 16384;
-            uint width = (uint)screen.Width, height = (uint)screen.Height;
 
-            _ssaaOutputResolution = new Size((int)(width * SsaaFactor), (int)(height * SsaaFactor));
-            var target = TextureDesc.CreateRenderTargetDesc(DataFormat.R8G8B8A8UnsignedNormalized, height, width, RgbaColor.Black);
-
-            _renderTarget = device.Allocator.AllocateTexture(target, ResourceState.RenderTarget);
-
-            target.Width *= SsaaFactor;
-            target.Height *= SsaaFactor;
-            _ssaaRenderTarget = device.Allocator.AllocateTexture(target, ResourceState.RenderTarget);
-
-            _renderTargetView = device.CreateRenderTargetView(_renderTarget);
-            _ssaaRenderTargetView = device.CreateRenderTargetView(_ssaaRenderTarget);
-            _shaderResourceView = device.CreateShaderResourceView(_ssaaRenderTarget);
+            //var colors = ;
 
             using (var copy = device.BeginCopyContext())
             {
-                copy.UploadBuffer(device.Allocator, _rgbaColors, out _colors);
+                copy.UploadBuffer(device.Allocator, GetColors(), out _colors);
+                _constants.ColorCount = _colors.Length / (uint)sizeof(RgbaColor);
             }
 
             var @params = new RootParameter[]
             {
-                RootParameter.CreateDescriptor(RootParameterType.ShaderResourceView, 0, 0, ShaderVisibility.Pixel)
+                RootParameter.CreateDescriptor(RootParameterType.ShaderResourceView, 0, 0, ShaderVisibility.Pixel),
+                RootParameter.CreateConstants((uint)sizeof(MandelbrotConstants) / sizeof(uint), 0, 0, ShaderVisibility.Pixel),
             };
 
             var rootSig = RootSignature.Create(device, @params, null);
             PipelineManager.Reset();
+
+            var flags = new DxcCompileFlags.Flag[]
+            {
+#if DOUBLE
+                DxcCompileFlags.DefineMacro("DOUBLE")
+#endif
+            };
 
             var psoDesc = new GraphicsPipelineDesc
             {
                 RootSignature = rootSig,
                 Topology = TopologyClass.Triangle,
                 DepthStencil = DepthStencilDesc.DisableDepthStencil,
-                RenderTargetFormats = new FormatBuffer8(_renderTarget.Format),
-                VertexShader = ShaderManager.CompileShader("Shaders/Mandelbrot/EntireScreenCopyVS.hlsl", DxcCompileTarget.Vs_6_0),
-                PixelShader = ShaderManager.CompileShader("Shaders/Mandelbrot/Mandelbrot.hlsl", DxcCompileTarget.Ps_6_0)
+                RenderTargetFormats = new FormatBuffer8(_device.BackBuffer.Format),
+                VertexShader = ShaderManager.CompileShader("Shaders/Mandelbrot/EntireScreenCopyVS.hlsl", DxcCompileTarget.Vs_6_0, flags),
+                PixelShader = ShaderManager.CompileShader("Shaders/Mandelbrot/Mandelbrot.hlsl", DxcCompileTarget.Ps_6_0, flags)
             };
 
             _pso = PipelineManager.CreatePso(device, "Mandelbrot", psoDesc);
 
-            @params = new RootParameter[]
+            _constants = new MandelbrotConstants
             {
-                RootParameter.CreateDescriptorTable(DescriptorRangeType.ShaderResourceView, 0, 1, 0, visibility: ShaderVisibility.Pixel),
-                RootParameter.CreateConstants(1, 0, 0, ShaderVisibility.Pixel)
+                Scale = (FP)1,
+                CenterX = (FP)(-1.789169018604823106674468341188838763),
+                CenterY = (FP)(0.00000033936851576718256602823026614)
             };
 
-            var samplers = new StaticSampler[]
-            {
-                new StaticSampler(TextureAddressMode.BorderColor, SamplerFilterType.Anistropic, 0, 0, ShaderVisibility.Pixel, StaticSampler.OpaqueWhite)
-            };
+            Resize(screen);
+        }
 
-            var ssaaRootSig = RootSignature.Create(device, @params, samplers);
-            psoDesc.RootSignature = ssaaRootSig;
-            psoDesc.PixelShader = ShaderManager.CompileShader("Shaders/Mandelbrot/SSAA.hlsl", DxcCompileTarget.Ps_6_0);
-            _ssaaPso = PipelineManager.CreatePso(device, "SSAA", psoDesc);
+        private RgbaColor[] GetColors()
+        {
+            const int iters = 256 * 4 * 10;
+            var colors = new RgbaColor[iters];
+
+            int blockSize = iters / _rgbaColors.Length;
+            for (int i = 0; i < colors.Length; i += _rgbaColors.Length)
+            {
+                _rgbaColors.CopyTo(colors.AsSpan(i));
+            }
+
+            return colors;
+        }
+
+        public override void Resize(Size newScreenData)
+        {
+            _outputResolution = newScreenData;
+            //uint width = 16384, height = 16384;
+            uint width = (uint)newScreenData.Width, height = (uint)newScreenData.Height;
+
+            _renderTarget.Dispose();
+
+            var target = TextureDesc.CreateRenderTargetDesc(DataFormat.R8G8B8A8UnsignedNormalized, height, width, RgbaColor.Black);
+
+            _renderTarget = _device.Allocator.AllocateTexture(target, ResourceState.RenderTarget);
+            _renderTargetView = _device.CreateRenderTargetView(_renderTarget);
+
+            _constants.AspectRatio = newScreenData.Width / (float)newScreenData.Height;
         }
 
         private GraphicsPso _pso = null!;
-        private GraphicsPso _ssaaPso = null!;
 
         public override PipelineStateObject? GetInitialPso()
             => _pso;
-
+ 
+        private byte[] _chunk = ArrayPool<byte>.Shared.Rent(1024 * 1024 * 32 * 8);
+        private Buffer _output;
         public override void Render(ref GraphicsContext recorder)
         {
-            recorder.ResourceTransition(_ssaaRenderTarget, ResourceState.RenderTarget);
-
-            recorder.SetViewportAndScissor(_ssaaOutputResolution);
-            recorder.SetRenderTargets(_ssaaRenderTargetView);
-            recorder.SetTopology(Topology.TriangeList);
-            recorder.SetBuffer(0, _colors);
-            recorder.Draw(3);
-
             recorder.ResourceTransition(_renderTarget, ResourceState.RenderTarget);
-            recorder.ResourceTransition(_ssaaRenderTarget, ResourceState.PixelShaderResource);
+
+            recorder.Discard(_renderTarget);
 
             recorder.SetViewportAndScissor(_outputResolution);
-            recorder.SetPipelineState(_ssaaPso);
-            recorder.SetRootSignature(_ssaaPso.Desc.RootSignature);
             recorder.SetRenderTargets(_renderTargetView);
-            recorder.SetRootDescriptorTable(0, _shaderResourceView);
-            recorder.SetRoot32BitConstant(1, 1);
+            recorder.SetTopology(Topology.TriangeList);
+            recorder.SetBuffer(0, _colors);
+            recorder.SetRoot32BitConstants(1, _constants);
             recorder.Draw(3);
 
             recorder.CopyResource(_renderTarget, _device.BackBuffer);
+            recorder.ReadbackSubresource(_device.Allocator ,_renderTarget, 0, out _output);
 
-            //recorder.CopyResource(_ssaaRenderTarget, _device.BackBuffer);
             recorder.ResourceTransition(_device.BackBuffer, ResourceState.Present);
         }
 
+        private GifWriter _writer = new GifWriter("output.gif", 16, 0);
         public override void Update(ApplicationTimer timer)
         {
+            if (_output.Data.IsEmpty)
+            {
+                return;
+            }
+
+            _constants.Scale *= (FP)(1 - timer.ElapsedSeconds);
+
+            var footprint = _device.GetSubresourceFootprint(_renderTarget, 0);
+            _device.ReadbackIntermediateBuffer(footprint, _output, _chunk);
+
+            RgbaToArgb(_chunk);
+
+            fixed (void* pData = _chunk)
+            {
+                var image = new Bitmap(_outputResolution.Width, _outputResolution.Height, sizeof(RgbaColor), PixelFormat.Format32bppArgb, (IntPtr)pData);
+                _writer.WriteFrame(image);
+            }
+        }
+
+        private void RgbaToArgb(Span<byte> data)
+        {
+            for (var i = 0; i < data.Length; i += 4)
+            {
+                var rgba = BitOperations.RotateRight(MemoryMarshal.Read<uint>(data), 8);
+                MemoryMarshal.Write(data, ref rgba);
+
+                data = data.Slice(4);
+            }
         }
 
         public override void Dispose()
         {
+            _writer.Dispose();
             _renderTarget.Dispose();
-            _ssaaRenderTarget.Dispose();
+            _renderTarget.Dispose();
             _colors.Dispose();
         }
 

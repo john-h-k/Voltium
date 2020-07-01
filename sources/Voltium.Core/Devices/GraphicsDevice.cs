@@ -133,7 +133,7 @@ namespace Voltium.Core.Managers
 
             EnableDebugLayer();
 
-            foreach (Adapter adapter in DeviceFactory.Create())
+            foreach (Adapter adapter in DeviceFactory.Create(DeviceEnumerationLayer.Dxgi))
             {
                 if (adapter.IsSoftware)
                 {
@@ -507,6 +507,7 @@ namespace Voltium.Core.Managers
             // TODO dred logging
         }
 
+        private static bool EnableGpuBasedValidation => false;
 
         [Conditional("DEBUG")]
         [Conditional("D3D12_DEBUG_LAYER")]
@@ -522,11 +523,14 @@ namespace Voltium.Core.Managers
 
             debugLayer.Get()->EnableDebugLayer();
 
-            if (debugLayer.TryQueryInterface<ID3D12Debug1>(out var debugLayer1))
+            if (EnableGpuBasedValidation)
             {
-                using (debugLayer1)
+                if (debugLayer.TryQueryInterface<ID3D12Debug1>(out var debugLayer1))
                 {
-                    debugLayer1.Get()->SetEnableGPUBasedValidation(TRUE);
+                    using (debugLayer1)
+                    {
+                        debugLayer1.Get()->SetEnableGPUBasedValidation(TRUE);
+                    }
                 }
             }
 
@@ -600,7 +604,7 @@ namespace Voltium.Core.Managers
             {
                 // Dispose if it is still alive, else nop
                 _backBuffer[i].Dispose();
-                _backBuffer[i] = _swapChain.GetBackBuffer(i);
+                _backBuffer[i] = _swapChain.GetBackBuffer(this, i);
                 _backBufferViews[i] = CreateRenderTargetView(_backBuffer[i]);
             }
         }

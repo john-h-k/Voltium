@@ -1,6 +1,7 @@
 using System;
 using TerraFX.Interop;
 using Voltium.Common;
+using Voltium.Core.Devices;
 using Voltium.Core.Managers;
 using Voltium.Core.Memory.GpuResources;
 
@@ -31,13 +32,13 @@ namespace Voltium.Core.Infrastructure
             ));
         }
 
-        public Texture GetBackBuffer(uint index)
+        public Texture GetBackBuffer(ComputeDevice device, uint index)
         {
             using ComPtr<ID3D12Resource> buffer = default;
             Guard.ThrowIfFailed(_swapChain.Get()->GetBuffer(index, buffer.Guid, ComPtr.GetVoidAddressOf(&buffer)));
             DirectXHelpers.SetObjectName(buffer.Get(), $"BackBuffer #{index}");
 
-            return Texture.FromResource(buffer.Move());
+            return Texture.FromResource(device, buffer.Move());
         }
 
         /// <inheritdoc cref="IDisposable"/>

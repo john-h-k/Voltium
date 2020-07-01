@@ -209,7 +209,7 @@ namespace Voltium.Core.GpuResources
                 Width = desc.Width,
                 Height = desc.Height,
                 DepthOrArraySize = desc.DepthOrArraySize,
-                MipLevels = (ushort)(desc.ResourceFlags.HasFlag(ResourceFlags.AllowDepthStencil) || desc.ResourceFlags.HasFlag(ResourceFlags.AllowRenderTarget) ? 1u : 0u),
+                MipLevels = desc.MipCount,
                 Format = (DXGI_FORMAT)desc.Format,
                 Flags = (D3D12_RESOURCE_FLAGS)desc.ResourceFlags,
                 SampleDesc = sample // TODO: MSAA
@@ -427,6 +427,7 @@ namespace Voltium.Core.GpuResources
             var resource = _device.CreateCommittedResource(desc);
 
             return new GpuResource(
+                _device,
                 resource.Move(),
                 desc,
                 default
@@ -501,6 +502,7 @@ namespace Voltium.Core.GpuResources
             var resource = _device.CreatePlacedResource(heap.Heap.Get(), block.Offset, desc);
 
             return new GpuResource(
+                _device,
                 resource.Move(),
                 desc,
                 this,
@@ -631,6 +633,7 @@ namespace Voltium.Core.GpuResources
                 Height = height,
                 Width = width,
                 DepthOrArraySize = 1,
+                MipCount = 1,
                 Dimension = TextureDimension.Tex2D,
                 Format = format,
                 ClearValue = TextureClearValue.CreateForRenderTarget(clearColor),
@@ -656,6 +659,7 @@ namespace Voltium.Core.GpuResources
                 Height = height,
                 Width = width,
                 DepthOrArraySize = 1,
+                MipCount = 1,
                 Dimension = TextureDimension.Tex2D,
                 Format = format,
                 ClearValue = TextureClearValue.CreateForDepthStencil(clearDepth, clearStencil),
@@ -718,6 +722,11 @@ namespace Voltium.Core.GpuResources
         /// The number of dimensions in the texture
         /// </summary>
         public TextureDimension Dimension;
+
+        /// <summary>
+        /// The number of mips this resource will contain
+        /// </summary>
+        public ushort MipCount;
 
         /// <summary>
         /// The width, in bytes, of the texture

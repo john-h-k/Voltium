@@ -16,7 +16,7 @@ namespace Voltium.Common
     {
         static ComPtr()
         {
-            ComPtr<IUnknown> p;
+            ComPtr<IUnknown> p = default;
             Debug.Assert(ComPtr.GetAddressOf(&p) == &p._ptr);
 
             // *probably* not a valid COM type without a GUID
@@ -51,7 +51,8 @@ namespace Voltium.Common
 
         // DO NOT ADD ANY OTHER MEMBERS!!!
         // both for perf
-        // and because ComPtr.GetAddressOf expects this to be first elem
+        // and because ComPtr.GetAddressOf/GetVoidAddressOf expects this to be first elem
+        // i believe some other code in the engine relies on it being blittable to void* too
         private T* _ptr;
 
         /// <summary>
@@ -110,6 +111,8 @@ namespace Voltium.Common
                 return null;
             }
         }
+
+        internal bool IsSingleRef => RefCount == 1;
 
         private readonly void AddRef()
         {
@@ -280,7 +283,7 @@ namespace Voltium.Common
             where T : unmanaged
             where TUp : unmanaged
         {
-            // if this is hit, your cast is invalid. either use TryCast or have a valid type
+            // if this is hit, your cast is invalid. either use TryQueryInterface or, preferrably, have a valid type
 #if DEBUG
             Debug.Assert(comPtr.TryQueryInterface(out ComPtr<TUp> assertion));
             assertion.Dispose();

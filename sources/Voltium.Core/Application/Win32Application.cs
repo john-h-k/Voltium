@@ -23,8 +23,6 @@ namespace Voltium.Core
         private static bool _isResizing = false;
         //private static bool _isPaused = false;
         //private static bool _isMaximized = false;
-
-        internal static readonly int Height = 1080 / 2, Width = 1920 / 2;
         private static HWND Hwnd;
 
         private static Size _screenData;
@@ -33,14 +31,13 @@ namespace Voltium.Core
         /// Run a <see cref="Application"/> on Win32
         /// </summary>
         /// <param name="application">The <see cref="Application"/> to run</param>
+        /// <param name="width">The width, in pixels, of the screen</param>
+        /// <param name="height">The height, in pixels, of the screen</param>
         /// <returns>The exit code of the app</returns>
-        public static int Run(Application application)
+        public static int Run(Application application, uint width, uint height)
         {
             var hInstance = GetModuleHandleW(null);
             _application = application;
-
-            uint height;
-            uint width;
 
             fixed (char* name = "Voltium.Interactive")
             fixed (char* windowsTitle = application.Title)
@@ -57,7 +54,7 @@ namespace Voltium.Core
                 };
                 _ = RegisterClassExW(&windowClass);
 
-                var windowRect = new Rectangle(0, 0, Width, Height);
+                var windowRect = new Rectangle(0, 0, (int)width, (int)height);
                 _ = AdjustWindowRect((RECT*)&windowRect, WS_OVERLAPPEDWINDOW, FALSE);
 
                 height = (uint)(windowRect.Bottom - windowRect.Top);
@@ -86,6 +83,8 @@ namespace Voltium.Core
             _ = ShowWindow(Hwnd, SW_SHOWDEFAULT);
 
             _timer = ApplicationTimer.StartNew();
+            _timer.TargetElapsedSeconds = 1 / 120d;
+            _timer.IsFixedTimeStep = true;
 
             // Main sample loop.
             MSG msg;

@@ -26,8 +26,8 @@ namespace Voltium.Common
 
         [DebuggerHidden]
         [DoesNotReturn]
-        public static void ThrowArgumentException(string paramName, Exception inner) =>
-            throw new ArgumentException(paramName, inner);
+        public static void ThrowArgumentException(string message, Exception inner) =>
+            throw new ArgumentException(message, inner);
 
         [DebuggerHidden]
         [DoesNotReturn]
@@ -209,6 +209,10 @@ namespace Voltium.Common
             // enjoy this photo as compensation
             // https://thumbs.dreamstime.com/z/cat-kayaking-sea-kayaker-cap-drifting-red-plastic-boat-151961425.jpg
             throw new ExternalException(message, hr);
+
+        [DebuggerHidden]
+        public static ExternalException CreateExternalException(int hr, string? message = null) =>
+            new ExternalException(message, hr);
 
         [DebuggerHidden]
         [DoesNotReturn]

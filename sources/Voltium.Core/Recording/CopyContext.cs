@@ -1,6 +1,8 @@
-﻿using System;
+using System;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using TerraFX.Interop;
+using Voltium.Common;
 using Voltium.Core.GpuResources;
 using Voltium.Core.Memory.GpuResources;
 using Voltium.TextureLoading;
@@ -33,20 +35,94 @@ namespace Voltium.Core
         //WriteBufferImmediate
 
         /// <summary>
+        /// Copy a subresource
+        /// </summary>
+        /// <param name="source">The resource to copy from</param>
+        /// <param name="dest">The resource to copy to</param>
+        /// <param name="sourceSubresource">The index of the subresource to copy from</param>
+        /// <param name="destSubresource">The index of the subresource to copy to</param>
+        public void CopySubresource(Texture source, Texture dest, uint sourceSubresource, uint destSubresource)
+        {
+            ResourceTransition(source, ResourceState.CopySource, sourceSubresource);
+            ResourceTransition(dest, ResourceState.CopyDestination, destSubresource);
+
+            Unsafe.SkipInit(out D3D12_TEXTURE_COPY_LOCATION sourceDesc);
+            Unsafe.SkipInit(out D3D12_TEXTURE_COPY_LOCATION destDesc);
+
+            sourceDesc.pResource = source.GetResourcePointer();
+            sourceDesc.Type = D3D12_TEXTURE_COPY_TYPE.D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+            sourceDesc.Anonymous.SubresourceIndex = sourceSubresource;
+
+            destDesc.pResource = dest.GetResourcePointer();
+            destDesc.Type = D3D12_TEXTURE_COPY_TYPE.D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+            destDesc.Anonymous.SubresourceIndex = destSubresource;
+
+            _context.List->CopyTextureRegion(&destDesc, 0, 0, 0, &sourceDesc, null);
+        }
+
+        /// <summary>
+        /// Copy a subresource
+        /// </summary>
+        /// <param name="source">The resource to copy from</param>
+        /// <param name="dest">The resource to copy to</param>
+        /// <param name="subresourceIndex">The index of the subresource to copy from</param>
+        public void CopySubresource(Texture source, Buffer dest, uint subresourceIndex = 0)
+        {
+            ResourceTransition(source, ResourceState.CopySource, subresourceIndex);
+            ResourceTransition(dest, ResourceState.CopyDestination, 0);
+            _context.Device.GetCopyableFootprint(source, subresourceIndex, 1, out var layout, out var row, out var numRow, out var size);
+
+            Debug.Assert(dest.Length >= size);
+
+            var sourceDesc = new D3D12_TEXTURE_COPY_LOCATION(source.GetResourcePointer(), subresourceIndex);
+            var destDesc = new D3D12_TEXTURE_COPY_LOCATION(dest.GetResourcePointer(), layout);
+
+            _context.List->CopyTextureRegion(&destDesc, 0, 0, 0, &sourceDesc, null);
+        }
+
+        /// <summary>
+        /// Copy a subresource
+        /// </summary>
+        /// <param name="allocator"></param>
+        /// <param name="source">The resource to copy from</param>
+        /// <param name="subresourceIndex">The index of the subresource to copy from</param>
+        /// <param name="data"></param>
+        public void ReadbackSubresource(GpuAllocator allocator, Texture source, uint subresourceIndex, out Buffer data)
+        {
+            _context.Device.GetCopyableFootprint(source, subresourceIndex, 1, out _, out _, out var rowSize, out var size);
+
+            var alignedRowSizes = MathHelpers.AlignUp(rowSize, 256);
+
+            data = allocator.AllocateBuffer((long)size, MemoryAccess.CpuReadback, ResourceState.CopyDestination);
+
+            var layout = new D3D12_PLACED_SUBRESOURCE_FOOTPRINT
+            {
+                Offset = 0,
+                Footprint = new D3D12_SUBRESOURCE_FOOTPRINT
+                {
+                    Depth = source.DepthOrArraySize,
+                    Height = source.Height,
+                    Width = (uint)source.Width,
+                    Format = (DXGI_FORMAT)source.Format,
+                    RowPitch = (uint)alignedRowSizes
+                }
+            };
+
+            var destDesc = new D3D12_TEXTURE_COPY_LOCATION(data.GetResourcePointer(), layout);
+            var sourceDesc = new D3D12_TEXTURE_COPY_LOCATION(source.GetResourcePointer(), subresourceIndex);
+
+            _context.List->CopyTextureRegion(&destDesc, 0, 0, 0, &sourceDesc, null);
+        }
+
+        /// <summary>
         /// Copy an entire resource
         /// </summary>
         /// <param name="source">The resource to copy from</param>
         /// <param name="dest">The resource to copy to</param>
         public void CopyResource(Buffer source, Buffer dest)
         {
-            if (!source.Resource.State.HasFlag(ResourceState.CopySource))
-            {
-                ResourceTransition(source, ResourceState.CopySource, 0xFFFFFFFF);
-            }
-            if (!dest.Resource.State.HasFlag(ResourceState.CopyDestination))
-            {
-                ResourceTransition(dest, ResourceState.CopyDestination, 0xFFFFFFFF);
-            }
+            ResourceTransition(source, ResourceState.CopySource, 0xFFFFFFFF);
+            ResourceTransition(dest, ResourceState.CopyDestination, 0xFFFFFFFF);
 
             _context.FlushBarriers();
             _context.List->CopyResource(dest.Resource.UnderlyingResource, source.Resource.UnderlyingResource);

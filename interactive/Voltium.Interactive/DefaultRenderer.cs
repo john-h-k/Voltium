@@ -67,6 +67,7 @@ namespace Voltium.Interactive
         private GraphicsDevice _device = null!;
         private DescriptorHandle _texHandle;
         private DescriptorHandle _normalHandle;
+        private GraphicalConfiguration _config = null!;
 
         private MsaaDesc _msaaDesc = MsaaDesc.None;
 
@@ -75,6 +76,7 @@ namespace Voltium.Interactive
             PipelineManager.Reset();
 
             _device = device;
+            _config = config;
             _allocator = _device.Allocator;
 
             _texturedObjects = ModelLoader.LoadGl("Assets/Gltf/Handgun_Tangent.gltf");
@@ -83,30 +85,6 @@ namespace Voltium.Interactive
 
             _vertexBuffer = new Buffer[_texturedObjects.Length];
             _indexBuffer = new Buffer[_texturedObjects.Length];
-
-            var dsDesc = TextureDesc.CreateDepthStencilDesc(DataFormat.D32Single, (uint)screen.Height, (uint)screen.Width, 1, 0, _msaaDesc);
-            var rtDesc = TextureDesc.CreateRenderTargetDesc(config.BackBufferFormat, (uint)screen.Height, (uint)screen.Width, RgbaColor.CornflowerBlue, _msaaDesc);
-
-            _depthStencil = _allocator.AllocateTexture(dsDesc, ResourceState.DepthWrite);
-            _renderTarget = _allocator.AllocateTexture(rtDesc, ResourceState.RenderTarget);
-
-            var dsv = new TextureDepthStencilViewDesc
-            {
-                Format = dsDesc.Format,
-                IsMultiSampled = _msaa,
-                MipIndex = 0,
-                PlaneSlice = 0
-            };
-
-            var rtv = new TextureRenderTargetViewDesc
-            {
-                Format = _texture.Format,
-                MipIndex = 0,
-                PlaneSlice = 0
-            };
-
-            _depthStencilView = _device.CreateDepthStencilView(_depthStencil, dsv);
-            _renderTargetView = _device.CreateRenderTargetView(_renderTarget, rtv);
 
             using (var list = _device.BeginCopyContext())
             {
@@ -137,7 +115,40 @@ namespace Voltium.Interactive
             _light = _allocator.AllocateBuffer(sizeof(LightConstants), MemoryAccess.CpuUpload);
 
             CreatePipelines();
-            InitializeConstants(screen);
+            InitializeConstants();
+
+            Resize(screen);
+        }
+
+        public override void Resize(Size newScreenData)
+        {
+            var dsDesc = TextureDesc.CreateDepthStencilDesc(DataFormat.D32Single, (uint)newScreenData.Height, (uint)newScreenData.Width, 1, 0, _msaaDesc);
+            var rtDesc = TextureDesc.CreateRenderTargetDesc(_config.BackBufferFormat, (uint)newScreenData.Height, (uint)newScreenData.Width, RgbaColor.CornflowerBlue, _msaaDesc);
+
+            _depthStencil = _allocator.AllocateTexture(dsDesc, ResourceState.DepthWrite);
+            _renderTarget = _allocator.AllocateTexture(rtDesc, ResourceState.RenderTarget);
+
+            var dsv = new TextureDepthStencilViewDesc
+            {
+                Format = dsDesc.Format,
+                IsMultiSampled = _msaa,
+                MipIndex = 0,
+                PlaneSlice = 0
+            };
+
+            var rtv = new TextureRenderTargetViewDesc
+            {
+                Format = _texture.Format,
+                MipIndex = 0,
+                PlaneSlice = 0
+            };
+
+            _depthStencilView = _device.CreateDepthStencilView(_depthStencil, dsv);
+            _renderTargetView = _device.CreateRenderTargetView(_renderTarget, rtv);
+
+            var aspectRatio = (float)newScreenData.Width / newScreenData.Height;
+            var fovAngleY = 70.0f * MathF.PI / 180.0f;
+            _frameConstants.Projection = Matrix4x4.CreatePerspectiveFieldOfView(fovAngleY, aspectRatio, 0.001f, 100f);
         }
 
         public void CreatePipelines()
@@ -190,11 +201,8 @@ namespace Voltium.Interactive
         private Buffer _frame;
         private Buffer _light;
 
-        public void InitializeConstants(Size screen)
+        public void InitializeConstants()
         {
-            var aspectRatio = (float)screen.Width / screen.Height;
-            var fovAngleY = 70.0f * MathF.PI / 180.0f;
-
             for (var i = 0; i < _texturedObjects.Length; i++)
             {
                 var geometry = _texturedObjects[i];
@@ -219,7 +227,6 @@ namespace Voltium.Interactive
                     new Vector3(0.0f, 0.0f, 0.0f),
                     new Vector3(0.0f, 1.0f, 0.0f)
                 ),
-                Projection = Matrix4x4.CreatePerspectiveFieldOfView(fovAngleY, aspectRatio, 0.001f, 100f),
                 AmbientLight = new Vector4(0.25f, 0.25f, 0.35f, 1.0f) / 2,
                 CameraPosition = new Vector3(0.0f, 0.7f, 1.5f),
             };

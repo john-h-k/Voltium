@@ -43,7 +43,7 @@ namespace Voltium.Core.Memory.GpuResources
             {
                 if (_cpuAddress == null)
                 {
-                    _cpuAddress = _resource.Map(0);
+                    _cpuAddress = _resource is null ? null : _resource.Map(0);
                 }
 
                 return new Span<byte>(_cpuAddress, (int)Length);
@@ -123,6 +123,8 @@ namespace Voltium.Core.Memory.GpuResources
         internal ulong GpuAddress;
 
         internal GpuResource Resource => _resource;
+
+        internal ID3D12Resource* GetResourcePointer() => _resource.UnderlyingResource;
     }
 
     //public static unsafe class BufferExtensions

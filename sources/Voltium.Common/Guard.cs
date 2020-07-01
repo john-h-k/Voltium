@@ -120,22 +120,48 @@ namespace Voltium.Common
         {
             if (FAILED(hr))
             {
-                D3D12DebugShim.WriteAllMessages();
-                ThrowHelper.ThrowExternalException(
-                    hr,
+                ThrowForHr(hr, expression, filepath, memberName, lineNumber);
+            }
+        }
+
+        [DebuggerNonUserCode]
+        [MethodImpl(MethodTypes.ThrowHelperMethod)]
+        private static void ThrowForHr(
+            int hr,
+#if DEBUG || EXTENDED_ERROR_INFORMATION
+            [CallerArgumentExpression("hr")] string? expression = null,
+            [CallerFilePath] string? filepath = default,
+            [CallerMemberName] string? memberName = default,
+            [CallerLineNumber] int lineNumber = default,
+#endif
+            string? extraInfo = null
+        )
+        {
+            var inner = ThrowHelper.CreateExternalException(
+                        hr,
 #if DEBUG || EXTENDED_ERROR_INFORMATION
                     Format($"Native code threw an exception with HR '0x{hr:X8}', message '{ResolveErrorCode(hr)}'. " +
-                    extraInfo is null ? "" : $"Additional info '{extraInfo}",
-                        expression, memberName, lineNumber, filepath)
+                        extraInfo is null ? "" : $"Additional info '{extraInfo}",
+                            expression, memberName, lineNumber, filepath)
 #else
                     $"Native code threw an exception with HR '0x{hr:X8}, message '{ResolveErrorCode(hr)}''" +
                     extraInfo is null ? "" : $"Additional info '{extraInfo}"
 #endif
                 );
+
+            D3D12DebugShim.WriteAllMessages();
+
+            switch (hr)
+            {
+                case E_INVALIDARG:
+                    ThrowHelper.ThrowArgumentException("", inner);
+                    break;
+
+                default:
+                    throw inner;
             }
         }
-
-        private enum ErrorContext
+    private enum ErrorContext
         {
             Unspecified = 0,
             Win32 = FACILITY_WIN32,

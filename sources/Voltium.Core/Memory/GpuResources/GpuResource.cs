@@ -4,6 +4,7 @@ using System.Runtime.ConstrainedExecution;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Configuration.Graphics;
+using Voltium.Core.Devices;
 using Voltium.Core.Memory;
 
 namespace Voltium.Core.GpuResources
@@ -21,6 +22,7 @@ namespace Voltium.Core.GpuResources
         ID3D12Object* INameable.GetNameable() => (ID3D12Object*)UnderlyingResource;
 
         internal GpuResource(
+            ComputeDevice device,
             ComPtr<ID3D12Resource> resource,
             InternalAllocDesc desc,
             GpuAllocator? allocator = null,
@@ -28,15 +30,17 @@ namespace Voltium.Core.GpuResources
             HeapBlock block = default
         )
         {
+            _device = device;
             _value = resource.Move();
             State = (ResourceState)desc.InitialState;
             ResourceFormat = (DataFormat)desc.Desc.Format;
-            Msaa = new (desc.Desc.SampleDesc.Count, desc.Desc.SampleDesc.Quality);
+            Msaa = new(desc.Desc.SampleDesc.Count, desc.Desc.SampleDesc.Quality);
             Heap = heap;
             Block = block;
             _allocator = allocator;
 
-            if (desc.Desc.Dimension == D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_BUFFER)
+            if (desc.Desc.Dimension == D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_BUFFER
+                && !desc.Desc.Flags.HasFlag(D3D12_RESOURCE_FLAGS.D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE))
             {
                 GpuAddress = UnderlyingResource->GetGPUVirtualAddress();
             }
@@ -46,12 +50,14 @@ namespace Voltium.Core.GpuResources
 
         // this is a hack. TODO make it right
         internal static GpuResource FromBackBuffer(
+            ComputeDevice device,
             ComPtr<ID3D12Resource> resource
         )
         {
             var desc = resource.Get()->GetDesc();
             return new GpuResource
             {
+                _device = device,
                 _value = resource.Move(),
                 ResourceFormat = (DataFormat)desc.Format,
                 State = (ResourceState)D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_COMMON
@@ -90,6 +96,11 @@ namespace Voltium.Core.GpuResources
         /// is unmapped or not CPU accessible
         /// </summary>
         public unsafe void* CpuAddress { get; private set; }
+
+
+        private ComputeDevice _device = null!;
+
+        internal ComputeDevice Device => _device;
 
         private GpuAllocator? _allocator;
         public AllocatorHeap Heap;
@@ -131,7 +142,7 @@ namespace Voltium.Core.GpuResources
             GC.SuppressFinalize(this);
         }
 
-#if TRACE_DISPOSABLES || DEBUG
+#if TRACE_DISPOSABLES || !DEBUG
         /// <summary>
         /// go fuck yourself roslyn why the fucking fuckeroni do finalizers need xml comments fucking fuck off fucking twatty compiler
         /// </summary>

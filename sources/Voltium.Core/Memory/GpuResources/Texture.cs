@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using TerraFX.Interop;
 using Voltium.Common;
+using Voltium.Core.Devices;
 using Voltium.Core.GpuResources;
 
 namespace Voltium.Core.Memory.GpuResources
@@ -86,10 +87,10 @@ namespace Voltium.Core.Memory.GpuResources
 
 
         // I don't like how this needs knowledge of DXGI. Should probably rewrite
-        internal static Texture FromResource(ComPtr<ID3D12Resource> buffer)
+        internal static Texture FromResource(ComputeDevice device, ComPtr<ID3D12Resource> buffer)
         {
             var resDesc = buffer.Get()->GetDesc();
-            var res = new GpuResource(buffer.Move(), new InternalAllocDesc { Desc = resDesc, InitialState = D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_COMMON });
+            var res = new GpuResource(device, buffer.Move(), new InternalAllocDesc { Desc = resDesc, InitialState = D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_COMMON });
 
             var texDesc = new TextureDesc
             {
@@ -101,24 +102,6 @@ namespace Voltium.Core.Memory.GpuResources
             };
 
             return new Texture(texDesc, res);
-        }
-
-        /// <summary>
-        /// The texture data. This may be empty if the data is not CPU writable.
-        /// This data requires understanding of the GPU's texture layout and must be written and read with
-        /// care.
-        /// </summary>
-        public Span<byte> Data
-        {
-            get
-            {
-                if (_cpuAddress == null)
-                {
-                    _cpuAddress = _resource.Map(0);
-                }
-
-                return new Span<byte>(_cpuAddress, (int)_length);
-            }
         }
 
         /// <summary>

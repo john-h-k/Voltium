@@ -19,6 +19,7 @@ namespace Voltium.Interactive
         private GraphicsDevice _device = null!;
         private GraphicalConfiguration _config = null!;
         private Size _screen;
+        private bool _isPaused;
 
         public override unsafe void Init(Size data, HWND hwnd)
         {
@@ -39,10 +40,18 @@ namespace Voltium.Interactive
 
         public override void Update(ApplicationTimer timer)
         {
+            if (_isPaused)
+            {
+                return;
+            }
             _renderer.Update(timer);
         }
         public override unsafe void Render()
         {
+            if (_isPaused)
+            {
+                return;
+            }
             using (var commandList = _device.BeginGraphicsContext(_renderer.GetInitialPso()))
             {
                 _renderer.Render(ref Unsafe.AsRef(in commandList));
@@ -59,21 +68,19 @@ namespace Voltium.Interactive
         {
             _screen = newScreenData;
             _device.Resize(newScreenData);
-            _renderer.Init(_device, _config, newScreenData);
+            _renderer.Resize(newScreenData);
         }
 
         public override void OnKeyDown(byte key)
         {
-            if (key == 0x4D)
+            if (key == /* P */ 0x50)
             {
-                _renderer.ToggleMsaa();
-                _renderer.Init(_device, _config, _screen);
+                _isPaused = !_isPaused;
             }
         }
 
         public override void OnKeyUp(byte key)
         {
-
         }
 
         public override void OnMouseScroll(int scroll)

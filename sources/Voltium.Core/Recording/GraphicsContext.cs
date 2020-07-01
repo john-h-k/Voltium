@@ -38,6 +38,23 @@ namespace Voltium.Core
         }
 
         /// <summary>
+        /// Discard the entire resource value
+        /// </summary>
+        public void Discard(Buffer buffer)
+            => Discard(buffer.Resource);
+
+        /// <summary>
+        /// Discard the entire resource value
+        /// </summary>
+        public void Discard(Texture texture)
+            => Discard(texture.Resource);
+
+        private void Discard(GpuResource resource)
+        {
+            _context.List->DiscardResource(resource.UnderlyingResource, null);
+        }
+
+        /// <summary>
         /// Sets the current pipeline state
         /// </summary>
         /// <param name="pso">The <see cref="PipelineStateObject"/> to set</param>
@@ -174,6 +191,29 @@ namespace Voltium.Core
             _context.List->SetGraphicsRoot32BitConstants(paramIndex, (uint)sizeof(T) / 4, &value, offset);
         }
 
+        /// <summary>
+        /// Sets a group of 32 bit values to the graphics pipeline
+        /// </summary>
+        /// <typeparam name="T">The type of the elements used. This must have a size that is a multiple of 4</typeparam>
+        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which these constants represents</param>
+        /// <param name="value">The 32 bit values to set</param>
+        /// <param name="offset">The offset, in 32 bit offsets, to bind this at</param>
+        public void SetRoot32BitConstants<T>(uint paramIndex, ref T value, uint offset = 0) where T : unmanaged
+        {
+            if (sizeof(T) % 4 != 0)
+            {
+                ThrowHelper.ThrowArgumentException(
+                    $"Type '{typeof(T).Name}' has size '{sizeof(T)}' but {nameof(SetRoot32BitConstants)} requires param '{nameof(value)} '" +
+                    "to have size divisble by 4"
+                );
+            }
+
+            fixed (void* pValue = &value)
+            {
+                _context.List->SetGraphicsRoot32BitConstants(paramIndex, (uint)sizeof(T) / 4, pValue, offset);
+            }
+        }
+
 
         /// <summary>
         /// Sets a 32 bit value to the graphics pipeline
@@ -211,7 +251,7 @@ namespace Voltium.Core
         /// <param name="depthStencilHandle">The handle to the depth stencil descriptor</param>
         public void SetRenderTargets(Span<DescriptorHandle> renderTargets, DescriptorHandle? depthStencilHandle = null)
         {
-            Debug.Assert(StackSentinel.SafeToStackalloc<D3D12_CPU_DESCRIPTOR_HANDLE>(renderTargets.Length));
+            StackSentinel.StackAssert(StackSentinel.SafeToStackalloc<D3D12_CPU_DESCRIPTOR_HANDLE>(renderTargets.Length));
 
             D3D12_CPU_DESCRIPTOR_HANDLE* pRenderTargets = stackalloc D3D12_CPU_DESCRIPTOR_HANDLE[renderTargets.Length];
 
@@ -547,14 +587,8 @@ namespace Voltium.Core
         /// <param name="destSubresource">The index of the subresource from <paramref name="dest"/> to use</param>
         public void ResolveSubresource(Texture source, Texture dest, DataFormat format, uint sourceSubresource = 0, uint destSubresource = 0)
         {
-            if (!source.Resource.State.HasFlag(ResourceState.ResolveSource))
-            {
-                ResourceTransition(source, ResourceState.ResolveSource, sourceSubresource);
-            }
-            if (!dest.Resource.State.HasFlag(ResourceState.ResolveDestination))
-            {
-                ResourceTransition(dest, ResourceState.ResolveDestination, destSubresource);
-            }
+            ResourceTransition(source, ResourceState.ResolveSource, sourceSubresource);
+            ResourceTransition(dest, ResourceState.ResolveDestination, destSubresource);
 
             _context.FlushBarriers();
             _context.List->ResolveSubresource(dest.GetResourcePointer(), destSubresource, source.GetResourcePointer(), sourceSubresource, (DXGI_FORMAT)format);
@@ -616,10 +650,20 @@ namespace Voltium.Core
         #region CopyContext Methods
 
         /// <summary>
-        /// Copy an entire resource
+        /// Copy a subresource
         /// </summary>
+        /// <param name="allocator"></param>
         /// <param name="source">The resource to copy from</param>
-        /// <param name="dest">The resource to copy to</param>
+        /// <param name="subresourceIndex">The index of the subresource to copy from</param>
+        /// <param name="data"></param>
+        public void ReadbackSubresource(GpuAllocator allocator, Texture source, uint subresourceIndex, out Buffer data)
+            => this.AsCopyContext().ReadbackSubresource(allocator, source, subresourceIndex, out data);
+
+            /// <summary>
+            /// Copy an entire resource
+            /// </summary>
+            /// <param name="source">The resource to copy from</param>
+            /// <param name="dest">The resource to copy to</param>
         public void CopyResource(Buffer source, Buffer dest)
             => this.AsCopyContext().CopyResource(source, dest);
 
@@ -630,6 +674,26 @@ namespace Voltium.Core
         /// <param name="dest">The resource to copy to</param>
         public void CopyResource(Texture source, Texture dest)
             => this.AsCopyContext().CopyResource(source, dest);
+
+
+        /// <summary>
+        /// Copy a subresource
+        /// </summary>
+        /// <param name="source">The resource to copy from</param>
+        /// <param name="dest">The resource to copy to</param>
+        /// <param name="sourceSubresource">The index of the subresource to copy from</param>
+        public void CopySubresource(Texture source, Buffer dest, uint sourceSubresource = 0)
+            => this.AsCopyContext().CopySubresource(source, dest, sourceSubresource);
+
+        /// <summary>
+        /// Copy a subresource
+        /// </summary>
+        /// <param name="source">The resource to copy from</param>
+        /// <param name="dest">The resource to copy to</param>
+        /// <param name="sourceSubresource">The index of the subresource to copy from</param>
+        /// <param name="destSubresource">The index of the subresource to copy to</param>
+        public void CopySubresource(Texture source, Texture dest, uint sourceSubresource, uint destSubresource)
+            => this.AsCopyContext().CopySubresource(source, dest, sourceSubresource, destSubresource);
 
         /// <summary>
         /// Uploads a buffer from the CPU to the GPU

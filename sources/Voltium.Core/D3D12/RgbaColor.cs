@@ -48,6 +48,20 @@ namespace Voltium.Core
             A = a;
         }
 
+#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
+        public RgbaColor WithR(float r)
+            => new RgbaColor(r, G, B, A);
+        public RgbaColor WithG(float g)
+            => new RgbaColor(R, g, B, A);
+        public RgbaColor WithB(float b)
+            => new RgbaColor(R, G, b, A);
+        public RgbaColor WithA(float a)
+            => new RgbaColor(R, G, B, a);
+
+        public RgbaColor WithRGB(float r, float g, float b)
+            => new RgbaColor(r, g, b, A);
+#pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
+
         /// <summary>
         /// Create a new instance of <see cref="RgbaColor"/> from 4 byte values
         /// </summary>

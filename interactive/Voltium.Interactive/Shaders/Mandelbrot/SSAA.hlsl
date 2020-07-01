@@ -14,5 +14,5 @@ float4 main(
     in float2 tex : TEXCOORD
 ) : SV_Target
 {
-    return Color.Sample(Ssaa, tex / Constants.Factor);
+    return Color.Sample(Ssaa, tex);
 }

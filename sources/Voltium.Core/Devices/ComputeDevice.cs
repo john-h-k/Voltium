@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using TerraFX.Interop;
@@ -9,9 +11,25 @@ using Voltium.Core.GpuResources;
 using Voltium.Core.Memory.GpuResources;
 using Voltium.Core.Pipeline;
 using static TerraFX.Interop.Windows;
+using Buffer = Voltium.Core.Memory.GpuResources.Buffer;
 
 namespace Voltium.Core.Devices
 {
+    /// <summary>
+    /// 
+    /// </summary>
+    public struct TextureFootprint
+    {
+        /// <summary>
+        /// 
+        /// </summary>
+        public ulong RowSize;
+        /// <summary>
+        /// 
+        /// </summary>
+        public uint NumRows;
+    }
+
     /// <summary>
     /// 
     /// </summary>
@@ -67,6 +85,117 @@ namespace Voltium.Core.Devices
             return heap.Move();
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="tex"></param>
+        /// <param name="intermediate"></param>
+        /// <param name="data"></param>
+        public void ReadbackIntermediateBuffer(TextureFootprint tex, Buffer intermediate, Span<byte> data)
+        {
+            var offset = data;
+            var mapped = intermediate.Data;
+
+            var alignedRowSize = MathHelpers.AlignUp(tex.RowSize, 256);
+            for (var i = 0; i < tex.NumRows - 1; i++)
+            {
+                mapped.Slice(0, (int)tex.RowSize).CopyTo(offset);
+
+                mapped = mapped.Slice((int)alignedRowSize);
+                offset = offset.Slice((int)tex.RowSize);
+            }
+            mapped.Slice(0, (int)tex.RowSize).CopyTo(offset);
+        }
+
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="tex"></param>
+        /// <param name="subresourceIndex"></param>
+        /// <returns></returns>
+        public TextureFootprint GetSubresourceFootprint(Texture tex, uint subresourceIndex)
+        {
+            TextureFootprint result;
+            GetCopyableFootprint(tex, subresourceIndex, 1, out _, out result.NumRows, out result.RowSize, out _);
+            return result;
+        }
+
+        internal void GetCopyableFootprint(
+            Texture tex,
+            uint firstSubresource,
+            uint numSubresources,
+            out D3D12_PLACED_SUBRESOURCE_FOOTPRINT layouts,
+            out uint numRows,
+            out ulong rowSizesInBytes,
+            out ulong requiredSize
+        )
+        {
+            var desc = tex.GetResourcePointer()->GetDesc();
+
+            fixed (D3D12_PLACED_SUBRESOURCE_FOOTPRINT* pLayout = &layouts)
+            {
+                ulong rowSizes;
+                uint rowCount;
+                ulong size;
+                DevicePointer->GetCopyableFootprints(&desc, 0, numSubresources, 0, pLayout, &rowCount, &rowSizes, &size);
+
+                rowSizesInBytes = rowSizes;
+                numRows = rowCount;
+                requiredSize = size;
+            }
+        }
+
+        internal void GetCopyableFootprints(
+            Texture tex,
+            uint firstSubresource,
+            uint numSubresources,
+            out Span<D3D12_PLACED_SUBRESOURCE_FOOTPRINT> layouts,
+            out Span<uint> numRows,
+            out Span<ulong> rowSizesInBytes,
+            out ulong requiredSize
+        )
+        {
+            var desc = tex.GetResourcePointer()->GetDesc();
+
+            var subresources = GC.AllocateUninitializedArray<byte>((sizeof(D3D12_PLACED_SUBRESOURCE_FOOTPRINT) + sizeof(uint) + sizeof(ulong)) * (int)numSubresources, pinned: true);
+
+            var pLayouts = (D3D12_PLACED_SUBRESOURCE_FOOTPRINT*)Unsafe.AsPointer(ref MemoryMarshal.GetArrayDataReference(subresources));
+            ulong* pRowSizesInBytes = (ulong*)(pLayouts + numSubresources);
+            uint* pNumRows = (uint*)(pRowSizesInBytes + numSubresources);
+
+            ulong size;
+            DevicePointer->GetCopyableFootprints(&desc, 0, numSubresources, 0, pLayouts, pNumRows, pRowSizesInBytes, &size);
+            requiredSize = size;
+
+            layouts = new Span<D3D12_PLACED_SUBRESOURCE_FOOTPRINT>(pLayouts, (int)numSubresources);
+            rowSizesInBytes = new Span<ulong>(pRowSizesInBytes, (int)numSubresources);
+            numRows = new Span<uint>(pNumRows, (int)numSubresources);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="tex"></param>
+        /// <param name="numSubresources"></param>
+        /// <returns></returns>
+        public ulong GetRequiredSize(
+            Texture tex,
+            uint numSubresources
+        )
+        {
+            return GetRequiredSize(tex.GetResourcePointer()->GetDesc(), numSubresources);
+        }
+
+        internal ulong GetRequiredSize(
+            D3D12_RESOURCE_DESC desc,
+            uint numSubresources
+        )
+        {
+            ulong requiredSize;
+            DevicePointer->GetCopyableFootprints(&desc, 0, numSubresources, 0, null, null, null, &requiredSize);
+            return requiredSize;
+        }
 
         internal D3D12_RESOURCE_ALLOCATION_INFO GetAllocationInfo(InternalAllocDesc desc)
             => DevicePointer->GetResourceAllocationInfo(0, 1, &desc.Desc);

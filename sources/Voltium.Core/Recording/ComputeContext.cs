@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Voltium.Core.GpuResources;
 using Voltium.Core.Memory.GpuResources;
 using Voltium.TextureLoading;
