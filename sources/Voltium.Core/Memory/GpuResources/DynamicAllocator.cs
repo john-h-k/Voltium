@@ -1,18 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using TerraFX.Interop;
-using Voltium.Common;
-using Voltium.Common.Debugging;
-using Voltium.Common.Threading;
-using Voltium.Core.D3D12;
-using Voltium.Core.GpuResources;
-using Voltium.Core.Managers;
-
-using SpinLock = Voltium.Common.Threading.SpinLockWrapped;
-
 namespace Voltium.Core.Memory.GpuResources
 {
     ///// <summary>

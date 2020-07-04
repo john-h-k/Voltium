@@ -18,7 +18,7 @@ namespace Voltium.Core.Infrastructure
         public DxgiDeviceFactory()
         {
             using ComPtr<IDXGIFactory2> factory = default;
-            Guard.ThrowIfFailed(CreateDXGIFactory1(factory.Guid, ComPtr.GetVoidAddressOf(&factory)));
+            Guard.ThrowIfFailed(CreateDXGIFactory1(factory.Iid, ComPtr.GetVoidAddressOf(&factory)));
             _factory = factory.Move();
         }
 
@@ -40,7 +40,7 @@ namespace Voltium.Core.Infrastructure
                                 // DXGI preference doesn't allow preferring hardware/software adapters, so we do that manually after filtering out the other hardware types
                                 // We remove the hardware and software flag so DXGI doesn't complain
                                 (DXGI_GPU_PREFERENCE)(_preference & ~(DevicePreference.Hardware | DevicePreference.Software)),
-                                dxgiAdapter.Guid,
+                                dxgiAdapter.Iid,
                                 ComPtr.GetVoidAddressOf(&dxgiAdapter)
                         )
                     );

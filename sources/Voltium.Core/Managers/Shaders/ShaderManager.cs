@@ -1,13 +1,9 @@
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Managers.Shaders;
@@ -74,9 +70,9 @@ namespace Voltium.Core.Managers
             ComPtr<IDxcUtils> utils = default;
 
             Guid clsid = Windows.CLSID_DxcCompiler;
-            Guard.ThrowIfFailed(Windows.DxcCreateInstance(&clsid, compiler.Guid, ComPtr.GetVoidAddressOf(&compiler)));
+            Guard.ThrowIfFailed(Windows.DxcCreateInstance(&clsid, compiler.Iid, ComPtr.GetVoidAddressOf(&compiler)));
             clsid = Windows.CLSID_DxcUtils;
-            Guard.ThrowIfFailed(Windows.DxcCreateInstance(&clsid, utils.Guid, ComPtr.GetVoidAddressOf(&utils)));
+            Guard.ThrowIfFailed(Windows.DxcCreateInstance(&clsid, utils.Iid, ComPtr.GetVoidAddressOf(&utils)));
 
             Compiler = compiler.Move();
             Utils = utils.Move();
@@ -107,8 +103,51 @@ namespace Voltium.Core.Managers
             OutputEncoding encoding = OutputEncoding.Utf16
         )
         {
+
             return CompileShader(filename, File.OpenText(filename), target, flags, entrypoint, encoding, new FileInfo(filename).DirectoryName!);
         }
+
+        /// <summary>
+        /// Compiles a new <see cref="CompiledShader"/> from a file
+        /// </summary>
+        /// <param name="filename">The filename containing the shader</param>
+        /// <param name="type">The <see cref="ShaderType"/> of the shader</param>
+        /// <param name="flags">An array of <see cref="DxcCompileFlags.Flag"/> to pass to the compiler</param>
+        /// <param name="entrypoint">The entrypoint to the shader, if it is not a <see cref="ShaderType.Library"/>,
+        /// or 'main' by default</param>
+        /// <param name="encoding">The <see cref="OutputEncoding"/> for any textual output</param>
+        /// <returns>A new <see cref="CompiledShader"/></returns>
+        public static CompiledShader CompileShader(
+            string filename,
+            ShaderType type,
+            DxcCompileFlags.Flag[] flags = null!,
+            ReadOnlySpan<char> entrypoint = default,
+            OutputEncoding encoding = OutputEncoding.Utf16
+        )
+            => CompileShader(filename, DxcCompileTarget.LatestVersion(type), flags, entrypoint, encoding);
+
+        /// <summary>
+        /// Compiles a new <see cref="CompiledShader"/> from a name and a <see cref="Stream"/>
+        /// </summary>
+        /// <param name="name">The name of the shader, for metadata</param>
+        /// <param name="stream">The <see cref="StreamReader"/> containing the shader text</param>
+        /// <param name="type">The <see cref="ShaderType"/> of the shader</param>
+        /// <param name="flags">An array of <see cref="DxcCompileFlags.Flag"/> to pass to the compiler</param>
+        /// <param name="entrypoint">The entrypoint to the shader, if it is not a <see cref="ShaderType.Library"/>,
+        /// or 'main' by default</param>
+        /// <param name="encoding">The <see cref="OutputEncoding"/> for any textual output</param>
+        /// <param name="shaderDir">Optionally, the directory to use when including shaders</param>
+        /// <returns>A new <see cref="CompiledShader"/></returns>
+        public static CompiledShader CompileShader(
+            ReadOnlySpan<char> name,
+            StreamReader stream,
+            ShaderType type,
+            DxcCompileFlags.Flag[] flags = null!,
+            ReadOnlySpan<char> entrypoint = default,
+            OutputEncoding encoding = OutputEncoding.Utf16,
+            string shaderDir = ""
+        )
+            => CompileShader(name, stream, DxcCompileTarget.LatestVersion(type), flags, entrypoint, encoding, shaderDir);
 
         /// <summary>
         /// Compiles a new <see cref="CompiledShader"/> from a name and a <see cref="Stream"/>
@@ -145,6 +184,29 @@ namespace Voltium.Core.Managers
 
             return CompileShader(name, buff, target, flags, entrypoint, encoding, shaderDir);
         }
+
+        /// <summary>
+        /// Compiles a new <see cref="CompiledShader"/> from a name and a <see cref="Stream"/>
+        /// </summary>
+        /// <param name="name">The name of the shader, for metadata</param>
+        /// <param name="shaderText">The <see cref="ReadOnlySpan{T}"/> containing the shader text</param>
+        /// <param name="type">The <see cref="ShaderType"/> of the shader</param>
+        /// <param name="flags">An array of <see cref="DxcCompileFlags.Flag"/> to pass to the compiler</param>
+        /// <param name="entrypoint">The entrypoint to the shader, if it is not a <see cref="ShaderType.Library"/>,
+        /// or 'main' by default</param>
+        /// <param name="encoding">The <see cref="OutputEncoding"/> for any textual output</param>
+        /// <param name="shaderDir">Optionally, the directory to use when including shaders</param>
+        /// <returns>A new <see cref="CompiledShader"/></returns>
+        public unsafe static CompiledShader CompileShader(
+            ReadOnlySpan<char> name,
+            ReadOnlySpan<char> shaderText,
+            ShaderType type,
+            DxcCompileFlags.Flag[] flags = null!,
+            ReadOnlySpan<char> entrypoint = default,
+            OutputEncoding encoding = OutputEncoding.Utf16,
+            string shaderDir = ""
+        )
+            => CompileShader(name, shaderText, type, flags, entrypoint, encoding, shaderDir);
 
         /// <summary>
         /// Compiles a new <see cref="CompiledShader"/> from a name and a <see cref="Stream"/>
@@ -192,7 +254,7 @@ namespace Voltium.Core.Managers
             var encodingLength = (encoding == OutputEncoding.Utf16 ? 5 + 1 : 4 + 1) + 9 + 1;
             var targetLength = 14 + 1;
             var entryPointLength = entrypoint.IsEmpty ? 0 : entrypoint.Length + 3 + 1;
-            int prefixLength =  (encodingLength + targetLength + entryPointLength) * sizeof(char);
+            int prefixLength = (encodingLength + targetLength + entryPointLength) * sizeof(char);
 
             // space for all the flag strings (and their null chars) + the actual pointers to these strings
             int flagPointerLength = 0;
@@ -345,7 +407,7 @@ namespace Voltium.Core.Managers
                     (ushort**)ppFlags,
                     (uint)(flagPointerLength / sizeof(nuint)),
                     pInclude,
-                    compileResult.Guid,
+                    compileResult.Iid,
                     ComPtr.GetVoidAddressOf(&compileResult)
                 ));
 
@@ -397,7 +459,7 @@ namespace Voltium.Core.Managers
         private static unsafe ReadOnlySpan<char> AsString(IDxcBlobUtf16* utf16)
             => utf16 == null ? null : new ReadOnlySpan<char>(utf16->GetStringPointer(), (int)utf16->GetStringLength());
         private static unsafe ReadOnlySpan<char> AsString(IDxcBlobUtf8* utf8)
-            => Encoding.UTF8.GetString(new ReadOnlySpan<byte>(utf8->GetStringPointer(), (int) utf8->GetStringLength()));
+            => Encoding.UTF8.GetString(new ReadOnlySpan<byte>(utf8->GetStringPointer(), (int)utf8->GetStringLength()));
 
         private static unsafe ReadOnlySpan<char> AsString(IDxcBlob* pBlob)
         {
@@ -444,7 +506,7 @@ namespace Voltium.Core.Managers
                 {
                     Guard.ThrowIfFailed(result->GetOutput(
                         kind,
-                        pData->Guid,
+                        pData->Iid,
                         ComPtr.GetVoidAddressOf(pData),
                         ComPtr.GetAddressOf(pName)
                     ));

@@ -1,9 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
 namespace Voltium.Core
 {
     /// <summary>
@@ -21,18 +15,15 @@ namespace Voltium.Core
         /// </summary>
         R8G8B8A8UnsignedNormalizedSRGB = DataFormat.R8G8B8A8UnsignedNormalizedSRGB,
 
-
         /// <summary>
         /// A four-component, 32-bit unsigned-normalized-integer format that supports 8 bits for each color channel and 8-bit alpha
         /// </summary>
         B8G8R8A8UnsignedNormalized = DataFormat.B8G8R8A8UnsignedNormalized,
 
-
         /// <summary>
         /// A four-component, 32-bit unsigned-normalized standard RGB format that supports 8 bits for each channel including alpha
         /// </summary>
         B8G8R8A8UnsignedNormalizedSRGB = DataFormat.B8G8R8A8UnsignedNormalizedSRGB,
-
 
         /// <summary>
         /// A four-component, 64-bit floating-point format that supports 16 bits per channel including alpha

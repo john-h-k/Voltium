@@ -4,7 +4,6 @@ using System.Drawing;
 using System.Runtime.CompilerServices;
 using TerraFX.Interop;
 using Voltium.Common;
-using Voltium.Common.Debugging;
 using Voltium.Core.GpuResources;
 using Voltium.Core.Memory.GpuResources;
 using Voltium.Core.Pipeline;
@@ -25,6 +24,8 @@ namespace Voltium.Core
         {
             _context = context;
         }
+
+        internal ID3D12GraphicsCommandList* GetListPointer() => _context.List;
 
         private static bool AreCopyable(GpuResource source, GpuResource destination)
         {
@@ -51,6 +52,7 @@ namespace Voltium.Core
 
         private void Discard(GpuResource resource)
         {
+            _context.FlushBarriers();
             _context.List->DiscardResource(resource.UnderlyingResource, null);
         }
 
@@ -85,7 +87,7 @@ namespace Voltium.Core
         /// Sets the blend factor for the pipeline <see cref="BlendDesc"/>
         /// </summary>
         /// <param name="value">The value of the blend factor</param>
-        public void SetBlendFactor(RgbaColor value)
+        public void SetBlendFactor(Rgba128 value)
         {
             _context.List->OMSetBlendFactor(&value.R);
         }
@@ -249,7 +251,7 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="renderTargets">A span of <see cref="DescriptorHandle"/>s representing each render target</param>
         /// <param name="depthStencilHandle">The handle to the depth stencil descriptor</param>
-        public void SetRenderTargets(Span<DescriptorHandle> renderTargets, DescriptorHandle? depthStencilHandle = null)
+        public void SetRenderTargets(ReadOnlySpan<DescriptorHandle> renderTargets, DescriptorHandle? depthStencilHandle = null)
         {
             StackSentinel.StackAssert(StackSentinel.SafeToStackalloc<D3D12_CPU_DESCRIPTOR_HANDLE>(renderTargets.Length));
 
@@ -269,6 +271,81 @@ namespace Voltium.Core
                 depthStencilHandle is null ? null : &depthStencil.CpuHandle
             );
         }
+
+
+        /// <summary>
+        /// Sets a single render target
+        /// </summary>
+        /// <param name="renderTargetHandle">The handle to the render target descriptor</param>
+        /// <param name="clearValue">The <see cref="Rgba128"/> colors to clear the render targets to</param>
+        /// <param name="depthStencilHandle">The handle to the depth stencil descriptor</param>
+        /// <param name="depthClear">The <see cref="float"/> values to clear the depth buffer to</param>
+        /// <param name="stencilClear">The <see cref="byte"/> values to clear the stencil to</param> 
+        public void SetAndClearRenderTarget(in DescriptorHandle renderTargetHandle, Rgba128 clearValue = default, in DescriptorHandle? depthStencilHandle = null, float depthClear = 1, byte stencilClear = 0)
+        {
+            SetRenderTarget(renderTargetHandle, depthStencilHandle);
+            ClearRenderTarget(renderTargetHandle, clearValue);
+
+            if (depthStencilHandle is DescriptorHandle dsv)
+            {
+                ClearDepthStencil(dsv, depthClear, stencilClear);
+            }
+        }
+
+        /// <summary>
+        /// Sets a range of continuous render targets
+        /// </summary>
+        /// <param name="renderTargetHandle">The handle to the start of the continuous array of render targets</param>
+        /// <param name="renderTargetCount">The number of render targets pointed to be <paramref name="renderTargetHandle"/></param>
+        /// <param name="clearValue">The <see cref="Rgba128"/> colors to clear the render targets to</param>
+        /// <param name="depthStencilHandle">The handle to the depth stencil descriptor</param>
+        /// <param name="depthClear">The <see cref="float"/> values to clear the depth buffer to</param>
+        /// <param name="stencilClear">The <see cref="byte"/> values to clear the stencil to</param> 
+        public void SetAndClearRenderTargets(in DescriptorHandle renderTargetHandle, uint renderTargetCount, Rgba128 clearValue = default, in DescriptorHandle? depthStencilHandle = null, float depthClear = 1, byte stencilClear = 0)
+        {
+            SetRenderTargets(renderTargetHandle, renderTargetCount, depthStencilHandle);
+
+            for (var i = 0; i < renderTargetCount; i++)
+            {
+                ClearRenderTarget(renderTargetHandle + i, clearValue);
+            }
+
+            if (depthStencilHandle is DescriptorHandle dsv)
+            {
+                ClearDepthStencil(dsv, depthClear, stencilClear);
+            }
+        }
+
+        /// <summary>
+        /// Sets a range of non-continuous render targets
+        /// </summary>
+        /// <param name="renderTargetHandles">A span of <see cref="DescriptorHandle"/>s representing each render target</param>
+        /// <param name="clearValue">The <see cref="Rgba128"/> colors to clear the render targets to</param>
+        /// <param name="depthStencilHandle">The handle to the depth stencil descriptor</param>
+        /// <param name="depthClear">The <see cref="float"/> values to clear the depth buffer to</param>
+        /// <param name="stencilClear">The <see cref="byte"/> values to clear the stencil to</param> 
+        public void SetAndClearRenderTargets(ReadOnlySpan<DescriptorHandle> renderTargetHandles, Rgba128 clearValue = default, in DescriptorHandle? depthStencilHandle = null, float depthClear = 1, byte stencilClear = 0)
+        {
+            SetRenderTargets(renderTargetHandles, depthStencilHandle);
+
+            for (var i = 0; i < renderTargetHandles.Length; i++)
+            {
+                ClearRenderTarget(renderTargetHandles[i], clearValue);
+            }
+
+            if (depthStencilHandle is DescriptorHandle dsv)
+            {
+                ClearDepthStencil(dsv, depthClear, stencilClear);
+            }
+        }
+
+        /// <summary>
+        /// Sets a single render target
+        /// </summary>
+        /// <param name="renderTargetHandle">The handle to the render target descriptor</param>
+        /// <param name="depthStencilHandle">The handle to the depth stencil descriptor</param>
+        public void SetRenderTarget(in DescriptorHandle? renderTargetHandle = null, in DescriptorHandle? depthStencilHandle = null)
+            => SetRenderTargets(renderTargetHandle, 1, depthStencilHandle);
 
         /// <summary>
         /// Sets a range of continuous render targets
@@ -316,7 +393,7 @@ namespace Voltium.Core
         /// <param name="rtv">The render target to clear</param>
         /// <param name="color">The RGBA color to clear it to</param>
         /// <param name="rect">The rectangle representing the section to clear</param>
-        public void ClearRenderTarget(DescriptorHandle rtv, RgbaColor color, Rectangle rect)
+        public void ClearRenderTarget(DescriptorHandle rtv, Rgba128 color, Rectangle rect)
         {
             _context.List->ClearRenderTargetView(rtv.CpuHandle, &color.R, 1, (RECT*)&rect);
         }
@@ -334,7 +411,7 @@ namespace Voltium.Core
         public void ClearRenderTargetAndDepthStencil(
             DescriptorHandle rtv,
             DescriptorHandle dsv,
-            RgbaColor color = default,
+            Rgba128 color = default,
             float depth = 1,
             byte stencil = 0,
             ReadOnlySpan<Rectangle> renderTargetRects = default,
@@ -364,7 +441,7 @@ namespace Voltium.Core
         /// <param name="rtv">The render target to clear</param>
         /// <param name="color">The RGBA color to clear it to</param>
         /// <param name="rect">The rectangles representing the sections to clear. By default, this will clear the entire resource</param>
-        public void ClearRenderTarget(DescriptorHandle rtv, RgbaColor color, ReadOnlySpan<Rectangle> rect = default)
+        public void ClearRenderTarget(DescriptorHandle rtv, Rgba128 color, ReadOnlySpan<Rectangle> rect = default)
         {
             fixed (Rectangle* p = rect)
             {
@@ -659,11 +736,21 @@ namespace Voltium.Core
         public void ReadbackSubresource(GpuAllocator allocator, Texture source, uint subresourceIndex, out Buffer data)
             => this.AsCopyContext().ReadbackSubresource(allocator, source, subresourceIndex, out data);
 
-            /// <summary>
-            /// Copy an entire resource
-            /// </summary>
-            /// <param name="source">The resource to copy from</param>
-            /// <param name="dest">The resource to copy to</param>
+        /// <summary>
+        /// Copy a subresource
+        /// </summary>
+        /// <param name="allocator"></param>
+        /// <param name="source">The resource to copy from</param>
+        /// <param name="subresourceIndex">The index of the subresource to copy from</param>
+        /// <param name="data"></param>
+        public void ReadbackSubresource(GpuAllocator allocator, Texture source, uint subresourceIndex, Buffer data)
+            => this.AsCopyContext().ReadbackSubresource(allocator, source, subresourceIndex, data);
+
+        /// <summary>
+        /// Copy an entire resource
+        /// </summary>
+        /// <param name="source">The resource to copy from</param>
+        /// <param name="dest">The resource to copy to</param>
         public void CopyResource(Buffer source, Buffer dest)
             => this.AsCopyContext().CopyResource(source, dest);
 
@@ -700,9 +787,42 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="allocator"></param>
         /// <param name="buffer"></param>
+        /// <param name="state"></param>
         /// <param name="destination"></param>
-        public void UploadBuffer<T>(GpuAllocator allocator, T[] buffer, Buffer destination) where T : unmanaged
-            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, destination);
+        public void UploadBuffer<T>(GpuAllocator allocator, T[] buffer, ResourceState state, Buffer destination) where T : unmanaged
+            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, state, destination);
+
+
+        /// <summary>
+        /// Uploads a buffer from the CPU to the GPU
+        /// </summary>
+        /// <param name="allocator"></param>
+        /// <param name="state"></param>
+        /// <param name="buffer"></param>
+        /// <param name="destination"></param>
+        public void UploadBuffer<T>(GpuAllocator allocator, Span<T> buffer, ResourceState state, Buffer destination) where T : unmanaged
+            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, state, destination);
+
+
+        /// <summary>
+        /// Uploads a buffer from the CPU to the GPU
+        /// </summary>
+        /// <param name="allocator"></param>
+        /// <param name="state"></param>
+        /// <param name="buffer"></param>
+        /// <param name="destination"></param>
+        public void UploadBuffer<T>(GpuAllocator allocator, ReadOnlySpan<T> buffer, ResourceState state, Buffer destination) where T : unmanaged
+            => this.AsCopyContext().UploadBuffer<T>(allocator, buffer, state, destination);
+
+        /// <summary>
+        /// Uploads a buffer from the CPU to the GPU
+        /// </summary>
+        /// <param name="allocator"></param>
+        /// <param name="state"></param>
+        /// <param name="buffer"></param>
+        /// <param name="destination"></param>
+        public void UploadBuffer<T>(GpuAllocator allocator, T[] buffer, ResourceState state, out Buffer destination) where T : unmanaged
+            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, state, out destination);
 
 
         /// <summary>
@@ -710,48 +830,21 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="allocator"></param>
         /// <param name="buffer"></param>
+        /// <param name="state"></param>
         /// <param name="destination"></param>
-        public void UploadBuffer<T>(GpuAllocator allocator, Span<T> buffer, Buffer destination) where T : unmanaged
-            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, destination);
+        public void UploadBuffer<T>(GpuAllocator allocator, Span<T> buffer, ResourceState state, out Buffer destination) where T : unmanaged
+            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, state, out destination);
 
 
         /// <summary>
         /// Uploads a buffer from the CPU to the GPU
         /// </summary>
         /// <param name="allocator"></param>
+        /// <param name="state"></param>
         /// <param name="buffer"></param>
         /// <param name="destination"></param>
-        public void UploadBuffer<T>(GpuAllocator allocator, ReadOnlySpan<T> buffer, Buffer destination) where T : unmanaged
-            => this.AsCopyContext().UploadBuffer<T>(allocator, buffer, destination);
-
-        /// <summary>
-        /// Uploads a buffer from the CPU to the GPU
-        /// </summary>
-        /// <param name="allocator"></param>
-        /// <param name="buffer"></param>
-        /// <param name="destination"></param>
-        public void UploadBuffer<T>(GpuAllocator allocator, T[] buffer, out Buffer destination) where T : unmanaged
-            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, out destination);
-
-
-        /// <summary>
-        /// Uploads a buffer from the CPU to the GPU
-        /// </summary>
-        /// <param name="allocator"></param>
-        /// <param name="buffer"></param>
-        /// <param name="destination"></param>
-        public void UploadBuffer<T>(GpuAllocator allocator, Span<T> buffer, out Buffer destination) where T : unmanaged
-            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, out destination);
-
-
-        /// <summary>
-        /// Uploads a buffer from the CPU to the GPU
-        /// </summary>
-        /// <param name="allocator"></param>
-        /// <param name="buffer"></param>
-        /// <param name="destination"></param>
-        public void UploadBuffer<T>(GpuAllocator allocator, ReadOnlySpan<T> buffer, out Buffer destination) where T : unmanaged
-            => this.AsCopyContext().UploadBuffer<T>(allocator, buffer, out destination);
+        public void UploadBuffer<T>(GpuAllocator allocator, ReadOnlySpan<T> buffer, ResourceState state, out Buffer destination) where T : unmanaged
+            => this.AsCopyContext().UploadBuffer<T>(allocator, buffer, state, out destination);
 
         /// <summary>
         /// Uploads a buffer from the CPU to the GPU
@@ -759,20 +852,22 @@ namespace Voltium.Core
         /// <param name="allocator"></param>
         /// <param name="texture"></param>
         /// <param name="subresources"></param>
+        /// <param name="state"></param>
         /// <param name="tex"></param>
         /// <param name="destination"></param>
-        public void UploadTexture(GpuAllocator allocator, ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, TextureDesc tex, out Texture destination)
-            => this.AsCopyContext().UploadTexture(allocator, texture, subresources, tex, out destination);
+        public void UploadTexture(GpuAllocator allocator, ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, TextureDesc tex, ResourceState state, out Texture destination)
+            => this.AsCopyContext().UploadTexture(allocator, texture, subresources, tex, state, out destination);
 
         /// <summary>
         /// Uploads a buffer from the CPU to the GPU
         /// </summary>
         /// <param name="allocator"></param>
         /// <param name="texture"></param>
+        /// <param name="state"></param>
         /// <param name="subresources"></param>
         /// <param name="destination"></param>
-        public void UploadTexture(GpuAllocator allocator, ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, Texture destination)
-            => this.AsCopyContext().UploadTexture(allocator, texture, subresources, destination);
+        public void UploadTexture(GpuAllocator allocator, ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, ResourceState state, Texture destination)
+            => this.AsCopyContext().UploadTexture(allocator, texture, subresources, state, destination);
 
         /// <summary>
         /// Mark a resource barrier on the command list
@@ -845,6 +940,27 @@ namespace Voltium.Core
     /// </summary>
     public static class ContextExtensions
     {
+        /// <summary>
+        /// Returns 
+        /// </summary>
+        /// <param name="context"></param>
+        /// <returns></returns>
+        public static ref CopyContext AsMutable(this in CopyContext context) => ref Unsafe.AsRef(in context);
+
+        /// <summary>
+        /// Returns 
+        /// </summary>
+        /// <param name="context"></param>
+        /// <returns></returns>
+        public static ref ComputeContext AsMutable(this in ComputeContext context) => ref Unsafe.AsRef(in context);
+
+        /// <summary>
+        /// Returns 
+        /// </summary>
+        /// <param name="context"></param>
+        /// <returns></returns>
+        public static ref GraphicsContext AsMutable(this in GraphicsContext context) => ref Unsafe.AsRef(in context);
+
         /// <summary>
         /// Returns the <see cref="CopyContext"/> for a given <see cref="GraphicsContext"/>
         /// </summary>

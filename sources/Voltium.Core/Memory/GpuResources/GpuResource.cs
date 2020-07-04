@@ -1,25 +1,19 @@
 using System;
-using System.Diagnostics;
 using System.Runtime.ConstrainedExecution;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Configuration.Graphics;
 using Voltium.Core.Devices;
-using Voltium.Core.Memory;
 
 namespace Voltium.Core.GpuResources
 {
     /// <summary>
     /// Represents a GPU resource
     /// </summary>
-    internal unsafe class GpuResource : CriticalFinalizerObject, IDisposable, INameable
+    internal unsafe class GpuResource : CriticalFinalizerObject, IDisposable, IInternalD3D12Object
     {
-        public string Name
-        {
-            set => DirectXHelpers.SetObjectName(this, value);
-        }
-
-        ID3D12Object* INameable.GetNameable() => (ID3D12Object*)UnderlyingResource;
+        ID3D12Object* IInternalD3D12Object.GetPointer() => (ID3D12Object*)UnderlyingResource;
+        internal ID3D12Object* GetPointer() => ((IInternalD3D12Object)this).GetPointer();
 
         internal GpuResource(
             ComputeDevice device,
@@ -141,6 +135,7 @@ namespace Voltium.Core.GpuResources
             }
             GC.SuppressFinalize(this);
         }
+
 
 #if TRACE_DISPOSABLES || !DEBUG
         /// <summary>

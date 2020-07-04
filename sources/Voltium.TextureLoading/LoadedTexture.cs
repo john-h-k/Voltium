@@ -1,11 +1,6 @@
 using System;
-using System.Text;
-using System.Threading;
-using TerraFX.Interop;
 using Voltium.Common;
-using Voltium.Core;
 using Voltium.Core.GpuResources;
-using Voltium.TextureLoading.DDS;
 
 namespace Voltium.TextureLoading
 {

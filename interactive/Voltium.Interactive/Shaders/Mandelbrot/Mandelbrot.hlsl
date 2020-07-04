@@ -70,7 +70,7 @@ float4 main(
         z = xy;
     }
 
-    i %= Constants.ColorCount;
-    return Colors[i == iter ? 0 : i];
+    i = i == iter ? 0 : i % Constants.ColorCount;
+    return Colors[i];
 }
 

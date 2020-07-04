@@ -1,13 +1,14 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.GpuResources;
+using Voltium.Core.Infrastructure;
+using Voltium.Core.Managers;
 using Voltium.Core.Memory.GpuResources;
 using Voltium.Core.Pipeline;
 using static TerraFX.Interop.Windows;
@@ -42,8 +43,13 @@ namespace Voltium.Core.Devices
         /// The default allocator for the device
         /// </summary>
         public GpuAllocator Allocator { get; private protected set; } = null!;
+        internal ILogger Logger { get; } = NullLogger.Instance;
 
         private protected ComPtr<ID3D12Device> _device;
+        private protected SupportedDevice _supportedDevice;
+        private protected enum SupportedDevice { Device, Device1, Device2, Device3, Device4, Device5, Device6, Device7, Device8 }
+
+        private protected static HashSet<ulong?> _preexistingDevices = new(1);
 
         /// <summary>
         /// Gets the <see cref="ID3D12Device"/> used by this application
@@ -54,6 +60,64 @@ namespace Voltium.Core.Devices
         /// The number of physical adapters, referred to as nodes, that the device uses
         /// </summary>
         public uint NodeCount => DevicePointer->GetNodeCount();
+
+        private protected void CreateNewDevice(
+            Adapter? adapter,
+            FeatureLevel level
+        )
+        {
+            // null adapter has 2 LUIDs in the hashset, one is 'null', the other is the real adapter LUID
+            // this handles the case where the default adapter is used and *then* the default adapter is used explicitly
+            var adapterLuid = adapter?.AdapterLuid;
+            if (_preexistingDevices.Contains(adapterLuid))
+            {
+                ThrowHelper.ThrowArgumentException("Device already exists for adapter");
+            }
+
+            {
+                using ComPtr<ID3D12Device> p = default;
+
+                var underlying = adapter.GetValueOrDefault();
+
+                bool success = SUCCEEDED(D3D12CreateDevice(
+                    // null device triggers D3D12 to select a default device
+                    adapter is Adapter ? underlying.UnderlyingAdapter : null,
+                    (D3D_FEATURE_LEVEL)level,
+                    p.Iid,
+                    ComPtr.GetVoidAddressOf(&p)
+                ));
+                _device = p.Move();
+            }
+
+            DebugHelpers.SetName(_device.Get(), "Primary Device");
+
+            _supportedDevice = _device switch
+            {
+                _ when _device.HasInterface<ID3D12Device8>() => SupportedDevice.Device8,
+                _ when _device.HasInterface<ID3D12Device7>() => SupportedDevice.Device7,
+                _ when _device.HasInterface<ID3D12Device6>() => SupportedDevice.Device6,
+                _ when _device.HasInterface<ID3D12Device5>() => SupportedDevice.Device5,
+                _ when _device.HasInterface<ID3D12Device4>() => SupportedDevice.Device4,
+                _ when _device.HasInterface<ID3D12Device3>() => SupportedDevice.Device3,
+                _ when _device.HasInterface<ID3D12Device2>() => SupportedDevice.Device2,
+                _ when _device.HasInterface<ID3D12Device1>() => SupportedDevice.Device1,
+                _ => SupportedDevice.Device
+            };
+
+            LUID luid = DevicePointer->GetAdapterLuid();
+            _preexistingDevices.Add(Unsafe.As<LUID, ulong>(ref luid));
+            if (adapter is null)
+            {
+                _preexistingDevices.Add(null);
+            }
+        }
+
+        internal bool TryQueryInterface<T>(out ComPtr<T> result) where T : unmanaged
+        {
+            var success = ComPtr.TryQueryInterface(DevicePointer, out T* val);
+            result = new ComPtr<T>(val);
+            return success;
+        }
 
         /// <summary>
         /// 
@@ -78,7 +142,7 @@ namespace Voltium.Core.Devices
             ComPtr<ID3D12Heap> heap = default;
             Guard.ThrowIfFailed(DevicePointer->CreateHeap(
                 &desc,
-                heap.Guid,
+                heap.Iid,
                 ComPtr.GetVoidAddressOf(&heap)
             ));
 
@@ -212,7 +276,7 @@ namespace Voltium.Core.Devices
                  &desc.Desc,
                  desc.InitialState,
                  desc.ClearValue is null ? null : &clearVal,
-                 resource.Guid,
+                 resource.Iid,
                  ComPtr.GetVoidAddressOf(&resource)
              ));
 
@@ -232,11 +296,11 @@ namespace Voltium.Core.Devices
                  &desc.Desc,
                  desc.InitialState,
                  desc.ClearValue is null ? null : &clearVal,
-                 resource.Guid,
+                 resource.Iid,
                  ComPtr.GetVoidAddressOf(&resource)
             ));
 
-            return resource;
+            return resource.Move();
 
             static D3D12_HEAP_PROPERTIES GetHeapProperties(InternalAllocDesc desc)
             {

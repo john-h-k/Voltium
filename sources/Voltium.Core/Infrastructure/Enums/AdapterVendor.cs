@@ -19,5 +19,10 @@ namespace Voltium.Core.Infrastructure
         /// Intel
         /// </summary>
         Intel = 0x8086,
+
+        /// <summary>
+        /// Microsoft
+        /// </summary>
+        Microsoft = 0x1414
     }
 }

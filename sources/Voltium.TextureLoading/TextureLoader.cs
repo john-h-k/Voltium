@@ -2,12 +2,10 @@ using System;
 using System.Buffers.Binary;
 using System.Diagnostics;
 using System.IO;
-using System.Runtime.InteropServices;
 using TerraFX.Interop;
 using Voltium.Common;
-using Voltium.TextureLoading.DDS;
-using Voltium.TextureLoading.TGA;
 using Voltium.Core.GpuResources;
+using Voltium.TextureLoading.DDS;
 using static TerraFX.Interop.D3D12_RESOURCE_DIMENSION;
 
 namespace Voltium.TextureLoading

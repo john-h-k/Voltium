@@ -1,11 +1,5 @@
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.GpuResources;
@@ -16,10 +10,13 @@ namespace Voltium.Core.Memory.GpuResources
     /// <summary>
     /// Represents a single-dimension untyped buffer of GPU data
     /// </summary>
-    public unsafe struct Buffer : IDisposable
+    public unsafe struct Buffer : IInternalD3D12Object, IDisposable
     {
+        ID3D12Object* IInternalD3D12Object.GetPointer() => _resource.GetPointer();
+
         private GpuResource _resource;
         private void* _cpuAddress;
+
         /// <summary>
         /// The size, in bytes, of the buffer
         /// </summary>
@@ -108,14 +105,6 @@ namespace Voltium.Core.Memory.GpuResources
             data.CopyTo(new Span<T>(_cpuAddress, (int)Length));
         }
 
-        /// <summary>
-        /// The debug name of the buffer
-        /// </summary>
-        public string Name
-        {
-            set => DirectXHelpers.SetObjectName(_resource, value);
-        }
-
         /// <inheritdoc/>
         public void Dispose() => _resource?.Dispose();
 
@@ -125,41 +114,42 @@ namespace Voltium.Core.Memory.GpuResources
         internal GpuResource Resource => _resource;
 
         internal ID3D12Resource* GetResourcePointer() => _resource.UnderlyingResource;
+
     }
 
     //public static unsafe class BufferExtensions
     //{
-        //public static void CopyTo<T>(this Span<T> src, Buffer<T> dest) where T : unmanaged
-        //    => CopyTo((ReadOnlySpan<T>)src, dest);
+    //public static void CopyTo<T>(this Span<T> src, Buffer<T> dest) where T : unmanaged
+    //    => CopyTo((ReadOnlySpan<T>)src, dest);
 
-        //public static void CopyTo<T>(this ReadOnlySpan<T> src, Buffer<T> dest) where T : unmanaged
-        //{
-        //    if (dest.Kind != BufferKind.Constant && dest.GetElementSize() == sizeof(T))
-        //    {
-        //        src.CopyTo(MemoryMarshal.Cast<byte, T>(dest.GetUnderlyingDataSpan()));
-        //    }
-        //    else
-        //    {
-        //        for (var i = 0; i < src.Length; i++)
-        //        {
-        //            dest[(uint)i] = src[i];
-        //        }
-        //    }
-        //}
+    //public static void CopyTo<T>(this ReadOnlySpan<T> src, Buffer<T> dest) where T : unmanaged
+    //{
+    //    if (dest.Kind != BufferKind.Constant && dest.GetElementSize() == sizeof(T))
+    //    {
+    //        src.CopyTo(MemoryMarshal.Cast<byte, T>(dest.GetUnderlyingDataSpan()));
+    //    }
+    //    else
+    //    {
+    //        for (var i = 0; i < src.Length; i++)
+    //        {
+    //            dest[(uint)i] = src[i];
+    //        }
+    //    }
+    //}
 
-        //public static void CopyTo<T>(this Buffer<T> src, Span<T> dest) where T : unmanaged
-        //{
-        //    if (src.Kind != BufferKind.Constant && src.GetElementSize() == sizeof(T))
-        //    {
-        //        src.GetUnderlyingDataSpan().CopyTo(MemoryMarshal.Cast<T, byte>(dest));
-        //    }
-        //    else
-        //    {
-        //        for (var i = 0; i < src.Count; i++)
-        //        {
-        //            src[(uint)i] = dest[i];
-        //        }
-        //    }
-        //}
+    //public static void CopyTo<T>(this Buffer<T> src, Span<T> dest) where T : unmanaged
+    //{
+    //    if (src.Kind != BufferKind.Constant && src.GetElementSize() == sizeof(T))
+    //    {
+    //        src.GetUnderlyingDataSpan().CopyTo(MemoryMarshal.Cast<T, byte>(dest));
+    //    }
+    //    else
+    //    {
+    //        for (var i = 0; i < src.Count; i++)
+    //        {
+    //            src[(uint)i] = dest[i];
+    //        }
+    //    }
+    //}
     //}
 }

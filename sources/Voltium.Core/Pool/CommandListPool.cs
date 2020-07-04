@@ -1,12 +1,8 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Managers;
+using ZLogger;
 
 namespace Voltium.Core.Pool
 {
@@ -59,13 +55,13 @@ namespace Voltium.Core.Pool
                 state.Type,
                 state.Allocator,
                 state.Pso,
-                list.Guid,
+                list.Iid,
                 ComPtr.GetVoidAddressOf(&list)
             ));
 
-            Logger.LogDebug($"New command list allocated (this is the #{_listCount++} list)");
+            LogHelper.Logger.ZLogDebug($"New command list allocated (this is the #{_listCount++} list)");
 
-            DirectXHelpers.SetObjectName(list.Get(), $"Pooled list #{_listCount}");
+            DebugHelpers.SetName(list.Get(), $"Pooled list #{_listCount}");
 
             // 'ManageRent' expects closed list
             Guard.ThrowIfFailed(list.Get()->Close());

@@ -1,5 +1,3 @@
-using Voltium.Core.Configuration.Graphics;
-
 namespace Voltium.Core.Pipeline
 {
     /// <summary>

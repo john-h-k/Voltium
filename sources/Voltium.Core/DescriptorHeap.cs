@@ -1,10 +1,6 @@
-using System.Diagnostics;
-using System.Runtime.CompilerServices;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Devices;
-using Voltium.Core.GpuResources;
-using Voltium.Core.Managers;
 using Voltium.Core.Memory.GpuResources;
 using static TerraFX.Interop.D3D12_DESCRIPTOR_HEAP_FLAGS;
 using static TerraFX.Interop.D3D12_DESCRIPTOR_HEAP_TYPE;
@@ -187,7 +183,7 @@ namespace Voltium.Core
         private DescriptorHeap(ComputeDevice device, D3D12_DESCRIPTOR_HEAP_DESC desc)
         {
             ComPtr<ID3D12DescriptorHeap> heap = default;
-            Guard.ThrowIfFailed(device.DevicePointer->CreateDescriptorHeap(&desc, heap.Guid, (void**)&heap));
+            Guard.ThrowIfFailed(device.DevicePointer->CreateDescriptorHeap(&desc, heap.Iid, (void**)&heap));
 
             _heap = heap.Move();
             var cpu = _heap.Get()->GetCPUDescriptorHandleForHeapStart();
@@ -200,7 +196,7 @@ namespace Voltium.Core
             Type = (DescriptorHeapType)desc.Type;
             NumDescriptors = desc.NumDescriptors;
 
-            DirectXHelpers.SetObjectName(_heap.Get(), nameof(ID3D12DescriptorHeap) + " " + desc.Type.ToString());
+            DebugHelpers.SetName(_heap.Get(), nameof(ID3D12DescriptorHeap) + " " + desc.Type.ToString());
         }
 
         /// <summary>
@@ -241,7 +237,7 @@ namespace Voltium.Core
         /// Resets the heap for reuse
         /// </summary>
         public void ResetHeap() => _offset = 0;
-        
+
         /// <inheritdoc cref="IComType.Dispose"/>
         public void Dispose() => _heap.Dispose();
     }

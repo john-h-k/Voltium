@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Common.Strings;
@@ -93,14 +92,14 @@ namespace Voltium.Core.Managers
                 using ComPtr<ID3D12PipelineState> pso = default;
                 Guard.ThrowIfFailed(device.DevicePointer->CreateGraphicsPipelineState(
                     &desc,
-                    pso.Guid,
+                    pso.Iid,
                     ComPtr.GetVoidAddressOf(&pso)
                 ));
 
                 // Prevent GC disposing it while translation occurs etc
                 GC.KeepAlive(strBuff);
 
-                DirectXHelpers.SetObjectName(pso.Get(), $"Graphics pipeline state object '{name}'");
+                DebugHelpers.SetName(pso.Get(), $"Graphics pipeline state object '{name}'");
 
                 var pipeline = new GraphicsPso(pso.Move(), graphicsDesc);
                 _psos.Add(name, pipeline);
@@ -133,11 +132,11 @@ namespace Voltium.Core.Managers
                 using ComPtr<ID3D12PipelineState> pso = default;
                 Guard.ThrowIfFailed(device.DevicePointer->CreateComputePipelineState(
                     &desc,
-                    pso.Guid,
+                    pso.Iid,
                     ComPtr.GetVoidAddressOf(&pso)
                 ));
 
-                DirectXHelpers.SetObjectName(pso.Get(), $"Compute pipeline state object '{name}'");
+                DebugHelpers.SetName(pso.Get(), $"Compute pipeline state object '{name}'");
 
                 var pipeline = new ComputePso(pso.Move(), computeDesc);
                 _psos.Add(name, pipeline);

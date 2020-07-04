@@ -1,9 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Configuration.Graphics;
 using Voltium.Core.Managers;
@@ -16,29 +11,6 @@ namespace Voltium.Core.Pipeline
     /// </summary>
     public struct GraphicsPipelineDesc
     {
-        /// <summary>
-        /// Creates a new <see cref="GraphicsPipelineDesc"/>
-        /// </summary>
-        public GraphicsPipelineDesc(
-            in RootSignature sig,
-            DataFormat backBufferFormat,
-            DataFormat depthStencilFormat,
-            CompiledShader vertexShader,
-            CompiledShader pixelShader
-            ) : this()
-        {
-            RootSignature = sig;
-            Blend = BlendDesc.Default;
-            Rasterizer = RasterizerDesc.Default;
-            DepthStencil = DepthStencilDesc.Default;
-            DepthStencilFormat = depthStencilFormat;
-            Topology = TopologyClass.Triangle;
-            Msaa = new MsaaDesc(1, 0);
-            RenderTargetFormats = new(backBufferFormat);
-            VertexShader = vertexShader;
-            PixelShader = pixelShader;
-        }
-
         /// <summary>
         /// The root signature for the pipeline
         /// </summary>

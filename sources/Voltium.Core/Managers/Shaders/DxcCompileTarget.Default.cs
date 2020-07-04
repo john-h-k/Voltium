@@ -1,9 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
 namespace Voltium.Core.Managers.Shaders
 {
     // I think is it OK to not have XML docs for these. They are quite self explanatory
@@ -41,6 +35,8 @@ namespace Voltium.Core.Managers.Shaders
         public static DxcCompileTarget Lib_5_0 { get; } = new DxcCompileTarget(ShaderType.Library, 5, 0);
         public static DxcCompileTarget Lib_6_0 { get; } = new DxcCompileTarget(ShaderType.Library, 6, 0);
 
+        // Update as compile targets change
+        public static DxcCompileTarget LatestVersion(ShaderType type) => new DxcCompileTarget(type, 6, 4);
     }
 #pragma warning restore CS1591 // XML docs
 }

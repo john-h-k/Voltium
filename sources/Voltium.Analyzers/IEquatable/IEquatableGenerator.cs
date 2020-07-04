@@ -1,11 +1,8 @@
-using System;
 using System.Collections.Generic;
-using System.Text;
 using System.Linq;
+using System.Text;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
-using System.Diagnostics;
 
 namespace Voltium.Analyzers.IEquatable
 {
@@ -116,7 +113,7 @@ namespace Voltium.Analyzers.IEquatable
         public override int GetHashCode() => {0};";
 
         private const string EquatableTemplate = @"/// <inheritdoc />
-        public override bool Equals(object? obj) => obj is RgbaColor other && Equals(other);
+        public override bool Equals(object? obj) => obj is Rgba128 other && Equals(other);
 
         /// <summary>
         /// Compares if two <see cref=""{0}""/> objects are equal

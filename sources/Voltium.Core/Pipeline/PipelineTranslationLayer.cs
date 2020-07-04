@@ -1,13 +1,10 @@
 using System;
-using System.Buffers;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using TerraFX.Interop;
 using Voltium.Common;
-using Voltium.Common.Strings;
 using Voltium.Core.Configuration.Graphics;
 using Voltium.Core.Managers.Shaders;
 using Voltium.Core.Pipeline;
@@ -94,10 +91,10 @@ namespace Voltium.Core.Managers
                     }
                 }
             }
-            
+
             outDesc = new D3D12_GRAPHICS_PIPELINE_STATE_DESC
             {
-                pRootSignature = inDesc.RootSignature.Value,
+                pRootSignature = inDesc.RootSignature is null ? null : inDesc.RootSignature.Value,
                 DSVFormat = (DXGI_FORMAT)inDesc.DepthStencilFormat,
                 BlendState = blendDesc,
                 RasterizerState = rasterizerDesc,

@@ -1,13 +1,8 @@
 using System;
-using System.Collections.Generic;
 using System.Drawing;
-using System.Linq;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
 
 using TerraFX.Interop;
-using Voltium.Core.Managers;
 using static TerraFX.Interop.Windows;
 
 namespace Voltium.Core
@@ -159,7 +154,7 @@ namespace Voltium.Core
                 }
 
                 case WM_SIZE:
-                { 
+                {
                     var sz = (uint)lParam;
                     _screenData = new Size(LOWORD(sz), HIWORD(sz));
 

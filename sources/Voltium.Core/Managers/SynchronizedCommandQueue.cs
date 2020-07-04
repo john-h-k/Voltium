@@ -4,7 +4,7 @@ using System.Diagnostics;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.D3D12;
-using Voltium.Core.Pool;
+using Voltium.Core.Devices;
 
 namespace Voltium.Core.Managers
 {
@@ -46,7 +46,7 @@ namespace Voltium.Core.Managers
         public ID3D12CommandQueue* GetQueue() => _queue.Get();
 
         public SynchronizedCommandQueue(
-            GraphicsDevice device,
+            ComputeDevice device,
             ExecutionContext context
         )
         {
@@ -56,14 +56,14 @@ namespace Voltium.Core.Managers
 
             _queue = CreateQueue(device, context);
             _fence = CreateFence(device);
-            
-            DirectXHelpers.SetObjectName(_queue.Get(), GetListTypeName(context) + " Queue");
-            DirectXHelpers.SetObjectName(_fence.Get(), GetListTypeName(context) + " Fence");
 
-            _marker = new FenceMarker(device.BackBufferCount);
+            DebugHelpers.SetName(_queue.Get(), GetListTypeName(context) + " Queue");
+            DebugHelpers.SetName(_fence.Get(), GetListTypeName(context) + " Fence");
+
+            _marker = new FenceMarker(10);
             _executingAllocators = new();
             Guard.ThrowIfFailed(_queue.Get()->Signal(_fence.Get(), _marker.FenceValue));
-            _allocatorPool = new(ComPtr<ID3D12Device>.CopyFromPointer(device.DevicePointer), context);
+            _allocatorPool = new(device, context);
 
             ulong frequency;
             int hr = _queue.Get()->GetTimestampFrequency(&frequency);
@@ -75,7 +75,7 @@ namespace Voltium.Core.Managers
             return Windows.SUCCEEDED(_queue.Get()->GetClockCalibration(gpu, cpu));
         }
 
-        private static unsafe ComPtr<ID3D12CommandQueue> CreateQueue(GraphicsDevice device, ExecutionContext type)
+        private static unsafe ComPtr<ID3D12CommandQueue> CreateQueue(ComputeDevice device, ExecutionContext type)
         {
             var desc = new D3D12_COMMAND_QUEUE_DESC
             {
@@ -89,21 +89,21 @@ namespace Voltium.Core.Managers
 
             Guard.ThrowIfFailed(device.DevicePointer->CreateCommandQueue(
                 &desc,
-                p.Guid,
+                p.Iid,
                 ComPtr.GetVoidAddressOf(&p)
             ));
 
             return p.Move();
         }
 
-        private static unsafe ComPtr<ID3D12Fence> CreateFence(GraphicsDevice device)
+        private static unsafe ComPtr<ID3D12Fence> CreateFence(ComputeDevice device)
         {
             ComPtr<ID3D12Fence> fence = default;
 
             Guard.ThrowIfFailed(device.DevicePointer->CreateFence(
                 0,
                 0,
-                fence.Guid,
+                fence.Iid,
                 (void**)&fence
             ));
 

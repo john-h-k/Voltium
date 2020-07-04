@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Runtime.CompilerServices;
 
 namespace Voltium.Common
@@ -44,8 +44,9 @@ namespace Voltium.Common
         public const MethodImplOptions HighPerformance =
             MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization;
 
-        // We don't want 'throw' instructions polluting code except on slow path
-        public const MethodImplOptions ThrowHelperMethod = MethodImplOptions.NoInlining;
+        // Do NOT make noinlining. Allowing it to be inlined lets the JIT see it throws, and correctly not inline it
+        // and reorder the branch (if applicable)
+        public const MethodImplOptions ThrowHelperMethod = 0;
 
         // Validation should be hoisted out
         public const MethodImplOptions Validates = MethodImplOptions.AggressiveInlining;

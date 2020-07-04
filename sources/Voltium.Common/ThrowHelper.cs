@@ -6,12 +6,10 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Net;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Threading;
 using TerraFX.Interop;
-using Voltium.Common;
 using Voltium.Common.Tracing;
 
 
@@ -56,7 +54,7 @@ namespace Voltium.Common
             if (pError != null && pError->GetBufferPointer() != null)
             {
                 var message = new string((sbyte*)pError->GetBufferSize(), 0, checked((int)pError->GetBufferSize()));
-                Guard.ThrowIfFailed(hr, extraInfo: message);
+                Guard.ThrowIfFailed(hr);
             }
             else
             {

@@ -1,5 +1,3 @@
-using TerraFX.Interop;
-
 namespace Voltium.Core.GpuResources.OldStyle
 {
     ///// <summary>

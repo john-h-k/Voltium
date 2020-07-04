@@ -1,18 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using TerraFX.Interop;
-using Voltium.Common;
-using Voltium.Core.Memory.GpuResources;
-using Voltium.Core.Managers;
-using Voltium.Core.Pipeline;
-using Voltium.RenderEngine.Passes;
-using Voltium.RenderEngine.RenderGraph;
-using static TerraFX.Interop.D3D12_RESOURCE_STATES;
-using Voltium.Core.GpuResources;
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
 
 namespace Voltium.Core
@@ -179,7 +164,7 @@ namespace Voltium.Core
     //}
 
     //// The valid combinations of these flags is quite finicky so we expose them as bools
-    
+
 
     //public enum ResourceWriteFlags : uint
     //{
@@ -197,7 +182,7 @@ namespace Voltium.Core
     //    /// The resource is being written to as a depth buffer, e.g when <see cref="DepthStencilDesc.EnableDepthTesting"/> is <see langword="true"/>.
     //    /// </summary>
     //    DepthWrite = D3D12_RESOURCE_STATE_DEPTH_WRITE,
-        
+
     //    /// <summary>
     //    /// The resource is being used as a stream-out destination. This is a write-only state
     //    /// </summary>

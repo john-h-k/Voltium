@@ -1,7 +1,3 @@
-using System.Runtime.CompilerServices;
-using TerraFX.Interop;
-using Voltium.Common;
-using Voltium.Core.GpuResources;
 
 using static TerraFX.Interop.Windows;
 

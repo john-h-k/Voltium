@@ -177,7 +177,8 @@ namespace Voltium.TextureLoading.DDS
                     break;
             }
 
-            resDim = d3d10Ext.ResourceDimension switch {
+            resDim = d3d10Ext.ResourceDimension switch
+            {
                 D3D11_RESOURCE_DIMENSION.D3D11_RESOURCE_DIMENSION_TEXTURE1D
                 => D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_TEXTURE1D,
 

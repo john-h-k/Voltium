@@ -1,6 +1,4 @@
-﻿using System.Diagnostics.CodeAnalysis;
-
-namespace Voltium.TextureLoading
+﻿namespace Voltium.TextureLoading
 {
     /// <summary>
     /// The alpha mode of the DDS texture

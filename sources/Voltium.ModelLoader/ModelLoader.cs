@@ -1,26 +1,11 @@
-using System.IO;
+using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
-using System.Text;
-using System.Threading.Tasks;
-using ObjLoader;
-using ObjLoader.Loader.Loaders;
-using TerraFX.Interop;
-using UkooLabs.FbxSharpie;
-using SharpGLTF;
-using Voltium.Common;
-using Voltium.TextureLoading;
-using SharpGLTF.Schema2;
-using SharpGLTF.Geometry;
-using Voltium.Core.Managers.Shaders;
-using System.Runtime.InteropServices;
-using System.Collections.Generic;
-using Voltium.Core;
-using System;
-using SharpGLTF.Memory;
-using GlMaterial = SharpGLTF.Schema2.Material;
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using ObjLoader.Loader.Loaders;
+using SharpGLTF.Schema2;
+using Voltium.Core.Managers.Shaders;
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
 
 namespace Voltium.ModelLoading
@@ -130,7 +115,7 @@ namespace Voltium.ModelLoading
         public static Mesh<TexturedVertex>[] LoadGl(string filename)
         {
             var m = ModelRoot.Load(filename);
-            
+
             var texturedObjs = new List<Mesh<TexturedVertex>>(m.LogicalMeshes.Count);
 
             //Hemi.001
@@ -200,7 +185,7 @@ namespace Voltium.ModelLoading
                             vertices![i] = new TexturedVertex(positions![i], normals![i], Unsafe.As<Vector4, Vector3>(ref tangent), texCoords![i]);
                         }
 
-                        texturedObjs.Add(new (vertices, indices!, mat, world));
+                        texturedObjs.Add(new(vertices, indices!, mat, world));
                     }
                 }
             }

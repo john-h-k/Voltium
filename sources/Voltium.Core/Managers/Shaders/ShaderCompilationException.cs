@@ -1,9 +1,5 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Runtime.Serialization;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Voltium.Core.Managers.Shaders
 {
@@ -17,7 +13,7 @@ namespace Voltium.Core.Managers.Shaders
         {
         }
 
-        
+
         /// <inheritdoc/>
         internal ShaderCompilationException(ShaderCompilationData message) : base(message.ToString())
         {

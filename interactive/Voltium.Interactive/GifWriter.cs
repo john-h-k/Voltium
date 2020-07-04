@@ -2,7 +2,6 @@ using System;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
-using System.Threading.Tasks;
 
 /// <summary>
 /// Creates a GIF using .Net GIF encoding and additional animation headers.

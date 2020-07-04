@@ -2,10 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.IO;
-using System.Reflection;
 using System.Runtime.CompilerServices;
-using TerraFX.Interop;
+using ZLogger;
 using static TerraFX.Interop.Windows;
 
 namespace Voltium.Common
@@ -24,7 +22,7 @@ namespace Voltium.Common
             if (val is null)
             {
                 ThrowHelper.ThrowArgumentNullException(name,
-                    Format($"Object '{name}' null", name, member, line, filePath));
+                    FormatExtendedErrorInformation($"Object '{name}' null", name, member, line, filePath));
             }
         }
 
@@ -40,7 +38,7 @@ namespace Voltium.Common
             if (value < 0)
             {
                 ThrowHelper.ThrowArgumentOutOfRangeException(name,
-                    Format($"Object '{name}' was less than 0", name, member, line, filePath));
+                    FormatExtendedErrorInformation($"Object '{name}' was less than 0", name, member, line, filePath));
             }
         }
 
@@ -65,7 +63,7 @@ namespace Voltium.Common
             if (value < lo || value > hi)
             {
                 ThrowHelper.ThrowArgumentOutOfRangeException(name,
-                    Format($"Object '{name}' was out of inclusive range '{lo}' - '{hi}' as it had value '{value}'",
+                    FormatExtendedErrorInformation($"Object '{name}' was out of inclusive range '{lo}' - '{hi}' as it had value '{value}'",
                         name, member, line, filePath));
             }
         }
@@ -81,12 +79,12 @@ namespace Voltium.Common
             if (!initialized)
             {
                 ThrowHelper.ThrowInvalidOperationException(
-                    Format($"Object '{name}' was not initialized", name, member, line, filePath));
+                    FormatExtendedErrorInformation($"Object '{name}' was not initialized", name, member, line, filePath));
             }
         }
 
         [MethodImpl(MethodTypes.SlowPath)]
-        public static string Format(
+        public static string FormatExtendedErrorInformation(
             string? message,
             string? expression = null,
             string? member = null,
@@ -108,23 +106,31 @@ namespace Voltium.Common
         [DebuggerNonUserCode]
         [MethodImpl(MethodTypes.Validates)]
         public static void ThrowIfFailed(
-            int hr,
+            int hr
 #if DEBUG || EXTENDED_ERROR_INFORMATION
+            ,
             [CallerArgumentExpression("hr")] string? expression = null,
             [CallerFilePath] string? filepath = default,
             [CallerMemberName] string? memberName = default,
-            [CallerLineNumber] int lineNumber = default,
+            [CallerLineNumber] int lineNumber = default
 #endif
-            string? extraInfo = null
         )
         {
             if (FAILED(hr))
             {
-                ThrowForHr(hr, expression, filepath, memberName, lineNumber);
+                ThrowForHr(hr
+#if DEBUG || EXTENDED_ERROR_INFORMATION
+                    ,
+                    expression, filepath, memberName, lineNumber
+#endif
+                    );
             }
         }
 
+        public static event Action OnExternalError = () => { };
+
         [DebuggerNonUserCode]
+        [DebuggerStepThrough]
         [MethodImpl(MethodTypes.ThrowHelperMethod)]
         private static void ThrowForHr(
             int hr,
@@ -137,31 +143,42 @@ namespace Voltium.Common
             string? extraInfo = null
         )
         {
-            var inner = ThrowHelper.CreateExternalException(
-                        hr,
+            var nativeMessage = $"Native code threw an exception with HR '0x{hr:X8}', message '{ResolveErrorCode(hr)}'.";
+
+
 #if DEBUG || EXTENDED_ERROR_INFORMATION
-                    Format($"Native code threw an exception with HR '0x{hr:X8}', message '{ResolveErrorCode(hr)}'. " +
-                        extraInfo is null ? "" : $"Additional info '{extraInfo}",
-                            expression, memberName, lineNumber, filepath)
+            var additionalInfo = FormatExtendedErrorInformation(
+                $". " + extraInfo is null ? "" : $"Additional info '{extraInfo}",
+                expression,
+                memberName,
+                lineNumber,
+                filepath
+            );
 #else
-                    $"Native code threw an exception with HR '0x{hr:X8}, message '{ResolveErrorCode(hr)}''" +
-                    extraInfo is null ? "" : $"Additional info '{extraInfo}"
+            var additionalInfo = "";
 #endif
-                );
 
-            D3D12DebugShim.WriteAllMessages();
+            var inner = ThrowHelper.CreateExternalException(
+                hr,
+                additionalInfo
+            );
 
-            switch (hr)
+            OnExternalError.Invoke();
+
+            Exception ex = hr switch
             {
-                case E_INVALIDARG:
-                    ThrowHelper.ThrowArgumentException("", inner);
-                    break;
+                E_INVALIDARG => new ArgumentException(inner.Message, inner),
+                E_NOINTERFACE => new InvalidCastException(inner.Message, inner),
+                E_POINTER => new ArgumentNullException(inner.Message, inner),
+                E_FAIL => new InvalidOperationException(inner.Message, inner),
+                E_OUTOFMEMORY => new OutOfMemoryException(inner.Message, inner),
+                _ => inner,
+            };
 
-                default:
-                    throw inner;
-            }
+            throw ex;
         }
-    private enum ErrorContext
+
+        private enum ErrorContext
         {
             Unspecified = 0,
             Win32 = FACILITY_WIN32,
@@ -275,7 +292,7 @@ namespace Voltium.Common
                 {
                     ThrowHelper.ThrowInvalidOperationException(
 #if DEBUG || EXTENDED_ERROR_INFORMATION
-                        Format(message, expression, memberName, lineNumber, filepath)
+                        FormatExtendedErrorInformation(message, expression, memberName, lineNumber, filepath)
 #else
                         message
 #endif
@@ -292,7 +309,7 @@ namespace Voltium.Common
             [CallerLineNumber] int lineNumber = default
         )
         {
-            Logger.LogError(
+            LogHelper.Logger.ZLogError(
                 "OBJECT NOT DISPOSED ERROR\nFile: {0}\nMember: {1}\nLine: {2}\n",
                 filepath!, memberName!, lineNumber
             );

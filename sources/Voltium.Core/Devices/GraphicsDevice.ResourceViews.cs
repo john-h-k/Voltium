@@ -1,11 +1,7 @@
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.GpuResources;
-using static TerraFX.Interop.Windows;
-using static TerraFX.Interop.D3D12_DESCRIPTOR_HEAP_TYPE;
 using Voltium.Core.Memory.GpuResources;
-using Buffer = Voltium.Core.Memory.GpuResources.Buffer;
-using System.Runtime.CompilerServices;
 
 namespace Voltium.Core.Managers
 {
@@ -21,7 +17,7 @@ namespace Voltium.Core.Managers
         private protected override void CreateDescriptorHeaps()
         {
             base.CreateDescriptorHeaps();
-            _rtvs = DescriptorHeap.Create(this, DescriptorHeapType.RenderTargetView, RtvOrDsvCount + BackBufferCount);
+            _rtvs = DescriptorHeap.Create(this, DescriptorHeapType.RenderTargetView, RtvOrDsvCount);
             _dsvs = DescriptorHeap.Create(this, DescriptorHeapType.DepthStencilView, RtvOrDsvCount);
             _samplers = DescriptorHeap.Create(this, DescriptorHeapType.Sampler, SamplerCount);
         }

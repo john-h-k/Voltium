@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 using TerraFX.Interop;
@@ -12,7 +11,6 @@ using Voltium.Core.D3D12;
 using Voltium.Core.Pipeline;
 using Voltium.Core.Pool;
 using static TerraFX.Interop.D3D12_COMMAND_LIST_TYPE;
-using static TerraFX.Interop.D3D12_COMMAND_QUEUE_PRIORITY;
 
 namespace Voltium.Core.Managers
 {
@@ -56,7 +54,7 @@ namespace Voltium.Core.Managers
             _device = device;
 
             //_frameFence = CreateFence();
-            _frameMarker = new FenceMarker(config.SwapChainBufferCount - 1);
+            //_frameMarker = new FenceMarker(config - 1);
 
             _listPool = new CommandListPool(device);
 
@@ -154,8 +152,8 @@ namespace Voltium.Core.Managers
 
         private unsafe void InternalEndNoSync(GpuContext graphicsCommands)
         {
-            ComPtr<ID3D12GraphicsCommandList> list = graphicsCommands.List;
-            ComPtr<ID3D12CommandAllocator> allocator = graphicsCommands.Allocator;
+            var list = (ComPtr<ID3D12GraphicsCommandList>)graphicsCommands.List;
+            var allocator = (ComPtr<ID3D12CommandAllocator>)graphicsCommands.Allocator;
 
             Guard.ThrowIfFailed(list.Get()->Close());
 

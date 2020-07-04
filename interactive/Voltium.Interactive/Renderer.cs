@@ -1,8 +1,8 @@
 using System;
 using System.Drawing;
 using Voltium.Core;
-using Voltium.Core.D3D12;
 using Voltium.Core.Managers;
+using Voltium.Core.Memory.GpuResources;
 using Voltium.Core.Pipeline;
 
 namespace Voltium.Interactive
@@ -11,7 +11,7 @@ namespace Voltium.Interactive
     {
         public abstract void Init(GraphicsDevice device, GraphicalConfiguration config, in Size screen);
 
-        public abstract void Render(ref GraphicsContext recorder);
+        public abstract void Render(ref GraphicsContext recorder, out Texture render);
 
         public abstract void Update(ApplicationTimer timer);
 

@@ -1,9 +1,8 @@
 using System;
-using System.Numerics;
 using System.Text;
 using TerraFX.Interop;
 using Voltium.Common;
-
+using ZLogger;
 using static TerraFX.Interop.Windows;
 
 namespace Voltium.Core.Infrastructure
@@ -20,7 +19,7 @@ namespace Voltium.Core.Infrastructure
             using ComPtr<IDXCoreAdapterFactory> factory = default;
             using ComPtr<IDXCoreAdapterList> list = default;
 
-            Guard.ThrowIfFailed(DXCoreCreateAdapterFactory(factory.Guid, ComPtr.GetVoidAddressOf(&factory)));
+            Guard.ThrowIfFailed(DXCoreCreateAdapterFactory(factory.Iid, ComPtr.GetVoidAddressOf(&factory)));
 
             const int MaxNumFilterAttributes = 2;
             Guid* filterAttributes = stackalloc Guid[MaxNumFilterAttributes];
@@ -35,7 +34,7 @@ namespace Voltium.Core.Infrastructure
                 filterAttributes[i++] = DXCORE_ADAPTER_ATTRIBUTE_D3D12_GRAPHICS;
             }
 
-            Guard.ThrowIfFailed(factory.Get()->CreateAdapterList(i, filterAttributes, list.Guid, ComPtr.GetVoidAddressOf(&list)));
+            Guard.ThrowIfFailed(factory.Get()->CreateAdapterList(i, filterAttributes, list.Iid, ComPtr.GetVoidAddressOf(&list)));
 
             _factory = factory.Move();
             _list = list.Move();
@@ -54,7 +53,7 @@ namespace Voltium.Core.Infrastructure
                     return false;
                 }
 
-                Guard.ThrowIfFailed(_list.Get()->GetAdapter(index, dxcoreAdapter.Guid, ComPtr.GetVoidAddressOf(&dxcoreAdapter)));
+                Guard.ThrowIfFailed(_list.Get()->GetAdapter(index, dxcoreAdapter.Iid, ComPtr.GetVoidAddressOf(&dxcoreAdapter)));
 
                 if (_softwareOnly)
                 {
@@ -133,7 +132,7 @@ namespace Voltium.Core.Infrastructure
                 if (!adapter.Get()->IsPropertySupported(property))
                 {
                     val = default;
-                    Logger.LogInfo("DXCoreProperty '{0}' not supported by adapter", property);
+                    LogHelper.Logger.ZLogInformation("DXCoreProperty '{0}' not supported by adapter", property);
                 }
 
                 T data;

@@ -23,17 +23,20 @@ namespace Voltium.Common
 
         public static void VerifyCanary(uint* p)
         {
-            if (*p != 0xDEADBEEF)
+            if (*p == 0xDEADBEEF)
             {
-                Environment.FailFast("buffer overrun!!! AAA!!! scary!");
+                return;
             }
+
+            Environment.FailFast(StackFucked);
         }
+        private const string StackFucked = "stack fucked, possible buffer overrun detected. execution immediately ended";
 
         public static void StackAssert(bool cond)
         {
             if (!cond)
             {
-                Environment.FailFast("Possible stack overrun detected");
+                Environment.FailFast(StackFucked);
             }
         }
     }

@@ -1,5 +1,4 @@
 using System;
-using System.Runtime.InteropServices;
 
 namespace Voltium.Core.Managers
 {
@@ -20,7 +19,7 @@ namespace Voltium.Core.Managers
                 // Copy over the contents, replacing spaces with nulls
                 var trim = value.AsSpan().Trim();
                 int count = 0;
-                for (var i = 0;i < trim.Length; i++)
+                for (var i = 0; i < trim.Length; i++)
                 {
                     if (trim[i] == ' ')
                     {

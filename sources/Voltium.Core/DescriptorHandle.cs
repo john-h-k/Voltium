@@ -1,5 +1,4 @@
 using TerraFX.Interop;
-using Voltium.Core.Managers;
 
 namespace Voltium.Core
 {

@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using static TerraFX.Interop.D3D12_PRIMITIVE_TOPOLOGY_TYPE;
 
 namespace Voltium.Core.Pipeline

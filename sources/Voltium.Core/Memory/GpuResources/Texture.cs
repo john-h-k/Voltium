@@ -31,8 +31,10 @@ namespace Voltium.Core.Memory.GpuResources
     /// <summary>
     /// Represents an in-memory texture
     /// </summary>
-    public unsafe struct Texture : IDisposable
+    public unsafe struct Texture : IInternalD3D12Object, IDisposable
     {
+        ID3D12Object* IInternalD3D12Object.GetPointer() => _resource.GetPointer();
+
         /// <summary>
         /// The format ofrmat format 
         /// </summary>
@@ -102,15 +104,6 @@ namespace Voltium.Core.Memory.GpuResources
             };
 
             return new Texture(texDesc, res);
-        }
-
-        /// <summary>
-        /// The debug name of the texture
-        /// </summary>
-        public string Name
-        {
-            set => DirectXHelpers.SetObjectName(_resource, value);
-            get => DirectXHelpers.GetObjectName(_resource);
         }
 
         internal GpuResource Resource => _resource;

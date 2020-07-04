@@ -1,5 +1,3 @@
-using TerraFX.Interop;
-
 namespace Voltium.Core.Managers
 {
     /// <summary>

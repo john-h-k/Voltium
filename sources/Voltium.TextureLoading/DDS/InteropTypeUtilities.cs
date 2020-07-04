@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
 using TerraFX.Interop;
-using static Voltium.TextureLoading.DDS.PixelFormatFlags;
 using static TerraFX.Interop.DXGI_FORMAT;
+using static Voltium.TextureLoading.DDS.PixelFormatFlags;
 
 // ReSharper disable CommentTypo
 
@@ -286,7 +286,8 @@ namespace Voltium.TextureLoading.DDS
                     return DXGI_FORMAT_YUY2;
                 }
 
-                return pixelFormat.FourCC switch {
+                return pixelFormat.FourCC switch
+                {
                     D3DFormat.D3DFMT_A16B16G16R16 => // D3DFMT_A16B16G16R16
                     DXGI_FORMAT_R16G16B16A16_UNORM,
 

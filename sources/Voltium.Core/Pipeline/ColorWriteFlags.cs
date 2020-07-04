@@ -14,9 +14,9 @@ namespace Voltium.Core.Pipeline
         /// </summary>
         None = 0,
 
-       /// <summary>
-       /// The red channel will be written
-       /// </summary>
+        /// <summary>
+        /// The red channel will be written
+        /// </summary>
         Red = D3D12_COLOR_WRITE_ENABLE_RED,
 
         /// <summary>

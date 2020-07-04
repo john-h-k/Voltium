@@ -17,6 +17,9 @@ namespace Voltium.Common.Threading
 #else
     [DebuggerDisplay("Define 'TRACE_SPINLOCK_THREADS' for best debugging. Acquired = {_acquire == 1 ? true : false}")]
 #endif
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Performance", "CA1815:Override equals and operator equals on value types",
+        Justification = "SpinLockSlim and sync primitives should not be compared")]
     public struct SpinLockSlim : IValueLock
     {
         // these are used for clarity, as we use 'int' not bool here, as interlocked ops need to be on an int
@@ -122,6 +125,7 @@ namespace Voltium.Common.Threading
         [MethodImpl(HighPerformance)]
         public void TryEnter(ref bool taken, TimeSpan timeout)
         {
+            ValidateLockEntry(ref taken);
             EnsurePositiveTimeSpan(timeout);
 
             long start = Stopwatch.GetTimestamp();
@@ -188,20 +192,12 @@ namespace Voltium.Common.Threading
 
         [Conditional("TRACE_SPINLOCK_THREADS")]
         [MethodImpl(Validates)]
-        private void EnsurePositiveTimeSpan(TimeSpan time)
+        private static  void EnsurePositiveTimeSpan(TimeSpan time)
         {
             if (time.Ticks < 0)
             {
                 ThrowHelper.ThrowArgumentOutOfRangeException(nameof(time), time, "Negative timespan");
             }
-        }
-
-        [Conditional("TRACE_SPINLOCK_THREADS")]
-        [MethodImpl(Validates)]
-        private void ValidateLockEntry()
-        {
-            bool b = false;
-            ValidateLockEntry(ref b);
         }
 
         [Conditional("TRACE_SPINLOCK_THREADS")]
@@ -218,7 +214,7 @@ namespace Voltium.Common.Threading
             }
             else if (value)
             {
-                ThrowHelper.ThrowArgumentOutOfRangeException(nameof(value), value, "Lock taken bool was not false");
+                ThrowHelper.ThrowArgumentOutOfRangeException(nameof(value), value, $"Lock taken bool was not false");
             }
         }
 
@@ -232,6 +228,5 @@ namespace Voltium.Common.Threading
             {
                 ThrowHelper.ThrowSynchronizationLockException($"Lock is owned by thread {_acquired}, yet this thread {threadId} is trying to exit the lock");
             }
-        }
-    }
+        }}
 }

@@ -1,7 +1,5 @@
 using System.Drawing;
 using TerraFX.Interop;
-using Voltium.Core;
-using Voltium.Core.Managers;
 
 namespace Voltium.Core
 {

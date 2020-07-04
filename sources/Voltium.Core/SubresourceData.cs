@@ -1,7 +1,3 @@
-using System;
-using System.Reflection.Metadata;
-using Voltium.Common;
-
 namespace Voltium.TextureLoading
 {
     /// <summary>

@@ -1,29 +1,22 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Numerics;
-using System.Runtime.CompilerServices;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 using ObjLoader.Loader.Data;
-using ObjLoader.Loader.Data.Elements;
 using ObjLoader.Loader.Data.VertexData;
 using ObjLoader.Loader.Loaders;
-using Voltium.Core;
 using Voltium.ModelLoading;
-using ObjVertex = ObjLoader.Loader.Data.VertexData.Vertex;
-using ObjMaterial = ObjLoader.Loader.Data.Material;
-using Vertex = Voltium.ModelLoading.TexturedVertex;
 using Material = Voltium.ModelLoading.Material;
+using ObjMaterial = ObjLoader.Loader.Data.Material;
+using ObjVertex = ObjLoader.Loader.Data.VertexData.Vertex;
+using Vertex = Voltium.ModelLoading.TexturedVertex;
 
 namespace Voltium.Interactive
 {
     public static class GemeotryGenerator
     {
-        public static Mesh<Vertex>CreateCube(float radius)
+        public static Mesh<Vertex> CreateCube(float radius)
         {
             var cubeVertices = new Vertex[24]
             {

@@ -1,8 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Voltium.Common.Debugging
 {
@@ -14,7 +10,7 @@ namespace Voltium.Common.Debugging
         /// <summary>
         /// Whether the build was compiled with DEBUG
         /// </summary>
-        public static bool IsDebug =
+        public static readonly bool IsDebug =
 #if DEBUG
             true;
 #else
@@ -23,7 +19,7 @@ namespace Voltium.Common.Debugging
 
         /// <summary>
         /// If true or 1,
-        /// the <see cref="D3D12DebugShim"/> internal helper type is enabled,
+        /// the debug layer internal helper type is enabled,
         /// for improved DirectX debugging in an environment where
         /// native debugging output is not supported
         /// </summary>

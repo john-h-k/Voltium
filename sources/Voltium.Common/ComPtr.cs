@@ -2,8 +2,8 @@ using System;
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
-using TerraFX.Interop;
 using RaiiSharp.Annotations;
+using TerraFX.Interop;
 
 namespace Voltium.Common
 {
@@ -14,7 +14,7 @@ namespace Voltium.Common
     [RaiiOwnershipType]
     public unsafe struct ComPtr<T> : IDisposable, IEquatable<ComPtr<T>> /*, IComType*/ where T : unmanaged
     {
-        static ComPtr()
+        private static Guid* Initialize(out GCHandle handle)
         {
             ComPtr<IUnknown> p = default;
             Debug.Assert(ComPtr.GetAddressOf(&p) == &p._ptr);
@@ -23,19 +23,10 @@ namespace Voltium.Common
 #if REFLECTION
             Debug.Assert(typeof(T).GetCustomAttribute(typeof(GuidAttribute)) != null);
 #endif
-            CachedGuidHandle = GCHandle.Alloc(CachedGuid, GCHandleType.Pinned);
-            PointerToCachedGuid = (Guid*)CachedGuidHandle.AddrOfPinnedObject();
+            handle = GCHandle.Alloc(CachedGuid, GCHandleType.Pinned);
+            return (Guid*)CachedGuidHandle.AddrOfPinnedObject();
         }
 
-        /// <summary>
-        /// Creates a new <see cref="ComPtr{T}"/>, by reference counting <paramref name="ptr"/> so
-        /// both the returned <see cref="ComPtr{T}"/> and <paramref name="ptr"/> can be used.
-        /// Both must be appropriately disposed of by the caller
-        /// </summary>
-        /// <param name="ptr">The pointer to create the <see cref="ComPtr{T}"/> from</param>
-        /// <returns>A new <see cref="ComPtr{T}"/> with the same underlying value as <paramref name="ptr"/></returns>
-        [RaiiCopiesRawPointer]
-        public static ComPtr<T> CopyFromPointer(T* ptr) => new ComPtr<T>(ptr).Copy();
 
         /// <summary>
         /// Whether the current instance is not null
@@ -56,15 +47,15 @@ namespace Voltium.Common
         private T* _ptr;
 
         /// <summary>
-        /// The GUID of the underlying COM type
+        /// The IID (Interface ID) of the underlying COM type
         /// </summary>
         // https://github.com/dotnet/runtime/issues/36272
-        public readonly Guid* Guid => PointerToCachedGuid;
+        public readonly Guid* Iid => PointerToCachedGuid;
 
         private static readonly Guid CachedGuid = typeof(T).GUID;
 
         // ReSharper disable twice StaticMemberInGenericType
-        private static readonly Guid* PointerToCachedGuid;
+        private static readonly Guid* PointerToCachedGuid = Initialize(out CachedGuidHandle);
         private static readonly GCHandle CachedGuidHandle;
 
         /// <summary>
@@ -73,12 +64,12 @@ namespace Voltium.Common
         public readonly T* Get() => _ptr;
 
         /// <summary>
-        /// Implicit conversion between a T* and a <see cref="ComPtr{T}"/>
+        /// Explicit conversion between a T* and a <see cref="ComPtr{T}"/>
         /// </summary>
         /// <param name="ptr">The COM object pointer</param>
         /// <returns></returns>
         [RaiiTakesOwnershipOfRawPointer]
-        public static implicit operator ComPtr<T>(T* ptr) => new ComPtr<T>(ptr);
+        public static explicit operator ComPtr<T>(T* ptr) => new ComPtr<T>(ptr);
 
         /// <summary>
         /// Releases the underlying pointer of the <see cref="ComPtr{T}"/> if necessary
@@ -136,9 +127,9 @@ namespace Voltium.Common
             var p = (IUnknown*)_ptr;
             TInterface* pResult;
 
-            Guid iid = *ComPtr<TInterface>.PointerToCachedGuid;
-            int hr = p->QueryInterface(&iid, (void**)&pResult);
-            result = pResult;
+            Guid* iid = ComPtr<TInterface>.PointerToCachedGuid;
+            int hr = p->QueryInterface(iid, (void**)&pResult);
+            result = new ComPtr<TInterface>(pResult);
             return hr;
         }
 
@@ -151,6 +142,19 @@ namespace Voltium.Common
         [RaiiCopy]
         public readonly bool TryQueryInterface<TInterface>(out ComPtr<TInterface> result) where TInterface : unmanaged
             => Windows.SUCCEEDED(As(out result));
+
+        /// <summary>
+        /// Determine if the current pointer supports a given interface, so that <see cref="TryQueryInterface{TInterface}(out ComPtr{TInterface})"/>
+        /// will succeed
+        /// </summary>
+        /// <typeparam name="TInterface">The type to check for</typeparam>
+        /// <returns><see langword="true"/> if the type supports <typeparamref name="TInterface"/>, else <see langword="false" /> </returns>
+        public readonly bool HasInterface<TInterface>() where TInterface : unmanaged
+        {
+            var result = TryQueryInterface<TInterface>(out var ptr);
+            ptr.Dispose();
+            return result;
+        }
 
         /// <summary>
         /// Copies the <see cref="ComPtr{T}"/>, and adds a reference
@@ -289,7 +293,19 @@ namespace Voltium.Common
             assertion.Dispose();
 #endif
 
-            return (TUp*)comPtr.Get();
+            return new ComPtr<TUp>((TUp*)comPtr.Get());
         }
+
+
+        /// <summary>
+        /// Creates a new <see cref="ComPtr{T}"/>, by reference counting <paramref name="ptr"/> so
+        /// both the returned <see cref="ComPtr{T}"/> and <paramref name="ptr"/> can be used.
+        /// Both must be appropriately disposed of by the caller
+        /// </summary>
+        /// <param name="ptr">The pointer to create the <see cref="ComPtr{T}"/> from</param>
+        /// <returns>A new <see cref="ComPtr{T}"/> with the same underlying value as <paramref name="ptr"/></returns>
+        [RaiiCopiesRawPointer]
+        public static ComPtr<T> CopyFromPointer<T>(T* ptr) where T : unmanaged
+            => new ComPtr<T>(ptr).Copy();
     }
 }

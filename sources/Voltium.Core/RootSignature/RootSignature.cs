@@ -1,6 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using TerraFX.Interop;
@@ -147,7 +145,7 @@ namespace Voltium.Core
                 var desc = staticSampler.Sampler.GetDesc();
 
                 D3D12_STATIC_BORDER_COLOR staticBorderColor;
-                var borderColor = RgbaColor.FromPointer(desc.BorderColor);
+                var borderColor = Rgba128.FromPointer(desc.BorderColor);
 
                 if (borderColor == StaticSampler.OpaqueBlack)
                 {

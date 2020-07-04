@@ -22,6 +22,8 @@ namespace Voltium.Core
             _context = context;
         }
 
+        internal ID3D12GraphicsCommandList* GetListPointer() => _context.List;
+
         //AtomicCopyBufferUINT
         //AtomicCopyBufferUINT64
         //CopyBufferRegion
@@ -77,6 +79,7 @@ namespace Voltium.Core
             var sourceDesc = new D3D12_TEXTURE_COPY_LOCATION(source.GetResourcePointer(), subresourceIndex);
             var destDesc = new D3D12_TEXTURE_COPY_LOCATION(dest.GetResourcePointer(), layout);
 
+            _context.FlushBarriers();
             _context.List->CopyTextureRegion(&destDesc, 0, 0, 0, &sourceDesc, null);
         }
 
@@ -90,10 +93,10 @@ namespace Voltium.Core
         public void ReadbackSubresource(GpuAllocator allocator, Texture source, uint subresourceIndex, out Buffer data)
         {
             _context.Device.GetCopyableFootprint(source, subresourceIndex, 1, out _, out _, out var rowSize, out var size);
+            data = allocator.AllocateBuffer((long)size, MemoryAccess.CpuReadback, ResourceState.CopyDestination);
 
             var alignedRowSizes = MathHelpers.AlignUp(rowSize, 256);
 
-            data = allocator.AllocateBuffer((long)size, MemoryAccess.CpuReadback, ResourceState.CopyDestination);
 
             var layout = new D3D12_PLACED_SUBRESOURCE_FOOTPRINT
             {
@@ -111,6 +114,44 @@ namespace Voltium.Core
             var destDesc = new D3D12_TEXTURE_COPY_LOCATION(data.GetResourcePointer(), layout);
             var sourceDesc = new D3D12_TEXTURE_COPY_LOCATION(source.GetResourcePointer(), subresourceIndex);
 
+            _context.FlushBarriers();
+            _context.List->CopyTextureRegion(&destDesc, 0, 0, 0, &sourceDesc, null);
+        }
+
+        /// <summary>
+        /// Copy a subresource
+        /// </summary>
+        /// <param name="allocator"></param>
+        /// <param name="source">The resource to copy from</param>
+        /// <param name="subresourceIndex">The index of the subresource to copy from</param>
+        /// <param name="data"></param>
+        public void ReadbackSubresource(GpuAllocator allocator, Texture source, uint subresourceIndex, Buffer data)
+        {
+            ResourceTransition(source, ResourceState.CopySource, subresourceIndex);
+            ResourceTransition(data, ResourceState.CopyDestination, 0);
+
+            _context.Device.GetCopyableFootprint(source, subresourceIndex, 1, out _, out _, out var rowSize, out var size);
+
+            var alignedRowSizes = MathHelpers.AlignUp(rowSize, 256);
+
+
+            var layout = new D3D12_PLACED_SUBRESOURCE_FOOTPRINT
+            {
+                Offset = 0,
+                Footprint = new D3D12_SUBRESOURCE_FOOTPRINT
+                {
+                    Depth = source.DepthOrArraySize,
+                    Height = source.Height,
+                    Width = (uint)source.Width,
+                    Format = (DXGI_FORMAT)source.Format,
+                    RowPitch = (uint)alignedRowSizes
+                }
+            };
+
+            var destDesc = new D3D12_TEXTURE_COPY_LOCATION(data.GetResourcePointer(), layout);
+            var sourceDesc = new D3D12_TEXTURE_COPY_LOCATION(source.GetResourcePointer(), subresourceIndex);
+
+            _context.FlushBarriers();
             _context.List->CopyTextureRegion(&destDesc, 0, 0, 0, &sourceDesc, null);
         }
 
@@ -147,9 +188,10 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="allocator"></param>
         /// <param name="buffer"></param>
+        /// <param name="state"></param>
         /// <param name="destination"></param>
-        public void UploadBuffer<T>(GpuAllocator allocator, T[] buffer, Buffer destination) where T : unmanaged
-            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, destination);
+        public void UploadBuffer<T>(GpuAllocator allocator, T[] buffer, ResourceState state, Buffer destination) where T : unmanaged
+            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, state, destination);
 
 
         /// <summary>
@@ -157,9 +199,10 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="allocator"></param>
         /// <param name="buffer"></param>
+        /// <param name="state"></param>
         /// <param name="destination"></param>
-        public void UploadBuffer<T>(GpuAllocator allocator, Span<T> buffer, Buffer destination) where T : unmanaged
-            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, destination);
+        public void UploadBuffer<T>(GpuAllocator allocator, Span<T> buffer, ResourceState state, Buffer destination) where T : unmanaged
+            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, state, destination);
 
 
         /// <summary>
@@ -167,13 +210,15 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="allocator"></param>
         /// <param name="buffer"></param>
+        /// <param name="state"></param>
         /// <param name="destination"></param>
-        public void UploadBuffer<T>(GpuAllocator allocator, ReadOnlySpan<T> buffer, Buffer destination) where T : unmanaged
+        public void UploadBuffer<T>(GpuAllocator allocator, ReadOnlySpan<T> buffer, ResourceState state, Buffer destination) where T : unmanaged
         {
             var upload = allocator.AllocateBuffer(buffer.Length * sizeof(T), MemoryAccess.CpuUpload, ResourceState.GenericRead);
             upload.WriteData(buffer);
 
             CopyResource(upload, destination);
+            ResourceTransition(destination, state);
         }
 
         /// <summary>
@@ -181,9 +226,10 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="allocator"></param>
         /// <param name="buffer"></param>
+        /// <param name="state"></param>
         /// <param name="destination"></param>
-        public void UploadBuffer<T>(GpuAllocator allocator, T[] buffer, out Buffer destination) where T : unmanaged
-            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, out destination);
+        public void UploadBuffer<T>(GpuAllocator allocator, T[] buffer, ResourceState state, out Buffer destination) where T : unmanaged
+            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, state, out destination);
 
 
         /// <summary>
@@ -191,9 +237,10 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="allocator"></param>
         /// <param name="buffer"></param>
+        /// <param name="state"></param>
         /// <param name="destination"></param>
-        public void UploadBuffer<T>(GpuAllocator allocator, Span<T> buffer, out Buffer destination) where T : unmanaged
-            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, out destination);
+        public void UploadBuffer<T>(GpuAllocator allocator, Span<T> buffer, ResourceState state, out Buffer destination) where T : unmanaged
+            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, state, out destination);
 
 
         /// <summary>
@@ -201,14 +248,16 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="allocator"></param>
         /// <param name="buffer"></param>
+        /// <param name="state"></param>
         /// <param name="destination"></param>
-        public void UploadBuffer<T>(GpuAllocator allocator, ReadOnlySpan<T> buffer, out Buffer destination) where T : unmanaged
+        public void UploadBuffer<T>(GpuAllocator allocator, ReadOnlySpan<T> buffer, ResourceState state, out Buffer destination) where T : unmanaged
         {
             var upload = allocator.AllocateBuffer(buffer.Length * sizeof(T), MemoryAccess.CpuUpload, ResourceState.GenericRead);
             upload.WriteData(buffer);
 
             destination = allocator.AllocateBuffer(buffer.Length * sizeof(T), MemoryAccess.GpuOnly, ResourceState.CopyDestination);
             CopyResource(upload, destination);
+            ResourceTransition(destination, state);
         }
 
         /// <summary>
@@ -218,11 +267,12 @@ namespace Voltium.Core
         /// <param name="texture"></param>
         /// <param name="subresources"></param>
         /// <param name="tex"></param>
+        /// <param name="state"></param>
         /// <param name="destination"></param>
-        public void UploadTexture(GpuAllocator allocator, ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, TextureDesc tex, out Texture destination)
+        public void UploadTexture(GpuAllocator allocator, ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, TextureDesc tex, ResourceState state, out Texture destination)
         {
             destination = allocator.AllocateTexture(tex, ResourceState.CopyDestination);
-            UploadTexture(allocator, texture, subresources, destination);
+            UploadTexture(allocator, texture, subresources, state, destination);
         }
 
         /// <summary>
@@ -231,8 +281,9 @@ namespace Voltium.Core
         /// <param name="allocator"></param>
         /// <param name="texture"></param>
         /// <param name="subresources"></param>
+        /// <param name="state"></param>
         /// <param name="destination"></param>
-        public void UploadTexture(GpuAllocator allocator, ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, Texture destination)
+        public void UploadTexture(GpuAllocator allocator, ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, ResourceState state, Texture destination)
         {
             var upload = allocator.AllocateBuffer(
                 (long)Windows.GetRequiredIntermediateSize(destination.Resource.UnderlyingResource, 0, (uint)subresources.Length),
@@ -260,6 +311,8 @@ namespace Voltium.Core
                     (uint)subresources.Length,
                     (D3D12_SUBRESOURCE_DATA*)pSubresources
                 );
+
+                ResourceTransition(destination, state);
             }
         }
 

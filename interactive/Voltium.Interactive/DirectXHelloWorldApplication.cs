@@ -1,13 +1,9 @@
-
-using System;
-using System.Diagnostics.CodeAnalysis;
-using System.Diagnostics;
-using Voltium.Core;
-using Voltium.Core.Managers;
-using Voltium.Core.Configuration.Graphics;
-using TerraFX.Interop;
-using System.Runtime.CompilerServices;
 using System.Drawing;
+using System.Runtime.CompilerServices;
+using TerraFX.Interop;
+using Voltium.Core;
+using Voltium.Core.Devices;
+using Voltium.Core.Managers;
 
 namespace Voltium.Interactive
 {
@@ -17,6 +13,7 @@ namespace Voltium.Interactive
         private Renderer _renderer = new TRenderer();
 
         private GraphicsDevice _device = null!;
+        private Output _output = null!;
         private GraphicalConfiguration _config = null!;
         private Size _screen;
         private bool _isPaused;
@@ -25,15 +22,24 @@ namespace Voltium.Interactive
         {
             var config = new GraphicalConfiguration
             {
-                VSyncCount = 0,
-                BackBufferFormat = BackBufferFormat.R8G8B8A8UnsignedNormalized,
                 RequiredFeatureLevel = FeatureLevel.Level11_0,
-                SwapChainBufferCount = 3
+                DebugLayerConfiguration = new DebugLayerConfiguration().DisableDeviceRemovedMetadata()
             };
+
+            config.DebugLayerConfiguration.Validation.GpuBasedValidation = true;
 
             _config = config;
             _screen = data;
-            _device = GraphicsDevice.CreateWithOutput(config, data, hwnd);
+            _device = GraphicsDevice.Create(null, config);
+
+            var desc = new OutputDesc
+            {
+                BackBufferFormat = BackBufferFormat.R8G8B8A8UnsignedNormalized,
+                BackBufferCount = 3,
+                SyncInterval = 0
+            };
+
+            _output = Output.CreateForWin32(_device, desc, hwnd);
 
             _renderer.Init(_device, config, data);
         }
@@ -52,12 +58,14 @@ namespace Voltium.Interactive
             {
                 return;
             }
-            using (var commandList = _device.BeginGraphicsContext(_renderer.GetInitialPso()))
+            using (var recorder = _device.BeginGraphicsContext(_renderer.GetInitialPso()))
             {
-                _renderer.Render(ref Unsafe.AsRef(in commandList));
+                _renderer.Render(ref recorder.AsMutable(), out var render);
+                recorder.CopyResource(render, _output.BackBuffer);
+                recorder.ResourceTransition(_output.BackBuffer, ResourceState.Present);
             }
 
-            _device.Present();
+            _output.Present();
         }
         public override void Destroy()
         {
@@ -67,7 +75,7 @@ namespace Voltium.Interactive
         public override void OnResize(Size newScreenData)
         {
             _screen = newScreenData;
-            _device.Resize(newScreenData);
+            _output.Resize(newScreenData);
             _renderer.Resize(newScreenData);
         }
 
@@ -76,6 +84,11 @@ namespace Voltium.Interactive
             if (key == /* P */ 0x50)
             {
                 _isPaused = !_isPaused;
+            }
+            if (key == /* M */ 0x4D)
+            {
+                _device.Idle();
+                _renderer.ToggleMsaa();
             }
         }
 

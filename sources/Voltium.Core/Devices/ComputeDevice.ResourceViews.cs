@@ -1,11 +1,9 @@
-using TerraFX.Interop;
-using Voltium.Common;
-using Voltium.Core.GpuResources;
-using static TerraFX.Interop.Windows;
-using static TerraFX.Interop.D3D12_DESCRIPTOR_HEAP_TYPE;
-using Voltium.Core.Memory.GpuResources;
-using Buffer = Voltium.Core.Memory.GpuResources.Buffer;
 using System.Runtime.CompilerServices;
+using TerraFX.Interop;
+using Voltium.Core.GpuResources;
+using Voltium.Core.Memory.GpuResources;
+using static TerraFX.Interop.Windows;
+using Buffer = Voltium.Core.Memory.GpuResources.Buffer;
 
 namespace Voltium.Core.Devices
 {

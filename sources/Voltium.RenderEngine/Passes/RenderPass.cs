@@ -1,12 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Voltium.Core;
-using Voltium.Core.Pipeline;
-using Voltium.RenderEngine.RenderGraph;
-
 namespace Voltium.RenderEngine.Passes
 {
     //abstract class RenderPass

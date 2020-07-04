@@ -1,11 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Voltium.Core;
-using Voltium.Core.Managers;
-
 namespace Voltium.RenderEngine.Passes
 {
     //internal sealed class BasicForwardPass : RenderPass

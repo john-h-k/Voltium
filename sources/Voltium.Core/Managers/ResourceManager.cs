@@ -1,11 +1,3 @@
-using System;
-using System.Diagnostics;
-using TerraFX.Interop;
-using Voltium.Common;
-using Voltium.Core.GpuResources;
-using static TerraFX.Interop.D3D12_DESCRIPTOR_HEAP_TYPE;
-using static TerraFX.Interop.D3D12_RESOURCE_FLAGS;
-
 namespace Voltium.Core.Managers
 {
     ///// <summary>
@@ -13,7 +5,7 @@ namespace Voltium.Core.Managers
     ///// </summary>
     //public sealed unsafe class ResourceManager
     //{
-        
+
 
     //    private static bool _initialized;
     //    private static readonly object Lock = new object();
@@ -53,7 +45,7 @@ namespace Voltium.Core.Managers
     //        }
     //    }
 
-        
+
 
     //    /// <inheritdoc/>
     //    public void Dispose()

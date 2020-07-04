@@ -1,17 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Runtime.Loader;
+using System.Runtime.CompilerServices;
 using TerraFX.Interop;
-using static TerraFX.Interop.D3D12_RESOURCE_STATES;
 using Voltium.Common;
-using System.Runtime.InteropServices;
+using Voltium.Core.Configuration.Graphics;
+using Voltium.Core.Devices;
 using Voltium.Core.Managers;
 using Voltium.Core.Memory.GpuResources;
 using Buffer = Voltium.Core.Memory.GpuResources.Buffer;
-using System.Runtime.CompilerServices;
-using Voltium.Core.Configuration.Graphics;
-using Voltium.Core.Devices;
 
 namespace Voltium.Core.GpuResources
 {
@@ -34,10 +31,9 @@ namespace Voltium.Core.GpuResources
     public struct TextureClearValue
     {
         /// <summary>
-        /// If used with a render target, the <see cref="RgbaColor"/> to optimise clearing for
+        /// If used with a render target, the <see cref="Rgba128"/> to optimise clearing for
         /// </summary>
-        public RgbaColor Color;
-
+        public Rgba128 Color;
 
         /// <summary>
         /// If used with a depth target, the <see cref="float"/> to optimise clearing depth for
@@ -52,9 +48,9 @@ namespace Voltium.Core.GpuResources
         /// <summary>
         /// Creates a new <see cref="TextureClearValue"/> for a render target
         /// </summary>
-        /// <param name="color">The <see cref="RgbaColor"/> to optimise clearing for</param>
+        /// <param name="color">The <see cref="Rgba128"/> to optimise clearing for</param>
         /// <returns>A new <see cref="TextureClearValue"/></returns>
-        public static TextureClearValue CreateForRenderTarget(RgbaColor color) => new TextureClearValue { Color = color };
+        public static TextureClearValue CreateForRenderTarget(Rgba128 color) => new TextureClearValue { Color = color };
 
         /// <summary>
         /// Creates a new <see cref="TextureClearValue"/> for a render target
@@ -113,7 +109,7 @@ namespace Voltium.Core.GpuResources
         /// <param name="device">The <see cref="ID3D12Device"/> to allocate on</param>
         public GpuAllocator(GraphicsDevice device)
         {
-            Debug.Assert(device is object);
+            Debug.Assert(device is not null);
             _device = device;
 
             _hasMergedHeapSupport = CheckMergedHeapSupport(_device.DevicePointer);
@@ -240,8 +236,6 @@ namespace Voltium.Core.GpuResources
             return new Texture(desc, Allocate(resource));
         }
 
-        
-
 
         /// <summary>
         /// Allocates a new region of GPU memory
@@ -254,7 +248,9 @@ namespace Voltium.Core.GpuResources
         {
             VerifyDesc(desc);
 
-            if (desc.AllocFlags.HasFlag(AllocFlags.ForceAllocateComitted))
+            // *BUG* heaps don't properly work because of byval passing , TODO
+            // for now just commit all
+            if (true || desc.AllocFlags.HasFlag(AllocFlags.ForceAllocateComitted))
             {
                 return AllocateCommitted(desc);
             }
@@ -347,8 +343,8 @@ namespace Voltium.Core.GpuResources
             return ind;
         }
 
-        private const ulong DefaultHeapAlignment = 4 * 1024 * 1024; // 4mb for MSAA textures
-        private AllocatorHeap CreateNewHeap(D3D12_HEAP_TYPE mem, GpuResourceType res)
+        private const ulong DefaultHeapAlignment = Windows.D3D12_DEFAULT_MSAA_RESOURCE_PLACEMENT_ALIGNMENT; // 4mb for MSAA textures
+        private ref AllocatorHeap CreateNewHeap(D3D12_HEAP_TYPE mem, GpuResourceType res)
         {
             D3D12_HEAP_FLAGS flags = default;
 
@@ -374,7 +370,10 @@ namespace Voltium.Core.GpuResources
             Debug.Assert(result);
             _ = result;
 
-            return allocatorHeap;
+            var pool = _heapPools[GetHeapIndex(mem, res)];
+            pool.Add(allocatorHeap);
+
+            return ref ListExtensions.GetRef(pool, pool.Count - 1);
         }
 
         private ulong GetNewHeapSize(D3D12_HEAP_TYPE mem, GpuResourceType res)
@@ -384,11 +383,11 @@ namespace Voltium.Core.GpuResources
 
             var guess = res switch
             {
-                GpuResourceType.Meaningless => 256 * megabyte , // shouldn't be reached
+                GpuResourceType.Meaningless => 256 * megabyte, // shouldn't be reached
                 GpuResourceType.Tex => 256 * megabyte,
-               // GpuResourceType.RtOrDs => 64 * megabyte,
-                GpuResourceType.RtOrDs => 1024 * megabyte,
-                GpuResourceType.Buffer => 256 * megabyte,
+                // GpuResourceType.RtOrDs => 64 * megabyte,
+                GpuResourceType.RtOrDs => 128 * megabyte,
+                GpuResourceType.Buffer => 64 * megabyte,
                 _ => ulong.MaxValue, // shouldn't be reached
             };
 
@@ -398,15 +397,19 @@ namespace Voltium.Core.GpuResources
         internal void Return(GpuResource gpuAllocation)
         {
             var heap = gpuAllocation.Heap;
-            if (!heap.Heap.Exists)
+
+            uint refCount = uint.MaxValue;
+            while (refCount != 0)
             {
-                // resource is comitted (implicit heap)
-                gpuAllocation.UnderlyingResource->Release();
+                refCount = gpuAllocation.UnderlyingResource->Release();
+            }
+            if (heap.Heap.Exists)
+            {
+                ReturnPlacedAllocation(gpuAllocation);
             }
             else
             {
-                ReturnPlacedAllocation(gpuAllocation);
-            }    
+            }
         }
 
         private void ReturnPlacedAllocation(GpuResource gpuAllocation)
@@ -434,9 +437,9 @@ namespace Voltium.Core.GpuResources
             );
         }
 
-        private bool TryAllocateFromHeap(InternalAllocDesc desc, D3D12_RESOURCE_ALLOCATION_INFO info, AllocatorHeap heap, out GpuResource allocation)
+        private bool TryAllocateFromHeap(InternalAllocDesc desc, D3D12_RESOURCE_ALLOCATION_INFO info, ref AllocatorHeap heap, out GpuResource allocation)
         {
-            if (TryGetFreeBlock(heap, info, out HeapBlock freeBlock))
+            if (TryGetFreeBlock(ref heap, info, out HeapBlock freeBlock))
             {
                 allocation = CreatePlaced(desc, heap, freeBlock);
                 return true;
@@ -453,15 +456,15 @@ namespace Voltium.Core.GpuResources
             var heapList = _heapPools[GetHeapIndex(desc.HeapType, resType)];
             for (var i = 0; i < heapList.Count; i++)
             {
-                if (TryAllocateFromHeap(desc, info, heapList[i], out allocation))
+                if (TryAllocateFromHeap(desc, info, ref ListExtensions.GetRef(heapList, i), out allocation))
                 {
                     return allocation;
                 }
             }
 
             // No free blocks available anywhere. Create a new heap
-            var newHeap = CreateNewHeap(desc.HeapType, resType);
-            var result = TryAllocateFromHeap(desc, info, newHeap, out allocation);
+            ref var newHeap = ref CreateNewHeap(desc.HeapType, resType);
+            var result = TryAllocateFromHeap(desc, info, ref newHeap, out allocation);
             if (!result) // too big to fit in heap, realloc as comitted
             {
                 if (desc.AllocFlags.HasFlag(AllocFlags.ForceAllocateNotComitted))
@@ -511,7 +514,7 @@ namespace Voltium.Core.GpuResources
             );
         }
 
-        private void MarkFreeBlockUsed(AllocatorHeap heap,HeapBlock wholeBlock, HeapBlock usedBlock)
+        private void MarkFreeBlockUsed(ref AllocatorHeap heap, HeapBlock wholeBlock, HeapBlock usedBlock)
         {
             heap.FreeBlocks.Remove(wholeBlock);
 
@@ -529,7 +532,7 @@ namespace Voltium.Core.GpuResources
             }
         }
 
-        private bool TryGetFreeBlock(AllocatorHeap heap, D3D12_RESOURCE_ALLOCATION_INFO info, out HeapBlock freeBlock)
+        private bool TryGetFreeBlock(ref AllocatorHeap heap, D3D12_RESOURCE_ALLOCATION_INFO info, out HeapBlock freeBlock)
         {
             Debug.Assert(info.Alignment <= HighestRequiredAlign);
 
@@ -541,7 +544,7 @@ namespace Voltium.Core.GpuResources
                     && MathHelpers.IsAligned(block.Offset, info.Alignment))
                 {
                     freeBlock = new HeapBlock { Offset = block.Offset, Size = info.SizeInBytes };
-                    MarkFreeBlockUsed(heap, block, freeBlock);
+                    MarkFreeBlockUsed(ref heap, block, freeBlock);
                     return true;
                 }
             }
@@ -555,7 +558,7 @@ namespace Voltium.Core.GpuResources
                 if (alignedSize >= info.SizeInBytes)
                 {
                     freeBlock = new HeapBlock { Offset = alignedOffset, Size = alignedSize };
-                    MarkFreeBlockUsed(heap, block, freeBlock);
+                    MarkFreeBlockUsed(ref heap, block, freeBlock);
                     return true;
                 }
             }
@@ -599,16 +602,17 @@ namespace Voltium.Core.GpuResources
         /// <param name="format">The <see cref="BackBufferFormat"/> for the render target</param>
         /// <param name="height">The height, in texels, of the target</param>
         /// <param name="width">The width, in texels, of the target</param>
-        /// <param name="clearColor">The <see cref="RgbaColor"/> to set to be the optimized clear value</param>
+        /// <param name="clearColor">The <see cref="Rgba128"/> to set to be the optimized clear value</param>
         /// <param name="msaa">Optionally, the <see cref="MsaaDesc"/> for the render target</param>
         /// <returns>A new <see cref="TextureDesc"/> representing a render target</returns>
-        public static TextureDesc CreateRenderTargetDesc(BackBufferFormat format, uint height, uint width, RgbaColor clearColor, MsaaDesc msaa = default)
+        public static TextureDesc CreateRenderTargetDesc(BackBufferFormat format, uint height, uint width, Rgba128 clearColor, MsaaDesc msaa = default)
         {
             return new TextureDesc
             {
                 Height = height,
                 Width = width,
                 DepthOrArraySize = 1,
+                MipCount = 1,
                 Dimension = TextureDimension.Tex2D,
                 Format = (DataFormat)format,
                 ClearValue = TextureClearValue.CreateForRenderTarget(clearColor),
@@ -623,10 +627,10 @@ namespace Voltium.Core.GpuResources
         /// <param name="format">The <see cref="DataFormat"/> for the render target</param>
         /// <param name="height">The height, in texels, of the target</param>
         /// <param name="width">The width, in texels, of the target</param>
-        /// <param name="clearColor">The <see cref="RgbaColor"/> to set to be the optimized clear value</param>
+        /// <param name="clearColor">The <see cref="Rgba128"/> to set to be the optimized clear value</param>
         /// <param name="msaa">Optionally, the <see cref="MsaaDesc"/> for the render target</param>
         /// <returns>A new <see cref="TextureDesc"/> representing a render target</returns>
-        public static TextureDesc CreateRenderTargetDesc(DataFormat format, uint height, uint width, RgbaColor clearColor, MsaaDesc msaa = default)
+        public static TextureDesc CreateRenderTargetDesc(DataFormat format, uint height, uint width, Rgba128 clearColor, MsaaDesc msaa = default)
         {
             return new TextureDesc
             {
@@ -638,7 +642,7 @@ namespace Voltium.Core.GpuResources
                 Format = format,
                 ClearValue = TextureClearValue.CreateForRenderTarget(clearColor),
                 Msaa = msaa,
-                ResourceFlags = ResourceFlags.AllowRenderTarget
+                ResourceFlags = ResourceFlags.AllowRenderTarget,
             };
         }
 
@@ -650,9 +654,10 @@ namespace Voltium.Core.GpuResources
         /// <param name="width">The width, in texels, of the depth stencil</param>
         /// <param name="clearDepth">The <see cref="float"/> to set to be the optimized clear value for the depth element</param>
         /// <param name="clearStencil">The <see cref="byte"/> to set to be the optimized clear value for the stencil element</param>
+        /// <param name="shaderVisible">Whether the <see cref="Texture"/> is shader visible. <see langword="true"/> by default</param>
         /// <param name="msaa">Optionally, the <see cref="MsaaDesc"/> for the depth stencil</param>
         /// <returns>A new <see cref="TextureDesc"/> representing a depth stencil</returns>
-        public static TextureDesc CreateDepthStencilDesc(DataFormat format, uint height, uint width, float clearDepth, byte clearStencil, MsaaDesc msaa = default)
+        public static TextureDesc CreateDepthStencilDesc(DataFormat format, uint height, uint width, float clearDepth, byte clearStencil, bool shaderVisible = true, MsaaDesc msaa = default)
         {
             return new TextureDesc
             {
@@ -664,7 +669,7 @@ namespace Voltium.Core.GpuResources
                 Format = format,
                 ClearValue = TextureClearValue.CreateForDepthStencil(clearDepth, clearStencil),
                 Msaa = msaa,
-                ResourceFlags = ResourceFlags.AllowDepthStencil,
+                ResourceFlags = ResourceFlags.AllowDepthStencil | (shaderVisible ? 0 : ResourceFlags.DenyShaderResource),
             };
         }
 
@@ -744,7 +749,7 @@ namespace Voltium.Core.GpuResources
         public ushort DepthOrArraySize;
 
         /// <summary>
-        /// If this texture is a render target or depth stencil, the value for which it is optimised to call <see cref="GraphicsContext.ClearRenderTarget(DescriptorHandle, RgbaColor, Rectangle)"/>
+        /// If this texture is a render target or depth stencil, the value for which it is optimised to call <see cref="GraphicsContext.ClearRenderTarget(DescriptorHandle, Rgba128, Rectangle)"/>
         /// or <see cref="GraphicsContext.ClearDepthStencil(DescriptorHandle, float, byte, ReadOnlySpan{Rectangle})"/> for
         /// </summary>
         public TextureClearValue? ClearValue;

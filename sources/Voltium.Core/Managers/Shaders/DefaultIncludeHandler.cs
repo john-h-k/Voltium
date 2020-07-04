@@ -3,8 +3,8 @@ using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using TerraFX.Interop;
-using static TerraFX.Interop.Windows;
 using Voltium.Common;
+using static TerraFX.Interop.Windows;
 
 namespace Voltium.Core.Managers
 {

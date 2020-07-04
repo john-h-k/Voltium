@@ -1,8 +1,4 @@
-using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -48,5 +44,48 @@ namespace Voltium.Analyzers
 
         public void Initialize(InitializationContext context)
             => context.RegisterForSyntaxNotifications(() => new SyntaxTypeReceiver<TypeDeclarationSyntax>());
+    }
+
+    internal abstract class PredicatedGenerator<T> : ISourceGenerator where T : SyntaxNode
+    {
+        public void Execute(SourceGeneratorContext context)
+        {
+            // if you wanna debug this method, uncomment this
+            // ugly but works. blame roslyn devs not me
+            //Debugger.Launch();
+
+            var receiver = (SyntaxTypeReceiver<MethodDeclarationSyntax>)context.SyntaxReceiver!;
+
+            var nodes = receiver.SyntaxNodes;
+
+            var comp = context.Compilation;
+
+            OnExecute(context);
+
+            // this handles partial types, which have multiple type declaration nodes
+            var visited = new HashSet<ISymbol>();
+            foreach (var (tree, node) in nodes)
+            {
+                var semantics = comp.GetSemanticModel(tree);
+                var symbol = semantics.GetDeclaredSymbol(node);
+
+                if (!Predicate(context, symbol) || visited.Contains(symbol))
+                {
+                    continue;
+                }
+
+                Generate(context, symbol);
+                visited.Add(symbol);
+            }
+        }
+
+        protected virtual void OnExecute(SourceGeneratorContext context) { }
+
+        protected abstract bool Predicate(SourceGeneratorContext context, ISymbol decl);
+
+        protected abstract void Generate(SourceGeneratorContext context, ISymbol symbol);
+
+        public void Initialize(InitializationContext context)
+            => context.RegisterForSyntaxNotifications(() => new SyntaxTypeReceiver<T>());
     }
 }

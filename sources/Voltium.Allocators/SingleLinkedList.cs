@@ -21,7 +21,7 @@
         /// </summary>
         /// <param name="value"></param>
         /// <param name="next"></param>
-        public LinkedNode( T value, LinkedNode<T>? next = null)
+        public LinkedNode(T value, LinkedNode<T>? next = null)
         {
             Next = next;
             Value = value;

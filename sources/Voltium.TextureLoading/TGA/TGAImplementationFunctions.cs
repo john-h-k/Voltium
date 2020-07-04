@@ -1,15 +1,11 @@
 using System;
-using System.Buffers.Binary;
-using System.Linq.Expressions;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Runtime.Intrinsics.X86;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core;
 using Voltium.Core.GpuResources;
-using Voltium.TextureLoading.DDS;
 using static TerraFX.Interop.DXGI_FORMAT;
 
 // life savers:

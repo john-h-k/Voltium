@@ -1,13 +1,8 @@
 ﻿using System;
 using System.IO;
-using System.Numerics;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using TerraFX.Interop;
 using Voltium.Common;
-using Voltium.TextureLoading.DDS;
 using Voltium.TextureLoading.TGA;
-using static TerraFX.Interop.DXGI_FORMAT;
 
 namespace Voltium.TextureLoading
 {
