@@ -142,7 +142,7 @@ namespace Voltium.Interactive
         public override void Resize(Size newScreenData)
         {
             _outputResolution = newScreenData;
-            var dsDesc = TextureDesc.CreateDepthStencilDesc(DataFormat.D32Single, (uint)newScreenData.Height, (uint)newScreenData.Width, 1, 0, false, _msaaDesc);
+            var dsDesc = TextureDesc.CreateDepthStencilDesc(DataFormat.Depth32Single, (uint)newScreenData.Height, (uint)newScreenData.Width, 1, 0, false, _msaaDesc);
             var rtDesc = TextureDesc.CreateRenderTargetDesc(DataFormat.R8G8B8A8UnsignedNormalized, (uint)newScreenData.Height, (uint)newScreenData.Width, Rgba128.CornflowerBlue, _msaaDesc);
 
             _depthStencil.Dispose();

@@ -193,7 +193,7 @@ namespace Voltium.Core
         /// <summary>
         /// A single-component, 32-bit floating-point format that supports 32 bits for depth
         /// </summary>
-        D32Single = DXGI_FORMAT_D32_FLOAT,
+        Depth32Single = DXGI_FORMAT_D32_FLOAT,
 
         /// <summary>
         /// A single-component, 32-bit floating-point format that supports 32 bits for the red channel
@@ -218,7 +218,7 @@ namespace Voltium.Core
         /// <summary>
         /// A 32-bit z-buffer format that supports 24 bits for depth and 8 bits for stencil
         /// </summary>
-        D24UnsignedNormalizedS8UInt = DXGI_FORMAT_D24_UNORM_S8_UINT,
+        Depth24UnsignedNormalizedS8UInt = DXGI_FORMAT_D24_UNORM_S8_UINT,
 
         /// <summary>
         /// A 32-bit format, that contains a 24 bit, single-component, unsigned-normalized integer, with an additional typeless 8 bits. This format has 24 bits red channel and 8 bits unused
@@ -263,7 +263,7 @@ namespace Voltium.Core
         /// <summary>
         /// A single-component, 16-bit unsigned-normalized-integer format that supports 16 bits for depth
         /// </summary>
-        D16UnsignedNormalized = DXGI_FORMAT_D16_UNORM,
+        Depth16UnsignedNormalized = DXGI_FORMAT_D16_UNORM,
 
         /// <summary>
         /// 	A single-component, 16-bit unsigned-normalized-integer format that supports 16 bits for the red channel

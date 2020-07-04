@@ -45,7 +45,7 @@ namespace Voltium.Common.Pix
         public static PIXEventType GpuBeginOnContext(bool varargs)
         {
 #if PIX_XBOX
-            return !varargs ? Event_BeginEvent_OnContext_NoArgs : Event_BeginEvent_OnContext_VarArgs;
+            return !varargs ? PIXEventType.BeginEventOnContextNoArgs : PIXEventType.BeginEventOnContextVarArgs;
 #else
             return !varargs ? PIXEventType.BeginEventNoArgs : PIXEventType.BeginEventVarArgs;
 #endif
@@ -54,7 +54,7 @@ namespace Voltium.Common.Pix
         public static PIXEventType GpuSetMarkerOnContext(bool varargs)
         {
 #if PIX_XBOX
-            return !varargs ? Event_SetMarker_OnContext_NoArgs : Event_SetMarker_OnContext_VarArgs;
+            return !varargs ? PIXEventType.SetMarkerOnContextNoArgs : PIXEventType.SetMarkerOnContextVarArgs;
 #else
             return !varargs ? PIXEventType.SetMarkerNoArgs : PIXEventType.SetMarkerVarArgs;
 #endif
