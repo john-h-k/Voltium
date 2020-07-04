@@ -5,7 +5,7 @@ namespace Voltium.Common.Pix
     /// <summary>
     /// Represents a 32 bit ARGB color used by PIX where A must be 0xFF
     /// </summary>
-    public partial struct Rgba32
+    public partial struct Argb32
     {
         /// <summary>
         /// Creates a new instance from 3 separate RGB values
@@ -13,7 +13,7 @@ namespace Voltium.Common.Pix
         /// <param name="r">The red component of the color</param>
         /// <param name="g">The green component of the color</param>
         /// <param name="b">The blue component of the color</param>
-        public Rgba32(byte r = 0, byte g = 0, byte b = 0)
+        public Argb32(byte r = 0, byte g = 0, byte b = 0)
         {
             R = r;
             G = g;
@@ -45,7 +45,7 @@ namespace Voltium.Common.Pix
         /// </summary>
         /// <param name="i">The value between 0 and 255 inclusive</param>
         /// <returns>A unique color</returns>
-        public static Rgba32 FromIndex(byte i)
+        public static Argb32 FromIndex(byte i)
         {
             const int redMask = 0b11100000;
             const int greenMask = 0b00011000;
@@ -55,9 +55,9 @@ namespace Voltium.Common.Pix
             int green = i & greenMask;
             int blue = i & blueMask;
 
-            return new Rgba32((byte)red, (byte)green, (byte)blue);
+            return new Argb32((byte)red, (byte)green, (byte)blue);
         }
 
-        internal static uint GetAs32BitArgb(in Rgba32 color) => Unsafe.As<Rgba32, uint>(ref Unsafe.AsRef(in color));
+        internal static uint GetAs32BitArgb(in Argb32 color) => Unsafe.As<Argb32, uint>(ref Unsafe.AsRef(in color));
     }
 }

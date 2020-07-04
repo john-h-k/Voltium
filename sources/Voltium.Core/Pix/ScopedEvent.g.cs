@@ -16,7 +16,7 @@ namespace Voltium.Common.Pix
         }
 
         public static ScopedEvent BeginScopedEvent(
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString
         )
         {
@@ -27,7 +27,7 @@ namespace Voltium.Common.Pix
 
 
         public static ScopedEvent BeginScopedEvent<T0>(
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0
         )
@@ -39,7 +39,7 @@ namespace Voltium.Common.Pix
 
 
         public static ScopedEvent BeginScopedEvent<T0, T1>(
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1
@@ -52,7 +52,7 @@ namespace Voltium.Common.Pix
 
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2>(
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -66,7 +66,7 @@ namespace Voltium.Common.Pix
 
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3>(
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -81,7 +81,7 @@ namespace Voltium.Common.Pix
 
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3, T4>(
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -97,7 +97,7 @@ namespace Voltium.Common.Pix
 
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3, T4, T5>(
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -114,7 +114,7 @@ namespace Voltium.Common.Pix
 
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3, T4, T5, T6>(
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -132,7 +132,7 @@ namespace Voltium.Common.Pix
 
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7>(
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -151,7 +151,7 @@ namespace Voltium.Common.Pix
 
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8>(
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -171,7 +171,7 @@ namespace Voltium.Common.Pix
 
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9>(
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -192,7 +192,7 @@ namespace Voltium.Common.Pix
 
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>(
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -214,7 +214,7 @@ namespace Voltium.Common.Pix
 
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>(
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -237,7 +237,7 @@ namespace Voltium.Common.Pix
 
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>(
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -261,7 +261,7 @@ namespace Voltium.Common.Pix
 
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>(
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -286,7 +286,7 @@ namespace Voltium.Common.Pix
 
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14>(
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -312,7 +312,7 @@ namespace Voltium.Common.Pix
 
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15>(
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -341,7 +341,7 @@ namespace Voltium.Common.Pix
 
         public static ScopedEvent BeginScopedEvent(
             ID3D12CommandQueue* context,
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString
         )
         {
@@ -353,7 +353,7 @@ namespace Voltium.Common.Pix
 
         public static ScopedEvent BeginScopedEvent<T0>(
             ID3D12CommandQueue* context,
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0
         )
@@ -366,7 +366,7 @@ namespace Voltium.Common.Pix
 
         public static ScopedEvent BeginScopedEvent<T0, T1>(
             ID3D12CommandQueue* context,
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1
@@ -380,7 +380,7 @@ namespace Voltium.Common.Pix
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2>(
             ID3D12CommandQueue* context,
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -395,7 +395,7 @@ namespace Voltium.Common.Pix
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3>(
             ID3D12CommandQueue* context,
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -411,7 +411,7 @@ namespace Voltium.Common.Pix
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3, T4>(
             ID3D12CommandQueue* context,
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -428,7 +428,7 @@ namespace Voltium.Common.Pix
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3, T4, T5>(
             ID3D12CommandQueue* context,
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -446,7 +446,7 @@ namespace Voltium.Common.Pix
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3, T4, T5, T6>(
             ID3D12CommandQueue* context,
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -465,7 +465,7 @@ namespace Voltium.Common.Pix
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7>(
             ID3D12CommandQueue* context,
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -485,7 +485,7 @@ namespace Voltium.Common.Pix
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8>(
             ID3D12CommandQueue* context,
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -506,7 +506,7 @@ namespace Voltium.Common.Pix
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9>(
             ID3D12CommandQueue* context,
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -528,7 +528,7 @@ namespace Voltium.Common.Pix
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>(
             ID3D12CommandQueue* context,
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -551,7 +551,7 @@ namespace Voltium.Common.Pix
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>(
             ID3D12CommandQueue* context,
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -575,7 +575,7 @@ namespace Voltium.Common.Pix
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>(
             ID3D12CommandQueue* context,
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -600,7 +600,7 @@ namespace Voltium.Common.Pix
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>(
             ID3D12CommandQueue* context,
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -627,7 +627,7 @@ namespace Voltium.Common.Pix
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14>(
             ID3D12CommandQueue* context,
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -655,7 +655,7 @@ namespace Voltium.Common.Pix
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15>(
             ID3D12CommandQueue* context,
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -684,7 +684,7 @@ namespace Voltium.Common.Pix
 
         public static ScopedEvent BeginScopedEvent(
             this in GraphicsContext context,
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString
         )
         {
@@ -696,7 +696,7 @@ namespace Voltium.Common.Pix
 
         public static ScopedEvent BeginScopedEvent<T0>(
             this in GraphicsContext context,
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0
         )
@@ -709,7 +709,7 @@ namespace Voltium.Common.Pix
 
         public static ScopedEvent BeginScopedEvent<T0, T1>(
             this in GraphicsContext context,
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1
@@ -723,7 +723,7 @@ namespace Voltium.Common.Pix
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2>(
             this in GraphicsContext context,
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -738,7 +738,7 @@ namespace Voltium.Common.Pix
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3>(
             this in GraphicsContext context,
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -754,7 +754,7 @@ namespace Voltium.Common.Pix
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3, T4>(
             this in GraphicsContext context,
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -771,7 +771,7 @@ namespace Voltium.Common.Pix
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3, T4, T5>(
             this in GraphicsContext context,
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -789,7 +789,7 @@ namespace Voltium.Common.Pix
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3, T4, T5, T6>(
             this in GraphicsContext context,
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -808,7 +808,7 @@ namespace Voltium.Common.Pix
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7>(
             this in GraphicsContext context,
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -828,7 +828,7 @@ namespace Voltium.Common.Pix
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8>(
             this in GraphicsContext context,
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -849,7 +849,7 @@ namespace Voltium.Common.Pix
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9>(
             this in GraphicsContext context,
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -871,7 +871,7 @@ namespace Voltium.Common.Pix
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>(
             this in GraphicsContext context,
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -894,7 +894,7 @@ namespace Voltium.Common.Pix
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>(
             this in GraphicsContext context,
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -918,7 +918,7 @@ namespace Voltium.Common.Pix
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>(
             this in GraphicsContext context,
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -943,7 +943,7 @@ namespace Voltium.Common.Pix
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>(
             this in GraphicsContext context,
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -970,7 +970,7 @@ namespace Voltium.Common.Pix
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14>(
             this in GraphicsContext context,
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,
@@ -998,7 +998,7 @@ namespace Voltium.Common.Pix
 
         public static ScopedEvent BeginScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15>(
             this in GraphicsContext context,
-            in Rgba32 color,
+            in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
             T1 t1,

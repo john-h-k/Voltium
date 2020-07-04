@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Reflection.Metadata;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -30,6 +31,7 @@ namespace Voltium.Common
         private ComPtr<IDXGIInfoQueue> _dxgiInfoQueue;
         private ComPtr<IDXGIDebug1> _dxgiDebugLayer;
         private ComPtr<ID3D12DebugDevice> _d3d12DebugDevice;
+        private ComPtr<IDXGraphicsAnalysis> _frameCapture;
 
         // [Me]          > why is the inheritance tree of the debug layer types so confusing??!
         // [DirectX dev] > Because someone made a mistake
@@ -54,6 +56,23 @@ namespace Voltium.Common
         // Some aspects require D3D12 or DXGI global state. Horrible i know
         public void SetGlobalStateForConfig()
         {
+            {
+                using ComPtr<IDXGraphicsAnalysis> analysis = default;
+                int hr = Windows.DXGIGetDebugInterface1(0, analysis.Iid, ComPtr.GetVoidAddressOf(&analysis));
+                if (Windows.SUCCEEDED(hr))
+                {
+                    LogHelper.Logger.ZLogInformation("PIX debugger is attached");
+                }
+
+                // E_NOINTERFACE occurs when PIX isn't attached, which is fine. Else something has gone wrong and it is worth failing
+                if (hr != Windows.E_NOINTERFACE)
+                {
+                    Guard.ThrowIfFailed(hr, "Windows.D3D12GetDebugInterface(analysis.Iid, ComPtr.GetVoidAddressOf(&analysis));");
+                }
+
+                _frameCapture = analysis.Move();
+            }
+
             if (_config.Validation.GraphicsLayerValidation)
             {
                 {
@@ -105,6 +124,35 @@ namespace Voltium.Common
                     dredSettings.Get()->SetWatsonDumpEnablement(D3D12_DRED_ENABLEMENT.D3D12_DRED_ENABLEMENT_FORCED_ON);
                 }
             }
+        }
+
+        public void BeginCapture()
+        {
+            if (_frameCapture.Exists)
+            {
+                _frameCapture.Get()->BeginCapture();
+            }
+            else
+            {
+                LogPixNotAttached();
+            }
+        }
+
+        public void EndCapture()
+        {
+            if (_frameCapture.Exists)
+            {
+                _frameCapture.Get()->EndCapture();
+            }
+            else
+            {
+                LogPixNotAttached();
+            }
+        }
+
+        private void LogPixNotAttached()
+        {
+            LogHelper.Logger.ZLogInformation("PIX Frame capture was created but PIX is not attached, so the capture was dropped");
         }
 
         public void SetDeviceStateForConfig(ComputeDevice device)
@@ -188,7 +236,7 @@ namespace Voltium.Common
                             (int)msgBuffer->DescriptionByteLength
                         );
 
-                        _device.Logger.ZLog(GetLogLevelForSeverity(msgBuffer->Severity), transcoded);
+                        LogHelper.Logger.ZLog(GetLogLevelForSeverity(msgBuffer->Severity), transcoded);
                     }
                 }
             }
@@ -216,7 +264,7 @@ namespace Voltium.Common
                             (int)msgBuffer->DescriptionByteLength
                         );
 
-                        _device.Logger.ZLog(GetLogLevelForSeverity(msgBuffer->Severity), transcoded);
+                        LogHelper.Logger.ZLog(GetLogLevelForSeverity(msgBuffer->Severity), transcoded);
                     }
                 }
             }

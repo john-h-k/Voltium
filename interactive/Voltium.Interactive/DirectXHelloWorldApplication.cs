@@ -26,8 +26,6 @@ namespace Voltium.Interactive
                 DebugLayerConfiguration = new DebugLayerConfiguration().DisableDeviceRemovedMetadata()
             };
 
-            config.DebugLayerConfiguration.Validation.GpuBasedValidation = true;
-
             _config = config;
             _screen = data;
             _device = GraphicsDevice.Create(null, config);

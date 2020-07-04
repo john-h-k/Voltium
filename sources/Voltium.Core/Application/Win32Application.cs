@@ -1,7 +1,7 @@
 using System;
 using System.Drawing;
 using System.Runtime.InteropServices;
-
+using System.Threading;
 using TerraFX.Interop;
 using static TerraFX.Interop.Windows;
 
@@ -92,6 +92,10 @@ namespace Voltium.Core
                     _ = TranslateMessage(&msg);
                     _ = DispatchMessageW(&msg);
                 }
+                else
+                {
+                    //RunApp();
+                }
             }
             while (msg.message != WM_QUIT);
 
@@ -101,9 +105,30 @@ namespace Voltium.Core
             return (int)msg.wParam;
         }
 
+        private static void RunApp()
+        {
+            if (_application != null && !_isPaused)
+            {
+                fixed (char* pFps = $"Voltium - FPS: {_timer.FramesPerSeconds}")
+                {
+                    _ = SetWindowTextW(Hwnd, (ushort*)pFps);
+                    _timer.Tick(() =>
+                    {
+                        _application.Update(_timer);
+                        _application.Render();
+                    });
+                }
+            }
+            else
+            {
+                Thread.Sleep(100);
+            }
+        }
+
         private static ApplicationTimer _timer = null!;
         private static Application _application = null!;
         private const int ScrollResolution = 120;
+        private static bool _isPaused;
 
         // Main message handler for the sample
         [UnmanagedCallersOnly(CallingConvention = CallingConvention.StdCall)]
@@ -120,6 +145,17 @@ namespace Voltium.Core
                     _ = SetWindowLongPtrW(hWnd, GWLP_USERDATA, (IntPtr)pCreateStruct->lpCreateParams);
                     return 0;
                 }
+
+                case WM_ACTIVATE:
+                    if (LOWORD(wParam) == WA_INACTIVE)
+                    {
+                        _isPaused = true;
+                    }
+                    else
+                    {
+                        _isPaused = false;
+                    }
+                    break;
 
                 case WM_KEYDOWN:
                 {
@@ -168,18 +204,7 @@ namespace Voltium.Core
 
                 case WM_PAINT:
                 {
-                    if (_application != null)
-                    {
-                        fixed (char* pFps = $"Voltium - FPS: {_timer.FramesPerSeconds}")
-                        {
-                            _ = SetWindowTextW(Hwnd, (ushort*)pFps);
-                            _timer.Tick(() =>
-                            {
-                                _application.Update(_timer);
-                                _application.Render();
-                            });
-                        }
-                    }
+                    RunApp();
 
                     return 0;
                 }

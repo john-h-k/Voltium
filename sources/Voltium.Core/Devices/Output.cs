@@ -113,6 +113,7 @@ namespace Voltium.Core.Devices
                 Guard.ThrowIfFailed(_swapChain.Get()->GetBuffer(i, buffer.Iid, ComPtr.GetVoidAddressOf(&buffer)));
                 DebugHelpers.SetName(buffer.Get(), $"BackBuffer #{i}");
 
+                _backBufferIndex = _swapChain.Get()->GetCurrentBackBufferIndex();
                 _backBuffers[i] = Texture.FromResource(_device, buffer.Move());
             }
         }

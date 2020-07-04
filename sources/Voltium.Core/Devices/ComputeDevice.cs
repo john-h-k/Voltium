@@ -43,13 +43,12 @@ namespace Voltium.Core.Devices
         /// The default allocator for the device
         /// </summary>
         public GpuAllocator Allocator { get; private protected set; } = null!;
-        internal ILogger Logger { get; } = NullLogger.Instance;
 
         private protected ComPtr<ID3D12Device> _device;
         private protected SupportedDevice _supportedDevice;
         private protected enum SupportedDevice { Device, Device1, Device2, Device3, Device4, Device5, Device6, Device7, Device8 }
-
         private protected static HashSet<ulong?> _preexistingDevices = new(1);
+        private protected DebugLayer? _debug;
 
         /// <summary>
         /// Gets the <see cref="ID3D12Device"/> used by this application
@@ -60,6 +59,7 @@ namespace Voltium.Core.Devices
         /// The number of physical adapters, referred to as nodes, that the device uses
         /// </summary>
         public uint NodeCount => DevicePointer->GetNodeCount();
+
 
         private protected void CreateNewDevice(
             Adapter? adapter,
@@ -118,6 +118,41 @@ namespace Voltium.Core.Devices
             result = new ComPtr<T>(val);
             return success;
         }
+
+        /// <summary>
+        /// Represents a scoped PIX capture that ends when the type is disposed. Use <see cref="BeginScopedCapture"/> to create one
+        /// </summary>
+        public struct ScopedCapture : IDisposable
+        {
+            private DebugLayer? _layer;
+
+            internal ScopedCapture(DebugLayer? layer)
+            {
+                _layer = layer;
+                layer?.BeginCapture();
+            }
+
+            /// <summary>
+            /// Ends the capture
+            /// </summary>
+            public void Dispose() => _layer?.EndCapture();
+        }
+
+        /// <summary>
+        /// Begins a scoped PIX capture that ends when the <see cref="ScopedCapture"/> is disposed
+        /// </summary>
+        /// <returns>A new <see cref="ScopedCapture"/></returns>
+        public ScopedCapture BeginScopedCapture() => new ScopedCapture(_debug);
+
+        /// <summary>
+        /// Begins a PIX capture
+        /// </summary>
+        public void BeginCapture() => _debug?.BeginCapture();
+
+        /// <summary>
+        /// Ends a PIX capture
+        /// </summary>
+        public void EndCapture() => _debug?.EndCapture();
 
         /// <summary>
         /// 

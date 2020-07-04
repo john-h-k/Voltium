@@ -97,8 +97,6 @@ namespace Voltium.Core.Managers
             return device;
         }
 
-        private DebugLayer? _debug;
-
         private object _stateLock = new object();
         private void InternalCreate(Adapter? adapter, GraphicalConfiguration config)
         {
@@ -282,7 +280,7 @@ namespace Voltium.Core.Managers
                 }
             }
 
-            Logger.ZLogError(
+            LogHelper.Logger.ZLogError(
                 "Device removed, no DRED present. Enable DEBUG or D3D12_DRED for enhanced device removed information");
         }
 

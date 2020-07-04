@@ -104,6 +104,7 @@ namespace Voltium.Interactive
             _indexBuffer = new Buffer[_texturedObjects.Length];
 
             using (var list = _device.BeginCopyContext())
+            using (_device.BeginScopedCapture())
             {
                 for (var i = 0; i < _texturedObjects.Length; i++)
                 {
@@ -299,7 +300,7 @@ namespace Voltium.Interactive
 
         public override void Render(ref GraphicsContext recorder, out Texture render)
         {
-            using (recorder.BeginScopedEvent(Rgba32.AliceBlue, "Render Objects"))
+            using (recorder.BeginScopedEvent(Argb32.AliceBlue, "Render Objects"))
             {
                 recorder.SetViewportAndScissor(_outputResolution);
                 recorder.ResourceTransition(_renderTarget, ResourceState.RenderTarget);

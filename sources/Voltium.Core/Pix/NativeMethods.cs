@@ -47,7 +47,7 @@ namespace Voltium.Common.Pix
         /// <param name="message"></param>
         public static void BeginEventOnCommandList(
             ID3D12GraphicsCommandList* commandList,
-            Rgba32 color,
+            Argb32 color,
             ReadOnlySpan<char> message
         )
         {
@@ -55,7 +55,7 @@ namespace Voltium.Common.Pix
             var buff = StackSentinel.SafeToStackalloc<byte>(length) ? stackalloc byte[length] : new byte[length];
             Encoding.UTF8.GetBytes(message, buff);
 
-            var hr = _PIXBeginEventOnCommandList(commandList, Rgba32.GetAs32BitArgb(color),
+            var hr = _PIXBeginEventOnCommandList(commandList, Argb32.GetAs32BitArgb(color),
                 (byte*)Unsafe.AsPointer(ref MemoryMarshal.GetReference(buff)));
 
             Guard.ThrowIfFailed(hr);
@@ -71,7 +71,7 @@ namespace Voltium.Common.Pix
 
         public static void SetMarkerOnCommandList(
             ID3D12GraphicsCommandList* commandList,
-            Rgba32 color,
+            Argb32 color,
             ReadOnlySpan<char> message
         )
         {
@@ -81,7 +81,7 @@ namespace Voltium.Common.Pix
 
             var hr = _PIXSetMarkerOnCommandList(
                 commandList,
-                Rgba32.GetAs32BitArgb(color),
+                Argb32.GetAs32BitArgb(color),
                 (byte*)Unsafe.AsPointer(ref MemoryMarshal.GetReference(buff))
             );
 
