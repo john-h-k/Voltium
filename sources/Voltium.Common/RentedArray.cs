@@ -22,10 +22,7 @@ namespace Voltium.Common
             return new RentedArray<T>(pool.Rent(minimumLength), pool);
         }
 
-        public void Dispose() => Dispose(false);
-        public void Dispose(bool clear)
-        {
-            Pool.Return(Value, clear);
-        }
+        public void Dispose() => Pool.Return(Value);
+        public void Dispose(bool clear) => Pool.Return(Value, clear);
     }
 }

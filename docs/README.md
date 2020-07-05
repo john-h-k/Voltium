@@ -1,10 +1,6 @@
 # Contributing to Voltium
 
-$Description
-
-TODO: Link build status badges here
-
-TODO: Link social media channels here
+Voltium is a DirectX 12 C# 3D render engine written purely in C#, with a focus on performance and usability
 
 ## Table of Contents
 
@@ -17,14 +13,14 @@ TODO: Link social media channels here
 ### Code of Conduct
 
 Voltium and everyone contributing (this includes issues, pull requests, the
-wiki, etc) must abide by the [CODE_OF_CONDUCT](docs/CODE_OF_CONDUCT.md).
+wiki, etc) must abide by the [CODE_OF_CONDUCT](CODE_OF_CONDUCT.md).
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported by contacting the project team at admin@voltium.org.
 
 ### License
 
-Copyright © John Kelly and Contributors. Licensed under the MIT License
-(MIT). See [LICENSE](LICENSE.md) in the repository root for more information.
+Copyright © John Kelly and Contributors. Licensed under the AGPL v3 license
+(AGPL). See [LICENSE](LICENSE.md) in the repository root for more information.
 
 ### Contributing
 
