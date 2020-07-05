@@ -1,35 +1,33 @@
-using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Text;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 
 namespace Voltium.Analyzers
 {
     internal sealed class IAInputDescBuilder
     {
-        private List<(string Name, string Type)> _elements = new();
+        private List<(string Name, string Type, AttributeData? Attr)> _elements = new();
 
-        public unsafe void Add(string name, string format)
+        public unsafe void Add(string name, string format, AttributeData? attr)
         {
-            var elemDesc = (name, format);
-
-            _elements.Add(elemDesc);
+            _elements.Add((name, format, attr));
         }
 
 
         public string ToString(INamedTypeSymbol type)
         {
             var template = @"
-using System.Collections.Immutable;
+using System;
+using Voltium.Core;
 using Voltium.Core.Managers.Shaders;
 
 namespace {0}
 {{
-    partial struct {1} : IBindableShaderType
+    partial struct {1} : Voltium.Core.Managers.Shaders.IBindableShaderType
     {{
-        ImmutableArray<ShaderInput> IBindableShaderType.GetShaderInputs() => Elements;
-        private static readonly ImmutableArray<ShaderInput> Elements = ImmutableArray.Create(new ShaderInput[] {{{2}}});
+        ReadOnlyMemory<ShaderInput> IBindableShaderType.GetShaderInputs() => Elements;
+        private static readonly ReadOnlyMemory<ShaderInput> Elements = new ShaderInput[] {{{2}}};
     }}
 }}
 ";
@@ -45,15 +43,59 @@ namespace {0}
         {
             var builder = new StringBuilder();
 
-            bool notFirst = false;
             foreach (var desc in _elements)
             {
-                if (notFirst)
+                builder.Append("new ShaderInput(");
+
+                string? name = null, type = null;
+
+                if (desc.Attr is not null)
                 {
-                    builder.Append(", \n");
+                    for (int i = 0; i < desc.Attr.NamedArguments.Length; i++)
+                    {
+                        var layoutMember = desc.Attr.NamedArguments[i];
+                        switch (layoutMember.Key)
+                        {
+                            case "Name":
+                                if (layoutMember.Value.Value is null)
+                                {
+                                    name = "\"" + desc.Name + "\"";
+                                }
+                                else
+                                {
+                                    name = layoutMember.Value.ToCSharpString();
+                                }
+                                break;
+
+                            case "Type":
+                                if (layoutMember.Value.Value is null)
+                                {
+                                    type = desc.Type;
+                                }
+                                else
+                                {
+                                    type = layoutMember.Value.ToCSharpString();
+                                }
+                                break;
+
+                            default:
+                                var keyName = layoutMember.Key;
+                                builder.Append($"{char.ToLower(keyName[0]) + keyName.Substring(1) }: {layoutMember.Value.ToCSharpString()}");
+                                break;
+                        }
+                    }
+
+                    builder.Append($"name: {name?.ToUpper() ?? desc.Name}, type: {type ?? desc.Type}");
                 }
-                notFirst = true;
-                builder.Append($@"new ShaderInput(""{desc.Name}"", {desc.Type})");
+                else
+                {
+                    builder.Append($@"""{desc.Name.ToUpper()}"", {desc.Type}");
+                }
+
+                builder.Append("), ");
+
+                // ctor is
+                // - public ShaderInput(string name, DataFormat type, uint offset = 0xFFFFFFFF, uint nameIndex = 0, uint channel = 0, InputClass inputClass = InputClass.PerVertex)
             }
 
             return builder.ToString();

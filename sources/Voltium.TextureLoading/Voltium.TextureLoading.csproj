@@ -7,7 +7,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Voltium.Common\Voltium.Common.csproj" />
+    <ProjectReference Include="..\Voltium.Core\Voltium.Core.csproj" />
+    <ProjectReference Include="..\Voltium.Common\Voltium.Common.csproj" PrivateAssets="All" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,9 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using TerraFX.Interop;
 using static TerraFX.Interop.D3D12_COMMAND_LIST_TYPE;
 
 namespace Voltium.Core
@@ -35,16 +29,5 @@ namespace Voltium.Core
         /// We should execute Patrick
         /// </summary>
         Patrick = 0xFFFFFFFFFFFFFFFF,
-    }
-
-    internal class ExecutionContextExtensions
-    {
-        public const int NumSupportedExecutionContexts = 4;
-        public const ulong FenceSegmentSize = ulong.MaxValue / NumSupportedExecutionContexts;
-
-        internal static bool InSegment(ulong fenceValue, ExecutionContext executionContext)
-        {
-            return fenceValue / FenceSegmentSize == (ulong)executionContext;
-        }
     }
 }

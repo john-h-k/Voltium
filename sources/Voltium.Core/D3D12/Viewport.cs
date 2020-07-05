@@ -28,7 +28,7 @@
         /// <summary>
         /// Minimum depth of the viewport. Ranges between 0 and 1
         /// </summary>
-        public readonly  float MinDepth;
+        public readonly float MinDepth;
 
         /// <summary>
         /// Maximum depth of the viewport. Ranges between 0 and 1

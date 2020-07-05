@@ -1,7 +1,7 @@
 namespace Voltium.Common
 {
     /// <summary>
-    /// An opaque handle type used alongside <see cref="StringAtoms"/> to represent
+    /// An opaque handle type used alongside <see cref="StringAtomiser"/> to represent
     /// a <see cref="string"/>
     /// </summary>
     public readonly struct Atom

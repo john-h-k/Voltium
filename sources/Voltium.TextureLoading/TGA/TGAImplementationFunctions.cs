@@ -1,13 +1,11 @@
-﻿using System;
-using System.Buffers.Binary;
-using System.Linq.Expressions;
+using System;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Runtime.Intrinsics.X86;
 using TerraFX.Interop;
 using Voltium.Common;
-using Voltium.TextureLoading.DDS;
+using Voltium.Core;
+using Voltium.Core.GpuResources;
 using static TerraFX.Interop.DXGI_FORMAT;
 
 // life savers:
@@ -18,15 +16,17 @@ namespace Voltium.TextureLoading.TGA
 {
     internal static unsafe class TGAImplementationFunctions
     {
-        public static TextureDescription CreateTgaTexture(Memory<byte> tgaData,
-            LoaderFlags loaderFlags = LoaderFlags.None)
+        public static LoadedTexture CreateTgaTexture(
+            ReadOnlyMemory<byte> tgaData,
+            LoaderFlags loaderFlags = LoaderFlags.None
+        )
         {
             if (tgaData.Length < sizeof(TGAHeader))
             {
                 ThrowHelper.ThrowInvalidDataException("Too small");
             }
 
-            Span<byte> span = tgaData.Span;
+            ReadOnlySpan<byte> span = tgaData.Span;
 
             TGAHeader header = MemoryMarshal.Read<TGAHeader>(span);
 
@@ -60,16 +60,22 @@ namespace Voltium.TextureLoading.TGA
                     break;
             }
 
-            var subresources = new ManagedSubresourceData[1];
-            subresources[0] = new ManagedSubresourceData();
+            var subresources = new SubresourceData[1];
+            subresources[0] = new SubresourceData();
 
-            return new TextureDescription(
+            var desc = new TextureDesc
+            {
+                Width = (uint)header.Width,
+                Height = (uint)header.Height,
+                DepthOrArraySize = 0, // is this right?
+                Format = (DataFormat)format,
+                Dimension = TextureDimension.Tex2D
+            };
+
+            return new LoadedTexture(
                 data,
-                D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_TEXTURE2D,
-                new Size3((uint)header.Height, (uint)header.Width, 0),
+                desc,
                 1,
-                1,
-                format,
                 loaderFlags,
                 false,
                 subresources,

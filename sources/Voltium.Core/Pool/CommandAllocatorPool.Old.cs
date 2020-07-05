@@ -1,11 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Common.Debugging;
@@ -119,7 +116,7 @@ namespace Voltium.Core.Pool
                     var pair = _usedAllocators[i];
 
                     // if we have reached the fence at or after the one the allocator can be recycled at, reuse it
-                    if (marker.IsAtOrAfter(pair.Fence))
+                    if (marker >= pair.Fence)
                     {
                         using (_allocatorsLock.EnterScoped())
                         {
@@ -167,13 +164,13 @@ namespace Voltium.Core.Pool
 
             Guard.ThrowIfFailed(_device.Get()->CreateCommandAllocator(
                 (D3D12_COMMAND_LIST_TYPE)type,
-                allocator.Guid,
+                allocator.Iid,
                 ComPtr.GetVoidAddressOf(&allocator)
             ));
 
             Console.WriteLine("new command allocator created");
 
-            DirectXHelpers.SetObjectName(allocator.Get(), $"Allocator #{_allocatorCount++}");
+            DebugHelpers.SetName(allocator.Get(), $"Allocator #{_allocatorCount++}");
 
             //D3D12DeletionNotification.BreakOnDeletion(allocator);
 

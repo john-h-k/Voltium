@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
@@ -9,10 +9,10 @@ namespace Voltium.TextureLoading.DDS
 {
     internal readonly unsafe ref struct DDSFileMetadata
     {
-        public static DDSFileMetadata FromMemory(Memory<byte> ddsData)
+        public static DDSFileMetadata FromMemory(ReadOnlyMemory<byte> ddsData)
         {
             Debug.Assert(!ddsData.IsEmpty);
-            Span<byte> span = ddsData.Span;
+            ReadOnlySpan<byte> span = ddsData.Span;
             ref readonly byte dataStart = ref MemoryMarshal.GetReference(span);
 
             uint magicNum = BinaryPrimitives.ReadUInt32LittleEndian(span);
@@ -41,7 +41,7 @@ namespace Voltium.TextureLoading.DDS
             return new DDSFileMetadata(ref header, ddsData.Slice(offset));
         }
 
-        private DDSFileMetadata(ref DDSHeader ddsHeader, Memory<byte> bitData)
+        private DDSFileMetadata(ref DDSHeader ddsHeader, ReadOnlyMemory<byte> bitData)
         {
             _ddsHeader = MemoryMarshal.CreateReadOnlySpan(ref ddsHeader, 1);
             BitData = bitData;
@@ -50,6 +50,6 @@ namespace Voltium.TextureLoading.DDS
         private readonly ReadOnlySpan<DDSHeader> _ddsHeader;
         public ref readonly DDSHeader DdsHeader => ref _ddsHeader[0];
 
-        public readonly Memory<byte> BitData;
+        public readonly ReadOnlyMemory<byte> BitData;
     }
 }

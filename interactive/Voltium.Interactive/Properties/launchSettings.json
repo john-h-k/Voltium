@@ -2,6 +2,9 @@
   "profiles": {
     "Voltium.Interactive": {
       "commandName": "Project",
+      "environmentVariables": {
+        "DISABLE_D3D12_SHIM": "1"
+      },
       "nativeDebugging": true
     }
   }

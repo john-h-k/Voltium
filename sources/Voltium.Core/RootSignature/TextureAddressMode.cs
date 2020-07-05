@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using static TerraFX.Interop.D3D12_TEXTURE_ADDRESS_MODE;
 
 namespace Voltium.Core

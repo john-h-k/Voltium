@@ -1,5 +1,3 @@
-﻿using TerraFX.Interop;
-
 namespace Voltium.Core.Managers
 {
     /// <summary>
@@ -23,18 +21,12 @@ namespace Voltium.Core.Managers
         public uint Size => Height * Width;
 
         /// <summary>
-        /// The handle to the window
-        /// </summary>
-        public readonly HWND Handle;
-
-        /// <summary>
         /// Create a new instance of <see cref="ScreenData"/>
         /// </summary>
-        public ScreenData(uint height, uint width, HWND handle)
+        public ScreenData(uint height, uint width)
         {
             Height = height;
             Width = width;
-            Handle = handle;
         }
     }
 }

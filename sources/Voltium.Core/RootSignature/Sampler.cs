@@ -1,12 +1,6 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Text;
-using System.Threading.Tasks;
 using TerraFX.Interop;
-using Voltium.Core.GpuResources.OldStyle;
 
 namespace Voltium.Core
 {
@@ -20,7 +14,7 @@ namespace Voltium.Core
         /// of the texture coordinates in the U address dimension
         /// </summary>
         public TextureAddressMode TexU => (TextureAddressMode)_desc.AddressU;
-        
+
         /// <summary>
         /// Defines the <see cref="TextureAddressMode"/> to use for sampling points outside
         /// of the texture coordinates in the W address dimension
@@ -56,7 +50,7 @@ namespace Voltium.Core
         /// <summary>
         /// The color
         /// </summary>
-        public RgbaColor BorderColor => Unsafe.As<float, RgbaColor>(ref _desc.BorderColor[0]);
+        public Rgba128 BorderColor => Unsafe.As<float, Rgba128>(ref _desc.BorderColor[0]);
 
         /// <summary>
         /// The minimum (most detailed) mipmap level to use
@@ -75,16 +69,33 @@ namespace Voltium.Core
         /// Creates a new <see cref="Sampler"/>
         /// </summary>
         public unsafe Sampler(
+            TextureAddressMode texUWV,
+            SamplerFilterType filter,
+            float mipLODBias = 0,
+            uint maxAnisotropy = 16,
+            SampleComparisonFunc comparisonFunc = SampleComparisonFunc.LessThan,
+            Rgba128 borderColor = default,
+            float minLOD = 0,
+            float maxLOD = float.MaxValue
+        ) : this(texUWV, texUWV, texUWV, filter, mipLODBias, maxAnisotropy, comparisonFunc, borderColor, minLOD, maxLOD)
+        {
+
+        }
+
+        /// <summary>
+        /// Creates a new <see cref="Sampler"/>
+        /// </summary>
+        public unsafe Sampler(
             TextureAddressMode texU,
             TextureAddressMode texW,
             TextureAddressMode texV,
             SamplerFilterType filter,
-            float mipLODBias,
-            uint maxAnisotropy,
-            SampleComparisonFunc comparisonFunc,
-            RgbaColor borderColor,
-            float minLOD,
-            float maxLOD
+            float mipLODBias = 0,
+            uint maxAnisotropy = 16,
+            SampleComparisonFunc comparisonFunc = SampleComparisonFunc.LessThan,
+            Rgba128 borderColor = default,
+            float minLOD = 0,
+            float maxLOD = float.MaxValue
         )
         {
             Debug.Assert(maxAnisotropy <= 16);
@@ -101,7 +112,7 @@ namespace Voltium.Core
                 MinLOD = minLOD,
                 MaxLOD = maxLOD,
             };
-            Unsafe.As<float, RgbaColor>(ref _desc.BorderColor[0]) = borderColor;
+            Unsafe.As<float, Rgba128>(ref _desc.BorderColor[0]) = borderColor;
         }
     }
 }

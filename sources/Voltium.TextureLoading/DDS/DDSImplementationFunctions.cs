@@ -3,13 +3,15 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using TerraFX.Interop;
 using Voltium.Common;
+using Voltium.Core;
+using Voltium.Core.GpuResources;
 using static Voltium.TextureLoading.DDS.InteropTypeUtilities;
 
 namespace Voltium.TextureLoading.DDS
 {
     internal static class DDSImplementationFunctions
     {
-        public static TextureDescription CreateTextureFromDds12(
+        public static LoadedTexture CreateTextureFromDds12(
             DDSFileMetadata metadata,
             uint maxsize,
             LoaderFlags loaderFlags)
@@ -56,7 +58,7 @@ namespace Voltium.TextureLoading.DDS
 
             EnsureValidResourceSizeAndDimension(resDim, arraySize, isCubeMap, size);
 
-            ManagedSubresourceData[] subresourceData = FillSubresourceData(
+            SubresourceData[] subresourceData = FillSubresourceData(
                 size,
                 mipCount,
                 arraySize,
@@ -73,13 +75,19 @@ namespace Voltium.TextureLoading.DDS
                 //mipCount = Math.Min(Windows.D3D12_REQ_MIP_LEVELS, CountMips(width, height));
             }
 
-            return new TextureDescription(
+            var desc = new TextureDesc
+            {
+                Width = texSize.Width,
+                Height = texSize.Height,
+                DepthOrArraySize = (ushort)Math.Max(texSize.Depth, arraySize), // is this right?
+                Format = (DataFormat)format,
+                Dimension = (TextureDimension)resDim
+            };
+
+            return new LoadedTexture(
                 metadata.BitData,
-                resDim,
-                texSize,
+                desc,
                 mipCount - skipMip,
-                arraySize,
-                format,
                 loaderFlags,
                 isCubeMap,
                 subresourceData,
@@ -169,7 +177,8 @@ namespace Voltium.TextureLoading.DDS
                     break;
             }
 
-            resDim = d3d10Ext.ResourceDimension switch {
+            resDim = d3d10Ext.ResourceDimension switch
+            {
                 D3D11_RESOURCE_DIMENSION.D3D11_RESOURCE_DIMENSION_TEXTURE1D
                 => D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_TEXTURE1D,
 
@@ -235,8 +244,8 @@ namespace Voltium.TextureLoading.DDS
             uint count = 1;
             while (width > 1 || height > 1)
             {
-                width >>= 1;
-                height >>= 1;
+                width /= 2;
+                height /= 2;
                 count++;
             }
 
@@ -286,13 +295,13 @@ namespace Voltium.TextureLoading.DDS
             }
         }
 
-        private static ManagedSubresourceData[] FillSubresourceData(
+        private static SubresourceData[] FillSubresourceData(
             Size3 size,
             uint mipCount,
             uint arraySize,
             DXGI_FORMAT format,
             uint maxsize,
-            Memory<byte> bitData,
+            ReadOnlyMemory<byte> bitData,
             out Size3 texSize,
             out uint skipMip
         )
@@ -308,7 +317,7 @@ namespace Voltium.TextureLoading.DDS
 
             int index = 0;
 
-            var data = new ManagedSubresourceData[mipCount * arraySize];
+            var data = new SubresourceData[mipCount * arraySize];
 
             for (uint i = 0U; i < arraySize; i++)
             {
@@ -327,14 +336,12 @@ namespace Voltium.TextureLoading.DDS
                         }
 
                         Debug.Assert(index < mipCount * arraySize);
-                        data[index] = new ManagedSubresourceData(offset, surface.RowBytes, surface.NumBytes);
-
-                        index++;
+                        data[index++] = new SubresourceData(offset, surface.RowBytes, surface.NumBytes);
                     }
                     else if (j == 0)
                     {
                         // Count number of skipped mipmaps (first item only)
-                        ++skipMip;
+                        skipMip++;
                     }
 
                     offset += surface.NumBytes * tmpSize.Depth;
@@ -344,24 +351,9 @@ namespace Voltium.TextureLoading.DDS
                         ThrowHelper.ThrowArgumentException("File was too small");
                     }
 
-                    tmpSize.Height >>= 1;
-                    tmpSize.Width >>= 1;
-                    tmpSize.Depth >>= 1;
-
-                    if (tmpSize.Height == 0)
-                    {
-                        tmpSize.Height = 1;
-                    }
-
-                    if (tmpSize.Width == 0)
-                    {
-                        tmpSize.Width = 1;
-                    }
-
-                    if (tmpSize.Depth == 0)
-                    {
-                        tmpSize.Depth = 1;
-                    }
+                    tmpSize.Height = Math.Max(tmpSize.Height / 2, 1);
+                    tmpSize.Width = Math.Max(tmpSize.Width / 2, 1);
+                    tmpSize.Depth = Math.Max(tmpSize.Depth / 2, 1);
                 }
             }
 

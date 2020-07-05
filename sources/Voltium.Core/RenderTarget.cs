@@ -1,4 +1,4 @@
-﻿namespace Voltium.Core
+namespace Voltium.Core
 {
     /// <summary>
     /// Represents a

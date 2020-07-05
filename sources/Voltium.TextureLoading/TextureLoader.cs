@@ -2,11 +2,10 @@ using System;
 using System.Buffers.Binary;
 using System.Diagnostics;
 using System.IO;
-using System.Runtime.InteropServices;
 using TerraFX.Interop;
 using Voltium.Common;
+using Voltium.Core.GpuResources;
 using Voltium.TextureLoading.DDS;
-using Voltium.TextureLoading.TGA;
 using static TerraFX.Interop.D3D12_RESOURCE_DIMENSION;
 
 namespace Voltium.TextureLoading
@@ -24,7 +23,7 @@ namespace Voltium.TextureLoading
         /// <param name="loaderFlags">The flags passed to the texture loader</param>
         /// <param name="maxMipMapSize">The maximum permitted size of a mipmap, or 0 to indicate the maximum size permitted by hardware</param>
         /// <returns>A texture description</returns>
-        public static TextureDescription CreateTexture(
+        public static LoadedTexture CreateTexture(
             string fileName,
             TexType type = TexType.RuntimeDetect,
             LoaderFlags loaderFlags = LoaderFlags.None,
@@ -54,7 +53,7 @@ namespace Voltium.TextureLoading
         /// <param name="loaderFlags">The flags passed to the texture loader</param>
         /// <param name="maxMipMapSize">The maximum permitted size of a mipmap, or 0 to indicate the maximum size permitted by hardware</param>
         /// <returns>A texture description</returns>
-        public static TextureDescription CreateTexture(
+        public static LoadedTexture CreateTexture(
             Stream stream,
             TexType type = TexType.RuntimeDetect,
             LoaderFlags loaderFlags = LoaderFlags.None,
@@ -90,7 +89,7 @@ namespace Voltium.TextureLoading
         /// <param name="loaderFlags">The flags passed to the texture loader</param>
         /// <param name="maxMipMapSize">The maximum permitted size of a mipmap, or 0 to indicate the maximum size permitted by hardware</param>
         /// <returns>A texture description</returns>
-        public static TextureDescription CreateTexture(
+        public static LoadedTexture CreateTexture(
             Memory<byte> data,
             TexType type = TexType.RuntimeDetect,
             LoaderFlags loaderFlags = LoaderFlags.None,
@@ -130,14 +129,14 @@ namespace Voltium.TextureLoading
         /// </summary>
         /// <param name="device">The device to create resources on</param>
         /// <param name="cmdList">The command list to record to</param>
-        /// <param name="textureDescription">The texture to be uploaded</param>
+        /// <param name="texture">The texture to be uploaded</param>
         /// <param name="textureBuffer">A resource buffer that will contain the uploaded texture</param>
         /// <param name="textureBufferUploadHeap">An intermediate buffer used to copy over the texture</param>
         /// <param name="resourceFlags">Flags used in creation of the <paramref name="textureBuffer"/> resource</param>
         public static void RecordTextureUpload(
             ID3D12Device* device,
             ID3D12GraphicsCommandList* cmdList,
-            in TextureDescription textureDescription,
+            in LoadedTexture texture,
             out ID3D12Resource* textureBuffer,
             out ID3D12Resource* textureBufferUploadHeap,
             D3D12_RESOURCE_FLAGS resourceFlags = D3D12_RESOURCE_FLAGS.D3D12_RESOURCE_FLAG_NONE
@@ -148,9 +147,11 @@ namespace Voltium.TextureLoading
                 ThrowHelper.ThrowArgumentNullException(nameof(device));
             }
 
-            DXGI_FORMAT format = textureDescription.LoaderFlags.HasFlag(LoaderFlags.ForceSrgb)
-                ? InteropTypeUtilities.MakeSrgb(textureDescription.Format)
-                : textureDescription.Format;
+            var textureDescription = texture.Desc;
+
+            DXGI_FORMAT format = texture.LoaderFlags.HasFlag(LoaderFlags.ForceSrgb)
+                ? InteropTypeUtilities.MakeSrgb((DXGI_FORMAT)textureDescription.Format)
+                : (DXGI_FORMAT)textureDescription.Format;
 
             textureBuffer = default;
             textureBufferUploadHeap = default;
@@ -165,19 +166,17 @@ namespace Voltium.TextureLoading
                 Guard.ThrowIfFailed(fence->SetName((ushort*)pName));
             }
 
-            switch (textureDescription.ResourceDimension)
+            switch (textureDescription.Dimension)
             {
-                case D3D12_RESOURCE_DIMENSION_TEXTURE2D:
+                case TextureDimension.Tex2D:
                 {
                     D3D12_RESOURCE_DESC texDesc;
                     texDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
                     texDesc.Alignment = 0;
                     texDesc.Width = textureDescription.Width;
                     texDesc.Height = textureDescription.Height;
-                    texDesc.DepthOrArraySize = (textureDescription.Depth > 1)
-                        ? (ushort)textureDescription.Depth
-                        : (ushort)textureDescription.ArraySize;
-                    texDesc.MipLevels = (ushort)textureDescription.MipCount;
+                    texDesc.DepthOrArraySize = textureDescription.DepthOrArraySize;
+                    texDesc.MipLevels = (ushort)texture.MipCount;
                     texDesc.Format = format;
                     texDesc.SampleDesc.Count = 1;
                     texDesc.SampleDesc.Quality = 0;
@@ -226,14 +225,14 @@ namespace Voltium.TextureLoading
                         D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_COPY_DEST);
                     cmdList->ResourceBarrier(1, &commonToCopyDest);
 
-                    fixed (ManagedSubresourceData* pManagedSubresourceData = textureDescription.SubresourceData.Span)
-                    fixed (byte* pBitData = textureDescription.BitData.Span)
+                    fixed (SubresourceData* pManagedSubresourceData = texture.SubresourceData.Span)
+                    fixed (byte* pBitData = texture.Data.Span)
                     {
                         // Convert the ManagedSubresourceData to D3D12_SUBRESOURCE_DATA
                         // Just involves changing the offset (int32, relative to start of data) to an absolute pointer
                         for (int i = 0; i < num2DSubresources; i++)
                         {
-                            ManagedSubresourceData* p = &pManagedSubresourceData[i];
+                            SubresourceData* p = &pManagedSubresourceData[i];
                             ((D3D12_SUBRESOURCE_DATA*)p)->pData = pBitData + p->DataOffset;
                         }
 
@@ -244,7 +243,8 @@ namespace Voltium.TextureLoading
                             0,
                             0,
                             num2DSubresources,
-                            (D3D12_SUBRESOURCE_DATA*)pManagedSubresourceData);
+                            (D3D12_SUBRESOURCE_DATA*)pManagedSubresourceData
+                        );
                     }
 
                     var copyDestToSrv = D3D12_RESOURCE_BARRIER.InitTransition(textureBuffer,

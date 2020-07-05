@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net5.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="Jobs\FibreRoutines.asm" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Voltium.Common\Voltium.Common.csproj" PrivateAssets="All" />
+    <ProjectReference Include="..\Voltium.Core\Voltium.Core.csproj" />
+  </ItemGroup>
+
+</Project>

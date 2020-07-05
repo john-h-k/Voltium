@@ -1,8 +1,8 @@
-﻿using System;
+using System;
 using System.Globalization;
 using Voltium.Common;
 
-namespace Voltium.ModelLoader
+namespace Voltium.ModelLoading
 {
     internal static class ParseUtils
     {

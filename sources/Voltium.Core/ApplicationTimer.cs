@@ -1,9 +1,7 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Runtime.InteropServices;
 using TerraFX.Interop;
+using Voltium.Common;
 
 namespace Voltium.Core
 {
@@ -19,15 +17,17 @@ namespace Voltium.Core
         /// <summary>
         /// Creates a new <see cref="ApplicationTimer"/> and starts measuring elapsed time
         /// </summary>
-        public static void StartNew()
+        public static ApplicationTimer StartNew()
         {
             var timer = new ApplicationTimer();
 
-            TryQueryPerformanceFrequency(out timer._qpcFrequency);
+            timer._qpcFrequency = QueryPerformanceFrequency();
 
-            TryQueryPerformanceCounter(out timer._qpcLastTime);
+            timer._qpcLastTime = QueryPerformanceCounter();
 
             timer._qpcMaxDelta = (ulong)(timer._qpcFrequency.QuadPart / 10);
+
+            return timer;
         }
 
         /// <summary>
@@ -63,20 +63,17 @@ namespace Voltium.Core
         /// <summary>
         /// Whether a fixed or variable timestep should be used
         /// </summary>
-        /// <param name="isFixedTimestep"><c>true</c> if a fixed timestep should be used, and <c>false</c> if a variable timestep should be used</param>
-        public void SetFixedTimeStep(bool isFixedTimestep) { _isFixedTimeStep = isFixedTimestep; }
+        public bool IsFixedTimeStep { get; set; }
 
         /// <summary>
         /// Sets the desired number of ticks to elapse each frame in fixed timestep mode
         /// </summary>
-        /// <param name="targetElapsed">The number of ticks to elapse each frame</param>
-        public void SetTargetElapsedTicks(ulong targetElapsed) { _targetElapsedTicks = targetElapsed; }
+        public ulong TargetElapsedTicks { get; set; }
 
         /// <summary>
         /// Sets the desired number of seconds to elapse each frame in fixed timestep mode
         /// </summary>
-        /// <param name="targetElapsed">The number of seconds to elapse each frame</param>
-        public void SetTargetElapsedSeconds(double targetElapsed) { _targetElapsedTicks = SecondsToTicks(targetElapsed); }
+        public double TargetElapsedSeconds { get => TargetElapsedTicks / TicksPerSecond; set => TargetElapsedTicks = (ulong)(value * TicksPerSecond); }
 
         /// <summary>
         /// Converts ticks to seconds
@@ -99,7 +96,7 @@ namespace Voltium.Core
         /// </summary>
         public void ResetElapsedTime()
         {
-            TryQueryPerformanceCounter(out _qpcLastTime);
+            _qpcLastTime = QueryPerformanceCounter();
 
             _leftOverTicks = 0;
             _framesPerSecond = 0;
@@ -110,12 +107,10 @@ namespace Voltium.Core
         /// <summary>
         /// Ticks the timer, indicating a single frame has elapsed
         /// </summary>
-        /// <param name="update">The callback to use when the desired timestep is reached,
         /// in fixed timestep mode, or immediately, in variable timestep mode
-        /// </param>
         public void Tick(Action update)
         {
-            TryQueryPerformanceCounter(out LARGE_INTEGER currentTime);
+            var currentTime = QueryPerformanceCounter();
 
             var timeDelta = (ulong)(currentTime.QuadPart - _qpcLastTime.QuadPart);
 
@@ -132,22 +127,21 @@ namespace Voltium.Core
 
             uint lastFrameCount = _frameCount;
 
-            if (_isFixedTimeStep)
+            if (IsFixedTimeStep)
             {
-                if ((ulong)Math.Abs((long)(timeDelta - _targetElapsedTicks)) < TicksPerSecond / 4000)
+                if ((ulong)Math.Abs((long)(timeDelta - TargetElapsedTicks)) < TicksPerSecond / 4000)
                 {
-                    timeDelta = _targetElapsedTicks;
+                    timeDelta = TargetElapsedTicks;
                 }
 
                 _leftOverTicks += timeDelta;
 
-                while (_leftOverTicks >= _targetElapsedTicks)
+                while (_leftOverTicks >= TargetElapsedTicks)
                 {
-                    _elapsedTicks = _targetElapsedTicks;
-                    _totalTicks += _targetElapsedTicks;
-                    _leftOverTicks -= _targetElapsedTicks;
+                    _elapsedTicks = TargetElapsedTicks;
+                    _totalTicks += TargetElapsedTicks;
+                    _leftOverTicks -= TargetElapsedTicks;
                     _frameCount++;
-
                     update();
                 }
             }
@@ -174,26 +168,26 @@ namespace Voltium.Core
             }
         }
 
-        private static unsafe void TryQueryPerformanceCounter(out LARGE_INTEGER lpPerformanceCounter)
+        private static unsafe LARGE_INTEGER QueryPerformanceCounter()
         {
-            fixed (LARGE_INTEGER* pPerformanceCounter = &lpPerformanceCounter)
+            LARGE_INTEGER counter;
+            if (Windows.QueryPerformanceCounter(&counter) == Windows.TRUE)
             {
-                if (Windows.QueryPerformanceCounter(pPerformanceCounter) == Windows.TRUE)
-                {
-                    return;
-                }
+                return counter;
             }
+            ThrowHelper.ThrowExternalException(Marshal.GetLastWin32Error());
+            return default;
         }
 
-        private static unsafe void TryQueryPerformanceFrequency(out LARGE_INTEGER lpFrequency)
+        private static unsafe LARGE_INTEGER QueryPerformanceFrequency()
         {
-            fixed (LARGE_INTEGER* pFrequency = &lpFrequency)
+            LARGE_INTEGER frequency;
+            if (Windows.QueryPerformanceFrequency(&frequency) == Windows.TRUE)
             {
-                if (Windows.QueryPerformanceFrequency(pFrequency) == Windows.TRUE)
-                {
-                    return;
-                }
+                return frequency;
             }
+            ThrowHelper.ThrowExternalException(Marshal.GetLastWin32Error());
+            return default;
         }
 
         private const ulong TicksPerSecond = 10000000;
@@ -210,8 +204,5 @@ namespace Voltium.Core
         private uint _framesPerSecond;
         private uint _framesThisSecond;
         private ulong _qpcSecondCounter;
-
-        private bool _isFixedTimeStep;
-        private ulong _targetElapsedTicks;
     }
 }

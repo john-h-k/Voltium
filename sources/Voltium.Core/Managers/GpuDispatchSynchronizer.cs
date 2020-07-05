@@ -1,5 +1,4 @@
 using System;
-using System.Data;
 using System.Diagnostics;
 using TerraFX.Interop;
 using Voltium.Common;
@@ -34,7 +33,7 @@ namespace Voltium.Core.Managers
                 return;
             }
 
-            _fence.Get()->SetEventOnCompletion(_completionValue.FenceValue, default);
+            Guard.ThrowIfFailed(_fence.Get()->SetEventOnCompletion(_completionValue.FenceValue, default));
         }
 
         /// <summary>
@@ -45,7 +44,7 @@ namespace Voltium.Core.Managers
         {
             var @event = Windows.CreateEventExW(null, null, 0, Windows.EVENT_ALL_ACCESS);
             Debug.Assert(_fence.Exists);
-            _fence.Get()->SetEventOnCompletion(_completionValue.FenceValue, @event);
+            Guard.ThrowIfFailed(_fence.Get()->SetEventOnCompletion(_completionValue.FenceValue, @event));
             return new GpuSyncEvent(@event);
         }
 

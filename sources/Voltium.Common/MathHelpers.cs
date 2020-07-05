@@ -1,16 +1,11 @@
-using System;
-using System.Collections.Generic;
-using System.Data;
 using System.Diagnostics;
-using System.Linq;
 using System.Numerics;
-using System.Runtime.CompilerServices;
-using System.Text;
-using System.Threading.Tasks;
+
+#pragma warning disable
 
 namespace Voltium.Common
 {
-    internal unsafe static class MathHelpers
+    public unsafe static class MathHelpers
     {
         public static T* AlignUp<T>(T* ptr, nuint alignment) where T : unmanaged
                => (T*)AlignUp((nuint)ptr, alignment);
@@ -25,6 +20,13 @@ namespace Voltium.Common
         public static nuint AlignUp(nuint ptr, nuint alignment)
         {
             Debug.Assert(BitOperations.PopCount(alignment) == 1);
+            var mask = alignment - 1;
+            return (ptr + mask) & ~mask;
+        }
+
+        public static nint AlignUp(nint ptr, nint alignment)
+        {
+            Debug.Assert(BitOperations.PopCount((ulong)alignment) == 1);
             var mask = alignment - 1;
             return (ptr + mask) & ~mask;
         }

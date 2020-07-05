@@ -1,29 +1,19 @@
 using System;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 
 namespace Voltium.Core.D3D12
 {
     /// <summary>
     /// Represents a position on a fence
     /// </summary>
+    [DebuggerDisplay("Value: {Value}")]
     public readonly struct FenceMarker : IEquatable<FenceMarker>, IComparable<FenceMarker>
     {
-        internal static ulong GetFirstFenceForExecutionContext(ExecutionContext executionContext)
-            => (ulong)executionContext * ExecutionContextExtensions.FenceSegmentSize;
-
         internal FenceMarker(ulong fenceValue) => Value = fenceValue;
-        internal FenceMarker(ulong fenceValue, ExecutionContext executionContext)
-        {
-            Debug.Assert(ExecutionContextExtensions.InSegment(fenceValue, executionContext));
-            Value = fenceValue;
-        }
 
         private readonly ulong Value;
 
         internal ulong FenceValue => Value;
-
-        internal ExecutionContext ExecutionContext => (ExecutionContext)(Value / ExecutionContextExtensions.FenceSegmentSize);
 
         /// <inheritdoc/>
         public bool Equals(FenceMarker other) => Equals(this, other);
@@ -35,34 +25,36 @@ namespace Voltium.Core.D3D12
         public override int GetHashCode() => Value.GetHashCode();
 
         /// <summary>
-        /// Tests whether the current fence occurs in the same <see cref="ExecutionContext"/> and after or at the same time as another fence
+        /// Tests whether the current fence occurs after or at the same time as another fence
         /// </summary>
-        /// <param name="other">The other fence to compare to</param>
+        /// <param name="left">The left hand side</param>
+        /// <param name="right">The right hand side</param>
         /// <returns><code>true</code> if this fence is afterwards and on the same <see cref="ExecutionContext"/>, else <code>false</code></returns>
-        public bool IsAtOrAfter(FenceMarker other) => ExecutionContext == other.ExecutionContext && Value >= other.Value;
+        public static bool operator >=(FenceMarker left, FenceMarker right) => left.Value >= right.Value;
 
         /// <summary>
-        /// Tests whether the current fence occurs in the same <see cref="ExecutionContext"/> and before or at the same time as another fence
+        /// Tests whether the current fence occurs before or at the same time as another fence
         /// </summary>
-        /// <param name="other">The other fence to compare to</param>
+        /// <param name="left">The left hand side</param>
+        /// <param name="right">The right hand side</param>
         /// <returns><code>true</code> if this fence is before and on the same <see cref="ExecutionContext"/>, else <code>false</code></returns>
-        public bool IsAtOrBefore(FenceMarker other) => ExecutionContext == other.ExecutionContext && Value <= other.Value;
+        public static bool operator <=(FenceMarker left, FenceMarker right) => left.Value <= right.Value;
 
         /// <summary>
         /// Tests whether the current fence occurs in the same <see cref="ExecutionContext"/> and after another fence
         /// </summary>
-        /// <param name="other">The other fence to compare to</param>
+        /// <param name="left">The left hand side</param>
+        /// <param name="right">The right hand side</param>
         /// <returns><code>true</code> if this fence is afterwards and on the same <see cref="ExecutionContext"/>, else <code>false</code></returns>
-        public bool IsAfter(FenceMarker other) => ExecutionContext == other.ExecutionContext && Value > other.Value;
+        public static bool operator >(FenceMarker left, FenceMarker right) => left.Value > right.Value;
 
         /// <summary>
-        /// Tests whether the current fence occurs in the same <see cref="ExecutionContext"/> and before or at the same time as another fence
+        /// Tests whether the current fence occurs before or at the same time as another fence
         /// </summary>
-        /// <param name="other">The other fence to compare to</param>
+        /// <param name="left">The left hand side</param>
+        /// <param name="right">The right hand side</param>
         /// <returns><code>true</code> if this fence is before and on the same <see cref="ExecutionContext"/>, else <code>false</code></returns>
-        public bool IsBefore(FenceMarker other) => ExecutionContext == other.ExecutionContext && Value < other.Value;
-
-        internal ulong Normalise() => FenceValue / ExecutionContextExtensions.NumSupportedExecutionContexts;
+        public static bool operator <(FenceMarker left, FenceMarker right) => left.Value < right.Value;
 
         /// <summary>
         /// Compares one <see cref="FenceMarker"/> to another, based off the fence value from the start of the current segment 
@@ -72,7 +64,7 @@ namespace Voltium.Core.D3D12
         /// <returns>Less than 0 if <paramref name="other"/> is before, 0 if they are equivalent, else greater than 0</returns>
         public int CompareTo(FenceMarker other)
         {
-            return Normalise().CompareTo(other.Normalise());
+            return Value.CompareTo(other.Value);
         }
 
         /// <summary>

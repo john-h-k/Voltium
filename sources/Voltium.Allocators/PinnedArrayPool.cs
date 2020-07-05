@@ -1,0 +1,4 @@
+namespace Voltium.Core
+{
+    // TODO
+}

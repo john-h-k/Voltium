@@ -1,7 +1,7 @@
 ﻿namespace Voltium.Core.Pipeline
 {
     /// <summary>
-    /// The type of a <see cref="Pipeline"/>
+    /// The type of a <see cref="PipelineStateObject"/>
     /// </summary>
     public enum PipelineType
     {

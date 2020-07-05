@@ -6,12 +6,10 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Net;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Threading;
 using TerraFX.Interop;
-using Voltium.Common;
 using Voltium.Common.Tracing;
 
 
@@ -26,8 +24,8 @@ namespace Voltium.Common
 
         [DebuggerHidden]
         [DoesNotReturn]
-        public static void ThrowArgumentException(string paramName, Exception inner) =>
-            throw new ArgumentException(paramName, inner);
+        public static void ThrowArgumentException(string message, Exception inner) =>
+            throw new ArgumentException(message, inner);
 
         [DebuggerHidden]
         [DoesNotReturn]
@@ -56,7 +54,7 @@ namespace Voltium.Common
             if (pError != null && pError->GetBufferPointer() != null)
             {
                 var message = new string((sbyte*)pError->GetBufferSize(), 0, checked((int)pError->GetBufferSize()));
-                Guard.ThrowIfFailed(hr, extraInfo: message);
+                Guard.ThrowIfFailed(hr);
             }
             else
             {
@@ -209,6 +207,10 @@ namespace Voltium.Common
             // enjoy this photo as compensation
             // https://thumbs.dreamstime.com/z/cat-kayaking-sea-kayaker-cap-drifting-red-plastic-boat-151961425.jpg
             throw new ExternalException(message, hr);
+
+        [DebuggerHidden]
+        public static ExternalException CreateExternalException(int hr, string? message = null) =>
+            new ExternalException(message, hr);
 
         [DebuggerHidden]
         [DoesNotReturn]

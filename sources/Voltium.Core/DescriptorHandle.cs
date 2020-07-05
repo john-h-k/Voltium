@@ -1,5 +1,4 @@
-﻿using TerraFX.Interop;
-using Voltium.Core.Managers;
+using TerraFX.Interop;
 
 namespace Voltium.Core
 {
@@ -11,14 +10,14 @@ namespace Voltium.Core
         /// <summary>
         /// The CPU handle for the descriptor
         /// </summary>
-        public CpuHandle CpuHandle;
+        internal D3D12_CPU_DESCRIPTOR_HANDLE CpuHandle;
 
         /// <summary>
         /// The GPU handle for the descriptor
         /// </summary>
-        public GpuHandle GpuHandle;
+        public D3D12_GPU_DESCRIPTOR_HANDLE GpuHandle;
 
-        private int IncrementSize;
+        private uint IncrementSize;
 
         /// <summary>
         /// Offset the descriptor by a fixed offset
@@ -28,10 +27,19 @@ namespace Voltium.Core
         /// <returns></returns>
         public static DescriptorHandle operator +(DescriptorHandle handle, int offset)
         {
-            handle.CpuHandle += offset * handle.IncrementSize;
-            handle.GpuHandle += offset * handle.IncrementSize;
+            handle.CpuHandle.Offset(offset, handle.IncrementSize);
+            handle.GpuHandle.Offset(offset, handle.IncrementSize);
             return handle;
         }
+
+        /// <summary>
+        /// Offset the descriptor by a fixed offset
+        /// </summary>
+        /// <param name="handle"></param>
+        /// <param name="offset"></param>
+        /// <returns></returns>
+        public static DescriptorHandle operator +(DescriptorHandle handle, uint offset)
+            => handle + (int)offset;
 
         /// <summary>
         /// Offset the descriptor by 1
@@ -39,20 +47,16 @@ namespace Voltium.Core
         /// <param name="handle"></param>
         /// <returns></returns>
         public static DescriptorHandle operator ++(DescriptorHandle handle)
-        {
-            handle.CpuHandle += handle.IncrementSize;
-            handle.GpuHandle += handle.IncrementSize;
-            return handle;
-        }
+            => handle + 1;
 
         /// <summary>
         /// Creates a new <see cref="DescriptorHandle"/>
         /// </summary>
-        public DescriptorHandle(CpuHandle cpuHandle, GpuHandle gpuHandle, D3D12_DESCRIPTOR_HEAP_TYPE type)
+        internal DescriptorHandle(uint incrementSize, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle)
         {
             CpuHandle = cpuHandle;
             GpuHandle = gpuHandle;
-            IncrementSize = DeviceManager.Manager.GetDescriptorSizeForType(type);
+            IncrementSize = incrementSize;
         }
     }
 }

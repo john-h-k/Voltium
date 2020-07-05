@@ -1,69 +1,110 @@
-using System.Diagnostics;
+using System.Drawing;
+using System.Runtime.CompilerServices;
 using TerraFX.Interop;
 using Voltium.Core;
+using Voltium.Core.Devices;
 using Voltium.Core.Managers;
-using static TerraFX.Interop.DXGI_FORMAT;
-using static TerraFX.Interop.Windows;
-using static TerraFX.Interop.D3D12_PRIMITIVE_TOPOLOGY_TYPE;
-using static TerraFX.Interop.D3D12_INPUT_CLASSIFICATION;
 
 namespace Voltium.Interactive
 {
-    internal class DirectXHelloWorldApplication : Application
+    internal class DirectXHelloWorldApplication<TRenderer> : Application where TRenderer : Renderer, new()
     {
         public override string Title => "Hello DirectX!";
-        private Renderer _renderer = new DefaultRenderer();
+        private Renderer _renderer = new TRenderer();
 
-        public override unsafe void Init(ScreenData data)
+        private GraphicsDevice _device = null!;
+        private Output _output = null!;
+        private GraphicalConfiguration _config = null!;
+        private Size _screen;
+        private bool _isPaused;
+
+        public override unsafe void Init(Size data, HWND hwnd)
         {
-            GraphicalConfiguration config = new GraphicalConfiguration
+            var config = new GraphicalConfiguration
             {
-                ForceFullscreenAsWindowed = false,
-                ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER.DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED,
-                VSyncCount = 0,
-                BackBufferFormat = DXGI_FORMAT_R8G8B8A8_UNORM,
-                DepthStencilFormat = DXGI_FORMAT_D32_FLOAT,
-                FullscreenScalingStrategy = DXGI_MODE_SCALING.DXGI_MODE_SCALING_UNSPECIFIED,
-                MultiSamplingStrategy = new DXGI_SAMPLE_DESC(1, 0),
-                RequiredDirect3DLevel = D3D_FEATURE_LEVEL.D3D_FEATURE_LEVEL_11_1,
-                ScalingStrategy = DXGI_SCALING.DXGI_SCALING_NONE,
-                SwapEffect = DXGI_SWAP_EFFECT.DXGI_SWAP_EFFECT_FLIP_DISCARD
+                RequiredFeatureLevel = FeatureLevel.GraphicsLevel11_0,
+                DebugLayerConfiguration = new DebugLayerConfiguration().DisableDeviceRemovedMetadata()
             };
 
-            DeviceManager.Initialize(config, data);
-            _renderer.Init(config, DeviceManager.Manager.Device);
+            _config = config;
+            _screen = data;
+            _device = GraphicsDevice.Create(null, config);
+
+            var desc = new OutputDesc
+            {
+                BackBufferFormat = BackBufferFormat.R8G8B8A8UnsignedNormalized,
+                BackBufferCount = 3,
+                SyncInterval = 0
+            };
+
+            _output = Output.CreateForWin32(_device, desc, hwnd);
+
+            _renderer.Init(_device, config, data);
         }
 
-        public override void Update()
+        public override void Update(ApplicationTimer timer)
         {
+            if (_isPaused)
+            {
+                return;
+            }
+            _renderer.Update(timer);
         }
-
         public override unsafe void Render()
         {
-            using var commandList = GpuDispatchManager.Manager.BeginGraphicsContext(_renderer.GetInitialPso().Move());
+            if (_isPaused)
+            {
+                return;
+            }
+            using (var recorder = _device.BeginGraphicsContext(_renderer.GetInitialPso()))
+            {
+                _renderer.Render(ref recorder.AsMutable(), out var render);
 
-            commandList.SetViewports(DeviceManager.Manager.Viewport);
-            commandList.SetScissorRectangles(DeviceManager.Manager.Scissor);
-            _renderer.Render(commandList);
+                if (render.Msaa.IsMultiSampled)
+                {
+                    recorder.ResolveSubresource(render, _output.BackBuffer);
+                }
+                else
+                {
+                    recorder.CopyResource(render, _output.BackBuffer);
+                }
+                recorder.ResourceTransition(_output.BackBuffer, ResourceState.Present);
+            }
 
-            GpuDispatchManager.Manager.End(commandList.Move());
-
-            DeviceManager.Manager.Present();
+            _output.Present();
         }
-
         public override void Destroy()
         {
-            DeviceManager.Manager.Dispose();
+            _device.Dispose();
+        }
+
+        public override void OnResize(Size newScreenData)
+        {
+            _screen = newScreenData;
+            _output.Resize(newScreenData);
+            _renderer.Resize(newScreenData);
         }
 
         public override void OnKeyDown(byte key)
         {
-
+            if (key == /* P */ 0x50)
+            {
+                _isPaused = !_isPaused;
+            }
+            if (key == /* M */ 0x4D)
+            {
+                _device.Idle();
+                _renderer.ToggleMsaa();
+            }
         }
 
         public override void OnKeyUp(byte key)
         {
+        }
 
+        public override void OnMouseScroll(int scroll)
+        {
+            _renderer.OnMouseScroll(scroll);
         }
     }
 }

@@ -3,7 +3,6 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using Voltium.Common.HashHelper;
@@ -19,10 +18,11 @@ namespace Voltium.Common
 
         public StringBuilder Value { get; private set; }
 
-        public StringBuilder Clear() => Value.Clear();
-        public StringBuilder Append<T>(T obj) => Value.Append(obj?.ToString());
-        public StringBuilder AppendLine<T>(T obj) => Value.AppendLine(obj?.ToString());
-        public StringBuilder Insert<T>(int index, T obj) => Value.Insert(index, obj?.ToString());
+        public RentedStringBuilder Clear() => new(Value.Clear());
+        public RentedStringBuilder Append<T>(T obj) => new(Value.Append(obj?.ToString()));
+        public RentedStringBuilder AppendLine<T>(T obj) => new(Value.AppendLine(obj?.ToString()));
+        public RentedStringBuilder AppendLine() => new(Value.AppendLine());
+        public RentedStringBuilder Insert<T>(int index, T obj) => new(Value.Insert(index, obj?.ToString()));
 
         public override string ToString() => Value.ToString();
 
@@ -31,7 +31,6 @@ namespace Voltium.Common
     internal static class StringHelper
     {
         [ThreadStatic]
-
         private static StringBuilder? _perThreadBuilder;
 
         public static RentedStringBuilder RentStringBuilder()
@@ -53,37 +52,9 @@ namespace Voltium.Common
             _perThreadBuilder ??= val.Value;
         }
 
-        [MethodImplAttribute(MethodTypes.SlowPath)]
+        [MethodImpl(MethodTypes.SlowPath)]
         private static StringBuilder GetNewStringBuilder() => new StringBuilder(DefaultSize);
         private const int DefaultSize = 64;
-
-        public static string DefaultToString<T>(T @this, ReflectionToStringFlags flags = ReflectionToStringFlags.Default)
-        {
-            if (@this is null)
-            {
-                return "null";
-            }
-
-            using RentedStringBuilder builder = RentStringBuilder();
-
-            BindingFlags bindingFlags = (BindingFlags)(flags & ReflectionToStringFlags.BindingFlagsMask) | BindingFlags.Instance;
-            if (flags.HasFlag(ReflectionToStringFlags.Properties))
-            {
-                foreach (PropertyInfo prop in @this.GetType().GetProperties(bindingFlags))
-                {
-                    builder.AppendLine($"{prop.Name}: {prop.GetValue(@this)}");
-                }
-            }
-            else if (flags.HasFlag(ReflectionToStringFlags.Fields))
-            {
-                foreach (FieldInfo field in @this.GetType().GetFields(bindingFlags))
-                {
-                    builder.AppendLine($"{field.Name}: {field.GetValue(@this)}");
-                }
-            }
-
-            return builder.ToString();
-        }
 
         public static void WriteTabbingNewlines(ReadOnlySpan<char> str, int tabPerNewline = 1, TextWriter writer = null!)
         {

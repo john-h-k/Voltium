@@ -1,9 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using static TerraFX.Interop.D3D12_FILTER;
 
 namespace Voltium.Core
 {
@@ -29,6 +24,11 @@ namespace Voltium.Core
         MinPoint = 0,
 
         /// <summary>
+        /// Use point sampling for magnification, minificatiom, and sampling across mipmaps
+        /// </summary>
+        Point = MipPoint | MagPoint | MinPoint,
+
+        /// <summary>
         /// The mask used to clear the min, mag, and mip states of the filter
         /// </summary>
         MinMagMipMask = MipLinear | MagLinear | MinLinear,
@@ -39,14 +39,19 @@ namespace Voltium.Core
         MipLinear = 0b00001,
 
         /// <summary>
-        /// Use point sampling for magnification
+        /// Use bilinear sampling for magnification
         /// </summary>
         MagLinear = 0b00100,
 
         /// <summary>
-        /// Use point sampling for minification
+        /// Use bilinear sampling for minification
         /// </summary>
         MinLinear = 0b10000,
+
+        /// <summary>
+        /// Use bilinear sampling for magnification, minificatiom, and sampling across mipmaps
+        /// </summary>
+        Linear = MipLinear | MagLinear | MinLinear,
 
         /// <summary>
         /// Use anisotropic interpolation for mipmaps, magnification, and minifaction
