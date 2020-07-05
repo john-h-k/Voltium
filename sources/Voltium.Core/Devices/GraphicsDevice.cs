@@ -1,8 +1,11 @@
 using System;
 using System.Diagnostics;
 using System.Drawing;
+using System.Numerics;
+using System.Runtime.CompilerServices;
 using TerraFX.Interop;
 using Voltium.Common;
+using Voltium.Core.Configuration.Graphics;
 using Voltium.Core.Devices;
 using Voltium.Core.GpuResources;
 using Voltium.Core.Infrastructure;
@@ -13,6 +16,7 @@ using static TerraFX.Interop.Windows;
 
 namespace Voltium.Core.Managers
 {
+
     /// <summary>
     /// The top-level manager for application resources
     /// </summary>
@@ -123,14 +127,11 @@ namespace Voltium.Core.Managers
 
                 if (!_device.Exists)
                 {
-                    ThrowHelper.ThrowPlatformNotSupportedException(
-                        $"FATAL: Creation of ID3D12Device with feature level '{config.RequiredFeatureLevel}' failed");
+                    ThrowHelper.ThrowPlatformNotSupportedException($"FATAL: Creation of ID3D12Device with feature level '{config.RequiredFeatureLevel}' failed");
                 }
 
                 _debug.SetDeviceStateForConfig(this);
             }
-
-            // TODO WARP support
 
             Allocator = new GpuAllocator(this);
 
@@ -138,7 +139,90 @@ namespace Voltium.Core.Managers
 
             CreateSwapChain();
             CreateDescriptorHeaps();
+            CheckFeatureSupport();
         }
+
+        private void CheckFeatureSupport()
+        {
+            uint CheckMsaaSupport(uint sampleCount)
+            {
+                D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS desc = default;
+                desc.SampleCount = sampleCount;
+                desc.Format = DXGI_FORMAT.DXGI_FORMAT_R8G8B8A8_UNORM;
+
+                Guard.ThrowIfFailed(DevicePointer->CheckFeatureSupport(D3D12_FEATURE.D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS, &desc, (uint)sizeof(D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS)));
+
+                return desc.NumQualityLevels;
+            }
+
+            _sampleCounts.X1 = 1;
+            _sampleCounts.X2 = CheckMsaaSupport(2);
+            _sampleCounts.X4 = CheckMsaaSupport(4);
+            _sampleCounts.X8 = CheckMsaaSupport(8);
+            _sampleCounts.X16 = CheckMsaaSupport(16);
+            _sampleCounts.X32 = CheckMsaaSupport(32);
+        }
+
+        private struct SampleCounts
+        {
+            public uint X1;
+            public uint X2;
+            public uint X4;
+            public uint X8;
+            public uint X16;
+            public uint X32;
+            public uint X64;
+            public uint GetQualityLevelsForSampleCount(uint sampleCount)
+                => Unsafe.Add(ref X1, BitOperations.Log2(sampleCount));
+        }
+
+        private SampleCounts _sampleCounts;
+
+        /// <summary>
+        /// Checks whether multisampling for a given sample count is supported, and if so, how many quality levels are present
+        /// </summary>
+        /// <param name="sampleCount">The number of samples to check support for</param>
+        /// <param name="highestQualityLevel">If the return value is <see langword="true"/>, the number of quality levels supported for <paramref name="sampleCount"/></param>
+        /// <returns><see langword="true"/> if multisampling for <paramref name="sampleCount"/> is supported, else <see langword="false"/></returns>
+        public bool IsSampleCountSupported(uint sampleCount, out MultisamplingDesc highestQualityLevel)
+        {
+            highestQualityLevel = new (sampleCount, _sampleCounts.GetQualityLevelsForSampleCount(sampleCount) - 1);
+
+            // When unsupported, num quality levels = 0, which wil underflow to maxvalue in the above calc
+            return highestQualityLevel.QualityLevel != 0xFFFFFFFF;
+        }
+
+        /// <summary>
+        /// Returns the highest supporte multisampling count with the highest quality level supported
+        /// </summary>
+        /// <returns>The highest supported multisampling count with the highest quality level supported</returns>
+        public MultisamplingDesc HighestSupportedMsaa()
+        {
+            MultisamplingDesc best;
+            if (IsSampleCountSupported(32, out best))
+            {
+                return best;
+            }
+            if (IsSampleCountSupported(16, out best))
+            {
+                return best;
+            }
+            if (IsSampleCountSupported(8, out best))
+            {
+                return best;
+            }
+            if (IsSampleCountSupported(4, out best))
+            {
+                return best;
+            }
+            if (IsSampleCountSupported(2, out best))
+            {
+                return best;
+            }
+
+            return MultisamplingDesc.None;
+        }
+
 
         internal ComPtr<ID3D12RootSignature> CreateRootSignature(uint nodeMask, void* pSignature, uint signatureLength)
         {

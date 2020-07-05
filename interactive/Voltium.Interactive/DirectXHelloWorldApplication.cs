@@ -22,7 +22,7 @@ namespace Voltium.Interactive
         {
             var config = new GraphicalConfiguration
             {
-                RequiredFeatureLevel = FeatureLevel.Level11_0,
+                RequiredFeatureLevel = FeatureLevel.GraphicsLevel11_0,
                 DebugLayerConfiguration = new DebugLayerConfiguration().DisableDeviceRemovedMetadata()
             };
 
@@ -59,7 +59,15 @@ namespace Voltium.Interactive
             using (var recorder = _device.BeginGraphicsContext(_renderer.GetInitialPso()))
             {
                 _renderer.Render(ref recorder.AsMutable(), out var render);
-                recorder.CopyResource(render, _output.BackBuffer);
+
+                if (render.Msaa.IsMultiSampled)
+                {
+                    recorder.ResolveSubresource(render, _output.BackBuffer);
+                }
+                else
+                {
+                    recorder.CopyResource(render, _output.BackBuffer);
+                }
                 recorder.ResourceTransition(_output.BackBuffer, ResourceState.Present);
             }
 

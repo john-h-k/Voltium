@@ -9,6 +9,7 @@ using Voltium.Core.Devices;
 using Voltium.Core.Managers;
 using Voltium.Core.Memory.GpuResources;
 using Buffer = Voltium.Core.Memory.GpuResources.Buffer;
+using Rectangle = System.Drawing.Rectangle;
 
 namespace Voltium.Core.GpuResources
 {
@@ -603,9 +604,9 @@ namespace Voltium.Core.GpuResources
         /// <param name="height">The height, in texels, of the target</param>
         /// <param name="width">The width, in texels, of the target</param>
         /// <param name="clearColor">The <see cref="Rgba128"/> to set to be the optimized clear value</param>
-        /// <param name="msaa">Optionally, the <see cref="MsaaDesc"/> for the render target</param>
+        /// <param name="msaa">Optionally, the <see cref="MultisamplingDesc"/> for the render target</param>
         /// <returns>A new <see cref="TextureDesc"/> representing a render target</returns>
-        public static TextureDesc CreateRenderTargetDesc(BackBufferFormat format, uint height, uint width, Rgba128 clearColor, MsaaDesc msaa = default)
+        public static TextureDesc CreateRenderTargetDesc(BackBufferFormat format, uint height, uint width, Rgba128 clearColor, MultisamplingDesc msaa = default)
         {
             return new TextureDesc
             {
@@ -628,9 +629,9 @@ namespace Voltium.Core.GpuResources
         /// <param name="height">The height, in texels, of the target</param>
         /// <param name="width">The width, in texels, of the target</param>
         /// <param name="clearColor">The <see cref="Rgba128"/> to set to be the optimized clear value</param>
-        /// <param name="msaa">Optionally, the <see cref="MsaaDesc"/> for the render target</param>
+        /// <param name="msaa">Optionally, the <see cref="MultisamplingDesc"/> for the render target</param>
         /// <returns>A new <see cref="TextureDesc"/> representing a render target</returns>
-        public static TextureDesc CreateRenderTargetDesc(DataFormat format, uint height, uint width, Rgba128 clearColor, MsaaDesc msaa = default)
+        public static TextureDesc CreateRenderTargetDesc(DataFormat format, uint height, uint width, Rgba128 clearColor, MultisamplingDesc msaa = default)
         {
             return new TextureDesc
             {
@@ -655,9 +656,9 @@ namespace Voltium.Core.GpuResources
         /// <param name="clearDepth">The <see cref="float"/> to set to be the optimized clear value for the depth element</param>
         /// <param name="clearStencil">The <see cref="byte"/> to set to be the optimized clear value for the stencil element</param>
         /// <param name="shaderVisible">Whether the <see cref="Texture"/> is shader visible. <see langword="true"/> by default</param>
-        /// <param name="msaa">Optionally, the <see cref="MsaaDesc"/> for the depth stencil</param>
+        /// <param name="msaa">Optionally, the <see cref="MultisamplingDesc"/> for the depth stencil</param>
         /// <returns>A new <see cref="TextureDesc"/> representing a depth stencil</returns>
-        public static TextureDesc CreateDepthStencilDesc(DataFormat format, uint height, uint width, float clearDepth, byte clearStencil, bool shaderVisible = true, MsaaDesc msaa = default)
+        public static TextureDesc CreateDepthStencilDesc(DataFormat format, uint height, uint width, float clearDepth, byte clearStencil, bool shaderVisible = true, MultisamplingDesc msaa = default)
         {
             return new TextureDesc
             {
@@ -760,9 +761,9 @@ namespace Voltium.Core.GpuResources
         public ResourceFlags ResourceFlags;
 
         /// <summary>
-        /// Optionally, the <see cref="MsaaDesc"/> describing multi-sampling for this texture.
+        /// Optionally, the <see cref="MultisamplingDesc"/> describing multi-sampling for this texture.
         /// This is only meaningful when used with a render target or depth stencil
         /// </summary>
-        public MsaaDesc Msaa;
+        public MultisamplingDesc Msaa;
     }
 }

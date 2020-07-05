@@ -65,7 +65,7 @@ namespace Voltium.Core.Pipeline
         /// The MSAA (multi-sample anti-aliasing) settings for the
         /// pipeline
         /// </summary>
-        public MsaaDesc? Msaa;
+        public MultisamplingDesc? Msaa;
 
         /// <summary>
         /// The <see cref="TopologyClass"/> for this type 

@@ -11,6 +11,7 @@ using Voltium.Core.Infrastructure;
 using Voltium.Core.Managers;
 using Voltium.Core.Memory.GpuResources;
 using Voltium.Core.Pipeline;
+using ZLogger;
 using static TerraFX.Interop.Windows;
 using Buffer = Voltium.Core.Memory.GpuResources.Buffer;
 
@@ -47,7 +48,7 @@ namespace Voltium.Core.Devices
         private protected ComPtr<ID3D12Device> _device;
         private protected SupportedDevice _supportedDevice;
         private protected enum SupportedDevice { Device, Device1, Device2, Device3, Device4, Device5, Device6, Device7, Device8 }
-        private protected static HashSet<ulong?> _preexistingDevices = new(1);
+        private protected static HashSet<ulong> _preexistingDevices = new(1);
         private protected DebugLayer? _debug;
 
         /// <summary>
@@ -61,15 +62,23 @@ namespace Voltium.Core.Devices
         public uint NodeCount => DevicePointer->GetNodeCount();
 
 
+        private static readonly Adapter DefaultAdapter = GetDefaultAdapter();
+
+        private static Adapter GetDefaultAdapter()
+        {
+            using var factory = new DxgiDeviceFactory().GetEnumerator();
+            factory.MoveNext();
+            return factory.Current;
+        }
+
         private protected void CreateNewDevice(
             Adapter? adapter,
             FeatureLevel level
         )
         {
-            // null adapter has 2 LUIDs in the hashset, one is 'null', the other is the real adapter LUID
-            // this handles the case where the default adapter is used and *then* the default adapter is used explicitly
-            var adapterLuid = adapter?.AdapterLuid;
-            if (_preexistingDevices.Contains(adapterLuid))
+            adapter ??= GetDefaultAdapter();
+
+            if (_preexistingDevices.Contains(adapter.GetValueOrDefault().AdapterLuid))
             {
                 ThrowHelper.ThrowArgumentException("Device already exists for adapter");
             }
@@ -81,12 +90,14 @@ namespace Voltium.Core.Devices
 
                 bool success = SUCCEEDED(D3D12CreateDevice(
                     // null device triggers D3D12 to select a default device
-                    adapter is Adapter ? underlying.UnderlyingAdapter : null,
+                    adapter.GetValueOrDefault().UnderlyingAdapter,
                     (D3D_FEATURE_LEVEL)level,
                     p.Iid,
                     ComPtr.GetVoidAddressOf(&p)
                 ));
                 _device = p.Move();
+
+                LogHelper.Logger.ZLogInformation("New D3D12 device created from adapter: {0}", adapter);
             }
 
             DebugHelpers.SetName(_device.Get(), "Primary Device");
@@ -106,10 +117,6 @@ namespace Voltium.Core.Devices
 
             LUID luid = DevicePointer->GetAdapterLuid();
             _preexistingDevices.Add(Unsafe.As<LUID, ulong>(ref luid));
-            if (adapter is null)
-            {
-                _preexistingDevices.Add(null);
-            }
         }
 
         internal bool TryQueryInterface<T>(out ComPtr<T> result) where T : unmanaged

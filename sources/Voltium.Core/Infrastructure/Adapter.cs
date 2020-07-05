@@ -63,6 +63,11 @@ namespace Voltium.Core.Infrastructure
         public readonly ulong AdapterLuid;
 
         /// <summary>
+        /// The driver version for the adapter
+        /// </summary>
+        public readonly ulong DriverVersion;
+
+        /// <summary>
         ///  <code>true</code> if this adapter is implemented in software, else <code>false</code>
         /// </summary>
         public readonly bool IsSoftware;
@@ -87,6 +92,7 @@ namespace Voltium.Core.Infrastructure
             ulong dedicatedSystemMemory,
             ulong sharedSystemMemory,
             LUID adapterLuid,
+            ulong driverVersion,
             bool isSoftware,
             DeviceType type
         )
@@ -101,6 +107,7 @@ namespace Voltium.Core.Infrastructure
             DedicatedSystemMemory = dedicatedSystemMemory;
             SharedSystemMemory = sharedSystemMemory;
             AdapterLuid = adapterLuid.LowPart | ((uint)adapterLuid.HighPart << 32);
+            DriverVersion = driverVersion;
             IsSoftware = isSoftware;
             Type = type;
         }
@@ -108,18 +115,20 @@ namespace Voltium.Core.Infrastructure
         /// <inheritdoc/>
         public override string ToString()
         {
-            var builder = new StringBuilder();
+            using var builder = StringHelper.RentStringBuilder();
 
-            builder.Append("Vendor: ").Append(VendorId).AppendLine();
-            builder.Append("Description: ").Append(Description).AppendLine();
-            builder.Append("DeviceId: ").Append(DeviceId).AppendLine();
-            builder.Append("SubSysId: ").Append(SubSysId).AppendLine();
-            builder.Append("Revision: ").Append(Revision).AppendLine();
-            builder.Append("DedicatedVideoMemory: ").Append(DedicatedVideoMemory).AppendLine();
-            builder.Append("DedicatedSystemMemory: ").Append(DedicatedSystemMemory).AppendLine();
-            builder.Append("SharedSystemMemory: ").Append(SharedSystemMemory).AppendLine();
-            builder.Append("AdapterLuid: ").Append(AdapterLuid).AppendLine();
-            builder.Append("IsSoftware: ").Append(IsSoftware).AppendLine();
+            builder.Append("Vendor: ").AppendLine(VendorId);
+            builder.Append("Description: ").AppendLine(Description);
+            builder.Append("DeviceId: ").AppendLine(DeviceId);
+            builder.Append("SubSysId: ").AppendLine(SubSysId);
+            builder.Append("Revision: ").AppendLine(Revision);
+            builder.Append("DedicatedVideoMemory: ").AppendLine(DedicatedVideoMemory);
+            builder.Append("DedicatedSystemMemory: ").AppendLine(DedicatedSystemMemory);
+            builder.Append("SharedSystemMemory: ").AppendLine(SharedSystemMemory);
+            builder.Append("AdapterLuid: ").AppendLine(AdapterLuid);
+            builder.Append("DriverVersion: ").AppendLine(DriverVersion);
+            builder.Append("IsSoftware: ").AppendLine(IsSoftware);
+            builder.Append("Type: ").AppendLine(Type);
 
             return builder.ToString();
         }

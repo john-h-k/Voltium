@@ -61,7 +61,7 @@ namespace Voltium.Core.Managers
             TranslateRasterizerState(rasterizer, out D3D12_RASTERIZER_DESC rasterizerDesc);
             TranslateDepthStencilState(depthStencil, out D3D12_DEPTH_STENCIL_DESC depthStencilDesc);
 
-            var msaa = inDesc.Msaa ?? MsaaDesc.None;
+            var msaa = inDesc.Msaa ?? MultisamplingDesc.None;
 
 
             // We calculate num render targets by going through the buffer until we find a 0 value DataFormat (DataFormat.Unknown)

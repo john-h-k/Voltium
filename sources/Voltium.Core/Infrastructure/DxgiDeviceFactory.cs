@@ -89,7 +89,13 @@ namespace Voltium.Core.Infrastructure
             DXGI_ADAPTER_DESC1 desc;
             Guard.ThrowIfFailed(p->GetDesc1(&desc));
 
-            var descText = new ReadOnlySpan<char>(desc.Description, 128).ToString();
+            LARGE_INTEGER driverVersion;
+            Guid iid = IID_IDXGIDevice;
+            Guard.ThrowIfFailed(dxgiAdapter.Get()->CheckInterfaceSupport(&iid, &driverVersion));
+
+
+            var nullChar = new Span<char>(desc.Description, 128).IndexOf('\0');
+            var descText = new string((char*)desc.Description, 0, nullChar);
 
             return new Adapter(
                 dxgiAdapter.AsIUnknown(),
@@ -102,6 +108,7 @@ namespace Voltium.Core.Infrastructure
                 desc.DedicatedSystemMemory,
                 desc.SharedSystemMemory,
                 desc.AdapterLuid,
+                (ulong)driverVersion.QuadPart,
                 (desc.Flags & (int)DXGI_ADAPTER_FLAG.DXGI_ADAPTER_FLAG_SOFTWARE) != 0,
                 DeviceType.GraphicsAndCompute // DXGI doesn't support enumerating non-graphics adapters
             );

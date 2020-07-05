@@ -8,7 +8,7 @@ namespace Voltium.Core.Managers
         /// <summary>
         /// The minimum feature level required for execution of the app
         /// </summary>
-        public FeatureLevel RequiredFeatureLevel { get; set; } = FeatureLevel.Level11_0;
+        public FeatureLevel RequiredFeatureLevel { get; set; } = FeatureLevel.GraphicsLevel11_0;
 
         /// <summary>
         /// The <see cref="DebugLayerConfiguration"/> used

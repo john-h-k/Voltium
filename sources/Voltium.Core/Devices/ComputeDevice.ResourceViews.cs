@@ -54,7 +54,7 @@ namespace Voltium.Core.Devices
         public DescriptorHandle CreateShaderResourceView(Texture resource, DataFormat format, uint mipLevels = 0, uint mostDetailedMip = 0, float minLODClamp = 0, uint planeSlice = 0)
         {
             // multisampled textures can be created without a desc
-            if (resource.Resource.Msaa.SampleCount > 1)
+            if (resource.Msaa.SampleCount > 1)
             {
                 return CreateShaderResourceView(resource);
             }

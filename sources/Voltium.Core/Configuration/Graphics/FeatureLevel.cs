@@ -1,4 +1,4 @@
-﻿using TerraFX.Interop;
+using TerraFX.Interop;
 
 namespace Voltium.Core.Managers
 {
@@ -8,23 +8,28 @@ namespace Voltium.Core.Managers
     public enum FeatureLevel
     {
         /// <summary>
-        /// Feature level 11.0
+        /// Compute feature level 1.0, otherwise known as Compute level 1.0 Core
         /// </summary>
-        Level11_0 = D3D_FEATURE_LEVEL.D3D_FEATURE_LEVEL_11_0,
+        ComputeLevel1_0 = D3D_FEATURE_LEVEL.D3D_FEATURE_LEVEL_1_0_CORE,
 
         /// <summary>
-        /// Feature level 11.1
+        /// Graphics feature level 11.0
         /// </summary>
-        Level11_1 = D3D_FEATURE_LEVEL.D3D_FEATURE_LEVEL_11_1,
+        GraphicsLevel11_0 = D3D_FEATURE_LEVEL.D3D_FEATURE_LEVEL_11_0,
 
         /// <summary>
-        /// Feature level 12.0
+        /// Graphics feature level 11.1
         /// </summary>
-        Level12_0 = D3D_FEATURE_LEVEL.D3D_FEATURE_LEVEL_12_0,
+        GraphicsLevel11_1 = D3D_FEATURE_LEVEL.D3D_FEATURE_LEVEL_11_1,
 
         /// <summary>
-        /// Feature level 12.1
+        /// Graphics feature level 12.0
         /// </summary>
-        Level12_1 = D3D_FEATURE_LEVEL.D3D_FEATURE_LEVEL_12_1
+        GraphicsLevel12_0 = D3D_FEATURE_LEVEL.D3D_FEATURE_LEVEL_12_0,
+
+        /// <summary>
+        /// Graphics feature level 12.1
+        /// </summary>
+        GraphicsLevel12_1 = D3D_FEATURE_LEVEL.D3D_FEATURE_LEVEL_12_1
     }
 }

@@ -82,46 +82,49 @@ namespace Voltium.Core
             _timer.IsFixedTimeStep = true;
 
             // Main sample loop.
-            MSG msg;
+            MSG msg = default;
 
-            do
+            // Process any messages in the queue.
+            while (msg.message != WM_QUIT)
             {
-                // Process any messages in the queue.
-                if (PeekMessageW(&msg, IntPtr.Zero, 0, 0, PM_REMOVE) != 0)
+                if (PeekMessageW(&msg, HWND.NULL, 0, 0, PM_REMOVE) != 0)
                 {
                     _ = TranslateMessage(&msg);
                     _ = DispatchMessageW(&msg);
                 }
+                else if (!_isPaused)
+                {
+                    RunApp();
+                }
                 else
                 {
-                    //RunApp();
+                    Thread.Sleep(10);
                 }
             }
-            while (msg.message != WM_QUIT);
 
             application.Destroy();
 
-            //// Return this part of the WM_QUIT message to Windows.
+            // Return this part of the WM_QUIT message to Windows.
             return (int)msg.wParam;
         }
 
         private static void RunApp()
         {
-            if (_application != null && !_isPaused)
+            fixed (char* pFps = $"Voltium - FPS: {_timer.FramesPerSeconds}")
             {
-                fixed (char* pFps = $"Voltium - FPS: {_timer.FramesPerSeconds}")
+                _ = SetWindowTextW(Hwnd, (ushort*)pFps);
+
+                using (var timer = ScopedTimer.Start())
                 {
-                    _ = SetWindowTextW(Hwnd, (ushort*)pFps);
                     _timer.Tick(() =>
                     {
                         _application.Update(_timer);
                         _application.Render();
                     });
+
+                    Console.WriteLine(timer.Elapsed);
                 }
-            }
-            else
-            {
-                Thread.Sleep(100);
+
             }
         }
 
@@ -129,24 +132,16 @@ namespace Voltium.Core
         private static Application _application = null!;
         private const int ScrollResolution = 120;
         private static bool _isPaused;
+        private static int _numMouseMessages = 0;
 
         // Main message handler for the sample
         [UnmanagedCallersOnly(CallingConvention = CallingConvention.StdCall)]
         private static nint WindowProc(IntPtr hWnd, uint message, nuint wParam, nint lParam)
         {
-            var handle = GetWindowLongPtrW(hWnd, GWLP_USERDATA);
-
             switch (message)
             {
-                case WM_CREATE:
-                {
-                    // Save the Application* passed in to CreateWindow.
-                    var pCreateStruct = (CREATESTRUCTW*)lParam;
-                    _ = SetWindowLongPtrW(hWnd, GWLP_USERDATA, (IntPtr)pCreateStruct->lpCreateParams);
-                    return 0;
-                }
-
                 case WM_ACTIVATE:
+                {
                     if (LOWORD(wParam) == WA_INACTIVE)
                     {
                         _isPaused = true;
@@ -155,7 +150,8 @@ namespace Voltium.Core
                     {
                         _isPaused = false;
                     }
-                    break;
+                    return 0;
+                }
 
                 case WM_KEYDOWN:
                 {
@@ -166,6 +162,12 @@ namespace Voltium.Core
                 case WM_KEYUP:
                 {
                     _application.OnKeyUp((byte)wParam);
+                    return 0;
+                }
+
+                case WM_MOUSEMOVE:
+                {
+                    Console.WriteLine($"Mouse move msg {_numMouseMessages++}");
                     return 0;
                 }
 
@@ -198,13 +200,6 @@ namespace Voltium.Core
                     {
                         _application.OnResize(_screenData);
                     }
-
-                    return 0;
-                }
-
-                case WM_PAINT:
-                {
-                    RunApp();
 
                     return 0;
                 }

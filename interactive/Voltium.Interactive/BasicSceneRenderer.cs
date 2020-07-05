@@ -68,7 +68,8 @@ namespace Voltium.Interactive
         private Size _outputResolution;
 
         private RootSignature _rootSig = null!;
-        private MsaaDesc _msaaDesc = MsaaDesc.None;
+        private MultisamplingDesc _msaaDesc = MultisamplingDesc.None;
+        private MultisamplingDesc _maxMsaaDesc = MultisamplingDesc.None;
 
         private ObjectConstants[] _objectConstants = null!;
         private FrameConstants _frameConstants;
@@ -95,6 +96,8 @@ namespace Voltium.Interactive
             _config = config;
             _allocator = _device.Allocator;
             _outputResolution = screen;
+
+            _maxMsaaDesc = _device.HighestSupportedMsaa();
 
             _texturedObjects = ModelLoader.LoadGl("Assets/Gltf/Handgun_Tangent.gltf");
             var texture = TextureLoader.CreateTexture("Assets/Textures/handgun_c.dds");
@@ -149,26 +152,10 @@ namespace Voltium.Interactive
             _depthStencil.Dispose();
             _renderTarget.Dispose();
 
-            _depthStencil = _allocator.AllocateTexture(dsDesc, ResourceState.DepthWrite, AllocFlags.ForceAllocateNotComitted);
+            _depthStencil = _allocator.AllocateTexture(dsDesc, ResourceState.DepthWrite);
             _depthStencil.SetName("Depth Stencil");
-            _renderTarget = _allocator.AllocateTexture(rtDesc, ResourceState.RenderTarget, AllocFlags.ForceAllocateNotComitted);
+            _renderTarget = _allocator.AllocateTexture(rtDesc, ResourceState.RenderTarget);
             _renderTarget.SetName("Render Target");
-
-            //var dsv = new TextureDepthStencilViewDesc
-            //{
-            //    Format = dsDesc.Format,
-            //    IsMultiSampled = _msaa,
-            //    MipIndex = 0,
-            //    PlaneSlice = 0
-            //};
-
-            //var rtv = new TextureRenderTargetViewDesc
-            //{
-            //    Format = _texture.Format,
-            //    IsMultiSampled = _msaa,
-            //    MipIndex = 0,
-            //    PlaneSlice = 0
-            //};
 
             _depthStencilView = _device.CreateDepthStencilView(_depthStencil);
             _renderTargetView = _device.CreateRenderTargetView(_renderTarget);
@@ -224,7 +211,7 @@ namespace Voltium.Interactive
 
             PipelineManager.CreatePso<TexturedVertex>(_device, "Texture", psoDesc);
 
-            psoDesc.Msaa = MsaaDesc.X8;
+            psoDesc.Msaa = MultisamplingDesc.X8;
             PipelineManager.CreatePso<TexturedVertex>(_device, "TextureMSAA", psoDesc);
         }
 
@@ -289,7 +276,7 @@ namespace Voltium.Interactive
         public override void ToggleMsaa()
         {
             _msaa = !_msaa;
-            _msaaDesc = _msaa ? MsaaDesc.X8 : MsaaDesc.None;
+            _msaaDesc = _msaa ? _maxMsaaDesc : MultisamplingDesc.None;
             Resize(_outputResolution);
         }
 
@@ -300,19 +287,19 @@ namespace Voltium.Interactive
 
         public override void Render(ref GraphicsContext recorder, out Texture render)
         {
+            recorder.SetViewportAndScissor(_outputResolution);
+            recorder.ResourceTransition(_renderTarget, ResourceState.RenderTarget);
+
+            recorder.SetAndClearRenderTarget(_renderTargetView, Rgba128.CornflowerBlue, _depthStencilView);
+
+            recorder.SetConstantBuffer(1, _frame);
+            recorder.SetConstantBuffer(2, _light);
+            recorder.SetRootDescriptorTable(3, _texHandle);
+
+            recorder.SetTopology(Topology.TriangeList);
+
             using (recorder.BeginScopedEvent(Argb32.AliceBlue, "Render Objects"))
             {
-                recorder.SetViewportAndScissor(_outputResolution);
-                recorder.ResourceTransition(_renderTarget, ResourceState.RenderTarget);
-
-                recorder.SetAndClearRenderTarget(_renderTargetView, Rgba128.CornflowerBlue, _depthStencilView);
-
-                recorder.SetConstantBuffer(1, _frame);
-                recorder.SetConstantBuffer(2, _light);
-                recorder.SetRootDescriptorTable(3, _texHandle);
-
-                recorder.SetTopology(Topology.TriangeList);
-
                 for (var i = 0u; i < _texturedObjects.Length; i++)
                 {
                     recorder.SetConstantBuffer<ObjectConstants>(0, _obj, i);

@@ -94,6 +94,7 @@ namespace Voltium.Core.Infrastructure
             GetProperty<ulong>(DXCoreAdapterProperty.DedicatedAdapterMemory, out var dedicatedVideoMemory);
             GetProperty<ulong>(DXCoreAdapterProperty.DedicatedSystemMemory, out var dedicatedSystemMemory);
             GetProperty<ulong>(DXCoreAdapterProperty.SharedSystemMemory, out var sharedSystemMemory);
+            GetProperty<ulong>(DXCoreAdapterProperty.DriverVersion, out var driverVersion);
 
             DeviceType type;
             Guid graphics = DXCORE_ADAPTER_ATTRIBUTE_D3D12_GRAPHICS;
@@ -123,6 +124,7 @@ namespace Voltium.Core.Infrastructure
                 dedicatedSystemMemory,
                 sharedSystemMemory,
                 luid,
+                driverVersion,
                 !isHardware,
                 type
             );

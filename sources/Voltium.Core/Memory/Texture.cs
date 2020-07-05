@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using TerraFX.Interop;
 using Voltium.Common;
+using Voltium.Core.Configuration.Graphics;
 using Voltium.Core.Devices;
 using Voltium.Core.GpuResources;
 
@@ -72,6 +73,11 @@ namespace Voltium.Core.Memory.GpuResources
         /// </summary>
         public readonly ushort DepthOrArraySize;
 
+        /// <summary>
+        /// If applicable, the multisampling description for the resource
+        /// </summary>
+        public MultisamplingDesc Msaa { get; internal set; }
+
         internal Texture(in TextureDesc desc, GpuResource resource)
         {
             // no null 😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡
@@ -85,6 +91,7 @@ namespace Voltium.Core.Memory.GpuResources
             _length = resource.Block.Size;
             _resource = resource;
             _cpuAddress = null;
+            Msaa = desc.Msaa;
         }
 
 

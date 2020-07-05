@@ -12,6 +12,7 @@ using Voltium.Core.Infrastructure;
 using Voltium.Core.Managers;
 using Voltium.Core.Memory.GpuResources;
 using static TerraFX.Interop.Windows;
+using Rectangle = System.Drawing.Rectangle;
 
 namespace Voltium.Core.Devices
 {
@@ -245,6 +246,11 @@ namespace Voltium.Core.Devices
 
         private static DXGI_SWAP_CHAIN_DESC1 CreateDesc(OutputDesc desc, Size outputArea)
         {
+            if (desc.BackBufferCount > BackBufferBuffer5.MaxBufferCount)
+            {
+                ThrowHelper.ThrowArgumentException($"Cannot have more than {BackBufferBuffer5.MaxBufferCount} back buffers");
+            }
+
             return new DXGI_SWAP_CHAIN_DESC1
             {
                 AlphaMode = DXGI_ALPHA_MODE.DXGI_ALPHA_MODE_IGNORE, // TODO document
