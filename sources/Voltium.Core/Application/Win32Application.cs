@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Threading;
 using TerraFX.Interop;
+using Voltium.Core.Devices;
 using static TerraFX.Interop.Windows;
 
 namespace Voltium.Core
@@ -73,7 +74,7 @@ namespace Voltium.Core
 
             _screenData = new Size((int)height, (int)width);
 
-            application.Init(_screenData, Hwnd);
+            application.Init(_screenData, IOutputOwner.FromHwnd(Hwnd));
 
             _ = ShowWindow(Hwnd, SW_SHOWDEFAULT);
 
@@ -102,7 +103,7 @@ namespace Voltium.Core
                 }
             }
 
-            application.Destroy();
+            application.Dispose();
 
             // Return this part of the WM_QUIT message to Windows.
             return (int)msg.wParam;

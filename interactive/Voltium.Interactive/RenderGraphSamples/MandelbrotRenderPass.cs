@@ -19,7 +19,7 @@ using Buffer = Voltium.Core.Memory.Buffer;
 using static Voltium.Core.Pipeline.GraphicsPipelineDesc;
 
 #if DOUBLE
-using FP = System.Double;
+using FloatType = System.Double;
 #else
 using FP = System.Single;
 #endif
@@ -49,7 +49,6 @@ namespace Voltium.Interactive.RenderGraphSamples
 
             context.SetViewportAndScissor(_resolution);
             context.SetRenderTargets(renderTargetView);
-            //recorder.ClearRenderTarget(_renderTargetView, Rgba128.CornflowerBlue);
             context.Discard(renderTarget);
             context.SetTopology(Topology.TriangeList);
             context.SetBuffer(0, _colors);
@@ -102,9 +101,9 @@ namespace Voltium.Interactive.RenderGraphSamples
 
             _constants = new MandelbrotConstants
             {
-                Scale = (FP)1,
-                CenterX = (FP)(-1.789169018604823106674468341188838763),
-                CenterY = (FP)(0.00000033936851576718256602823026614)
+                Scale = (FloatType)1,
+                CenterX = (FloatType)(-1.789169018604823106674468341188838763),
+                CenterY = (FloatType)(0.00000033936851576718256602823026614)
             };
 
             Resize(resolution);
@@ -125,8 +124,6 @@ namespace Voltium.Interactive.RenderGraphSamples
 
         public void Resize(Size newScreenData)
         {
-            _resolution = newScreenData;
-
             _constants.AspectRatio = newScreenData.Width / (float)newScreenData.Height;
             _constants.ColorCount = 256 * 4 * 10;
         }
@@ -134,9 +131,9 @@ namespace Voltium.Interactive.RenderGraphSamples
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
         private struct MandelbrotConstants
         {
-            public FP Scale;
-            public FP CenterX;
-            public FP CenterY;
+            public FloatType Scale;
+            public FloatType CenterX;
+            public FloatType CenterY;
             public float AspectRatio;
             public uint ColorCount;
         }

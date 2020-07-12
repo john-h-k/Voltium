@@ -1,18 +1,19 @@
 using System;
 using System.Drawing;
 using TerraFX.Interop;
+using Voltium.Core.Devices;
 
 namespace Voltium.Core
 {
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
-    public abstract class Application
+    public abstract class Application : IDisposable
     {
         public abstract string Title { get; }
 
-        public abstract void Init(Size data, HWND hwnd);
+        public abstract void Init(Size data, IOutputOwner output);
         public abstract void Update(ApplicationTimer timer);
         public abstract void Render();
-        public abstract void Destroy();
+        public abstract void Dispose();
 
 
         public virtual void OnResize(Size newScreenData) { }

@@ -55,9 +55,9 @@ namespace Voltium.Core
             }
 
             // outputs are explicit
-            if (pass.Output.Type != OutputType.None)
+            if (pass.Output.Type != OutputClass.None)
             {
-                if (pass.Output.Type == OutputType.Primary)
+                if (pass.Output.Type == OutputClass.Primary)
                 {
                     // can only have one primary output, but many secondaries
                     if (_primaryOutput is not null)

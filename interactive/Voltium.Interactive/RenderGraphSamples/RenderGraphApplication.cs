@@ -22,7 +22,7 @@ namespace Voltium.Interactive.RenderGraphSamples
 
         public TexHandle SceneColorHandle;
 
-        public override unsafe void Init(Size data, HWND hwnd)
+        public override unsafe void Init(Size data, IOutputOwner output)
         {
             var config = new GraphicalConfiguration
             {
@@ -44,7 +44,7 @@ namespace Voltium.Interactive.RenderGraphSamples
                 SyncInterval = 0
             };
 
-            _output = Output.CreateForWin32(_device, desc, hwnd, implicitExecuteOnPresent: true);
+            _output = Output.Create(_device, desc, output, implicitExecuteOnPresent: true);
 
             _renderer = new(_device, data, this);
             _outputPass = new(_output, this);
@@ -72,7 +72,7 @@ namespace Voltium.Interactive.RenderGraphSamples
 
             _output.Present();
         }
-        public override void Destroy()
+        public override void Dispose()
         {
             _device.Dispose();
         }

@@ -16,7 +16,7 @@ namespace Voltium.Interactive
         private Output _output = null!;
         private bool _isPaused;
 
-        public override unsafe void Init(Size data, HWND hwnd)
+        public override unsafe void Init(Size data, IOutputOwner output)
         {
             var config = new GraphicalConfiguration
             {
@@ -38,7 +38,7 @@ namespace Voltium.Interactive
                 SyncInterval = 0
             };
 
-            _output = Output.CreateForWin32(_device, desc, hwnd);
+            _output = Output.Create(_device, desc, output, implicitExecuteOnPresent: true);
 
             _renderer.Init(_device, data);
         }
@@ -73,7 +73,7 @@ namespace Voltium.Interactive
 
             _output.Present();
         }
-        public override void Destroy()
+        public override void Dispose()
         {
             _device.Dispose();
         }

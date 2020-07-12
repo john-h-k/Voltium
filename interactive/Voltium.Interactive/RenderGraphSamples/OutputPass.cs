@@ -21,7 +21,7 @@ namespace Voltium.Interactive.RenderGraphSamples
         {
             _output = output;
             _app = application;
-            Output = OutputDesc.FromOutput(OutputType.Primary, _output);
+            Output = OutputDesc.FromOutput(OutputClass.Primary, _output);
         }
 
         public override void Record(ref GraphicsContext context, ref ComponentResolver resolver)

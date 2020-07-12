@@ -29,22 +29,22 @@ namespace Voltium.RenderEngine
 
     public struct OutputDesc
     {
-        public static OutputDesc None => new OutputDesc { Type = OutputType.None };
+        public static OutputDesc None => new OutputDesc { Type = OutputClass.None };
 
-        public static OutputDesc FromOutput(OutputType type, Output output)
+        public static OutputDesc FromOutput(OutputClass type, Output output)
         {
             var back = output.BackBuffer;
             return CreateTexture(type, back.Width, back.Height, back.DepthOrArraySize);
          }
 
-        public static OutputDesc CreateTexture(OutputType type, ulong width, uint height = 1, ushort depthOrArraySize = 1)
+        public static OutputDesc CreateTexture(OutputClass type, ulong width, uint height = 1, ushort depthOrArraySize = 1)
             => new OutputDesc { ResourceType = ResourceType.Texture, Type = type, TextureWidth = width, TextureHeight = height, TextureDepthOrArraySize = depthOrArraySize };
 
 
-        public static OutputDesc CreateBuffer(OutputType type, ulong length)
+        public static OutputDesc CreateBuffer(OutputClass type, ulong length)
             => new OutputDesc { ResourceType = ResourceType.Texture, Type = type, BufferLength = length };
 
-        internal OutputType Type;
+        internal OutputClass Type;
         internal ResourceType ResourceType;
         internal ulong BufferLength;
 

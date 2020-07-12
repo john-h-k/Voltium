@@ -114,6 +114,25 @@ namespace Voltium.Core.Devices
             }
         }
 
+        /// <summary>
+        /// Creates a new <see cref="Output"/> to a <see cref="IOutputOwner"/>
+        /// </summary>
+        /// <param name="device">The <see cref="GraphicsDevice"/> that will output to this buffer</param>
+        /// <param name="desc">The <see cref="OutputConfiguration"/> for this output</param>
+        /// <param name="window">The <see cref="IOutputOwner"/> that owns the window</param>
+        /// <param name="outputArea">Optionally, the <see cref="Size"/> of the rendered output. By default, this will be the entire window</param>
+        /// <param name="implicitExecuteOnPresent">Whether <see cref="GraphicsDevice.Execute"/> should be called each time <see cref="Present"/> is called</param>
+        /// <returns>A new <see cref="Output"/></returns>
+        public static Output Create(GraphicsDevice device, OutputConfiguration desc, IOutputOwner window, Size outputArea = default, bool implicitExecuteOnPresent = false)
+        {
+            return window.Type switch
+            {
+                OutputType.Hwnd => CreateForWin32(device, desc, window.GetOutput(), outputArea, implicitExecuteOnPresent),
+                OutputType.ICoreWindow => CreateForWinRT(device, desc, (void*)window.GetOutput(), outputArea, implicitExecuteOnPresent),
+                _ => throw new ArgumentOutOfRangeException(nameof(window))
+            };
+        }
+
 
         /// <summary>
         /// Creates a new <see cref="Output"/> to a Win32 Window backed by a HWND
