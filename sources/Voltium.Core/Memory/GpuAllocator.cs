@@ -6,12 +6,11 @@ using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Configuration.Graphics;
 using Voltium.Core.Devices;
-using Voltium.Core.Managers;
-using Voltium.Core.Memory.GpuResources;
-using Buffer = Voltium.Core.Memory.GpuResources.Buffer;
+using Voltium.Core.Memory;
+using Buffer = Voltium.Core.Memory.Buffer;
 using Rectangle = System.Drawing.Rectangle;
 
-namespace Voltium.Core.GpuResources
+namespace Voltium.Core.Memory
 {
     // This type is "semi lowered". It needs high level alloc flags because they don't necessarily have a D3D12 equivalent
     // So we just lower most of it
@@ -154,6 +153,10 @@ namespace Voltium.Core.GpuResources
             if (memoryKind == MemoryAccess.CpuUpload)
             {
                 initialResourceState = ResourceState.GenericRead;
+            }
+            else if (memoryKind == MemoryAccess.CpuReadback)
+            {
+                initialResourceState = ResourceState.CopyDestination;
             }
 
             var desc = new D3D12_RESOURCE_DESC
@@ -607,20 +610,27 @@ namespace Voltium.Core.GpuResources
         /// <param name="msaa">Optionally, the <see cref="MultisamplingDesc"/> for the render target</param>
         /// <returns>A new <see cref="TextureDesc"/> representing a render target</returns>
         public static TextureDesc CreateRenderTargetDesc(BackBufferFormat format, uint height, uint width, Rgba128 clearColor, MultisamplingDesc msaa = default)
-        {
-            return new TextureDesc
-            {
-                Height = height,
-                Width = width,
-                DepthOrArraySize = 1,
-                MipCount = 1,
-                Dimension = TextureDimension.Tex2D,
-                Format = (DataFormat)format,
-                ClearValue = TextureClearValue.CreateForRenderTarget(clearColor),
-                Msaa = msaa,
-                ResourceFlags = ResourceFlags.AllowRenderTarget
-            };
-        }
+            => CreateRenderTargetDesc((DataFormat)format, height, width, clearColor, msaa);
+
+        /// <summary>
+        /// Creates a new <see cref="TextureDesc"/> representing a 2D render target, with no height or width, for unspecified size targets
+        /// </summary>
+        /// <param name="format">The <see cref="BackBufferFormat"/> for the render target</param>
+        /// <param name="clearColor">The <see cref="Rgba128"/> to set to be the optimized clear value</param>
+        /// <param name="msaa">Optionally, the <see cref="MultisamplingDesc"/> for the render target</param>
+        /// <returns>A new <see cref="TextureDesc"/> representing a render target</returns>
+        public static TextureDesc CreateRenderTargetDesc(BackBufferFormat format, Rgba128 clearColor, MultisamplingDesc msaa = default)
+            => CreateRenderTargetDesc((DataFormat)format, 0, 0, clearColor, msaa);
+
+        /// <summary>
+        /// Creates a new <see cref="TextureDesc"/> representing a 2D render target, with no height or width, for unspecified size targets
+        /// </summary>
+        /// <param name="format">The <see cref="BackBufferFormat"/> for the render target</param>
+        /// <param name="clearColor">The <see cref="Rgba128"/> to set to be the optimized clear value</param>
+        /// <param name="msaa">Optionally, the <see cref="MultisamplingDesc"/> for the render target</param>
+        /// <returns>A new <see cref="TextureDesc"/> representing a render target</returns>
+        public static TextureDesc CreateRenderTargetDesc(DataFormat format, Rgba128 clearColor, MultisamplingDesc msaa = default)
+            => CreateRenderTargetDesc(format, 0, 0, clearColor, msaa);
 
         /// <summary>
         /// Creates a new <see cref="TextureDesc"/> representing a 2D render target

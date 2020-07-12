@@ -1,260 +1,223 @@
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
 
+using System;
+using System.Collections.Generic;
+using Microsoft.Toolkit.HighPerformance.Extensions;
+using TerraFX.Interop;
+using Voltium.Common;
+using Voltium.Core.Contexts;
+using Voltium.Core.Devices;
+using Voltium.Core.Memory;
+using Voltium.RenderEngine;
+using Voltium.RenderEngine.Passes;
+using Voltium.RenderEngine.RenderGraph;
+
 namespace Voltium.Core
 {
-    //public unsafe class RenderGraph
-    //{
-    //    private List<ResourceData> _resources = new(8);
-    //    private List<RenderPassBuilder> _passes = new(4);
-    //    private TexHandle _backBuffer = new TexHandle(0xFFFFFFFF);
+    public unsafe sealed class RenderGraph
+    {
+        private GraphicsDevice _device;
 
-    //    public void AddPass<T>(T val) where T : RenderPass
-    //    {
-    //        var pass = CreatePassBuilder();
-    //        val.Register(ref pass);
-    //    }
+        private List<RenderPassBuilder> _renderPasses = new();
 
-    //    public void SetPresentPass<T>(T val) where T : PresentPass
-    //    {
-    //        var pass = CreatePassBuilder();
-    //        val.Register(ref pass, _backBuffer);
-    //    }
+        private GraphLayer[]? _renderLayers;
 
-    //    private RenderPassBuilder CreatePassBuilder()
-    //    {
-    //        var pass = new RenderPassBuilder((uint)_passes.Count, this);
-    //        _passes.Add(pass);
-    //        return pass;
-    //    }
+        private List<int> _outputPassIndices = new();
 
-    //    internal TexHandle RegisterTexture(ResourceData data)
-    //    {
-    //        Debug.Assert(data.Dimension is not null);
-    //        _resources.Add(data);
-    //        return new TexHandle((uint)_resources.Count - 1);
-    //    }
+        private OutputDesc? _primaryOutput = null;
 
-    //    internal BufferHandle RegisterBuffer<T>(ResourceData data)
-    //    {
-    //        Debug.Assert(data.Dimension is null);
-    //        _resources.Add(data);
-    //        return new BufferHandle((uint)_resources.Count - 1);
-    //    }
+        private List<int> _inputPassIndices = new();
+        private List<TrackedResource> _resources = new();
+        private int _maxDepth = 0;
 
-    //    internal ResourceData GetResource(TexHandle handle) => _resources[(int)handle.Index];
-    //    internal void SetResource(TexHandle handle, ResourceData value) => _resources[(int)handle.Index] = value;
-    //}
+        public RenderGraph(GraphicsDevice device)
+        {
+            _device = device;
+        }
 
-    //public struct ComponentResolver
-    //{
-    //    public RenderComponents Components { get; private set; }
-    //    public Texture Resolve(TexHandle handle) => throw new NotImplementedException();
-    //    public Buffer Resolve<T>(BufferHandle handle) where T : unmanaged => throw new NotImplementedException();
-    //}
+        public void AddPass<T>(T pass) where T : RenderPass
+        {
+            var passIndex = _renderPasses.Count;
+            var builder = new RenderPassBuilder(this, passIndex, pass);
 
-    //public readonly struct TexHandle
-    //{
-    //    // index into the graph's list of resources
-    //    internal readonly uint Index;
+            pass.Register(ref builder);
 
-    //    internal TexHandle(uint index)
-    //    {
-    //        Index = index;
-    //    }
-    //}
+            // anything with no dependencies is a top level input node implicity
+            if ((builder.FrameDependencies?.Count ?? 0) == 0)
+            {
+                // the index _renderPasses.Add results in
+                _inputPassIndices.Add(passIndex);
+            }
 
-    //public readonly struct BufferHandle
-    //{
-    //    // index into the graph's list of resources
-    //    internal readonly uint Index;
+            if (builder.Depth > _maxDepth)
+            {
+                _maxDepth = builder.Depth;
+            }
 
-    //    internal BufferHandle(uint index)
-    //    {
-    //        Index = index;
-    //    }
-    //}
+            // outputs are explicit
+            if (pass.Output.Type != OutputType.None)
+            {
+                if (pass.Output.Type == OutputType.Primary)
+                {
+                    // can only have one primary output, but many secondaries
+                    if (_primaryOutput is not null)
+                    {
+                        ThrowHelper.ThrowInvalidOperationException("Cannot register a primary output pass as one has already been registered");
+                    }
+                    _primaryOutput = pass.Output;
+                }
+                // the index _renderPasses.Add results in
+                _outputPassIndices.Add(passIndex);
+            }
 
-    //internal struct ResourceData
-    //{
-    //    internal double? SwapChainMultiplier;
-    //    internal TextureDimension? Dimension; // null == buffer
-    //    internal nuint Width, Height, Depth;
-    //    internal ResourceState InitialState;
-    //    internal ResourceFlags Flags;
+            _renderPasses.Add(builder);
+        }
 
-    //    internal uint CreationPass;
-    //    internal List<(uint PassIndex, ResourceReadFlags Flags)>? ReadPasses;
-    //    internal List<(uint PassIndex, ResourceWriteFlags Flags)>? WritePasses;
-    //}
+        public void Schedule()
+        {
+            _renderLayers = new GraphLayer[_maxDepth + 1];
 
-    //public struct RenderPassBuilder
-    //{
-    //    private uint _passIndex;
-    //    public RenderComponents Components { get; }
-    //    private RenderGraph _graph;
+            int i = 0;
+            foreach (ref var pass in _renderPasses.AsSpan())
+            {
+                ref GraphLayer layer = ref _renderLayers[pass.Depth];
 
-    //    internal RenderPassBuilder(uint passIndex, RenderGraph graph)
-    //    {
-    //        _passIndex = passIndex;
-    //        _graph = graph;
-    //        Components = RenderComponents.Create();
-    //    }
+                layer.Passes ??= new();
 
-    //    public TexHandle CreateRenderTarget()
-    //    {
-    //        var res = new ResourceData
-    //        {
-    //            SwapChainMultiplier = 1,
-    //            Flags = ResourceFlags.AllowRenderTarget,
-    //            Dimension = TextureDimension.Tex2D
-    //        };
+                layer.Passes.Add(i++);
+            }
+        }
 
-    //        return RegisterGraphTexture(res);
-    //    }
+        internal ResourceHandle AddResource(ResourceDesc desc, int callerPassIndex)
+        {
+            var resource = new TrackedResource
+            {
+                Desc = desc,
+                LastReadPassIndices = new(),
+                LastWritePassIndex = callerPassIndex
+            };
 
-    //    public TexHandle CreateDepthStencil(bool shaderVisible)
-    //    {
-    //        var res = new ResourceData
-    //        {
-    //            SwapChainMultiplier = 1,
-    //            Flags = ResourceFlags.AllowDepthStencil | (shaderVisible ? 0 : ResourceFlags.DenyShaderResource),
-    //            CreationPass = _passIndex,
-    //            Dimension = TextureDimension.Tex2D
-    //        };
+            _resources.Add(resource);
+            return new ResourceHandle((uint)_resources.Count - 1);
+        }
 
-    //        return RegisterGraphTexture(res);
-    //    }
+        internal ref TrackedResource GetResource(ResourceHandle handle) => ref ListExtensions.GetRef(_resources, (int)handle.Index);
+        internal ref RenderPassBuilder GetRenderPass(int index) => ref ListExtensions.GetRef(_renderPasses, index);
 
-    //    public BufferHandle<TVertex> CreateVertexBuffer<TVertex>(nuint size) where TVertex : unmanaged
-    //    {
-    //        var res = new ResourceData { Width = size };
+        private struct GraphLayer
+        {
+            /// <summary> The barriers executed before this layer is executed </summary>
+            public List<ResourceBarrier> Barriers;
 
-    //        return RegisterGraphBuffer<TVertex>(res);
-    //    }
+            /// <summary> The indices in the GpuContext array that can be executed in any order </summary>
+            public List<int> Passes;
+        }
 
-    //    private TexHandle RegisterGraphTexture(ResourceData res)
-    //    {
-    //        res.CreationPass = _passIndex;
-    //        return _graph.RegisterTexture(res);
-    //    }
+        public void ExecuteGraph()
+        {
+            Schedule();
+            AllocateResources();
+            BuildBarriers();
+            RecordAndExecuteLayers();
+        }
 
-    //    private BufferHandle<T> RegisterGraphBuffer<T>(ResourceData res)
-    //    {
-    //        res.CreationPass = _passIndex;
-    //        return _graph.RegisterBuffer<T>(res);
-    //    }
+        private void AllocateResources()
+        {
+            foreach (ref var resource in _resources.AsSpan())
+            {
+                // handle relative sizes
+                if (resource.Desc.OutputRelativeSize is double relative)
+                {
+                    if (_primaryOutput is not OutputDesc primary)
+                    {
+                        ThrowHelper.ThrowInvalidOperationException("Cannot use a primary output relative resource as no primary output was registered");
+                        return;
+                    }
+;
+                    if (resource.Desc.Type == ResourceType.Buffer)
+                    {
+                        resource.Desc.BufferDesc.Length = (long)(primary.BufferLength * relative);
+                    }
+                    else
+                    {
+                        switch (resource.Desc.TextureDesc.Dimension)
+                        {
+                            case TextureDimension.Tex3D:
+                                resource.Desc.TextureDesc.DepthOrArraySize = (ushort)(primary.TextureDepthOrArraySize * relative);
+                                goto case TextureDimension.Tex2D;
 
-    //    public void Write(TexHandle tex, ResourceWriteFlags flags)
-    //    {
-    //        var res = _graph.GetResource(tex);
+                            case TextureDimension.Tex2D:
+                                resource.Desc.TextureDesc.Height = (uint)(primary.TextureHeight * relative);
+                                goto case TextureDimension.Tex1D;
 
-    //        res.WritePasses ??= new();
+                            case TextureDimension.Tex1D:
+                                resource.Desc.TextureDesc.Width = (ulong)(primary.TextureWidth * relative);
+                                break;
+                        }
+                    }
+                }
+                resource.Allocate(_device.Allocator);
+            }
+        }
 
-    //        res.WritePasses.Add((_passIndex, flags));
-    //    }
+        private void BuildBarriers()
+        {
+            foreach (ref var layer in _renderLayers.AsSpan())
+            {
+                foreach (var passIndex in layer.Passes.AsSpan())
+                {
+                    ref var pass = ref GetRenderPass(passIndex);
 
-    //    public void Read(TexHandle tex, ResourceReadFlags flags)
-    //    {
-    //        var res = _graph.GetResource(tex);
+                    foreach (ref var transition in pass.Transitions.AsSpan())
+                    {
+                        ref var resource = ref GetResource(transition.Resource);
 
-    //        res.ReadPasses ??= new();
+                        layer.Barriers ??= new();
 
-    //        res.ReadPasses.Add((_passIndex, flags));
-    //    }
-    //}
+                        layer.Barriers.Add(resource.CreateTransition(transition.State, ResourceBarrierOptions.Full));
 
-    //// The valid combinations of these flags is quite finicky so we expose them as bools
+                        if (transition.State.HasUnorderedAccess())
+                        {
+                            layer.Barriers.Add(resource.CreateUav(ResourceBarrierOptions.Full));
+                        }
+                    }
+                }
+            }
+        }
 
+        private void RecordAndExecuteLayers()
+        {
+            var resolver = new ComponentResolver(this);
 
-    //public enum ResourceWriteFlags : uint
-    //{
-    //    /// <summary>
-    //    /// The resource is being used as an unordered access resource. This state is read/write
-    //    /// </summary>
-    //    UnorderedAccess = D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+            foreach (ref var layer in _renderLayers.AsSpan())
+            {
+                // TODO multithread
 
-    //    /// <summary>
-    //    /// The resource is being used as a render target. This state is write-only
-    //    /// </summary>
-    //    RenderTarget = D3D12_RESOURCE_STATE_RENDER_TARGET,
+                var barriers = layer.Barriers.AsROSpan();
 
-    //    /// <summary>
-    //    /// The resource is being written to as a depth buffer, e.g when <see cref="DepthStencilDesc.EnableDepthTesting"/> is <see langword="true"/>.
-    //    /// </summary>
-    //    DepthWrite = D3D12_RESOURCE_STATE_DEPTH_WRITE,
+                using (var barrierCtx = _device.BeginCopyContext())
+                {
+                    barrierCtx.ResourceBarrier(barriers);
+                }
 
-    //    /// <summary>
-    //    /// The resource is being used as a stream-out destination. This is a write-only state
-    //    /// </summary>
-    //    StreamOut = D3D12_RESOURCE_STATE_STREAM_OUT,
+                foreach (var passIndex in layer.Passes)
+                {
+                    ref var pass = ref GetRenderPass(passIndex).Pass;
 
-    //    /// <summary>
-    //    /// The resource is being used as the destination of a GPU copy operation
-    //    /// </summary>
-    //    CopyDestination = D3D12_RESOURCE_STATE_COPY_DEST,
+                    if (pass is ComputeRenderPass compute)
+                    {
+                        using var ctx = _device.BeginComputeContext(compute.DefaultPipelineState);
 
-    //    /// <summary>
-    //    /// The resource is being used as the destination of a MSAA resolve operation
-    //    /// </summary>
-    //    ResolveDestination = D3D12_RESOURCE_STATE_RESOLVE_DEST
-    //}
-    //public enum ResourceReadFlags : uint
-    //{
-    //    /// <summary>
-    //    /// The resource is being used as a vertex buffer. This state is read-only
-    //    /// </summary>
-    //    VertexBuffer = D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
+                        compute.Record(ref ctx.AsMutable(), ref resolver);
+                    }
+                    else /* must be true */ if (pass is GraphicsRenderPass graphics)
+                    {
+                        using var ctx = _device.BeginGraphicsContext(graphics.DefaultPipelineState);
 
-    //    /// <summary>
-    //    /// The resource is being used as a constant buffer. This state is read-only
-    //    /// </summary>
-    //    ConstantBuffer = D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
-
-    //    /// <summary>
-    //    /// The resource is being used as a vertex or constant buffer. This state is read-only
-    //    /// </summary>
-    //    VertexOrConstantBuffer = D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
-
-    //    /// <summary>
-    //    /// The resource is being used as an index buffer. This state is read-only
-    //    /// </summary>
-    //    IndexBuffer = D3D12_RESOURCE_STATE_INDEX_BUFFER,
-
-    //    /// <summary>
-    //    /// The resource is being read from as a depth buffer/
-    //    /// This state is read-only and cannot be combined with
-    //    /// </summary>
-    //    DepthRead = D3D12_RESOURCE_STATE_DEPTH_READ,
-
-    //    /// <summary>
-    //    /// The resource is being used by a shader other than <see cref="ShaderType.Pixel"/>
-    //    /// </summary>
-    //    NonPixelShaderResource = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-
-    //    /// <summary>
-    //    /// The resource is being used by a <see cref="ShaderType.Pixel"/> shader
-    //    /// </summary>
-    //    PixelShaderResource = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-
-    //    /// <summary>
-    //    /// The resource is being used as an indirect argument. This is a read-only state
-    //    /// </summary>
-    //    IndirectArgument = D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT,
-
-    //    /// <summary>
-    //    /// The resource is being used as the source of a GPU copy operation
-    //    /// </summary>
-    //    CopySource = D3D12_RESOURCE_STATE_COPY_SOURCE,
-
-    //    /// <summary>
-    //    /// The resource can be read as several other <see cref="ResourceState"/>s. This is the starting
-    //    /// state for a <see cref="GpuMemoryKind.CpuUpload"/> resource
-    //    /// </summary>
-    //    GenericRead = D3D12_RESOURCE_STATE_GENERIC_READ,
-
-    //    /// <summary>
-    //    /// The resource is being used as the source of a MSAA resolve operation
-    //    /// </summary>
-    //    ResolveSource = D3D12_RESOURCE_STATE_RESOLVE_SOURCE
-    //}
+                        graphics.Record(ref ctx.AsMutable(), ref resolver);
+                    }
+                }
+            }
+        }
+    }
 }

@@ -1,6 +1,6 @@
 using static TerraFX.Interop.DXGI_FORMAT;
 
-namespace Voltium.Core.Managers.Shaders
+namespace Voltium.Core.Devices.Shaders
 {
     /// <summary>
     /// The type of a shader input element

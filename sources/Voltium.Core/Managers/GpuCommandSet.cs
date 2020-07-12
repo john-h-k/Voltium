@@ -2,7 +2,7 @@ using System;
 using TerraFX.Interop;
 using Voltium.Common;
 
-namespace Voltium.Core.Managers
+namespace Voltium.Core.Devices
 {
     internal struct GpuCommandSet : IDisposable
     {

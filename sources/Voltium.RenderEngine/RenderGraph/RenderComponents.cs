@@ -50,7 +50,7 @@ namespace Voltium.RenderEngine.RenderGraph
                 {
                     // check if we either can become the single owner, or already are
                     // (and the dict isn't alive)
-                    if (_single is null || _single == owner && _values is null)
+                    if (_single is null || (_single == owner && _values is null))
                     {
                         _single = owner;
                         _singleValue = value;

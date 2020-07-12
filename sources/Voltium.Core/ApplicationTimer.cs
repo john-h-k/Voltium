@@ -12,6 +12,11 @@ namespace Voltium.Core
     {
         private ApplicationTimer()
         {
+            _frequency = QueryPerformanceFrequency();
+
+            _lastTime = QueryPerformanceCounter();
+
+            _maxDelta = (ulong)(_frequency.QuadPart / 10);
         }
 
         /// <summary>
@@ -20,12 +25,6 @@ namespace Voltium.Core
         public static ApplicationTimer StartNew()
         {
             var timer = new ApplicationTimer();
-
-            timer._qpcFrequency = QueryPerformanceFrequency();
-
-            timer._qpcLastTime = QueryPerformanceCounter();
-
-            timer._qpcMaxDelta = (ulong)(timer._qpcFrequency.QuadPart / 10);
 
             return timer;
         }
@@ -96,7 +95,7 @@ namespace Voltium.Core
         /// </summary>
         public void ResetElapsedTime()
         {
-            _qpcLastTime = QueryPerformanceCounter();
+            _lastTime = QueryPerformanceCounter();
 
             _leftOverTicks = 0;
             _framesPerSecond = 0;
@@ -112,18 +111,18 @@ namespace Voltium.Core
         {
             var currentTime = QueryPerformanceCounter();
 
-            var timeDelta = (ulong)(currentTime.QuadPart - _qpcLastTime.QuadPart);
+            var timeDelta = (ulong)(currentTime.QuadPart - _lastTime.QuadPart);
 
-            _qpcLastTime = currentTime;
+            _lastTime = currentTime;
             _qpcSecondCounter += timeDelta;
 
-            if (timeDelta > _qpcMaxDelta)
+            if (timeDelta > _maxDelta)
             {
-                timeDelta = _qpcMaxDelta;
+                timeDelta = _maxDelta;
             }
 
             timeDelta *= TicksPerSecond;
-            timeDelta /= (ulong)_qpcFrequency.QuadPart;
+            timeDelta /= (ulong)_frequency.QuadPart;
 
             uint lastFrameCount = _frameCount;
 
@@ -160,11 +159,11 @@ namespace Voltium.Core
                 _framesThisSecond++;
             }
 
-            if (_qpcSecondCounter >= (ulong)_qpcFrequency.QuadPart)
+            if (_qpcSecondCounter >= (ulong)_frequency.QuadPart)
             {
                 _framesPerSecond = _framesThisSecond;
                 _framesThisSecond = 0;
-                _qpcSecondCounter %= (ulong)_qpcFrequency.QuadPart;
+                _qpcSecondCounter %= (ulong)_frequency.QuadPart;
             }
         }
 
@@ -192,9 +191,9 @@ namespace Voltium.Core
 
         private const ulong TicksPerSecond = 10000000;
 
-        private LARGE_INTEGER _qpcFrequency;
-        private LARGE_INTEGER _qpcLastTime;
-        private ulong _qpcMaxDelta;
+        private LARGE_INTEGER _frequency;
+        private LARGE_INTEGER _lastTime;
+        private ulong _maxDelta;
 
         private ulong _elapsedTicks;
         private ulong _totalTicks;

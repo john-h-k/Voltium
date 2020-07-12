@@ -1,4 +1,4 @@
-namespace Voltium.Core.Managers
+namespace Voltium.Core.Devices
 {
     /// <summary>
     /// Describes configurable elements of the graphical engine
@@ -13,6 +13,6 @@ namespace Voltium.Core.Managers
         /// <summary>
         /// The <see cref="DebugLayerConfiguration"/> used
         /// </summary>
-        public DebugLayerConfiguration DebugLayerConfiguration { get; set; } = DebugLayerConfiguration.Default;
+        public DebugLayerConfiguration? DebugLayerConfiguration { get; set; } = DebugLayerConfiguration.Default;
     }
 }

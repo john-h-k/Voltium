@@ -1,6 +1,6 @@
 using System;
 
-namespace Voltium.Core.Managers
+namespace Voltium.Core.Devices
 {
     /// <summary>
     /// Indicates a type owns a HWND and can be used as an output

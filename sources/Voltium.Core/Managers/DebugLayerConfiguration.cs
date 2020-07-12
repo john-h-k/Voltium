@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Voltium.Common.Debugging;
 
-namespace Voltium.Core.Managers
+namespace Voltium.Core.Devices
 {
     /// <summary>
     /// Describes the debugging state used by the engine

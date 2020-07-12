@@ -5,16 +5,14 @@ using System.Runtime.InteropServices;
 using Voltium.Common;
 using Voltium.Core;
 using Voltium.Core.Configuration.Graphics;
-using Voltium.Core.GpuResources;
-using Voltium.Core.Managers;
-using Voltium.Core.Managers.Shaders;
-using Voltium.Core.Memory.GpuResources;
+using Voltium.Core.Memory;
+using Voltium.Core.Devices;
+using Voltium.Core.Devices.Shaders;
 using Voltium.Core.Pipeline;
 using Voltium.ModelLoading;
 using Voltium.TextureLoading;
 using Voltium.Common.Pix;
-using Buffer = Voltium.Core.Memory.GpuResources.Buffer;
-using Voltium.Core.Devices;
+using Buffer = Voltium.Core.Memory.Buffer;
 
 namespace Voltium.Interactive
 {
@@ -64,7 +62,6 @@ namespace Voltium.Interactive
         private GraphicsDevice _device = null!;
         private DescriptorHandle _texHandle;
         private DescriptorHandle _normalHandle;
-        private GraphicalConfiguration _config = null!;
         private Size _outputResolution;
 
         private RootSignature _rootSig = null!;
@@ -88,12 +85,11 @@ namespace Voltium.Interactive
 
         private bool _msaa = false;
 
-        public override void Init(GraphicsDevice device, GraphicalConfiguration config, in Size screen)
+        public override void Init(GraphicsDevice device, in Size screen)
         {
             PipelineManager.Reset();
 
             _device = device;
-            _config = config;
             _allocator = _device.Allocator;
             _outputResolution = screen;
 
@@ -111,17 +107,17 @@ namespace Voltium.Interactive
             {
                 for (var i = 0; i < _texturedObjects.Length; i++)
                 {
-                    list.UploadBuffer(_allocator, _texturedObjects[i].Vertices, ResourceState.VertexBuffer, out _vertexBuffer[i]);
+                    list.UploadBuffer(_texturedObjects[i].Vertices, ResourceState.VertexBuffer, out _vertexBuffer[i]);
                     _vertexBuffer[i].SetName("VertexBuffer");
 
-                    list.UploadBuffer(_allocator, _texturedObjects[i].Indices, ResourceState.IndexBuffer, out _indexBuffer[i]);
+                    list.UploadBuffer(_texturedObjects[i].Indices, ResourceState.IndexBuffer, out _indexBuffer[i]);
                     _indexBuffer[i].SetName("IndexBuffer");
                 }
 
-                list.UploadTexture(_allocator, texture.Data.Span, texture.SubresourceData.Span, texture.Desc, ResourceState.PixelShaderResource, out _texture);
+                list.UploadTexture(texture.Data.Span, texture.SubresourceData.Span, texture.Desc, ResourceState.PixelShaderResource, out _texture);
                 _texture.SetName("Gun texture");
 
-                list.UploadTexture(_allocator, normals.Data.Span, normals.SubresourceData.Span, normals.Desc, ResourceState.PixelShaderResource, out _normals);
+                list.UploadTexture(normals.Data.Span, normals.SubresourceData.Span, normals.Desc, ResourceState.PixelShaderResource, out _normals);
                 _normals.SetName("Gun normals");
             }
 

@@ -1,4 +1,4 @@
-namespace Voltium.Core.Managers
+namespace Voltium.Core.Devices
 {
     /// <summary>
     /// Provides data about a target screen

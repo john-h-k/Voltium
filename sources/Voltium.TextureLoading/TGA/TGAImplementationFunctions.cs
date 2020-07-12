@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core;
-using Voltium.Core.GpuResources;
+using Voltium.Core.Memory;
 using static TerraFX.Interop.DXGI_FORMAT;
 
 // life savers:

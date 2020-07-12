@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using RaiiSharp.Annotations;
 using TerraFX.Interop;
@@ -14,17 +15,20 @@ namespace Voltium.Common
     [RaiiOwnershipType]
     public unsafe struct ComPtr<T> : IDisposable, IEquatable<ComPtr<T>> /*, IComType*/ where T : unmanaged
     {
-        private static Guid* Initialize(out GCHandle handle)
+        private static Guid* Initialize()
         {
             ComPtr<IUnknown> p = default;
             Debug.Assert(ComPtr.GetAddressOf(&p) == &p._ptr);
+
 
             // *probably* not a valid COM type without a GUID
 #if REFLECTION
             Debug.Assert(typeof(T).GetCustomAttribute(typeof(GuidAttribute)) != null);
 #endif
-            handle = GCHandle.Alloc(CachedGuid, GCHandleType.Pinned);
-            return (Guid*)CachedGuidHandle.AddrOfPinnedObject();
+
+            var ptr = (Guid*)RuntimeHelpers.AllocateTypeAssociatedMemory(typeof(T), sizeof(Guid));
+            *ptr = typeof(T).GUID;
+            return ptr;
         }
 
 
@@ -50,13 +54,12 @@ namespace Voltium.Common
         /// The IID (Interface ID) of the underlying COM type
         /// </summary>
         // https://github.com/dotnet/runtime/issues/36272
-        public readonly Guid* Iid => PointerToCachedGuid;
+        public readonly Guid* Iid => StaticIid;
 
-        private static readonly Guid CachedGuid = typeof(T).GUID;
-
-        // ReSharper disable twice StaticMemberInGenericType
-        private static readonly Guid* PointerToCachedGuid = Initialize(out CachedGuidHandle);
-        private static readonly GCHandle CachedGuidHandle;
+        /// <summary>
+        /// The IID (Interface ID) of the underlying COM type
+        /// </summary>
+        public static Guid* StaticIid { get; } = Initialize();
 
         /// <summary>
         /// Retrieves the underlying pointer
@@ -72,8 +75,8 @@ namespace Voltium.Common
         public static explicit operator ComPtr<T>(T* ptr) => new ComPtr<T>(ptr);
 
         /// <summary>
-        /// Releases the underlying pointer of the <see cref="ComPtr{T}"/> if necessary
-        /// THis function can be recalled safely
+        /// Releases the underlying pointer of the <see cref="ComPtr{T}"/> if necessary.
+        /// This function can be recalled safely
         /// </summary>
         public void Dispose()
         {
@@ -127,7 +130,13 @@ namespace Voltium.Common
             var p = (IUnknown*)_ptr;
             TInterface* pResult;
 
-            Guid* iid = ComPtr<TInterface>.PointerToCachedGuid;
+            if (p is null)
+            {
+                result = default;
+                return Windows.E_POINTER;
+            }
+
+            Guid* iid = ComPtr<TInterface>.StaticIid;
             int hr = p->QueryInterface(iid, (void**)&pResult);
             result = new ComPtr<TInterface>(pResult);
             return hr;

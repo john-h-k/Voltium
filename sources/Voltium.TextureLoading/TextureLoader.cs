@@ -4,7 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using TerraFX.Interop;
 using Voltium.Common;
-using Voltium.Core.GpuResources;
+using Voltium.Core.Memory;
 using Voltium.TextureLoading.DDS;
 using static TerraFX.Interop.D3D12_RESOURCE_DIMENSION;
 

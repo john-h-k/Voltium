@@ -1,6 +1,8 @@
 using System;
+using System.IO;
+using System.Threading.Tasks;
 
-namespace Voltium.Core.GpuResources
+namespace Voltium.Core.Memory
 {
     internal struct HeapBlock : IComparable<HeapBlock>
     {
@@ -9,6 +11,7 @@ namespace Voltium.Core.GpuResources
 
         public int CompareTo(HeapBlock other)
         {
+            
             return Size.CompareTo(Size);
         }
     }

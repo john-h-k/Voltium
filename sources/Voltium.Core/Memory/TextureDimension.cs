@@ -1,6 +1,6 @@
 ﻿using TerraFX.Interop;
 
-namespace Voltium.Core.GpuResources
+namespace Voltium.Core.Memory
 {
     /// <summary>
     /// Represents the allowed dimensions of a GPU texture

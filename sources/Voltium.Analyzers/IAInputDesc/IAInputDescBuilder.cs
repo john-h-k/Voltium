@@ -20,11 +20,11 @@ namespace Voltium.Analyzers
             var template = @"
 using System;
 using Voltium.Core;
-using Voltium.Core.Managers.Shaders;
+using Voltium.Core.Devices.Shaders;
 
 namespace {0}
 {{
-    partial struct {1} : Voltium.Core.Managers.Shaders.IBindableShaderType
+    partial struct {1} : Voltium.Core.Devices.Shaders.IBindableShaderType
     {{
         ReadOnlyMemory<ShaderInput> IBindableShaderType.GetShaderInputs() => Elements;
         private static readonly ReadOnlyMemory<ShaderInput> Elements = new ShaderInput[] {{{2}}};

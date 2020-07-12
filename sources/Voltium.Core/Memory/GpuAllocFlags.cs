@@ -1,6 +1,6 @@
 using System;
 
-namespace Voltium.Core.GpuResources
+namespace Voltium.Core.Memory
 {
     /// <summary>
     /// Flags uesd by the GPU allocator

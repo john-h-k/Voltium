@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using TerraFX.Interop;
 using Voltium.Common;
-using Voltium.Core.Managers;
+using Voltium.Core.Devices;
 using ZLogger;
 
 namespace Voltium.Core.Pool

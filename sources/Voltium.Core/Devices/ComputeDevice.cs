@@ -6,14 +6,13 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using TerraFX.Interop;
 using Voltium.Common;
-using Voltium.Core.GpuResources;
+using Voltium.Core.Memory;
 using Voltium.Core.Infrastructure;
-using Voltium.Core.Managers;
-using Voltium.Core.Memory.GpuResources;
+using Voltium.Core.Devices;
 using Voltium.Core.Pipeline;
 using ZLogger;
 using static TerraFX.Interop.Windows;
-using Buffer = Voltium.Core.Memory.GpuResources.Buffer;
+using Buffer = Voltium.Core.Memory.Buffer;
 
 namespace Voltium.Core.Devices
 {
@@ -47,9 +46,12 @@ namespace Voltium.Core.Devices
 
         private protected ComPtr<ID3D12Device> _device;
         private protected SupportedDevice _supportedDevice;
-        private protected enum SupportedDevice { Device, Device1, Device2, Device3, Device4, Device5, Device6, Device7, Device8 }
+        private protected enum SupportedDevice { Unknown, Device, Device1, Device2, Device3, Device4, Device5, Device6, Device7, Device8 }
         private protected static HashSet<ulong> _preexistingDevices = new(1);
         private protected DebugLayer? _debug;
+
+        internal enum SupportedGraphicsCommandList { Unknown, GraphicsCommandList, GraphicsCommandList1, GraphicsCommandList2, GraphicsCommandList3, GraphicsCommandList4, GraphicsCommandList5 }
+        private SupportedGraphicsCommandList _supportedList;
 
         /// <summary>
         /// Gets the <see cref="ID3D12Device"/> used by this application
@@ -97,7 +99,7 @@ namespace Voltium.Core.Devices
                 ));
                 _device = p.Move();
 
-                LogHelper.Logger.ZLogInformation("New D3D12 device created from adapter: {0}", adapter);
+                LogHelper.Logger.ZLogInformationWithPayload(adapter, "New D3D12 device created from adapter");
             }
 
             DebugHelpers.SetName(_device.Get(), "Primary Device");
@@ -127,7 +129,9 @@ namespace Voltium.Core.Devices
         }
 
         /// <summary>
-        /// Represents a scoped PIX capture that ends when the type is disposed. Use <see cref="BeginScopedCapture"/> to create one
+        /// Represents a scoped PIX capture that ends when the type is disposed. Use <see cref="BeginScopedCapture"/> to create one.
+        /// If PIX is not attached and the debug layer is attached, a message will be emitted explaining that the capture was dropped because PIX was not attached.
+        /// If PIX is not attached and the debug layer is disabled, the capture will be silently dropped
         /// </summary>
         public struct ScopedCapture : IDisposable
         {
@@ -174,7 +178,7 @@ namespace Voltium.Core.Devices
         /// 
         /// </summary>
         /// <returns></returns>
-        public ComputeContext BeginComputeContext(ComputePso? pso = null)
+        public ComputeContext BeginComputeContext(ComputePipelineStateObject? pso = null)
         {
             throw new NotImplementedException();
         }

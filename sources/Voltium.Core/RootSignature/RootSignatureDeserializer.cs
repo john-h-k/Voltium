@@ -1,5 +1,5 @@
 using System;
-using Voltium.Core.Managers;
+using Voltium.Core.Devices;
 
 namespace Voltium.Core
 {

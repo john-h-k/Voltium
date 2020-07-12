@@ -1,4 +1,4 @@
-namespace Voltium.Core.Memory.GpuResources
+namespace Voltium.Core.Memory
 {
     ///// <summary>
     ///// An allocator used for short-lived per-frame GPU buffer allocations.

@@ -1,3 +1,4 @@
+using System;
 using System.Drawing;
 using TerraFX.Interop;
 
@@ -15,8 +16,8 @@ namespace Voltium.Core
 
 
         public virtual void OnResize(Size newScreenData) { }
-        public virtual void OnKeyDown(byte key) { }
-        public virtual void OnKeyUp(byte key) { }
+        public virtual void OnKeyDown(ConsoleKey key) { }
+        public virtual void OnKeyUp(ConsoleKey key) { }
 
         public virtual void OnMouseScroll(int scroll) { }
     }

@@ -1,9 +1,8 @@
 using System;
 using TerraFX.Interop;
-using Voltium.Core.GpuResources;
-using Voltium.Core.Memory.GpuResources;
+using Voltium.Core.Memory;
 using Voltium.TextureLoading;
-using Buffer = Voltium.Core.Memory.GpuResources.Buffer;
+using Buffer = Voltium.Core.Memory.Buffer;
 
 namespace Voltium.Core
 {
@@ -159,89 +158,81 @@ namespace Voltium.Core
         /// <summary>
         /// Uploads a buffer from the CPU to the GPU
         /// </summary>
-        /// <param name="allocator"></param>
         /// <param name="buffer"></param>
         /// <param name="state"></param>
         /// <param name="destination"></param>
-        public void UploadBuffer<T>(GpuAllocator allocator, T[] buffer, ResourceState state, Buffer destination) where T : unmanaged
-            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, state, destination);
+        public void UploadBuffer<T>(T[] buffer, ResourceState state, Buffer destination) where T : unmanaged
+            => UploadBuffer((ReadOnlySpan<T>)buffer, state, destination);
 
 
         /// <summary>
         /// Uploads a buffer from the CPU to the GPU
         /// </summary>
-        /// <param name="allocator"></param>
         /// <param name="buffer"></param>
         /// <param name="state"></param>
         /// <param name="destination"></param>
-        public void UploadBuffer<T>(GpuAllocator allocator, Span<T> buffer, ResourceState state, Buffer destination) where T : unmanaged
-            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, state, destination);
+        public void UploadBuffer<T>(Span<T> buffer, ResourceState state, Buffer destination) where T : unmanaged
+            => UploadBuffer((ReadOnlySpan<T>)buffer, state, destination);
 
 
         /// <summary>
         /// Uploads a buffer from the CPU to the GPU
         /// </summary>
-        /// <param name="allocator"></param>
         /// <param name="buffer"></param>
         /// <param name="state"></param>
         /// <param name="destination"></param>
-        public void UploadBuffer<T>(GpuAllocator allocator, ReadOnlySpan<T> buffer, ResourceState state, Buffer destination) where T : unmanaged
-            => this.AsCopyContext().UploadBuffer<T>(allocator, buffer, state, destination);
+        public void UploadBuffer<T>(ReadOnlySpan<T> buffer, ResourceState state, Buffer destination) where T : unmanaged
+            => this.AsCopyContext().UploadBuffer<T>(buffer, state, destination);
 
         /// <summary>
         /// Uploads a buffer from the CPU to the GPU
         /// </summary>
-        /// <param name="allocator"></param>
         /// <param name="buffer"></param>
         /// <param name="state"></param>
         /// <param name="destination"></param>
-        public void UploadBuffer<T>(GpuAllocator allocator, T[] buffer, ResourceState state, out Buffer destination) where T : unmanaged
-            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, state, out destination);
-
-
-        /// <summary>
-        /// Uploads a buffer from the CPU to the GPU
-        /// </summary>
-        /// <param name="allocator"></param>
-        /// <param name="buffer"></param>
-        /// <param name="state"></param>
-        /// <param name="destination"></param>
-        public void UploadBuffer<T>(GpuAllocator allocator, Span<T> buffer, ResourceState state, out Buffer destination) where T : unmanaged
-            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, state, out destination);
+        public void UploadBuffer<T>(T[] buffer, ResourceState state, out Buffer destination) where T : unmanaged
+            => UploadBuffer((ReadOnlySpan<T>)buffer, state, out destination);
 
 
         /// <summary>
         /// Uploads a buffer from the CPU to the GPU
         /// </summary>
-        /// <param name="allocator"></param>
         /// <param name="buffer"></param>
         /// <param name="state"></param>
         /// <param name="destination"></param>
-        public void UploadBuffer<T>(GpuAllocator allocator, ReadOnlySpan<T> buffer, ResourceState state, out Buffer destination) where T : unmanaged
-            => this.AsCopyContext().UploadBuffer<T>(allocator, buffer, state, out destination);
+        public void UploadBuffer<T>(Span<T> buffer, ResourceState state, out Buffer destination) where T : unmanaged
+            => UploadBuffer((ReadOnlySpan<T>)buffer, state, out destination);
+
 
         /// <summary>
         /// Uploads a buffer from the CPU to the GPU
         /// </summary>
-        /// <param name="allocator"></param>
+        /// <param name="buffer"></param>
+        /// <param name="state"></param>
+        /// <param name="destination"></param>
+        public void UploadBuffer<T>(ReadOnlySpan<T> buffer, ResourceState state, out Buffer destination) where T : unmanaged
+            => this.AsCopyContext().UploadBuffer<T>(buffer, state, out destination);
+
+        /// <summary>
+        /// Uploads a buffer from the CPU to the GPU
+        /// </summary>
         /// <param name="texture"></param>
         /// <param name="subresources"></param>
         /// <param name="tex"></param>
         /// <param name="state"></param>
         /// <param name="destination"></param>
-        public void UploadTexture(GpuAllocator allocator, ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, TextureDesc tex, ResourceState state, out Texture destination)
-            => this.AsCopyContext().UploadTexture(allocator, texture, subresources, tex, state, out destination);
+        public void UploadTexture(ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, TextureDesc tex, ResourceState state, out Texture destination)
+            => this.AsCopyContext().UploadTexture(texture, subresources, tex, state, out destination);
 
         /// <summary>
         /// Uploads a buffer from the CPU to the GPU
         /// </summary>
-        /// <param name="allocator"></param>
         /// <param name="texture"></param>
         /// <param name="subresources"></param>
         /// <param name="state"></param>
         /// <param name="destination"></param>
-        public void UploadTexture(GpuAllocator allocator, ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, ResourceState state, Texture destination)
-        => this.AsCopyContext().UploadTexture(allocator, texture, subresources, state, destination);
+        public void UploadTexture(ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, ResourceState state, Texture destination)
+        => this.AsCopyContext().UploadTexture(texture, subresources, state, destination);
 
 
         /// <summary>
@@ -262,6 +253,43 @@ namespace Voltium.Core
         /// <param name="subresource">The subresource to transition</param>
         public void ResourceTransition(Texture resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
             => this.AsCopyContext().ResourceTransition(resource, transition, subresource);
+
+        /// <summary>
+        /// Mark a resource barrier on the command list
+        /// </summary>
+        /// <param name="resource">The resource to transition</param>
+        /// <param name="transition">The transition</param>
+        /// <param name="subresource">The subresource to transition</param>
+        public void BeginResourceTransition(Buffer resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
+            => this.AsCopyContext().BeginResourceTransition(resource, transition, subresource);
+
+        /// <summary>
+        /// Mark a resource barrier on the command list
+        /// </summary>
+        /// <param name="resource">The resource to transition</param>
+        /// <param name="transition">The transition</param>
+        /// <param name="subresource">The subresource to transition</param>
+        public void BeginResourceTransition(Texture resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
+            => this.AsCopyContext().BeginResourceTransition(resource, transition, subresource);
+
+
+        /// <summary>
+        /// Mark a resource barrier on the command list
+        /// </summary>
+        /// <param name="resource">The resource to transition</param>
+        /// <param name="transition">The transition</param>
+        /// <param name="subresource">The subresource to transition</param>
+        public void EndResourceTransition(Buffer resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
+            => this.AsCopyContext().EndResourceTransition(resource, transition, subresource);
+
+        /// <summary>
+        /// Mark a resource barrier on the command list
+        /// </summary>
+        /// <param name="resource">The resource to transition</param>
+        /// <param name="transition">The transition</param>
+        /// <param name="subresource">The subresource to transition</param>
+        public void EndResourceTransition(Texture resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
+            => this.AsCopyContext().EndResourceTransition(resource, transition, subresource);
 
         #endregion
     }

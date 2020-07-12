@@ -5,7 +5,7 @@ using Voltium.Core.Devices;
 using Voltium.Core.Pool;
 using ZLogger;
 
-namespace Voltium.Core.Managers
+namespace Voltium.Core.Devices
 {
     /// <summary>
     /// A pool of <see cref="ID3D12CommandAllocator"/>s

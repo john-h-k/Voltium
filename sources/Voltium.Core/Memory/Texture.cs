@@ -4,9 +4,9 @@ using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Configuration.Graphics;
 using Voltium.Core.Devices;
-using Voltium.Core.GpuResources;
+using Voltium.Core.Memory;
 
-namespace Voltium.Core.Memory.GpuResources
+namespace Voltium.Core.Memory
 {
     /// <summary>
     /// The kind of a texture

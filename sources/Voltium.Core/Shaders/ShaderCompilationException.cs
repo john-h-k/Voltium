@@ -1,7 +1,7 @@
 using System;
 using System.Runtime.Serialization;
 
-namespace Voltium.Core.Managers.Shaders
+namespace Voltium.Core.Devices.Shaders
 {
     /// <summary>
     /// The exception thrown when shader compilation fails

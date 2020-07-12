@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Voltium.Common;
 
-namespace Voltium.Core.Managers.Shaders
+namespace Voltium.Core.Devices.Shaders
 {
     /// <summary>
     /// Represents the shader type and model you are compiling for

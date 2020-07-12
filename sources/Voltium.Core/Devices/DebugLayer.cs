@@ -8,7 +8,6 @@ using Microsoft.Extensions.Logging;
 using TerraFX.Interop;
 using Voltium.Common.Debugging;
 using Voltium.Core.Devices;
-using Voltium.Core.Managers;
 using ZLogger;
 
 namespace Voltium.Common
@@ -46,16 +45,24 @@ namespace Voltium.Common
         private ComputeDevice _device = null!;
         private DebugLayerConfiguration _config = null!;
 
+        public bool IsActive { get; }
+
         public DebugLayerConfiguration Config => _config;
 
-        public DebugLayer(DebugLayerConfiguration? config = null)
+        public DebugLayer(DebugLayerConfiguration? config)
         {
-            _config = config ?? DebugLayerConfiguration.Default;
+            IsActive = config is not null;
+            _config = config!;
         }
 
         // Some aspects require D3D12 or DXGI global state. Horrible i know
         public void SetGlobalStateForConfig()
         {
+            if (!IsActive)
+            {
+                return;
+            }
+
             {
                 using ComPtr<IDXGraphicsAnalysis> analysis = default;
                 int hr = Windows.DXGIGetDebugInterface1(0, analysis.Iid, ComPtr.GetVoidAddressOf(&analysis));
@@ -97,7 +104,6 @@ namespace Voltium.Common
                     ThrowHelper.ThrowPlatformNotSupportedException("GPU based validation is not supported on this system");
                 }
             }
-
 
             if (_config.DeviceRemovedMetadata.RequiresDredSupport)
             {
@@ -157,6 +163,11 @@ namespace Voltium.Common
 
         public void SetDeviceStateForConfig(ComputeDevice device)
         {
+            if (!IsActive)
+            {
+                return;
+            }
+
             _device = device;
 
             Guard.OnExternalError += FlushQueues;
@@ -185,6 +196,11 @@ namespace Voltium.Common
 
         public void ReportLiveObjects(LiveObjectFlags flags = LiveObjectFlags.Summary)
         {
+            if (!IsActive)
+            {
+                return;
+            }
+
             if (!_dxgiDebugLayer.Exists)
             {
                 ThrowHelper.ThrowInvalidOperationException("Cannot ReportLiveObjects because layer was not created with InfrastructureLayerValidation. Try ReportDeviceLiveObjects instead");
@@ -199,6 +215,11 @@ namespace Voltium.Common
 
         public void ReportDeviceLiveObjects(LiveObjectFlags flags = LiveObjectFlags.Summary)
         {
+            if (!IsActive)
+            {
+                return;
+            }
+
             if (!_d3d12DebugDevice.Exists)
             {
                 ThrowHelper.ThrowInvalidOperationException("Cannot ReportDeviceLiveObjects because layer was not created with GraphicsLayerValidation. Try ReportLiveObjects instead");
@@ -208,6 +229,11 @@ namespace Voltium.Common
 
         public void FlushQueues()
         {
+            if (!IsActive)
+            {
+                return;
+            }
+
             if (!EnvVars.IsD3D12ShimEnabled)
             {
                 return;

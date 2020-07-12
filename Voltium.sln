@@ -44,6 +44,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "sources", "sources", "{DD29
 	ProjectSection(SolutionItems) = preProject
 		sources\Directory.Build.props = sources\Directory.Build.props
 		sources\Directory.Build.targets = sources\Directory.Build.targets
+		sources\BannedSymbols.txt = sources\BannedSymbols.txt
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{A5578D12-9E77-4647-8C22-0DBD17760BFF}"

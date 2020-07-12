@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 
-namespace Voltium.Core.GpuResources
+namespace Voltium.Core.Memory
 {
     internal unsafe struct HeapTypeSet<T>
     {

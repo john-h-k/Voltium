@@ -149,7 +149,7 @@ using TerraFX.Interop;
 
 // generated from root/scripts/gen_dxc_flags.py then fixed up by hand
 
-namespace Voltium.Core.Managers
+namespace Voltium.Core.Devices
 {
     public static partial class DxcCompileFlags
     {
@@ -185,9 +185,30 @@ namespace Voltium.Core.Managers
         public static Flag DefaultLinkage(string value) => new Flag($"-default-linkage {value}");
 
         /// <summary>
-        /// select denormal value options(any, preserve, ftz). any is the default.
+        /// Select denormal value options(any, preserve, ftz). any is the default.
         /// </summary>
         public static Flag Denorm(ShaderDenormBehaviour value) => new Flag($"-denorm {value.ToDxcArg()}");
+
+        /// <summary>
+        /// Use optimization level 0
+        /// </summary>
+        public static Flag OptimizationLevel0 { get; } = new Flag("-O0");
+
+        /// <summary>
+        /// Use optimization level 1
+        /// </summary>
+        public static Flag OptimizationLevel1 { get; } = new Flag("-O1");
+
+        /// <summary>
+        /// Use optimization level 2
+        /// </summary>
+        public static Flag OptimizationLevel2 { get; } = new Flag("-O2");
+
+        /// <summary>
+        /// Use optimization level 3. This is the default
+        /// </summary>
+        public static Flag OptimizationLevel3 { get; } = new Flag("-O3");
+
         /// <summary>
         /// Define macro
         /// </summary>

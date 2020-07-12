@@ -2,9 +2,9 @@ using System;
 using System.Diagnostics;
 using TerraFX.Interop;
 using Voltium.Common;
-using Voltium.Core.GpuResources;
+using Voltium.Core.Memory;
 
-namespace Voltium.Core.Memory.GpuResources
+namespace Voltium.Core.Memory
 {
 
     /// <summary>
@@ -51,7 +51,7 @@ namespace Voltium.Core.Memory.GpuResources
         /// Writes the <typeparamref name="T"/> to the buffer
         /// </summary>
         /// <typeparam name="T">The type to write</typeparam>
-        public void WriteData<T>(ref T data, uint offset) where T : unmanaged
+        public void WriteData<T>(ref T data, uint offset, bool leaveMapped = false) where T : unmanaged
         {
             if (_cpuAddress is null)
             {
@@ -59,13 +59,18 @@ namespace Voltium.Core.Memory.GpuResources
             }
 
             ((T*)_cpuAddress)[offset] = data;
+
+            if (!leaveMapped)
+            {
+                _resource.Unmap(0);
+            }
         }
 
         /// <summary>
         /// Writes the <typeparamref name="T"/> to the buffer
         /// </summary>
         /// <typeparam name="T">The type to write</typeparam>
-        public void WriteConstantBufferData<T>(ref T data, uint offset) where T : unmanaged
+        public void WriteConstantBufferData<T>(ref T data, uint offset, bool leaveMapped = false) where T : unmanaged
         {
             if (_cpuAddress is null)
             {
@@ -75,13 +80,18 @@ namespace Voltium.Core.Memory.GpuResources
             var alignedSize = (sizeof(T) + 255) & ~255;
 
             *(T*)((byte*)_cpuAddress + (alignedSize * offset)) = data;
+
+            if (!leaveMapped)
+            {
+                _resource.Unmap(0);
+            }
         }
 
         /// <summary>
         /// Writes the <typeparamref name="T"/> to the buffer
         /// </summary>
         /// <typeparam name="T">The type to write</typeparam>
-        public void WriteDataByteOffset<T>(ref T data, uint offset) where T : unmanaged
+        public void WriteDataByteOffset<T>(ref T data, uint offset, bool leaveMapped = false) where T : unmanaged
         {
             if (_cpuAddress is null)
             {
@@ -89,13 +99,18 @@ namespace Voltium.Core.Memory.GpuResources
             }
 
             *(T*)((byte*)_cpuAddress + offset) = data;
+
+            if (!leaveMapped)
+            {
+                _resource.Unmap(0);
+            }
         }
 
         /// <summary>
         /// Writes the <typeparamref name="T"/> to the buffer
         /// </summary>
         /// <typeparam name="T">The type to write</typeparam>
-        public void WriteData<T>(ReadOnlySpan<T> data) where T : unmanaged
+        public void WriteData<T>(ReadOnlySpan<T> data, bool leaveMapped = false) where T : unmanaged
         {
             if (_cpuAddress is null)
             {
@@ -103,6 +118,11 @@ namespace Voltium.Core.Memory.GpuResources
             }
 
             data.CopyTo(new Span<T>(_cpuAddress, (int)Length));
+
+            if (!leaveMapped)
+            {
+                _resource.Unmap(0);
+            }
         }
 
         /// <inheritdoc/>

@@ -5,7 +5,7 @@ using Voltium.Common;
 using Voltium.Core.Configuration.Graphics;
 using Voltium.Core.Devices;
 
-namespace Voltium.Core.GpuResources
+namespace Voltium.Core.Memory
 {
     /// <summary>
     /// Represents a GPU resource
@@ -71,6 +71,11 @@ namespace Voltium.Core.GpuResources
         /// The current state of the resource
         /// </summary>
         public ResourceState State { get; internal set; }
+
+        /// <summary>
+        /// Whether a resource transition was began on this resource, making it temporarily inaccessible
+        /// </summary>
+        public bool TransitionBegan { get; internal set; }
 
         private ComPtr<ID3D12Resource> _value;
 

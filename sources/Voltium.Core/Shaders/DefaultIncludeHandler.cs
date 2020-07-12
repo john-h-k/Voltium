@@ -6,7 +6,7 @@ using TerraFX.Interop;
 using Voltium.Common;
 using static TerraFX.Interop.Windows;
 
-namespace Voltium.Core.Managers
+namespace Voltium.Core.Devices
 {
     // LayoutKind.Sequential is ignored when the type contains references
     // This type is safe because we pin it during its time in native code,

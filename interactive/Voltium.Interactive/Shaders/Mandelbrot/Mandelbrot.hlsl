@@ -48,7 +48,7 @@ float4 main(
 
     FP2 seed = tex * scale + center;
 
-    const int iter = 256 * 4 * 10;
+    const int iter = 256 /** 4 * 5*/;
     int i;
 
     FP2 z = seed;

@@ -2,7 +2,7 @@
 using TerraFX.Interop;
 using Voltium.Common;
 
-namespace Voltium.Core.GpuResources
+namespace Voltium.Core.Memory
 {
     internal unsafe struct AllocatorHeap
     {

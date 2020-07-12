@@ -1,6 +1,6 @@
 using System;
 
-namespace Voltium.Core.Managers
+namespace Voltium.Core.Devices
 {
     /// <summary>
     /// Represents a compiled shader

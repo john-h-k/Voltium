@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core;
-using Voltium.Core.GpuResources;
+using Voltium.Core.Memory;
 using static Voltium.TextureLoading.DDS.InteropTypeUtilities;
 
 namespace Voltium.TextureLoading.DDS

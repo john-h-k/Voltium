@@ -20,14 +20,12 @@ namespace Voltium.Core.Infrastructure
         /// </summary>
         /// <returns>A new <see cref="DeviceFactory"/></returns>
         public static DeviceFactory Create(DeviceEnumerationLayer layer)
-        {
-            return layer switch
+            => layer switch
             {
                 DeviceEnumerationLayer.Dxgi => new DxgiDeviceFactory(),
                 DeviceEnumerationLayer.DxCore => new DxCoreDeviceFactory(),
                 _ => throw new ArgumentException("Invalid DeviceEnumerationLayer", nameof(layer))
             };
-        }
 
         /// <summary>
         /// Creates a new <see cref="DeviceFactory"/> to enumerate a specific <see cref="DeviceType"/>

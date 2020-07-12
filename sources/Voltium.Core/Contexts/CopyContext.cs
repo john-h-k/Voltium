@@ -1,12 +1,14 @@
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using TerraFX.Interop;
 using Voltium.Common;
-using Voltium.Core.GpuResources;
-using Voltium.Core.Memory.GpuResources;
+using Voltium.Core.Contexts;
+using Voltium.Core.Memory;
 using Voltium.TextureLoading;
-using Buffer = Voltium.Core.Memory.GpuResources.Buffer;
+using Buffer = Voltium.Core.Memory.Buffer;
 
 namespace Voltium.Core
 {
@@ -86,14 +88,13 @@ namespace Voltium.Core
         /// <summary>
         /// Copy a subresource
         /// </summary>
-        /// <param name="allocator"></param>
         /// <param name="source">The resource to copy from</param>
         /// <param name="subresourceIndex">The index of the subresource to copy from</param>
         /// <param name="data"></param>
-        public void ReadbackSubresource(GpuAllocator allocator, Texture source, uint subresourceIndex, out Buffer data)
+        public void ReadbackSubresource(Texture source, uint subresourceIndex, out Buffer data)
         {
             _context.Device.GetCopyableFootprint(source, subresourceIndex, 1, out _, out _, out var rowSize, out var size);
-            data = allocator.AllocateBuffer((long)size, MemoryAccess.CpuReadback, ResourceState.CopyDestination);
+            data = _context.Device.Allocator.AllocateBuffer((long)size, MemoryAccess.CpuReadback, ResourceState.CopyDestination);
 
             var alignedRowSizes = MathHelpers.AlignUp(rowSize, 256);
 
@@ -121,11 +122,10 @@ namespace Voltium.Core
         /// <summary>
         /// Copy a subresource
         /// </summary>
-        /// <param name="allocator"></param>
         /// <param name="source">The resource to copy from</param>
         /// <param name="subresourceIndex">The index of the subresource to copy from</param>
         /// <param name="data"></param>
-        public void ReadbackSubresource(GpuAllocator allocator, Texture source, uint subresourceIndex, Buffer data)
+        public void ReadbackSubresource(Texture source, uint subresourceIndex, Buffer data)
         {
             ResourceTransition(source, ResourceState.CopySource, subresourceIndex);
             ResourceTransition(data, ResourceState.CopyDestination, 0);
@@ -186,35 +186,32 @@ namespace Voltium.Core
         /// <summary>
         /// Uploads a buffer from the CPU to the GPU
         /// </summary>
-        /// <param name="allocator"></param>
         /// <param name="buffer"></param>
         /// <param name="state"></param>
         /// <param name="destination"></param>
-        public void UploadBuffer<T>(GpuAllocator allocator, T[] buffer, ResourceState state, Buffer destination) where T : unmanaged
-            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, state, destination);
+        public void UploadBuffer<T>(T[] buffer, ResourceState state, Buffer destination) where T : unmanaged
+            => UploadBuffer((ReadOnlySpan<T>)buffer, state, destination);
 
 
         /// <summary>
         /// Uploads a buffer from the CPU to the GPU
         /// </summary>
-        /// <param name="allocator"></param>
         /// <param name="buffer"></param>
         /// <param name="state"></param>
         /// <param name="destination"></param>
-        public void UploadBuffer<T>(GpuAllocator allocator, Span<T> buffer, ResourceState state, Buffer destination) where T : unmanaged
-            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, state, destination);
+        public void UploadBuffer<T>(Span<T> buffer, ResourceState state, Buffer destination) where T : unmanaged
+            => UploadBuffer((ReadOnlySpan<T>)buffer, state, destination);
 
 
         /// <summary>
         /// Uploads a buffer from the CPU to the GPU
         /// </summary>
-        /// <param name="allocator"></param>
         /// <param name="buffer"></param>
         /// <param name="state"></param>
         /// <param name="destination"></param>
-        public void UploadBuffer<T>(GpuAllocator allocator, ReadOnlySpan<T> buffer, ResourceState state, Buffer destination) where T : unmanaged
+        public void UploadBuffer<T>(ReadOnlySpan<T> buffer, ResourceState state, Buffer destination) where T : unmanaged
         {
-            var upload = allocator.AllocateBuffer(buffer.Length * sizeof(T), MemoryAccess.CpuUpload, ResourceState.GenericRead);
+            var upload = _context.Device.Allocator.AllocateBuffer(buffer.Length * sizeof(T), MemoryAccess.CpuUpload, ResourceState.GenericRead);
             upload.WriteData(buffer);
 
             CopyResource(upload, destination);
@@ -224,38 +221,35 @@ namespace Voltium.Core
         /// <summary>
         /// Uploads a buffer from the CPU to the GPU
         /// </summary>
-        /// <param name="allocator"></param>
         /// <param name="buffer"></param>
         /// <param name="state"></param>
         /// <param name="destination"></param>
-        public void UploadBuffer<T>(GpuAllocator allocator, T[] buffer, ResourceState state, out Buffer destination) where T : unmanaged
-            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, state, out destination);
+        public void UploadBuffer<T>(T[] buffer, ResourceState state, out Buffer destination) where T : unmanaged
+            => UploadBuffer((ReadOnlySpan<T>)buffer, state, out destination);
 
 
         /// <summary>
         /// Uploads a buffer from the CPU to the GPU
         /// </summary>
-        /// <param name="allocator"></param>
         /// <param name="buffer"></param>
         /// <param name="state"></param>
         /// <param name="destination"></param>
-        public void UploadBuffer<T>(GpuAllocator allocator, Span<T> buffer, ResourceState state, out Buffer destination) where T : unmanaged
-            => UploadBuffer(allocator, (ReadOnlySpan<T>)buffer, state, out destination);
+        public void UploadBuffer<T>(Span<T> buffer, ResourceState state, out Buffer destination) where T : unmanaged
+            => UploadBuffer((ReadOnlySpan<T>)buffer, state, out destination);
 
 
         /// <summary>
         /// Uploads a buffer from the CPU to the GPU
         /// </summary>
-        /// <param name="allocator"></param>
         /// <param name="buffer"></param>
         /// <param name="state"></param>
         /// <param name="destination"></param>
-        public void UploadBuffer<T>(GpuAllocator allocator, ReadOnlySpan<T> buffer, ResourceState state, out Buffer destination) where T : unmanaged
+        public void UploadBuffer<T>(ReadOnlySpan<T> buffer, ResourceState state, out Buffer destination) where T : unmanaged
         {
-            var upload = allocator.AllocateBuffer(buffer.Length * sizeof(T), MemoryAccess.CpuUpload, ResourceState.GenericRead);
+            var upload = _context.Device.Allocator.AllocateBuffer(buffer.Length * sizeof(T), MemoryAccess.CpuUpload, ResourceState.GenericRead);
             upload.WriteData(buffer);
 
-            destination = allocator.AllocateBuffer(buffer.Length * sizeof(T), MemoryAccess.GpuOnly, ResourceState.CopyDestination);
+            destination = _context.Device.Allocator.AllocateBuffer(buffer.Length * sizeof(T), MemoryAccess.GpuOnly, ResourceState.CopyDestination);
             CopyResource(upload, destination);
             ResourceTransition(destination, state);
         }
@@ -263,29 +257,27 @@ namespace Voltium.Core
         /// <summary>
         /// Uploads a buffer from the CPU to the GPU
         /// </summary>
-        /// <param name="allocator"></param>
         /// <param name="texture"></param>
         /// <param name="subresources"></param>
         /// <param name="tex"></param>
         /// <param name="state"></param>
         /// <param name="destination"></param>
-        public void UploadTexture(GpuAllocator allocator, ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, TextureDesc tex, ResourceState state, out Texture destination)
+        public void UploadTexture(ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, TextureDesc tex, ResourceState state, out Texture destination)
         {
-            destination = allocator.AllocateTexture(tex, ResourceState.CopyDestination);
-            UploadTexture(allocator, texture, subresources, state, destination);
+            destination = _context.Device.Allocator.AllocateTexture(tex, ResourceState.CopyDestination);
+            UploadTexture(texture, subresources, state, destination);
         }
 
         /// <summary>
         /// Uploads a buffer from the CPU to the GPU
         /// </summary>
-        /// <param name="allocator"></param>
         /// <param name="texture"></param>
         /// <param name="subresources"></param>
         /// <param name="state"></param>
         /// <param name="destination"></param>
-        public void UploadTexture(GpuAllocator allocator, ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, ResourceState state, Texture destination)
+        public void UploadTexture(ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, ResourceState state, Texture destination)
         {
-            var upload = allocator.AllocateBuffer(
+            var upload = _context.Device.Allocator.AllocateBuffer(
                 (long)Windows.GetRequiredIntermediateSize(destination.Resource.UnderlyingResource, 0, (uint)subresources.Length),
                 MemoryAccess.CpuUpload,
                 ResourceState.GenericRead
@@ -317,6 +309,23 @@ namespace Voltium.Core
         }
 
 
+        /// <summary>
+        /// Mark a resource barrierson the command list
+        /// </summary>
+        /// <param name="barrier">The barrier</param>
+        public void ResourceBarrier(ResourceBarrier barrier)
+        {
+            _context.AddBarrier(barrier.Barrier);
+        }
+
+        /// <summary>
+        /// Mark a set of resource barriers on the command list
+        /// </summary>
+        /// <param name="barriers">The barriers</param>
+        public void ResourceBarrier(ReadOnlySpan<ResourceBarrier> barriers)
+        {
+            _context.AddBarriers(MemoryMarshal.Cast<ResourceBarrier, D3D12_RESOURCE_BARRIER>(barriers));
+        }
 
         /// <summary>
         /// Mark a resource barrier on the command list
@@ -336,11 +345,60 @@ namespace Voltium.Core
         public void ResourceTransition(Texture resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
             => ResourceTransition(resource.Resource, transition, subresource);
 
-        private void ResourceTransition(GpuResource resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
+
+        /// <summary>
+        /// Mark a resource barrier on the command list
+        /// </summary>
+        /// <param name="resource">The resource to transition</param>
+        /// <param name="transition">The transition</param>
+        /// <param name="subresource">The subresource to transition</param>
+        public void BeginResourceTransition(Buffer resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
+            => BeginResourceTransition(resource.Resource, transition, subresource);
+
+        /// <summary>
+        /// Mark a resource barrier on the command list
+        /// </summary>
+        /// <param name="resource">The resource to transition</param>
+        /// <param name="transition">The transition</param>
+        /// <param name="subresource">The subresource to transition</param>
+        public void BeginResourceTransition(Texture resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
+            => BeginResourceTransition(resource.Resource, transition, subresource);
+
+
+        /// <summary>
+        /// Mark a resource barrier on the command list
+        /// </summary>
+        /// <param name="resource">The resource to transition</param>
+        /// <param name="transition">The transition</param>
+        /// <param name="subresource">The subresource to transition</param>
+        public void EndResourceTransition(Buffer resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
+            => EndResourceTransition(resource.Resource, transition, subresource);
+
+        /// <summary>
+        /// Mark a resource barrier on the command list
+        /// </summary>
+        /// <param name="resource">The resource to transition</param>
+        /// <param name="transition">The transition</param>
+        /// <param name="subresource">The subresource to transition</param>
+        public void EndResourceTransition(Texture resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
+            => EndResourceTransition(resource.Resource, transition, subresource);
+
+        private static bool IsTransitionNecessary(ResourceState state, ResourceState transition)
+            => transition == ResourceState.Common || (state & transition) != transition;
+
+        private void ResourceTransition(GpuResource resource, ResourceState transition, uint subresource)
         {
+            // demote a full resource transition to an end-only where applicable because it is more efficient
+            if (resource.TransitionBegan)
+            {
+                EndResourceTransition(resource, transition, subresource);
+                return;
+            }
+
+            var state = resource.State;
+
             // don't do unnecessary work
-            // ResourceState.Common is 0 and must be transitioned to. Same applies for present (also 0)
-            if (transition != ResourceState.Common && (resource.State & transition) == transition)
+            if (!IsTransitionNecessary(state, transition))
             {
                 return;
             }
@@ -348,17 +406,78 @@ namespace Voltium.Core
             Unsafe.SkipInit(out D3D12_RESOURCE_BARRIER barrier);
             {
                 barrier.Type = D3D12_RESOURCE_BARRIER_TYPE.D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-                barrier.Flags = D3D12_RESOURCE_BARRIER_FLAGS.D3D12_RESOURCE_BARRIER_FLAG_NONE;
+                // If the state isn't flushed, we need to end the previous barrier
+                barrier.Flags = 0;
                 barrier.Anonymous.Transition = new D3D12_RESOURCE_TRANSITION_BARRIER
                 {
                     pResource = resource.UnderlyingResource,
-                    StateBefore = (D3D12_RESOURCE_STATES)resource.State,
+                    StateBefore = (D3D12_RESOURCE_STATES)state,
                     StateAfter = (D3D12_RESOURCE_STATES)transition,
                     Subresource = subresource
                 };
             };
 
             resource.State = transition;
+
+            _context.AddBarrier(barrier);
+        }
+
+        private void BeginResourceTransition(GpuResource resource, ResourceState transition, uint subresource)
+        {
+            var state = resource.State;
+
+            // don't do unnecessary work
+            // end barrier must be dropped if begin barrier is dropped (resource.TransitionBegan tracks this)
+            if (!IsTransitionNecessary(state, transition))
+            {
+                return;
+            }
+
+            Unsafe.SkipInit(out D3D12_RESOURCE_BARRIER barrier);
+            {
+                barrier.Type = D3D12_RESOURCE_BARRIER_TYPE.D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+                barrier.Flags = D3D12_RESOURCE_BARRIER_FLAGS.D3D12_RESOURCE_BARRIER_FLAG_BEGIN_ONLY;
+                barrier.Anonymous.Transition = new D3D12_RESOURCE_TRANSITION_BARRIER
+                {
+                    pResource = resource.UnderlyingResource,
+                    StateBefore = (D3D12_RESOURCE_STATES)state,
+                    StateAfter = (D3D12_RESOURCE_STATES)transition,
+                    Subresource = subresource
+                };
+            };
+
+            resource.TransitionBegan = true;
+
+            _context.AddBarrier(barrier);
+        }
+
+        private void EndResourceTransition(GpuResource resource, ResourceState transition, uint subresource)
+        {
+            var state = resource.State;
+
+            // drop ends with no beginnings, which occurs when a begin resource transition is marked as unnecessary
+            // it also happens with invalid end resources (where no begin call has ever been made), but hopefully the debug layer will catch these
+            if (!resource.TransitionBegan)
+            {
+                return;
+            }
+
+            Unsafe.SkipInit(out D3D12_RESOURCE_BARRIER barrier);
+            {
+                barrier.Type = D3D12_RESOURCE_BARRIER_TYPE.D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+                barrier.Flags = D3D12_RESOURCE_BARRIER_FLAGS.D3D12_RESOURCE_BARRIER_FLAG_END_ONLY;
+                barrier.Anonymous.Transition = new D3D12_RESOURCE_TRANSITION_BARRIER
+                {
+                    pResource = resource.UnderlyingResource,
+                    StateBefore = (D3D12_RESOURCE_STATES)state,
+                    StateAfter = (D3D12_RESOURCE_STATES)transition,
+                    Subresource = subresource
+                };
+            };
+
+            resource.State = transition;
+            resource.TransitionBegan = false;
+
             _context.AddBarrier(barrier);
         }
 

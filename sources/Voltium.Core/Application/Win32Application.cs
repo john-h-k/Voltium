@@ -114,17 +114,11 @@ namespace Voltium.Core
             {
                 _ = SetWindowTextW(Hwnd, (ushort*)pFps);
 
-                using (var timer = ScopedTimer.Start())
+                _timer.Tick(() =>
                 {
-                    _timer.Tick(() =>
-                    {
-                        _application.Update(_timer);
-                        _application.Render();
-                    });
-
-                    Console.WriteLine(timer.Elapsed);
-                }
-
+                    _application.Update(_timer);
+                    _application.Render();
+                });
             }
         }
 
@@ -132,9 +126,8 @@ namespace Voltium.Core
         private static Application _application = null!;
         private const int ScrollResolution = 120;
         private static bool _isPaused;
-        private static int _numMouseMessages = 0;
 
-        // Main message handler for the sample
+        // Main message handler
         [UnmanagedCallersOnly(CallingConvention = CallingConvention.StdCall)]
         private static nint WindowProc(IntPtr hWnd, uint message, nuint wParam, nint lParam)
         {
@@ -155,19 +148,18 @@ namespace Voltium.Core
 
                 case WM_KEYDOWN:
                 {
-                    _application.OnKeyDown((byte)wParam);
+                    _application.OnKeyDown((ConsoleKey)wParam);
                     return 0;
                 }
 
                 case WM_KEYUP:
                 {
-                    _application.OnKeyUp((byte)wParam);
+                    _application.OnKeyUp((ConsoleKey)wParam);
                     return 0;
                 }
 
                 case WM_MOUSEMOVE:
                 {
-                    Console.WriteLine($"Mouse move msg {_numMouseMessages++}");
                     return 0;
                 }
 
@@ -196,7 +188,7 @@ namespace Voltium.Core
                     var sz = (uint)lParam;
                     _screenData = new Size(LOWORD(sz), HIWORD(sz));
 
-                    if (!_isResizing && lParam != 0) // why do we sometimes get zero size lParams?
+                    if (!_isResizing)
                     {
                         _application.OnResize(_screenData);
                     }

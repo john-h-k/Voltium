@@ -6,11 +6,11 @@ using System.Text;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Configuration.Graphics;
-using Voltium.Core.Managers.Shaders;
+using Voltium.Core.Devices.Shaders;
 using Voltium.Core.Pipeline;
 using static TerraFX.Interop.D3D12_CONSERVATIVE_RASTERIZATION_MODE;
 using static Voltium.Core.Pipeline.GraphicsPipelineDesc;
-namespace Voltium.Core.Managers
+namespace Voltium.Core.Devices
 {
     internal unsafe static class PipelineTranslationLayer
     {

@@ -1,4 +1,4 @@
-﻿namespace Voltium.Core.Memory.GpuResources
+namespace Voltium.Core.Memory
 {
     /// <summary>
     /// The type of a GPU buffer. The names correspond to the names

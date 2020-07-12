@@ -1,21 +1,27 @@
 using System;
 using System.Diagnostics;
-using System.Drawing;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Configuration.Graphics;
-using Voltium.Core.Devices;
-using Voltium.Core.GpuResources;
+using Voltium.Core.Memory;
 using Voltium.Core.Infrastructure;
-using Voltium.Core.Memory.GpuResources;
 using Voltium.Core.Pipeline;
 using ZLogger;
 using static TerraFX.Interop.Windows;
 
-namespace Voltium.Core.Managers
+namespace Voltium.Core.Devices
 {
+    internal struct D3D11on12
+    {
+        public ComPtr<ID3D11On12Device> _device;
+        public ComPtr<ID3D11DeviceContext> _deviceContext;
+
+        public ComPtr<ID2D1Device> _d2dDevice;
+        public ComPtr<ID2D1DeviceContext> _d2dDeviceContext;
+    }
+
 
     /// <summary>
     /// The top-level manager for application resources
@@ -86,14 +92,12 @@ namespace Voltium.Core.Managers
 
         private ulong _cpuFrequency;
 
-        //public static GraphicsDevice Create(GraphicalConfiguration config)
-        //{
-
-        //}
-
         /// <summary>
         /// Create a new <see cref="GraphicsDevice"/> with an output to a WinRT ICoreWindow
         /// </summary>
+        /// <param name="adapter">The <see cref="Adapter"/> to create the device on, or <see langword="null"/> to use the default adapter</param>
+        /// <param name="config">The <see cref="GraphicalConfiguration"/> to create the device with</param>
+        /// <returns>A new <see cref="GraphicsDevice"/></returns>
         public static GraphicsDevice Create(Adapter? adapter, GraphicalConfiguration config)
         {
             var device = new GraphicsDevice();
@@ -253,7 +257,7 @@ namespace Voltium.Core.Managers
         /// </summary>
         /// <param name="pso"></param>
         /// <returns></returns>
-        public new ComputeContext BeginComputeContext(ComputePso? pso = null)
+        public new ComputeContext BeginComputeContext(ComputePipelineStateObject? pso = null)
         {
             var ctx = BeginGraphicsContext(pso);
             return ctx.AsComputeContext();
@@ -285,21 +289,24 @@ namespace Voltium.Core.Managers
             Guard.ThrowIfFailed(_list->Reset(_allocator, pso is null ? null : pso.GetPso()));
 
             var rootSig = pso is null ? null : pso.GetRootSig();
-            if (pso is ComputePso)
+            if (pso is ComputePipelineStateObject)
             {
                 _list->SetComputeRootSignature(rootSig);
             }
-            else if (pso is GraphicsPso)
+            else if (pso is GraphicsPipelineStateObject)
             {
                 _list->SetGraphicsRootSignature(rootSig);
             }
 
             SetDefaultDescriptorHeaps(_list);
 
+
             return new GraphicsContext(new(this, new(_list), new(_allocator)));
 
             //return _dispatch.BeginGraphicsContext(pso);
         }
+
+        private TimeSpan _start;
 
         private void SetDefaultDescriptorHeaps(ID3D12GraphicsCommandList* list)
         {
@@ -315,6 +322,8 @@ namespace Voltium.Core.Managers
         [ThreadStatic]
         private ID3D12CommandAllocator* _allocator;
 
+        private bool _recFrame = true;
+
         /// <summary>
         /// Submit a set of recorded commands to the list
         /// </summary>
@@ -324,8 +333,25 @@ namespace Voltium.Core.Managers
             ComPtr<ID3D12GraphicsCommandList> list = new(context.List);
             list.Get()->Close();
             _graphicsQueue.GetQueue()->ExecuteCommandLists(1, (ID3D12CommandList**)&list);
+
+            QueryTimestamp(ExecutionContext.Graphics, out var start);
             _graphicsQueue.GetSynchronizerForIdle().Block();
+            QueryTimestamp(ExecutionContext.Graphics, out var end);
+
+            if (_recFrame)
+            {
+                Console.WriteLine((end - start).TotalMilliseconds);
+                _recFrame = false;
+            }
             //return _dispatch.End(context);
+        }
+
+        /// <summary>
+        /// Execute all submitted command lists
+        /// </summary>
+        public void Execute()
+        {
+
         }
 
         /// <summary>
@@ -335,6 +361,8 @@ namespace Voltium.Core.Managers
         {
             //_graphicsQueue.MoveToNextFrame();
             _graphicsQueue.GetSynchronizerForIdle().Block();
+            _rtvs.ResetHeap();
+            _dsvs.ResetHeap();
         }
 
         internal void ReleaseResourceAtFrameEnd(GpuResource resource)

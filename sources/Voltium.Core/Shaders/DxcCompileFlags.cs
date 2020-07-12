@@ -1,6 +1,6 @@
 using System;
 
-namespace Voltium.Core.Managers
+namespace Voltium.Core.Devices
 {
     /// <summary>
     /// The flags used by <see cref="ShaderManager"/> and the DXC compilers

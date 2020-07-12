@@ -6,9 +6,9 @@ using System.Runtime.InteropServices;
 using System.Text;
 using TerraFX.Interop;
 using Voltium.Common;
-using Voltium.Core.Managers.Shaders;
+using Voltium.Core.Devices.Shaders;
 
-namespace Voltium.Core.Managers
+namespace Voltium.Core.Devices
 {
     /// <summary>
     /// A class used for management, compilation, and storing of shaders

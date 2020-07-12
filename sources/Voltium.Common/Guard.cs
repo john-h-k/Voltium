@@ -148,7 +148,7 @@ namespace Voltium.Common
 
 #if DEBUG || EXTENDED_ERROR_INFORMATION
             var additionalInfo = FormatExtendedErrorInformation(
-                $". " + extraInfo is null ? "" : $"Additional info '{extraInfo}",
+                nativeMessage + (extraInfo is null ? "" : $"Additional info '{extraInfo}"),
                 expression,
                 memberName,
                 lineNumber,

@@ -1,5 +1,5 @@
 using TerraFX.Interop;
-using Voltium.Core.Managers.Shaders;
+using Voltium.Core.Devices.Shaders;
 using static TerraFX.Interop.DXGI_FORMAT;
 
 namespace Voltium.Core

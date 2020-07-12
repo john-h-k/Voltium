@@ -12,7 +12,7 @@ using Voltium.Core.Pipeline;
 using Voltium.Core.Pool;
 using static TerraFX.Interop.D3D12_COMMAND_LIST_TYPE;
 
-namespace Voltium.Core.Managers
+namespace Voltium.Core.Devices
 {
 
     /// <summary>

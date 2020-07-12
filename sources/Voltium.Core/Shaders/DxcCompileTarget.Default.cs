@@ -1,4 +1,4 @@
-namespace Voltium.Core.Managers.Shaders
+namespace Voltium.Core.Devices.Shaders
 {
     // I think is it OK to not have XML docs for these. They are quite self explanatory
 #pragma warning disable CS1591 // XML docs

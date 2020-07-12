@@ -1,6 +1,6 @@
 using TerraFX.Interop;
 
-namespace Voltium.Core.Managers
+namespace Voltium.Core.Devices
 {
     /// <summary>
     /// The feature levels supported by a given app

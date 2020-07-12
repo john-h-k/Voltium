@@ -6,7 +6,7 @@ using Voltium.Common;
 using Voltium.Core.D3D12;
 using Voltium.Core.Devices;
 
-namespace Voltium.Core.Managers
+namespace Voltium.Core.Devices
 {
     internal unsafe struct SynchronizedCommandQueue : IDisposable
     {

@@ -1,6 +1,6 @@
 using System;
 
-namespace Voltium.Core.Managers.Shaders
+namespace Voltium.Core.Devices.Shaders
 {
     /// <summary>
     /// Represents a type which can be bound to a shader.

@@ -17,9 +17,9 @@ namespace Voltium.Analyzers
         protected override void OnExecute(SourceGeneratorContext context)
             => InitBasicTypes(context.Compilation);
 
-        private const string ShaderInputAttributeName = "Voltium.Core.Managers.Shaders.ShaderInputAttribute";
-        private const string InputLayoutAttributeName = "Voltium.Core.Managers.Shaders.InputLayoutAttribute";
-        private const string ShaderIgnoreAttributeName = "Voltium.Core.Managers.Shaders.ShaderIgnoreAttribute";
+        private const string ShaderInputAttributeName = "Voltium.Core.Devices.Shaders.ShaderInputAttribute";
+        private const string InputLayoutAttributeName = "Voltium.Core.Devices.Shaders.InputLayoutAttribute";
+        private const string ShaderIgnoreAttributeName = "Voltium.Core.Devices.Shaders.ShaderIgnoreAttribute";
 
         protected override bool Predicate(SourceGeneratorContext context, INamedTypeSymbol decl)
             => decl.HasAttribute(ShaderInputAttributeName, context.Compilation);

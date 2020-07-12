@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using TerraFX.Interop;
 using Voltium.Common;
-using Voltium.Core.Managers;
+using Voltium.Core.Devices;
 
 namespace Voltium.Core
 {

@@ -1,11 +1,13 @@
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using ObjLoader.Loader.Loaders;
 using SharpGLTF.Schema2;
-using Voltium.Core.Managers.Shaders;
+using UkooLabs.FbxSharpie;
+using Voltium.Core.Devices.Shaders;
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
 
 namespace Voltium.ModelLoading
@@ -106,10 +108,6 @@ namespace Voltium.ModelLoading
     {
         private static readonly ObjLoaderFactory _factory = new ObjLoaderFactory();
         private static readonly IObjLoader _loader = _factory.Create(new MaterialStreamProvider());
-
-        public static void LoadObj(string filename)
-        {
-        }
 
         // TODO improve
         public static Mesh<TexturedVertex>[] LoadGl(string filename)

@@ -4,7 +4,7 @@ using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.D3D12;
 
-namespace Voltium.Core.Managers
+namespace Voltium.Core.Devices
 {
     /// <summary>
     /// Represents an opaque type used to synchronize execution of the GPU and CPU

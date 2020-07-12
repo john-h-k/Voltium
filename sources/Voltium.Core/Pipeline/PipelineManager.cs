@@ -3,11 +3,11 @@ using System.Collections.Generic;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Common.Strings;
-using Voltium.Core.Managers.Shaders;
+using Voltium.Core.Devices.Shaders;
 using Voltium.Core.Pipeline;
-using static Voltium.Core.Managers.PipelineTranslationLayer;
+using static Voltium.Core.Devices.PipelineTranslationLayer;
 
-namespace Voltium.Core.Managers
+namespace Voltium.Core.Devices
 {
     // TODO: allow serializing to file sonehow
     /// <summary>
@@ -26,7 +26,7 @@ namespace Voltium.Core.Managers
         /// <param name="device">The device to use when creating the pipeline state</param>
         /// <param name="name">The name of the pipeline state</param>
         /// <param name="graphicsDesc">The descriptor for the pipeline state</param>
-        public static GraphicsPso CreatePso<TShaderInput>(GraphicsDevice device, string name, GraphicsPipelineDesc graphicsDesc) where TShaderInput : unmanaged, IBindableShaderType
+        public static GraphicsPipelineStateObject CreatePso<TShaderInput>(GraphicsDevice device, string name, GraphicsPipelineDesc graphicsDesc) where TShaderInput : unmanaged, IBindableShaderType
         {
             try
             {
@@ -38,8 +38,8 @@ namespace Voltium.Core.Managers
                 // if this happens when ShaderInputAttribute is applied, our generator is bugged
                 bool hasGenAttr = typeof(TShaderInput).GetCustomAttribute<ShaderInputAttribute>() is object;
 
-                const string hasGenAttrMessage = "This appears to be a failure with the" +
-                    "IA input type generator ('Voltium.Analyzers.IAInputDescGenerator'. Please file a bug";
+                const string hasGenAttrMessage = "This appears to be a failure with the " +
+                    "IA input type generator ('Voltium.Analyzers.IAInputDescGenerator'). Please file a bug";
 
                 const string noGenAttrMessage = "You appear to have manually implemented the IA input methods. Ensure they do not throw when called on a defaulted struct" +
                     "('default(TShaderInput).GetShaderInputs()')";
@@ -65,7 +65,7 @@ namespace Voltium.Core.Managers
         /// <param name="device">The device to use when creating the pipeline state</param>
         /// <param name="name">The name of the pipeline state</param>
         /// <param name="graphicsDesc">The descriptor for the pipeline state</param>
-        public static GraphicsPso CreatePso(GraphicsDevice device, string name, in GraphicsPipelineDesc graphicsDesc)
+        public static GraphicsPipelineStateObject CreatePso(GraphicsDevice device, string name, in GraphicsPipelineDesc graphicsDesc)
         {
             TranslateGraphicsPipelineDescriptionWithoutShadersOrShaderInputLayoutElements(graphicsDesc, out D3D12_GRAPHICS_PIPELINE_STATE_DESC desc);
 
@@ -101,7 +101,7 @@ namespace Voltium.Core.Managers
 
                 DebugHelpers.SetName(pso.Get(), $"Graphics pipeline state object '{name}'");
 
-                var pipeline = new GraphicsPso(pso.Move(), graphicsDesc);
+                var pipeline = new GraphicsPipelineStateObject(pso.Move(), graphicsDesc);
                 _psos.Add(name, pipeline);
                 return pipeline;
             }
@@ -119,7 +119,7 @@ namespace Voltium.Core.Managers
         /// <param name="device">The device to use when creating the pipeline state</param>
         /// <param name="name">The name of the pipeline state</param>
         /// <param name="computeDesc">The descriptor for the pipeline state</param>
-        public static ComputePso CreatePso(GraphicsDevice device, string name, in ComputePipelineDesc computeDesc)
+        public static ComputePipelineStateObject CreatePso(GraphicsDevice device, string name, in ComputePipelineDesc computeDesc)
         {
             fixed (byte* vs = computeDesc.ComputeShader)
             {
@@ -138,7 +138,7 @@ namespace Voltium.Core.Managers
 
                 DebugHelpers.SetName(pso.Get(), $"Compute pipeline state object '{name}'");
 
-                var pipeline = new ComputePso(pso.Move(), computeDesc);
+                var pipeline = new ComputePipelineStateObject(pso.Move(), computeDesc);
                 _psos.Add(name, pipeline);
                 return pipeline;
             }

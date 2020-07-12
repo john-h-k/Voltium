@@ -1,4 +1,4 @@
-namespace Voltium.Core.Managers
+namespace Voltium.Core.Devices
 {
     /// <summary>
     /// Indicates the type of a <see cref="CompiledShader"/>

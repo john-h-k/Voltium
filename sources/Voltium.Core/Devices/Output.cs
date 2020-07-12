@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -9,8 +10,8 @@ using System.Threading.Tasks;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Infrastructure;
-using Voltium.Core.Managers;
-using Voltium.Core.Memory.GpuResources;
+using Voltium.Core.Devices;
+using Voltium.Core.Memory;
 using static TerraFX.Interop.Windows;
 using Rectangle = System.Drawing.Rectangle;
 
@@ -19,7 +20,7 @@ namespace Voltium.Core.Devices
     /// <summary>
     /// Describes a <see cref="Output"/>
     /// </summary>
-    public struct OutputDesc
+    public struct OutputConfiguration
     {
         /// <summary>
         /// The number of buffers the swapchain should contain
@@ -62,38 +63,32 @@ namespace Voltium.Core.Devices
                 => ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref E0, 0));
         }
 
-        private BackBufferBuffer5 _backBuffers;
-        private uint _backBufferIndex;
-        private IntPtr _hwnd;
-        private IUnknown* _window;
-        private Size _outputArea;
-        private ComPtr<IDXGISwapChain3> _swapChain;
-        private OutputDesc _desc;
+        private OutputConfiguration _desc;
         private GraphicsDevice _device;
 
-        /// <summary>
-        /// The <see cref="Viewport"/> that encompasses the entire screen
-        /// </summary>
-        public Viewport WholeScreenViewport => new Viewport(0, 0, _outputArea.Width, _outputArea.Height, 0, 1);
+        private ComPtr<IDXGISwapChain3> _swapChain;
+        private BackBufferBuffer5 _backBuffers;
+        private uint _backBufferIndex;
 
-        /// <summary>
-        /// The <see cref="Rectangle"/> that encompasses the entire screen
-        /// </summary>
-        public Rectangle WholeScreenRectangle => new Rectangle(0, 0, _outputArea.Width, _outputArea.Height);
+        private bool _implicitExecuteOnPresent;
 
-        private Output(GraphicsDevice device, ComPtr<IDXGISwapChain1> swapChain, OutputDesc desc, Size outputArea)
+        //private IntPtr _hwnd;
+        //private IUnknown* _window;
+        //private Stream? _output;
+
+        private Output(GraphicsDevice device, OutputConfiguration desc, bool implicitExecuteOnPresent)
         {
             _device = device;
-            if (outputArea.Width == 0 || outputArea.Height == 0)
-            {
-                // When created with zero width or height, swapchain creates it from the window dimensions, so we then retrieve that info
-                DXGI_SWAP_CHAIN_DESC1 swapChainDesc;
-                Guard.ThrowIfFailed(swapChain.Get()->GetDesc1(&swapChainDesc));
-                outputArea.Width = (int)swapChainDesc.Width;
-                outputArea.Height = (int)swapChainDesc.Height;
-            }
+            _desc = desc;
+            _implicitExecuteOnPresent = implicitExecuteOnPresent;
 
-            _outputArea = outputArea;
+            CreateTexturesFromBuffers();
+        }
+
+        private Output(GraphicsDevice device, ComPtr<IDXGISwapChain1> swapChain, OutputConfiguration desc, bool implicitExecuteOnPresent)
+        {
+            _device = device;
+            _implicitExecuteOnPresent = implicitExecuteOnPresent;
 
             if (!swapChain.TryQueryInterface(out ComPtr<IDXGISwapChain3> swapChain3))
             {
@@ -124,28 +119,32 @@ namespace Voltium.Core.Devices
         /// Creates a new <see cref="Output"/> to a Win32 Window backed by a HWND
         /// </summary>
         /// <param name="device">The <see cref="GraphicsDevice"/> that will output to this buffer</param>
-        /// <param name="desc">The <see cref="OutputDesc"/> for this output</param>
+        /// <param name="desc">The <see cref="OutputConfiguration"/> for this output</param>
         /// <param name="window">The <see cref="IHwndOwner"/> that owns the window</param>
         /// <param name="outputArea">Optionally, the <see cref="Size"/> of the rendered output. By default, this will be the entire window</param>
+        /// <param name="implicitExecuteOnPresent">Whether <see cref="GraphicsDevice.Execute"/> should be called each time <see cref="Present"/> is called</param>
         /// <returns>A new <see cref="Output"/></returns>
-        public static Output CreateForWin32(GraphicsDevice device, OutputDesc desc, IHwndOwner window, Size outputArea = default)
-            => CreateForWin32(device, desc, window.GetHwnd(), outputArea);
+        public static Output CreateForWin32(GraphicsDevice device, OutputConfiguration desc, IHwndOwner window, Size outputArea = default, bool implicitExecuteOnPresent = false)
+            => CreateForWin32(device, desc, window.GetHwnd(), outputArea, implicitExecuteOnPresent);
 
         /// <summary>
         /// Creates a new <see cref="Output"/> to a Win32 Window backed by a HWND
         /// </summary>
         /// <param name="device">The <see cref="GraphicsDevice"/> that will output to this buffer</param>
-        /// <param name="desc">The <see cref="OutputDesc"/> for this output</param>
+        /// <param name="desc">The <see cref="OutputConfiguration"/> for this output</param>
         /// <param name="window">The HWND for the window to bind to</param>
         /// <param name="outputArea">Optionally, the <see cref="Size"/> of the rendered output. By default, this will be the entire window</param>
+        /// <param name="implicitExecuteOnPresent">Whether <see cref="GraphicsDevice.Execute"/> should be called each time <see cref="Present"/> is called</param>
         /// <returns>A new <see cref="Output"/></returns>
-        public static Output CreateForWin32(GraphicsDevice device, OutputDesc desc, IntPtr window, Size outputArea = default)
+        public static Output CreateForWin32(GraphicsDevice device, OutputConfiguration desc, IntPtr window, Size outputArea = default, bool implicitExecuteOnPresent = false)
         {
             var swapChainDesc = CreateDesc(desc, outputArea);
 
             using ComPtr<IDXGIFactory2> factory = CreateFactory(device);
 
             using ComPtr<IDXGISwapChain1> swapChain = default;
+
+            _ = factory.Get();
 
             Guard.ThrowIfFailed(factory.Get()->CreateSwapChainForHwnd(
                 device.GetGraphicsQueue(),
@@ -156,8 +155,7 @@ namespace Voltium.Core.Devices
                 ComPtr.GetAddressOf(&swapChain)
             ));
 
-            var output = new Output(device, swapChain.Move(), desc, outputArea);
-            output._hwnd = window;
+            var output = new Output(device, swapChain.Move(), desc, implicitExecuteOnPresent);
 
             return output;
         }
@@ -167,22 +165,24 @@ namespace Voltium.Core.Devices
         /// Creates a new <see cref="Output"/> to a WinRT ICoreWindow
         /// </summary>
         /// <param name="device">The <see cref="GraphicsDevice"/> that will output to this buffer</param>
-        /// <param name="desc">The <see cref="OutputDesc"/> for this output</param>
+        /// <param name="desc">The <see cref="OutputConfiguration"/> for this output</param>
         /// <param name="window">The <see cref="ICoreWindowsOwner"/> that owns the window</param>
         /// <param name="outputArea">Optionally, the <see cref="Size"/> of the rendered output. By default, this will be the entire window</param>
+        /// <param name="implicitExecuteOnPresent">Whether <see cref="GraphicsDevice.Execute"/> should be called each time <see cref="Present"/> is called</param>
         /// <returns>A new <see cref="Output"/></returns>
-        public static Output CreateForWinRT(GraphicsDevice device, OutputDesc desc, ICoreWindowsOwner window, Size outputArea = default)
-            => CreateForWinRT(device, desc, window.GetIUnknownForWindow(), outputArea);
+        public static Output CreateForWinRT(GraphicsDevice device, OutputConfiguration desc, ICoreWindowsOwner window, Size outputArea = default, bool implicitExecuteOnPresent = false)
+            => CreateForWinRT(device, desc, window.GetIUnknownForWindow(), outputArea, implicitExecuteOnPresent);
 
         /// <summary>
         /// Creates a new <see cref="Output"/> to a WinRT ICoreWindow
         /// </summary>
         /// <param name="device">The <see cref="GraphicsDevice"/> that will output to this buffer</param>
-        /// <param name="desc">The <see cref="OutputDesc"/> for this output</param>
+        /// <param name="desc">The <see cref="OutputConfiguration"/> for this output</param>
         /// <param name="window">The IUnknown* for the window to bind to</param>
         /// <param name="outputArea">Optionally, the <see cref="Size"/> of the rendered output. By default, this will be the entire window</param>
+        /// <param name="implicitExecuteOnPresent">Whether <see cref="GraphicsDevice.Execute"/> should be called each time <see cref="Present"/> is called</param>
         /// <returns>A new <see cref="Output"/></returns>
-        public static Output CreateForWinRT(GraphicsDevice device, OutputDesc desc, void* window, Size outputArea = default)
+        public static Output CreateForWinRT(GraphicsDevice device, OutputConfiguration desc, void* window, Size outputArea = default, bool implicitExecuteOnPresent = false)
         {
             var swapChainDesc = CreateDesc(desc, outputArea);
 
@@ -199,8 +199,39 @@ namespace Voltium.Core.Devices
             ));
 
 
-            var output = new Output(device, swapChain.Move(), desc, outputArea);
-            output._window = (IUnknown*)window;
+            var output = new Output(device, swapChain.Move(), desc, implicitExecuteOnPresent);
+
+            return output;
+        }
+
+
+        /// <summary>
+        /// Creates a new <see cref="Output"/> to a WinRT ISwapChainPanelNative
+        /// </summary>
+        /// <param name="device">The <see cref="GraphicsDevice"/> that will output to this buffer</param>
+        /// <param name="desc">The <see cref="OutputConfiguration"/> for this output</param>
+        /// <param name="swapChainPanelNative">The IUnknown* for the ISwapChainPanelNative to bind to</param>
+        /// <param name="outputArea">The <see cref="Size"/> of the rendered output</param>
+        /// <param name="implicitExecuteOnPresent">Whether <see cref="GraphicsDevice.Execute"/> should be called each time <see cref="Present"/> is called</param>
+        /// <returns>A new <see cref="Output"/></returns>
+        public static Output CreateForSwapChainPanel(GraphicsDevice device, OutputConfiguration desc, void* swapChainPanelNative, Size outputArea, bool implicitExecuteOnPresent = false)
+        {
+            var swapChainDesc = CreateDesc(desc, outputArea);
+
+            using ComPtr<IDXGIFactory2> factory = CreateFactory(device);
+
+            using ComPtr<IDXGISwapChain1> swapChain = default;
+
+            Guard.ThrowIfFailed(factory.Get()->CreateSwapChainForComposition(
+                device.GetGraphicsQueue(),
+                &swapChainDesc,
+                null, // TODO maybe implement
+                ComPtr.GetAddressOf(&swapChain)
+            ));
+
+            Guard.ThrowIfFailed(((ISwapChainPanelNative*)swapChainPanelNative)->SetSwapChain((IDXGISwapChain*)swapChain.Get()));
+
+            var output = new Output(device, swapChain.Move(), desc, implicitExecuteOnPresent);
 
             return output;
         }
@@ -208,14 +239,12 @@ namespace Voltium.Core.Devices
         /// <summary>
         /// Resize the render resources
         /// </summary>
-        /// <param name="newOutputSize">The <see cref="Size"/> indicating the size to resize to</param>
-        public void Resize(Size newOutputSize)
+        /// <param name="newSize">The <see cref="Size"/> indicating the size to resize to</param>
+        public void Resize(Size newSize)
         {
-            _outputArea = newOutputSize;
-
             _device.Idle();
 
-            ResizeBuffers();
+            ResizeBuffers(newSize);
             CreateTexturesFromBuffers();
         }
 
@@ -241,10 +270,12 @@ namespace Voltium.Core.Devices
                 ThrowHelper.ThrowPlatformNotSupportedException("Platform does not support IDXGIFactory2, which is required");
             }
 
+            Guard.ThrowIfFailed(hr);
+
             return factory.Move();
         }
 
-        private static DXGI_SWAP_CHAIN_DESC1 CreateDesc(OutputDesc desc, Size outputArea)
+        private static DXGI_SWAP_CHAIN_DESC1 CreateDesc(OutputConfiguration desc, Size outputArea)
         {
             if (desc.BackBufferCount > BackBufferBuffer5.MaxBufferCount)
             {
@@ -262,7 +293,7 @@ namespace Voltium.Core.Devices
                 Width = (uint)outputArea.Width,
                 SampleDesc = new DXGI_SAMPLE_DESC(count: 1, quality: 0), // backbuffer MSAA is not supported in D3D12
                 Scaling = DXGI_SCALING.DXGI_SCALING_NONE,
-                Stereo = FALSE, // stereoscopic rendering, 2 images, e.g VR or 3D holo
+                Stereo =  FALSE, // stereoscopic rendering, 2 images, e.g VR or 3D holo
                 SwapEffect = DXGI_SWAP_EFFECT.DXGI_SWAP_EFFECT_FLIP_DISCARD
             };
         }
@@ -277,11 +308,21 @@ namespace Voltium.Core.Devices
         /// </summary>
         public void Present()
         {
+            if (_implicitExecuteOnPresent)
+            {
+                _device.Execute();
+            }
+
             Guard.ThrowIfFailed(_swapChain.Get()->Present(_desc.SyncInterval, 0));
             _backBufferIndex = (_backBufferIndex + 1) % _desc.BackBufferCount;
+
+            if (_implicitExecuteOnPresent)
+            {
+                _device.MoveToNextFrame();
+            }
         }
 
-        internal void ResizeBuffers()
+        internal void ResizeBuffers(Size newSize)
         {
             for (var i = 0U; i < BackBufferBuffer5.MaxBufferCount; i++)
             {
@@ -290,8 +331,8 @@ namespace Voltium.Core.Devices
 
             Guard.ThrowIfFailed(_swapChain.Get()->ResizeBuffers(
                    0, // preserve existing number
-                   (uint)_outputArea.Width,
-                   (uint)_outputArea.Height,
+                   (uint)newSize.Width,
+                   (uint)newSize.Height,
                    0, // preserve existing format
                    0
             ));
