@@ -66,8 +66,6 @@
 //        private Size _outputResolution;
 
 //        private RootSignature _rootSig = null!;
-//        private MultisamplingDesc _msaaDesc = MultisamplingDesc.None;
-//        private MultisamplingDesc _maxMsaaDesc = MultisamplingDesc.None;
 
 //        private ObjectConstants[] _objectConstants = null!;
 //        private FrameConstants _frameConstants;
@@ -84,8 +82,6 @@
 //        private Texture _depthStencil;
 //        private DescriptorHandle _depthStencilView;
 
-//        private bool _msaa = false;
-
 //        public void Init(GraphicsDevice device, in Size screen)
 //        {
 //            PipelineManager.Reset();
@@ -93,8 +89,6 @@
 //            _device = device;
 //            _allocator = _device.Allocator;
 //            _outputResolution = screen;
-
-//            _maxMsaaDesc = _device.HighestSupportedMsaa();
 
 //            _texturedObjects = ModelLoader.LoadGl("Assets/Gltf/Handgun_Tangent.gltf");
 //            var texture = TextureLoader.CreateTexture("Assets/Textures/handgun_c.dds");
@@ -140,22 +134,17 @@
 //            InitializeConstants();
 //        }
 
-//        public void Resize(Size newScreenData)
+//        public override void Register(ref RenderPassBuilder builder)
 //        {
-//            _outputResolution = newScreenData;
-//            var dsDesc = TextureDesc.CreateDepthStencilDesc(DataFormat.Depth32Single, (uint)newScreenData.Height, (uint)newScreenData.Width, 1, 0, false, _msaaDesc);
-//            var rtDesc = TextureDesc.CreateRenderTargetDesc(DataFormat.R8G8B8A8UnsignedNormalized, (uint)newScreenData.Height, (uint)newScreenData.Width, Rgba128.CornflowerBlue, _msaaDesc);
+//            var sceneDepth = builder.CreatePrimaryOutputRelativeTexture(
+//                TextureDesc.CreateDepthStencilDesc(DataFormat.Depth32Single, 1.0f, 0, false),
+//                ResourceState.DepthWrite
+//            );
 
-//            _depthStencil.Dispose();
-//            _renderTarget.Dispose();
-
-//            _depthStencil = _allocator.AllocateTexture(dsDesc, ResourceState.DepthWrite);
-//            _depthStencil.SetName("Depth Stencil");
-//            _renderTarget = _allocator.AllocateTexture(rtDesc, ResourceState.RenderTarget);
-//            _renderTarget.SetName("Render Target");
-
-//            _depthStencilView = _device.CreateDepthStencilView(_depthStencil);
-//            _renderTargetView = _device.CreateRenderTargetView(_renderTarget);
+//            var sceneColor = builder.CreatePrimaryOutputRelativeTexture(
+//                TextureDesc.CreateRenderTargetDesc(DataFormat.R8G8B8A8UnsignedNormalized, Rgba128.CornflowerBlue),
+//                ResourceState.RenderTarget
+//            );
 
 //            var aspectRatio = (float)newScreenData.Width / newScreenData.Height;
 //            var fovAngleY = 70.0f * MathF.PI / 180.0f;
@@ -206,10 +195,7 @@
 //                Topology = TopologyClass.Triangle
 //            };
 
-//            PipelineManager.CreatePso<TexturedVertex>(_device, "Texture", psoDesc);
-
-//            psoDesc.Msaa = MultisamplingDesc.X8;
-//            PipelineManager.CreatePso<TexturedVertex>(_device, "TextureMSAA", psoDesc);
+//            DefaultPipelineState = PipelineManager.CreatePso<TexturedVertex>(_device, "Texture", psoDesc);
 //        }
 
 //        public void InitializeConstants()
@@ -256,7 +242,7 @@
 //        }
 
 
-//        public override void Update(ApplicationTimer timer)
+//        public void Update(ApplicationTimer timer)
 //        {
 //            for (var i = 0u; i < _objectConstants.Length; i++)
 //            {
@@ -270,19 +256,7 @@
 //            _zoomDelta = 0;
 //        }
 
-//        public override void ToggleMsaa()
-//        {
-//            _msaa = !_msaa;
-//            _msaaDesc = _msaa ? _maxMsaaDesc : MultisamplingDesc.None;
-//            Resize(_outputResolution);
-//        }
-
-//        public override PipelineStateObject GetInitialPso()
-//        {
-//            return _msaa ? PipelineManager.RetrievePso("TextureMSAA") : PipelineManager.RetrievePso("Texture");
-//        }
-
-//        public override void Render(ref GraphicsContext recorder, out Texture render)
+//        public override void Record(ref GraphicsContext recorder, ref Resolver resolver)
 //        {
 //            recorder.SetViewportAndScissor(_outputResolution);
 //            recorder.ResourceTransition(_renderTarget, ResourceState.RenderTarget);
@@ -306,19 +280,6 @@
 //                    recorder.DrawIndexed(_texturedObjects[i].Indices.Length);
 //                }
 //            }
-
-//            render = _renderTarget;
-//        }
-
-//        public override void Dispose()
-//        {
-//            _rootSig.Dispose();
-//            _device.Dispose();
-//        }
-
-//        public override void OnMouseScroll(int scroll)
-//        {
-//            _zoomDelta = scroll;
 //        }
 
 //        private void SetHueDegrees(float radians)

@@ -1,6 +1,5 @@
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
 using Voltium.Core;
-using Voltium.Core.Devices;
 using Voltium.Core.Memory;
 using Voltium.Core.Pipeline;
 
@@ -19,7 +18,8 @@ namespace Voltium.RenderEngine
         /// Registers the pass with the <see cref="RenderGraph"/>, by stating all its dependencies and resources it creates
         /// </summary>
         /// <param name="builder">The <see cref="RenderPassBuilder"/> used to build the pass</param>
-        public abstract void Register(ref RenderPassBuilder builder);
+        /// <param name="resolver"></param>
+        public abstract void Register(ref RenderPassBuilder builder, ref Resolver resolver);
 
         /// <summary>
         /// The <see cref="OutputDesc"/> produced by this pass, if any
@@ -27,36 +27,10 @@ namespace Voltium.RenderEngine
         public virtual OutputDesc Output => OutputDesc.None;
     }
 
-    public struct OutputDesc
-    {
-        public static OutputDesc None => new OutputDesc { Type = OutputClass.None };
-
-        public static OutputDesc FromOutput(OutputClass type, Output output)
-        {
-            var back = output.BackBuffer;
-            return CreateTexture(type, back.Width, back.Height, back.DepthOrArraySize);
-         }
-
-        public static OutputDesc CreateTexture(OutputClass type, ulong width, uint height = 1, ushort depthOrArraySize = 1)
-            => new OutputDesc { ResourceType = ResourceType.Texture, Type = type, TextureWidth = width, TextureHeight = height, TextureDepthOrArraySize = depthOrArraySize };
-
-
-        public static OutputDesc CreateBuffer(OutputClass type, ulong length)
-            => new OutputDesc { ResourceType = ResourceType.Texture, Type = type, BufferLength = length };
-
-        internal OutputClass Type;
-        internal ResourceType ResourceType;
-        internal ulong BufferLength;
-
-        internal ulong TextureWidth;
-        internal uint TextureHeight;
-        internal ushort TextureDepthOrArraySize;
-    }
-
     public abstract class ComputeRenderPass : RenderPass
     {
         protected ComputeRenderPass() { }
-        public abstract void Record(ref ComputeContext context, ref ComponentResolver resolver);
+        public abstract void Record(ref ComputeContext context, ref Resolver resolver);
 
         public ComputePipelineStateObject? DefaultPipelineState { get; protected set; }
 
@@ -65,7 +39,7 @@ namespace Voltium.RenderEngine
     public abstract class GraphicsRenderPass : RenderPass
     {
         protected GraphicsRenderPass() { }
-        public abstract void Record(ref GraphicsContext context, ref ComponentResolver resolver);
+        public abstract void Record(ref GraphicsContext context, ref Resolver resolver);
 
         public PipelineStateObject? DefaultPipelineState { get; protected set; }
 

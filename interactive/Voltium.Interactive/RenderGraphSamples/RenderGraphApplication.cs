@@ -20,8 +20,6 @@ namespace Voltium.Interactive.RenderGraphSamples
         private Output _output = null!;
         private bool _isPaused;
 
-        public TexHandle SceneColorHandle;
-
         public override unsafe void Init(Size data, IOutputOwner output)
         {
             var config = new GraphicalConfiguration
@@ -46,8 +44,8 @@ namespace Voltium.Interactive.RenderGraphSamples
 
             _output = Output.Create(_device, desc, output, implicitExecuteOnPresent: true);
 
-            _renderer = new(_device, data, this);
-            _outputPass = new(_output, this);
+            _renderer = new(_device, data);
+            _outputPass = new(_output);
         }
 
         public override void Update(ApplicationTimer timer)

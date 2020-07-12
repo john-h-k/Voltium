@@ -29,10 +29,12 @@ namespace Voltium.Core
         private List<int> _inputPassIndices = new();
         private List<TrackedResource> _resources = new();
         private int _maxDepth = 0;
+        private Resolver _resolver;
 
         public RenderGraph(GraphicsDevice device)
         {
             _device = device;
+            _resolver = new Resolver(this);
         }
 
         public void AddPass<T>(T pass) where T : RenderPass
@@ -40,7 +42,7 @@ namespace Voltium.Core
             var passIndex = _renderPasses.Count;
             var builder = new RenderPassBuilder(this, passIndex, pass);
 
-            pass.Register(ref builder);
+            pass.Register(ref builder, ref _resolver);
 
             // anything with no dependencies is a top level input node implicity
             if ((builder.FrameDependencies?.Count ?? 0) == 0)
@@ -115,6 +117,8 @@ namespace Voltium.Core
 
         public void ExecuteGraph()
         {
+            // false during the register passes
+            _resolver.CanResolveResources = true;
             Schedule();
             AllocateResources();
             BuildBarriers();
@@ -187,8 +191,6 @@ namespace Voltium.Core
 
         private void RecordAndExecuteLayers()
         {
-            var resolver = new ComponentResolver(this);
-
             foreach (ref var layer in _renderLayers.AsSpan())
             {
                 // TODO multithread
@@ -208,13 +210,13 @@ namespace Voltium.Core
                     {
                         using var ctx = _device.BeginComputeContext(compute.DefaultPipelineState);
 
-                        compute.Record(ref ctx.AsMutable(), ref resolver);
+                        compute.Record(ref ctx.AsMutable(), ref _resolver);
                     }
                     else /* must be true */ if (pass is GraphicsRenderPass graphics)
                     {
                         using var ctx = _device.BeginGraphicsContext(graphics.DefaultPipelineState);
 
-                        graphics.Record(ref ctx.AsMutable(), ref resolver);
+                        graphics.Record(ref ctx.AsMutable(), ref _resolver);
                     }
                 }
             }

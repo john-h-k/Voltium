@@ -35,7 +35,7 @@ namespace Voltium.Core
         public void MarkUsage(BufferHandle buffer, ResourceState flags)
             => MarkUsage(buffer.AsResourceHandle(), flags);
 
-        public void MarkUsage(TexHandle tex, ResourceState flags)
+        public void MarkUsage(TextureHandle tex, ResourceState flags)
             => MarkUsage(tex.AsResourceHandle(), flags);
 
         private void AddDependencies(ReadOnlySpan<int> passIndices)
@@ -102,7 +102,7 @@ namespace Voltium.Core
         public BufferHandle CreateBuffer(in BufferDesc desc, MemoryAccess memoryAccess, ResourceState initialState = ResourceState.CopyDestination)
             => _graph.AddResource(new ResourceDesc { Type = ResourceType.Buffer, BufferDesc = desc, MemoryAccess = memoryAccess, InitialState = initialState }, _passIndex).AsBufferHandle();
 
-        public TexHandle CreateTexture(in TextureDesc desc, ResourceState initialState = ResourceState.CopyDestination)
+        public TextureHandle CreateTexture(in TextureDesc desc, ResourceState initialState = ResourceState.CopyDestination)
             => _graph.AddResource(new ResourceDesc { Type = ResourceType.Texture, TextureDesc = desc, InitialState = initialState }, _passIndex).AsTextureHandle();
 
 
@@ -110,7 +110,7 @@ namespace Voltium.Core
             => _graph.AddResource(new ResourceDesc { Type = ResourceType.Buffer, OutputRelativeSize = outputRelativeSize, BufferDesc = desc, MemoryAccess = memoryAccess, InitialState = initialState }, _passIndex).AsBufferHandle();
 
 
-        public TexHandle CreatePrimaryOutputRelativeTexture(in TextureDesc desc, ResourceState initialState = ResourceState.CopyDestination, double outputRelativeSize = 1)
+        public TextureHandle CreatePrimaryOutputRelativeTexture(in TextureDesc desc, ResourceState initialState = ResourceState.CopyDestination, double outputRelativeSize = 1)
             => _graph.AddResource(new ResourceDesc { Type = ResourceType.Texture, OutputRelativeSize = outputRelativeSize, TextureDesc = desc, InitialState = initialState }, _passIndex).AsTextureHandle();
     }
 }

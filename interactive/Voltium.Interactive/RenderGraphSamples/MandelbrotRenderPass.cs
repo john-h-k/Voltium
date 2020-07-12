@@ -30,19 +30,21 @@ namespace Voltium.Interactive.RenderGraphSamples
     {
         private GraphicsDevice _device;
         private Size _resolution;
-        private RenderGraphApplication _app;
 
-        public override void Register(ref RenderPassBuilder builder)
+        public override void Register(ref RenderPassBuilder builder, ref Resolver resolver)
         {
-            _app.SceneColorHandle = builder.CreatePrimaryOutputRelativeTexture(
+            PipelineResources resources;
+            resources.SceneColor = builder.CreatePrimaryOutputRelativeTexture(
                 TextureDesc.CreateRenderTargetDesc(BackBufferFormat.R8G8B8A8UnsignedNormalized, Rgba128.Black),
                 ResourceState.PixelShaderResource
             );
+
+            resolver.CreateComponent(resources);
         }
 
-        public override void Record(ref GraphicsContext context, ref ComponentResolver resolver)
+        public override void Record(ref GraphicsContext context, ref Resolver resolver)
         {
-            var renderTarget = resolver.Resolve(_app.SceneColorHandle);
+            var renderTarget = resolver.ResolveResource(resolver.ResolveComponent<PipelineResources>().SceneColor);
             var renderTargetView = _device.CreateRenderTargetView(renderTarget);
 
             context.ResourceTransition(renderTarget, ResourceState.RenderTarget);
@@ -58,11 +60,10 @@ namespace Voltium.Interactive.RenderGraphSamples
 
         private MandelbrotConstants _constants;
 
-        public unsafe MandelbrotRenderPass(GraphicsDevice device, in Size resolution, RenderGraphApplication application)
+        public unsafe MandelbrotRenderPass(GraphicsDevice device, in Size resolution)
         {
             _device = device;
             _resolution = resolution;
-            _app = application;
 
             using (var copy = device.BeginCopyContext())
             {

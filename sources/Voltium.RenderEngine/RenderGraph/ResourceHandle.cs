@@ -14,6 +14,6 @@ namespace Voltium.Core
         }
 
         internal BufferHandle AsBufferHandle() => new BufferHandle(Index);
-        internal TexHandle AsTextureHandle() => new TexHandle(Index);
+        internal TextureHandle AsTextureHandle() => new TextureHandle(Index);
     }
 }

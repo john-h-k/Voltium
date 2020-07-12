@@ -3,12 +3,12 @@
 
 namespace Voltium.Core
 {
-    public readonly struct TexHandle
+    public readonly struct TextureHandle
     {
         // index into the graph's list of resources
         internal readonly uint Index;
 
-        internal TexHandle(uint index)
+        internal TextureHandle(uint index)
         {
             Index = index;
         }

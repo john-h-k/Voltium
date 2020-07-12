@@ -11,29 +11,26 @@ namespace Voltium.Interactive.RenderGraphSamples
 {
     internal class OutputPass : GraphicsRenderPass
     {
-
         public override OutputDesc Output { get; }
 
         private Output _output;
-        private RenderGraphApplication _app;
 
-        public OutputPass(Output output, RenderGraphApplication application)
+        public OutputPass(Output output)
         {
             _output = output;
-            _app = application;
             Output = OutputDesc.FromOutput(OutputClass.Primary, _output);
         }
 
-        public override void Record(ref GraphicsContext context, ref ComponentResolver resolver)
+        public override void Record(ref GraphicsContext context, ref Resolver resolver)
         {
-            var sceneColor = resolver.Resolve(_app.SceneColorHandle);
+            var sceneColor = resolver.ResolveResource(resolver.ResolveComponent<PipelineResources>().SceneColor);
             context.CopyResource(sceneColor, _output.BackBuffer);
             context.ResourceTransition(_output.BackBuffer, ResourceState.Present);
         }
 
-        public override void Register(ref RenderPassBuilder builder)
+        public override void Register(ref RenderPassBuilder builder, ref Resolver resolver)
         {
-            builder.MarkUsage(_app.SceneColorHandle, ResourceState.CopyDestination);
+            builder.MarkUsage(resolver.ResolveComponent<PipelineResources>().SceneColor, ResourceState.CopyDestination);
         }
     }
 }

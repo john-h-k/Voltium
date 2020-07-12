@@ -658,6 +658,18 @@ namespace Voltium.Core.Memory
         }
 
         /// <summary>
+        /// Creates a new <see cref="TextureDesc"/> representing a 2D depth stencil, with no height or width, for unspecified size targets
+        /// </summary>
+        /// <param name="format">The <see cref="DataFormat"/> for the depth stencil</param>s
+        /// <param name="clearDepth">The <see cref="float"/> to set to be the optimized clear value for the depth element</param>
+        /// <param name="clearStencil">The <see cref="byte"/> to set to be the optimized clear value for the stencil element</param>
+        /// <param name="shaderVisible">Whether the <see cref="Texture"/> is shader visible. <see langword="true"/> by default</param>
+        /// <param name="msaa">Optionally, the <see cref="MultisamplingDesc"/> for the depth stencil</param>
+        /// <returns>A new <see cref="TextureDesc"/> representing a depth stencil</returns>
+        public static TextureDesc CreateDepthStencilDesc(DataFormat format, float clearDepth, byte clearStencil, bool shaderVisible = true, MultisamplingDesc msaa = default)
+        => CreateDepthStencilDesc(format, 0, 0, clearDepth, clearStencil, shaderVisible, msaa);
+
+        /// <summary>
         /// Creates a new <see cref="TextureDesc"/> representing a 2D depth stencil
         /// </summary>
         /// <param name="format">The <see cref="DataFormat"/> for the depth stencil</param>
