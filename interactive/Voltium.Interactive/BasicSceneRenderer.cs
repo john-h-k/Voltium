@@ -87,7 +87,7 @@ namespace Voltium.Interactive
 
         public override void Init(GraphicsDevice device, in Size screen)
         {
-            PipelineManager.Reset();
+            _device.PipelineManager.Reset();
 
             _device = device;
             _allocator = _device.Allocator;
@@ -205,10 +205,10 @@ namespace Voltium.Interactive
                 Topology = TopologyClass.Triangle
             };
 
-            PipelineManager.CreatePso<TexturedVertex>(_device, "Texture", psoDesc);
+            _pso = _device.PipelineManager.CreatePso<TexturedVertex>("Texture", psoDesc);
 
             psoDesc.Msaa = MultisamplingDesc.X8;
-            PipelineManager.CreatePso<TexturedVertex>(_device, "TextureMSAA", psoDesc);
+            _msaaPso = _device.PipelineManager.CreatePso<TexturedVertex>("TextureMSAA", psoDesc);
         }
 
         public void InitializeConstants()
@@ -278,7 +278,7 @@ namespace Voltium.Interactive
 
         public override PipelineStateObject GetInitialPso()
         {
-            return _msaa ? PipelineManager.RetrievePso("TextureMSAA") : PipelineManager.RetrievePso("Texture");
+            return _msaa ? _msaaPso : _pso;
         }
 
         public override void Render(ref GraphicsContext recorder, out Texture render)
@@ -337,6 +337,8 @@ namespace Voltium.Interactive
         }
 
         private float[,] _hueMatrix = new float[3, 3];
+        private GraphicsPipelineStateObject _msaaPso = null!;
+        private GraphicsPipelineStateObject _pso = null!;
 
         private Rgba128 ChangeHue(Rgba128 color)
         {

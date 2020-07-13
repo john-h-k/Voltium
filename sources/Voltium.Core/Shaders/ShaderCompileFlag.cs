@@ -5,7 +5,7 @@ using Voltium.Common;
 namespace Voltium.Core.Devices
 {
     /// <summary>
-    /// The type used to represent a DXC flags
+    /// The type used to represent shader compilation flags
     /// </summary>
     [GenerateEquality]
     public readonly partial struct ShaderCompileFlag

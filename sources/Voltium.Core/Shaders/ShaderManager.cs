@@ -562,6 +562,8 @@ namespace Voltium.Core.Devices
 
         private static unsafe uint GetFxcFlags(ShaderCompileFlag[] flags, out Span<D3D_SHADER_MACRO> macros)
         {
+            // 40k loc yay
+
             uint fxc = 0;
 
             int numMacros = 0;

@@ -51,6 +51,15 @@ namespace Voltium.Core.Devices
             return asciiArr;
         }
 
+        public unsafe static void TranslateShadersMustBePinned(in GraphicsPipelineDesc inDesc, ref D3D12_GRAPHICS_PIPELINE_STATE_DESC outDesc)
+        {
+            outDesc.VS = new D3D12_SHADER_BYTECODE(Unsafe.AsPointer(ref MemoryMarshal.GetReference(inDesc.VertexShader.ShaderData.Span)), (uint)inDesc.VertexShader.Length);
+            outDesc.PS = new D3D12_SHADER_BYTECODE(Unsafe.AsPointer(ref MemoryMarshal.GetReference(inDesc.PixelShader.ShaderData.Span)), (uint)inDesc.PixelShader.Length);
+            outDesc.GS = new D3D12_SHADER_BYTECODE(Unsafe.AsPointer(ref MemoryMarshal.GetReference(inDesc.GeometryShader.ShaderData.Span)), (uint)inDesc.GeometryShader.Length);
+            outDesc.DS = new D3D12_SHADER_BYTECODE(Unsafe.AsPointer(ref MemoryMarshal.GetReference(inDesc.DomainShader.ShaderData.Span)), (uint)inDesc.DomainShader.Length);
+            outDesc.HS = new D3D12_SHADER_BYTECODE(Unsafe.AsPointer(ref MemoryMarshal.GetReference(inDesc.HullShader.ShaderData.Span)), (uint)inDesc.HullShader.Length);
+        }
+
         public unsafe static void TranslateGraphicsPipelineDescriptionWithoutShadersOrShaderInputLayoutElements(in GraphicsPipelineDesc inDesc, out D3D12_GRAPHICS_PIPELINE_STATE_DESC outDesc)
         {
             var blend = inDesc.Blend ?? BlendDesc.Default;

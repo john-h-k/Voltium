@@ -63,6 +63,7 @@ namespace Voltium.Core.Devices
 
 
             Allocator = new GpuAllocator(this);
+            PipelineManager = new PipelineManager(this);
 
             _graphicsQueue = new SynchronizedCommandQueue(this, ExecutionContext.Graphics);
 

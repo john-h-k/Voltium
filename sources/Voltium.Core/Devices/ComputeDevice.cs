@@ -44,19 +44,22 @@ namespace Voltium.Core.Devices
         /// </summary>
         public GpuAllocator Allocator { get; private protected set; } = null!;
 
+        /// <summary>
+        /// The default pipeline manager for the device
+        /// </summary>
+        public PipelineManager PipelineManager { get; private protected set; } = null!;
+
         private protected ComPtr<ID3D12Device> _device;
-        private protected SupportedDevice _supportedDevice;
-        private protected enum SupportedDevice { Unknown, Device, Device1, Device2, Device3, Device4, Device5, Device6, Device7, Device8 }
+        internal SupportedDevice DeviceLevel;
+        internal enum SupportedDevice { Unknown, Device, Device1, Device2, Device3, Device4, Device5, Device6, Device7, Device8 }
         private protected static HashSet<ulong> _preexistingDevices = new(1);
         private protected DebugLayer? _debug;
 
         internal enum SupportedGraphicsCommandList { Unknown, GraphicsCommandList, GraphicsCommandList1, GraphicsCommandList2, GraphicsCommandList3, GraphicsCommandList4, GraphicsCommandList5 }
         private SupportedGraphicsCommandList _supportedList;
 
-        /// <summary>
-        /// Gets the <see cref="ID3D12Device"/> used by this application
-        /// </summary>
         internal ID3D12Device* DevicePointer => _device.Get();
+        internal TDevice* DevicePointerAs<TDevice>() where TDevice : unmanaged => _device.AsBase<TDevice>().Get();
 
         /// <summary>
         /// The number of physical adapters, referred to as nodes, that the device uses
@@ -144,7 +147,7 @@ namespace Voltium.Core.Devices
 
             DebugHelpers.SetName(_device.Get(), "Primary Device");
 
-            _supportedDevice = _device switch
+            DeviceLevel = _device switch
             {
                 _ when _device.HasInterface<ID3D12Device8>() => SupportedDevice.Device8,
                 _ when _device.HasInterface<ID3D12Device7>() => SupportedDevice.Device7,
@@ -433,6 +436,7 @@ namespace Voltium.Core.Devices
         {
             _device.Dispose();
             Allocator.Dispose();
+            PipelineManager.Dispose();
         }
 
         //CheckFeatureSupport

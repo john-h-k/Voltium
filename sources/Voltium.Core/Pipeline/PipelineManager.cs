@@ -14,19 +14,34 @@ namespace Voltium.Core.Devices
     /// In charge of creation, storing, and retrieving pipeline state objects (PSOs)
     /// </summary>
     [ThreadSafe]
-    public unsafe static class PipelineManager
+    public unsafe class PipelineManager
     {
-        //private ComPtr<ID3D12PipelineLibrary> _psoLibrary;
-        private static Dictionary<string, PipelineStateObject> _psos = new(16, new FastStringComparer());
+        private ComputeDevice _device;
+        private ComPtr<ID3D12PipelineLibrary> _psoLibrary;
+        private Dictionary<ComPtr<ID3D12PipelineState>, PipelineStateObject> _psoMap = new();
+
+        /// <summary>
+        /// Creates a new <see cref="PipelineManager"/> for a device
+        /// </summary>
+        /// <param name="device">The <see cref="ComputeDevice"/> to create the manager for</param>
+        public PipelineManager(ComputeDevice device)
+        {
+            _device = device;
+            if (device.DeviceLevel < ComputeDevice.SupportedDevice.Device1)
+            {
+                ThrowHelper.ThrowPlatformNotSupportedException("ID3D12Device1 is currently required for a pipeline manager");
+            }
+
+            Reset();
+        }
 
         /// <summary>
         /// Creates a new named pipeline state object and registers it in the library for retrieval with
-        /// <see cref="RetrievePso(string)"/>
+        /// <see cref="RetrievePso(string, in GraphicsPipelineDesc)"/>
         /// </summary>
-        /// <param name="device">The device to use when creating the pipeline state</param>
         /// <param name="name">The name of the pipeline state</param>
         /// <param name="graphicsDesc">The descriptor for the pipeline state</param>
-        public static GraphicsPipelineStateObject CreatePso<TShaderInput>(GraphicsDevice device, string name, GraphicsPipelineDesc graphicsDesc) where TShaderInput : unmanaged, IBindableShaderType
+        public GraphicsPipelineStateObject CreatePso<TShaderInput>(string name, GraphicsPipelineDesc graphicsDesc) where TShaderInput : unmanaged, IBindableShaderType
         {
             try
             {
@@ -54,18 +69,17 @@ namespace Voltium.Core.Devices
 #endif
             }
 
-            return CreatePso(device, name, graphicsDesc);
+            return CreatePso(name, graphicsDesc);
         }
 
 
         /// <summary>
         /// Creates a new named pipeline state object and registers it in the library for retrieval with
-        /// <see cref="RetrievePso(string)"/>
+        /// <see cref="RetrievePso(string, in GraphicsPipelineDesc)"/>
         /// </summary>
-        /// <param name="device">The device to use when creating the pipeline state</param>
         /// <param name="name">The name of the pipeline state</param>
         /// <param name="graphicsDesc">The descriptor for the pipeline state</param>
-        public static GraphicsPipelineStateObject CreatePso(GraphicsDevice device, string name, in GraphicsPipelineDesc graphicsDesc)
+        public GraphicsPipelineStateObject CreatePso(string name, in GraphicsPipelineDesc graphicsDesc)
         {
             TranslateGraphicsPipelineDescriptionWithoutShadersOrShaderInputLayoutElements(graphicsDesc, out D3D12_GRAPHICS_PIPELINE_STATE_DESC desc);
 
@@ -82,15 +96,12 @@ namespace Voltium.Core.Devices
                 // we must keep this alive until the end of the scope
                 var strBuff = TranslateLayouts(graphicsDesc.Inputs, pDesc);
 
-                desc.VS = new D3D12_SHADER_BYTECODE(vs, (uint)graphicsDesc.VertexShader.Length);
-                desc.PS = new D3D12_SHADER_BYTECODE(ps, (uint)graphicsDesc.PixelShader.Length);
-                desc.GS = new D3D12_SHADER_BYTECODE(gs, (uint)graphicsDesc.GeometryShader.Length);
-                desc.DS = new D3D12_SHADER_BYTECODE(ds, (uint)graphicsDesc.DomainShader.Length);
-                desc.HS = new D3D12_SHADER_BYTECODE(hs, (uint)graphicsDesc.HullShader.Length);
+                TranslateShadersMustBePinned(graphicsDesc, ref desc);
+
                 desc.InputLayout = new D3D12_INPUT_LAYOUT_DESC { NumElements = (uint)graphicsDesc.Inputs.Length, pInputElementDescs = pDesc };
 
                 using ComPtr<ID3D12PipelineState> pso = default;
-                Guard.ThrowIfFailed(device.DevicePointer->CreateGraphicsPipelineState(
+                Guard.ThrowIfFailed(_device.DevicePointer->CreateGraphicsPipelineState(
                     &desc,
                     pso.Iid,
                     ComPtr.GetVoidAddressOf(&pso)
@@ -102,24 +113,38 @@ namespace Voltium.Core.Devices
                 DebugHelpers.SetName(pso.Get(), $"Graphics pipeline state object '{name}'");
 
                 var pipeline = new GraphicsPipelineStateObject(pso.Move(), graphicsDesc);
-                _psos.Add(name, pipeline);
+                _psoMap[pso] = pipeline;
+
+                fixed (char* pName = name)
+                {
+                    _psoLibrary.Get()->StorePipeline((ushort*)pName, pipeline.GetPso());
+                }
+
                 return pipeline;
             }
         }
 
         /// <summary>
-        /// 
+        /// Resets the manager, clearing all pipelines
         /// </summary>
-        public static void Reset() => _psos.Clear();
+        public void Reset()
+        {
+            _psoLibrary.Dispose();
+
+            // TODO pipeline library caching
+            using ComPtr<ID3D12PipelineLibrary> psoLibrary = default;
+            Guard.ThrowIfFailed(_device.DevicePointerAs<ID3D12Device1>()->CreatePipelineLibrary(null, 0, psoLibrary.Iid, ComPtr.GetVoidAddressOf(&psoLibrary)));
+
+            _psoLibrary = psoLibrary.Move();
+        }
 
         /// <summary>
         /// Creates a new named pipeline state object and registers it in the library for retrieval with
-        /// <see cref="RetrievePso(string)"/>
+        /// <see cref="RetrievePso(string, in ComputePipelineDesc)"/>
         /// </summary>
-        /// <param name="device">The device to use when creating the pipeline state</param>
         /// <param name="name">The name of the pipeline state</param>
         /// <param name="computeDesc">The descriptor for the pipeline state</param>
-        public static ComputePipelineStateObject CreatePso(GraphicsDevice device, string name, in ComputePipelineDesc computeDesc)
+        public ComputePipelineStateObject CreatePso(string name, in ComputePipelineDesc computeDesc)
         {
             fixed (byte* vs = computeDesc.ComputeShader)
             {
@@ -130,7 +155,7 @@ namespace Voltium.Core.Devices
                 };
 
                 using ComPtr<ID3D12PipelineState> pso = default;
-                Guard.ThrowIfFailed(device.DevicePointer->CreateComputePipelineState(
+                Guard.ThrowIfFailed(_device.DevicePointer->CreateComputePipelineState(
                     &desc,
                     pso.Iid,
                     ComPtr.GetVoidAddressOf(&pso)
@@ -139,7 +164,13 @@ namespace Voltium.Core.Devices
                 DebugHelpers.SetName(pso.Get(), $"Compute pipeline state object '{name}'");
 
                 var pipeline = new ComputePipelineStateObject(pso.Move(), computeDesc);
-                _psos.Add(name, pipeline);
+                _psoMap[pso] = pipeline;
+
+                fixed (char* pName = name)
+                {
+                    _psoLibrary.Get()->StorePipeline((ushort*)pName, pipeline.GetPso());
+                }
+
                 return pipeline;
             }
         }
@@ -148,44 +179,74 @@ namespace Voltium.Core.Devices
         /// Retrives a pipeline state object by name
         /// </summary>
         /// <param name="name">The name of the PSO to retrieve</param>
+        /// <param name="graphicsDesc">The <see cref="GraphicsPipelineDesc"/> for the PSO to retrieve</param>
         /// <returns>The PSO stored with the name</returns>
-        public static PipelineStateObject RetrievePso(string name)
+        public GraphicsPipelineStateObject RetrievePso(string name, in GraphicsPipelineDesc graphicsDesc)
         {
-            return _psos[name];
+            TranslateGraphicsPipelineDescriptionWithoutShadersOrShaderInputLayoutElements(graphicsDesc, out D3D12_GRAPHICS_PIPELINE_STATE_DESC desc);
+
+            // TODO use pinned pool
+            using var buff = RentedArray<D3D12_INPUT_ELEMENT_DESC>.Create(graphicsDesc.Inputs.Length);
+
+            fixed (D3D12_INPUT_ELEMENT_DESC* pDesc = buff.Value)
+            fixed (byte* vs = graphicsDesc.VertexShader)
+            fixed (byte* ps = graphicsDesc.PixelShader)
+            fixed (byte* gs = graphicsDesc.GeometryShader)
+            fixed (byte* ds = graphicsDesc.DomainShader)
+            fixed (byte* hs = graphicsDesc.HullShader)
+            {
+                // we must keep this alive until the end of the scope
+                var strBuff = TranslateLayouts(graphicsDesc.Inputs, pDesc);
+
+                TranslateShadersMustBePinned(graphicsDesc, ref desc);
+
+                desc.InputLayout = new D3D12_INPUT_LAYOUT_DESC { NumElements = (uint)graphicsDesc.Inputs.Length, pInputElementDescs = pDesc };
+
+
+                fixed (char* pName = name)
+                {
+                    using ComPtr<ID3D12PipelineState> pso = default;
+                    _psoLibrary.Get()->LoadGraphicsPipeline((ushort*)pName, &desc, pso.Iid, ComPtr.GetVoidAddressOf(&pso));
+
+                    // Prevent GC disposing it while translation occurs etc
+                    GC.KeepAlive(strBuff);
+
+                    return (GraphicsPipelineStateObject)_psoMap[pso];
+                }
+
+            }
         }
 
         /// <summary>
-        /// Store a pipeline state object with an associated name
+        /// Retrives a pipeline state object by name
         /// </summary>
-        /// <param name="name"></param>
-        /// <param name="pso"></param>
-        /// <param name="overwrite"></param>
-        public static void StorePso(string name, PipelineStateObject pso, bool overwrite = false)
+        /// <param name="name">The name of the PSO to retrieve</param>
+        /// <param name="computeDesc">The <see cref="ComputePipelineDesc"/> for the PSO to retrieve</param>
+        /// <returns>The PSO stored with the name</returns>
+        public ComputePipelineStateObject RetrievePso(string name, in ComputePipelineDesc computeDesc)
         {
-            if (overwrite)
+            fixed (byte* vs = computeDesc.ComputeShader)
             {
-                _psos[name] = pso;
-            }
-            else
-            {
-                if (!_psos.TryAdd(name, pso))
+                D3D12_COMPUTE_PIPELINE_STATE_DESC desc = new()
                 {
-                    ThrowHelper.ThrowInvalidOperationException($"PSO with name '{name}' was already present, and the " +
-                        $"overwrite parameter was set to false");
+                    CS = new D3D12_SHADER_BYTECODE(vs, (uint)computeDesc.ComputeShader.Length),
+                    pRootSignature = computeDesc.ShaderSignature.Value
+                };
+
+                fixed (char* pName = name)
+                {
+                    using ComPtr<ID3D12PipelineState> pso = default;
+                    _psoLibrary.Get()->LoadComputePipeline((ushort*)pName, &desc, pso.Iid, ComPtr.GetVoidAddressOf(&pso));
+
+                    return (ComputePipelineStateObject)_psoMap[pso];
                 }
             }
         }
 
         /// <inheritdoc/>
-        public static void Dispose()
+        public void Dispose()
         {
-            lock (_psos)
-            {
-                foreach (var value in _psos.Values)
-                {
-                    value.Dispose();
-                }
-            }
+            _psoLibrary.Dispose();
         }
     }
 }

@@ -81,7 +81,7 @@ namespace Voltium.Interactive.RenderGraphSamples
             };
 
             var rootSig = RootSignature.Create(device, @params, null);
-            PipelineManager.Reset();
+            _device.PipelineManager.Reset();
 
             var flags = new ShaderCompileFlag[]
             {
@@ -102,7 +102,7 @@ namespace Voltium.Interactive.RenderGraphSamples
                 PixelShader = ShaderManager.CompileShader("Shaders/Mandelbrot/Mandelbrot.hlsl", ShaderModel.Ps_5_0, flags)
             };
 
-            DefaultPipelineState = PipelineManager.CreatePso(device, "Mandelbrot", psoDesc);
+            DefaultPipelineState = _device.PipelineManager.CreatePso("Mandelbrot", psoDesc);
 
             _constants = new MandelbrotConstants
             {
