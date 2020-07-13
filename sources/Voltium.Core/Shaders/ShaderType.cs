@@ -38,12 +38,17 @@ namespace Voltium.Core.Devices
         /// <summary>
         /// A set of shaders that can have any and all types
         /// </summary>
-        Library
+        Library,
+
+        /// <summary>
+        /// An unspecified shader type
+        /// </summary>
+        Unspecified
     }
 
     internal static class ShaderTypeExtensions
     {
         public static bool IsValid(this ShaderType type)
-            => type >= ShaderType.Vertex && type <= ShaderType.Library;
+            => type >= ShaderType.Vertex && type <= ShaderType.Unspecified;
     }
 }

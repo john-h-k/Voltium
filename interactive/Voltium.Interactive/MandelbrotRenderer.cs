@@ -66,11 +66,11 @@ namespace Voltium.Interactive
             var rootSig = RootSignature.Create(device, @params, null);
             PipelineManager.Reset();
 
-            var flags = new DxcCompileFlags.Flag[]
+            var flags = new ShaderCompileFlag[]
             {
-                DxcCompileFlags.OptimizationLevel3,
+                ShaderCompileFlag.OptimizationLevel3,
 #if DOUBLE
-                DxcCompileFlags.DefineMacro("DOUBLE")
+                ShaderCompileFlag.DefineMacro("DOUBLE")
 #endif
             };
 

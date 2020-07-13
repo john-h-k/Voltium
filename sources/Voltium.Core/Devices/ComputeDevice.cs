@@ -12,7 +12,9 @@ using Voltium.Core.Devices;
 using Voltium.Core.Pipeline;
 using ZLogger;
 using static TerraFX.Interop.Windows;
+using static TerraFX.Interop.D3D12_FEATURE;
 using Buffer = Voltium.Core.Memory.Buffer;
+using Voltium.Core.Devices.Shaders;
 
 namespace Voltium.Core.Devices
 {
@@ -36,8 +38,6 @@ namespace Voltium.Core.Devices
     /// </summary>
     public unsafe partial class ComputeDevice : IDisposable
     {
-        // Prevent external types inheriting from this (we rely on expected internal behaviour in a few places)
-        internal ComputeDevice() { }
 
         /// <summary>
         /// The default allocator for the device
@@ -66,11 +66,51 @@ namespace Voltium.Core.Devices
 
         private static readonly Adapter DefaultAdapter = GetDefaultAdapter();
 
+        /// <summary>
+        /// The highest <see cref="ShaderModel"/> supported by this device
+        /// </summary>
+        public ShaderModel HighestSupportedShaderModel { get; private set; }
+
+        /// <summary>
+        /// Whether DXIL is supported, rather than the old DXBC bytecode form.
+        /// This is equivalent to cheking if <see cref="HighestSupportedShaderModel"/> supports shader model 6
+        /// </summary>
+        public bool IsDxilSupported => HighestSupportedShaderModel.IsDxil;
+
         private static Adapter GetDefaultAdapter()
         {
             using var factory = new DxgiDeviceFactory().GetEnumerator();
             factory.MoveNext();
             return factory.Current;
+        }
+
+        private object _stateLock = new object();
+
+        // Prevent external types inheriting from this (we rely on expected internal behaviour in a few places)
+        private protected ComputeDevice(FeatureLevel requiredFeatureLevel, DebugLayerConfiguration? config, Adapter? adapter)
+        {
+            _debug = new DebugLayer(config);
+
+            {
+                // Prevent another device creation messing with our settings
+                lock (_stateLock)
+                {
+                    _debug.SetGlobalStateForConfig();
+
+                    CreateNewDevice(adapter, requiredFeatureLevel);
+
+                    _debug.ResetGlobalState();
+                }
+
+                if (!_device.Exists)
+                {
+                    ThrowHelper.ThrowPlatformNotSupportedException($"FATAL: Creation of ID3D12Device with feature level '{requiredFeatureLevel}' failed");
+                }
+
+                _debug.SetDeviceStateForConfig(this);
+            }
+
+            QueryFeaturesOnCreation();
         }
 
         private protected void CreateNewDevice(
@@ -120,6 +160,40 @@ namespace Voltium.Core.Devices
             LUID luid = DevicePointer->GetAdapterLuid();
             _preexistingDevices.Add(Unsafe.As<LUID, ulong>(ref luid));
         }
+
+        private protected void QueryFeatureSupport<T>(D3D12_FEATURE feature, ref T val) where T : unmanaged
+        {
+            fixed (T* pVal = &val)
+            {
+                Guard.ThrowIfFailed(DevicePointer->CheckFeatureSupport(feature, pVal, (uint)sizeof(T)));
+            }
+        }
+
+        private protected virtual void QueryFeaturesOnCreation()
+        {
+            D3D12_FEATURE_DATA_SHADER_MODEL highest;
+
+            // the highest shader model that the app understands
+            highest.HighestShaderModel = D3D_SHADER_MODEL.D3D_SHADER_MODEL_6_6;
+            QueryFeatureSupport(D3D12_FEATURE_SHADER_MODEL, ref highest);
+
+            GetMajorMinorForShaderModel(highest.HighestShaderModel, out var major, out var minor);
+            HighestSupportedShaderModel = new ShaderModel(ShaderType.Unspecified, (byte)major, (byte)minor);
+        }
+
+        private static void GetMajorMinorForShaderModel(D3D_SHADER_MODEL model, out int major, out int minor)
+            => (major, minor) = model switch
+            {
+                D3D_SHADER_MODEL.D3D_SHADER_MODEL_5_1 => (5, 1),
+                D3D_SHADER_MODEL.D3D_SHADER_MODEL_6_0 => (6, 0),
+                D3D_SHADER_MODEL.D3D_SHADER_MODEL_6_1 => (6, 1),
+                D3D_SHADER_MODEL.D3D_SHADER_MODEL_6_2 => (6, 2),
+                D3D_SHADER_MODEL.D3D_SHADER_MODEL_6_3 => (6, 3),
+                D3D_SHADER_MODEL.D3D_SHADER_MODEL_6_4 => (6, 4),
+                D3D_SHADER_MODEL.D3D_SHADER_MODEL_6_5 => (6, 5),
+                D3D_SHADER_MODEL.D3D_SHADER_MODEL_6_6 => (6, 6),
+                _ => throw new ArgumentException()
+            };
 
         internal bool TryQueryInterface<T>(out ComPtr<T> result) where T : unmanaged
         {

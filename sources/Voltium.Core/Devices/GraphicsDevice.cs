@@ -51,7 +51,24 @@ namespace Voltium.Core.Devices
             _graphicsQueue.GetSynchronizerForIdle().Block();
         }
 
-        private GraphicsDevice() { }
+        private GraphicsDevice(GraphicalConfiguration config, Adapter? adapter) : base(config.RequiredFeatureLevel, config.DebugLayerConfiguration, adapter)
+        {
+            Guard.NotNull(config);
+
+            _config = config;
+
+            ulong frequency;
+            QueryPerformanceFrequency((LARGE_INTEGER*) /* <- can we do that? */ &frequency);
+            _cpuFrequency = frequency;
+
+
+            Allocator = new GpuAllocator(this);
+
+            _graphicsQueue = new SynchronizedCommandQueue(this, ExecutionContext.Graphics);
+
+            CreateSwapChain();
+            CreateDescriptorHeaps();
+        }
 
         /// <summary>
         /// Queries the GPU and timestamp
@@ -100,61 +117,20 @@ namespace Voltium.Core.Devices
         /// <returns>A new <see cref="GraphicsDevice"/></returns>
         public static GraphicsDevice Create(Adapter? adapter, GraphicalConfiguration config)
         {
-            var device = new GraphicsDevice();
-            device.InternalCreate(adapter, config);
-            return device;
+            return new GraphicsDevice(config, adapter);
         }
 
-        private object _stateLock = new object();
-        private void InternalCreate(Adapter? adapter, GraphicalConfiguration config)
+        private protected override void QueryFeaturesOnCreation()
         {
-            Guard.NotNull(config);
+            base.QueryFeaturesOnCreation();
 
-            _config = config;
-
-            ulong frequency;
-            QueryPerformanceFrequency((LARGE_INTEGER*) /* <- can we do that? */ &frequency);
-            _cpuFrequency = frequency;
-
-            _debug = new DebugLayer(config.DebugLayerConfiguration);
-
-            {
-                // Prevent another device creation messing with our settings
-                lock (_stateLock)
-                {
-                    _debug.SetGlobalStateForConfig();
-
-                    CreateNewDevice(adapter, _config.RequiredFeatureLevel);
-
-                    _debug.ResetGlobalState();
-                }
-
-                if (!_device.Exists)
-                {
-                    ThrowHelper.ThrowPlatformNotSupportedException($"FATAL: Creation of ID3D12Device with feature level '{config.RequiredFeatureLevel}' failed");
-                }
-
-                _debug.SetDeviceStateForConfig(this);
-            }
-
-            Allocator = new GpuAllocator(this);
-
-            _graphicsQueue = new SynchronizedCommandQueue(this, ExecutionContext.Graphics);
-
-            CreateSwapChain();
-            CreateDescriptorHeaps();
-            CheckFeatureSupport();
-        }
-
-        private void CheckFeatureSupport()
-        {
             uint CheckMsaaSupport(uint sampleCount)
             {
                 D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS desc = default;
                 desc.SampleCount = sampleCount;
                 desc.Format = DXGI_FORMAT.DXGI_FORMAT_R8G8B8A8_UNORM;
 
-                Guard.ThrowIfFailed(DevicePointer->CheckFeatureSupport(D3D12_FEATURE.D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS, &desc, (uint)sizeof(D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS)));
+                QueryFeatureSupport(D3D12_FEATURE.D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS, ref desc);
 
                 return desc.NumQualityLevels;
             }

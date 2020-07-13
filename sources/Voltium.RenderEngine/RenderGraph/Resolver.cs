@@ -28,7 +28,7 @@ namespace Voltium.Core
         /// </summary>
         /// <typeparam name="TComponent">The type of the component to resolve</typeparam>
         /// <returns>The value of the component if it was found</returns>
-        public TComponent ResolveComponent<TComponent>() => _components.Get<TComponent>();
+        public TComponent GetComponent<TComponent>() => _components.Get<TComponent>();
 
         /// <summary>
         /// Creates a new application-defined component

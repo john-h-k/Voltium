@@ -187,9 +187,9 @@ namespace Voltium.Interactive
 
             var compilationFlags = new[]
             {
-                DxcCompileFlags.PackMatricesInRowMajorOrder,
-                DxcCompileFlags.AllResourcesBound
-                //DxcCompileFlags.DefineMacro("NORMALS")
+                ShaderCompileFlag.PackMatricesInRowMajorOrder,
+                ShaderCompileFlag.AllResourcesBound
+                //ShaderCompileFlag.DefineMacro("NORMALS")
             };
 
             var vertexShader = ShaderManager.CompileShader("Shaders/SimpleTexture/TextureVertexShader.hlsl", ShaderType.Vertex, compilationFlags);

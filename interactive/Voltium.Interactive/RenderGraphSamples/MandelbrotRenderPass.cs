@@ -26,6 +26,7 @@ using FP = System.Single;
 
 namespace Voltium.Interactive.RenderGraphSamples
 {
+    [ExpectsComponent(typeof(PipelineSettings))]
     internal class MandelbrotRenderPass : GraphicsRenderPass
     {
         private GraphicsDevice _device;
@@ -33,9 +34,12 @@ namespace Voltium.Interactive.RenderGraphSamples
 
         public override void Register(ref RenderPassBuilder builder, ref Resolver resolver)
         {
+            var settings = resolver.GetComponent<PipelineSettings>();
+
             PipelineResources resources;
+
             resources.SceneColor = builder.CreatePrimaryOutputRelativeTexture(
-                TextureDesc.CreateRenderTargetDesc(BackBufferFormat.R8G8B8A8UnsignedNormalized, Rgba128.Black),
+                TextureDesc.CreateRenderTargetDesc(BackBufferFormat.R8G8B8A8UnsignedNormalized, Rgba128.Black, settings.Msaa),
                 ResourceState.PixelShaderResource
             );
 
@@ -44,7 +48,7 @@ namespace Voltium.Interactive.RenderGraphSamples
 
         public override void Record(ref GraphicsContext context, ref Resolver resolver)
         {
-            var renderTarget = resolver.ResolveResource(resolver.ResolveComponent<PipelineResources>().SceneColor);
+            var renderTarget = resolver.ResolveResource(resolver.GetComponent<PipelineResources>().SceneColor);
             var renderTargetView = _device.CreateRenderTargetView(renderTarget);
 
             context.ResourceTransition(renderTarget, ResourceState.RenderTarget);
@@ -79,12 +83,12 @@ namespace Voltium.Interactive.RenderGraphSamples
             var rootSig = RootSignature.Create(device, @params, null);
             PipelineManager.Reset();
 
-            var flags = new DxcCompileFlags.Flag[]
+            var flags = new ShaderCompileFlag[]
             {
-                DxcCompileFlags.OptimizationLevel3,
-                DxcCompileFlags.StripReflect,
+                ShaderCompileFlag.OptimizationLevel3,
+                ShaderCompileFlag.StripReflect,
 #if DOUBLE
-                DxcCompileFlags.DefineMacro("DOUBLE")
+                ShaderCompileFlag.DefineMacro("DOUBLE")
 #endif
             };
 
@@ -94,8 +98,8 @@ namespace Voltium.Interactive.RenderGraphSamples
                 Topology = TopologyClass.Triangle,
                 DepthStencil = DepthStencilDesc.DisableDepthStencil,
                 RenderTargetFormats = new FormatBuffer8(BackBufferFormat.R8G8B8A8UnsignedNormalized),
-                VertexShader = ShaderManager.CompileShader("Shaders/Mandelbrot/EntireScreenCopyVS.hlsl", ShaderType.Vertex, flags),
-                PixelShader = ShaderManager.CompileShader("Shaders/Mandelbrot/Mandelbrot.hlsl", ShaderType.Pixel, flags)
+                VertexShader = ShaderManager.CompileShader("Shaders/Mandelbrot/EntireScreenCopyVS.hlsl", ShaderModel.Vs_5_0, flags),
+                PixelShader = ShaderManager.CompileShader("Shaders/Mandelbrot/Mandelbrot.hlsl", ShaderModel.Ps_5_0, flags)
             };
 
             DefaultPipelineState = PipelineManager.CreatePso(device, "Mandelbrot", psoDesc);

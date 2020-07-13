@@ -151,453 +151,453 @@ using TerraFX.Interop;
 
 namespace Voltium.Core.Devices
 {
-    public static partial class DxcCompileFlags
+    public partial struct ShaderCompileFlag
     {
         /// <summary>
         /// Display available options
         /// </summary>
-        public static Flag DisplayAvailableOptions { get; } = new Flag("-help");
+        public static ShaderCompileFlag DisplayAvailableOptions { get; } = new ShaderCompileFlag("-help");
         /// <summary>
         /// Suppress copyright message
         /// </summary>
-        public static Flag Nologo { get; } = new Flag("-nologo");
+        public static ShaderCompileFlag Nologo { get; } = new ShaderCompileFlag("-nologo");
         /// <summary>
         /// Don't emit warning for unused driver arguments
         /// </summary>
-        public static Flag DontWarnForUnusedArguments { get; } = new Flag("-Qunused-arguments");
+        public static ShaderCompileFlag DontWarnForUnusedArguments { get; } = new ShaderCompileFlag("-Qunused-arguments");
         /// <summary>
         /// Enables agressive flattening
         /// </summary>
-        public static Flag AllResourcesBound { get; } = new Flag("-all-resources-bound");
+        public static ShaderCompileFlag AllResourcesBound { get; } = new ShaderCompileFlag("-all-resources-bound");
         /// <summary>
         /// Set auto binding space - enables auto resource binding in libraries
         /// </summary>
 
-        public static Flag AutoBindingSpace(object value) => new Flag($"-auto-binding-space {value}");
+        public static ShaderCompileFlag AutoBindingSpace(object value) => new ShaderCompileFlag($"-auto-binding-space {value}");
         /// <summary>
         /// Output color coded assembly listings
         /// </summary>
-        public static Flag OutputColorCodedAssemblyListings { get; } = new Flag("-Cc");
+        public static ShaderCompileFlag OutputColorCodedAssemblyListings { get; } = new ShaderCompileFlag("-Cc");
         /// <summary>
         /// Set default linkage for non-shader functions when compiling or linking to a library target(internal, external)
         /// </summary>
 
-        public static Flag DefaultLinkage(string value) => new Flag($"-default-linkage {value}");
+        public static ShaderCompileFlag DefaultLinkage(string value) => new ShaderCompileFlag($"-default-linkage {value}");
 
         /// <summary>
         /// Select denormal value options(any, preserve, ftz). any is the default.
         /// </summary>
-        public static Flag Denorm(ShaderDenormBehaviour value) => new Flag($"-denorm {value.ToDxcArg()}");
+        public static ShaderCompileFlag Denorm(ShaderDenormBehaviour value) => new ShaderCompileFlag($"-denorm {value.ToDxcArg()}");
 
         /// <summary>
         /// Use optimization level 0
         /// </summary>
-        public static Flag OptimizationLevel0 { get; } = new Flag("-O0");
+        public static ShaderCompileFlag OptimizationLevel0 { get; } = new ShaderCompileFlag("-O0");
 
         /// <summary>
         /// Use optimization level 1
         /// </summary>
-        public static Flag OptimizationLevel1 { get; } = new Flag("-O1");
+        public static ShaderCompileFlag OptimizationLevel1 { get; } = new ShaderCompileFlag("-O1");
 
         /// <summary>
         /// Use optimization level 2
         /// </summary>
-        public static Flag OptimizationLevel2 { get; } = new Flag("-O2");
+        public static ShaderCompileFlag OptimizationLevel2 { get; } = new ShaderCompileFlag("-O2");
 
         /// <summary>
         /// Use optimization level 3. This is the default
         /// </summary>
-        public static Flag OptimizationLevel3 { get; } = new Flag("-O3");
+        public static ShaderCompileFlag OptimizationLevel3 { get; } = new ShaderCompileFlag("-O3");
 
         /// <summary>
         /// Define macro
         /// </summary>
 
-        public static Flag DefineMacro(string value) => new Flag($"-D {value}");
+        public static ShaderCompileFlag DefineMacro(string value) => new ShaderCompileFlag($"-D {value}");
 
         /// <summary>
         /// Define macro
         /// </summary>
-        public static Flag DefineMacro(string name, string value) => new Flag($"-D {name}={value}");
+        public static ShaderCompileFlag DefineMacro(string name, string value) => new ShaderCompileFlag($"-D {name}={value}");
 
         /// <summary>
         /// Enable 16bit types and disable min precision types.Available in HLSL 2018 and shader model 6.2
         /// </summary>
-        public static Flag Enable16BitTypes { get; } = new Flag("-enable-16bit-types");
+        public static ShaderCompileFlag Enable16BitTypes { get; } = new ShaderCompileFlag("-enable-16bit-types");
 
         //public static Flag Encoding(OutputEncoding value) => new Flag($"-encoding {value.ToDxcArg()}");
         /// <summary>
         /// Only export shaders when compiling a library
         /// </summary>
-        public static Flag ExportShadersOnly { get; } = new Flag("-export-shaders-only");
+        public static ShaderCompileFlag ExportShadersOnly { get; } = new ShaderCompileFlag("-export-shaders-only");
         /// <summary>
         /// Specify exports when compiling a library: export1[[, export1_clone, ...]=internal_name][;...]
         /// </summary>
 
-        public static Flag Exports(string value) => new Flag($"-exports {value}");
+        public static ShaderCompileFlag Exports(string value) => new ShaderCompileFlag($"-exports {value}");
 
         /// <summary>
         /// Entry point name
         /// </summary>
-        public static Flag OutputAssemblyCodeListingFile(string file) => new Flag($"-Fc {file}");
+        public static ShaderCompileFlag OutputAssemblyCodeListingFile(string file) => new ShaderCompileFlag($"-Fc {file}");
 
         /// <summary>
         /// Print option name with mappable diagnostics
         /// </summary>
-        public static Flag FdiagnosticsShowOption { get; } = new Flag("-fdiagnostics-show-option");
+        public static ShaderCompileFlag FdiagnosticsShowOption { get; } = new ShaderCompileFlag("-fdiagnostics-show-option");
         /// <summary>
         /// Write debug information to the given file, or automatically named file in directory
         /// </summary>
-        public static Flag WriteDebugInformationToFile(string file = "/") => new Flag($"-Fd {file}");
+        public static ShaderCompileFlag WriteDebugInformationToFile(string file = "/") => new ShaderCompileFlag($"-Fd {file}");
         /// <summary>
         /// Output warnings and errors to the given file
         /// </summary>
 
-        public static Flag OutputWarningsAndErrorsToFile(string file) => new Flag($"-Fe {file}");
+        public static ShaderCompileFlag OutputWarningsAndErrorsToFile(string file) => new ShaderCompileFlag($"-Fe {file}");
         /// <summary>
         /// Output header file containing object code
         /// </summary>
 
-        public static Flag OutputHeaderFileContainingObjectCode(string file) => new Flag($"-Fh {file}");
+        public static ShaderCompileFlag OutputHeaderFileContainingObjectCode(string file) => new ShaderCompileFlag($"-Fh {file}");
         /// <summary>
         /// Expand the operands before performing token-pasting operation(fxc behavior)
         /// </summary>
-        public static Flag FlegacyMacroExpansion { get; } = new Flag("-flegacy-macro-expansion");
+        public static ShaderCompileFlag FlegacyMacroExpansion { get; } = new ShaderCompileFlag("-flegacy-macro-expansion");
         /// <summary>
         /// Reserve unused explicit register assignments for compatibility with shader model 5.0 and below
         /// </summary>
-        public static Flag FlegacyResourceReservation { get; } = new Flag("-flegacy-resource-reservation");
+        public static ShaderCompileFlag FlegacyResourceReservation { get; } = new ShaderCompileFlag("-flegacy-resource-reservation");
         /// <summary>
         /// Do not print option name with mappable diagnostics
         /// </summary>
-        public static Flag FnoDiagnosticsShowOption { get; } = new Flag("-fno-diagnostics-show-option");
+        public static ShaderCompileFlag FnoDiagnosticsShowOption { get; } = new ShaderCompileFlag("-fno-diagnostics-show-option");
         /// <summary>
         /// force root signature version (rootsig_1_1 if omitted)
         /// </summary>
         // should probs custom enum this
-        public static Flag ForceRootSignatureVersion(D3D_ROOT_SIGNATURE_VERSION profile) => new Flag($"-force-rootsig-ver {profile.ToString().Replace(nameof(D3D_ROOT_SIGNATURE_VERSION), "rootsig")}");
+        public static ShaderCompileFlag ForceRootSignatureVersion(D3D_ROOT_SIGNATURE_VERSION profile) => new ShaderCompileFlag($"-force-rootsig-ver {profile.ToString().Replace(nameof(D3D_ROOT_SIGNATURE_VERSION), "rootsig")}");
         /// <summary>
         /// Output object file
         /// </summary>
 
-        public static Flag OutputObjectFile(string file) => new Flag($"-Fo {file}");
+        public static ShaderCompileFlag OutputObjectFile(string file) => new ShaderCompileFlag($"-Fo {file}");
         /// <summary>
         /// Output reflection to the given file
         /// </summary>
 
-        public static Flag OutputReflectionToFile(string file) => new Flag($"-Fre {file}");
+        public static ShaderCompileFlag OutputReflectionToFile(string file) => new ShaderCompileFlag($"-Fre {file}");
         /// <summary>
         /// Output root signature to the given file
         /// </summary>
 
-        public static Flag OutputRootSignatureToFile(string file) => new Flag($"-Frs {file}");
+        public static ShaderCompileFlag OutputRootSignatureToFile(string file) => new ShaderCompileFlag($"-Frs {file}");
         /// <summary>
         /// Output shader hash to the given file
         /// </summary>
 
-        public static Flag OutputShaderHashToFile(string file) => new Flag($"-Fsh {file}");
+        public static ShaderCompileFlag OutputShaderHashToFile(string file) => new ShaderCompileFlag($"-Fsh {file}");
         /// <summary>
         /// Enable backward compatibility mode
         /// </summary>
-        public static Flag EnableBackwardCompatibilityMode { get; } = new Flag("-Gec");
+        public static ShaderCompileFlag EnableBackwardCompatibilityMode { get; } = new ShaderCompileFlag("-Gec");
         /// <summary>
         /// Enable strict mode
         /// </summary>
-        public static Flag EnableStrictMode { get; } = new Flag("-Ges");
+        public static ShaderCompileFlag EnableStrictMode { get; } = new ShaderCompileFlag("-Ges");
         /// <summary>
         /// Avoid flow control constructs
         /// </summary>
-        public static Flag AvoidFlowControlConstructs { get; } = new Flag("-Gfa");
+        public static ShaderCompileFlag AvoidFlowControlConstructs { get; } = new ShaderCompileFlag("-Gfa");
         /// <summary>
         /// Prefer flow control constructs
         /// </summary>
-        public static Flag PreferFlowControlConstructs { get; } = new Flag("-Gfp");
+        public static ShaderCompileFlag PreferFlowControlConstructs { get; } = new ShaderCompileFlag("-Gfp");
 
         /// <summary>
         /// Force IEEE strictness
         /// </summary>
-        public static Flag ForceIeeeStrictness { get; } = new Flag("-Gis");
+        public static ShaderCompileFlag ForceIeeeStrictness { get; } = new ShaderCompileFlag("-Gis");
         /// <summary>
         /// HLSL version(2016, 2017, 2018). Default is 2018
         /// </summary>
 
-        public static Flag HlslVersion(string value = "2018") => new Flag($"-HV {value}");
+        public static ShaderCompileFlag HlslVersion(string value = "2018") => new ShaderCompileFlag($"-HV {value}");
         /// <summary>
         /// Show header includes and nesting depth
         /// </summary>
-        public static Flag ShowHeaderIncludesAndNestingDepth { get; } = new Flag("-H");
+        public static ShaderCompileFlag ShowHeaderIncludesAndNestingDepth { get; } = new ShaderCompileFlag("-H");
         /// <summary>
         /// Ignore line directives
         /// </summary>
-        public static Flag IgnoreLineDirectives { get; } = new Flag("-ignore-line-directives");
+        public static ShaderCompileFlag IgnoreLineDirectives { get; } = new ShaderCompileFlag("-ignore-line-directives");
         /// <summary>
         /// Add directory to include search path
         /// </summary>
 
-        public static Flag AddDirectoryToIncludeSearchPath(string value) => new Flag($"-I {value}");
+        public static ShaderCompileFlag AddDirectoryToIncludeSearchPath(string value) => new ShaderCompileFlag($"-I {value}");
         /// <summary>
         /// Output hexadecimal literals
         /// </summary>
-        public static Flag OutputHexadecimalLiterals { get; } = new Flag("-Lx");
+        public static ShaderCompileFlag OutputHexadecimalLiterals { get; } = new ShaderCompileFlag("-Lx");
         /// <summary>
         /// Output instruction numbers in assembly listings
         /// </summary>
-        public static Flag OutputInstructionNumbersInAssemblyListings { get; } = new Flag("-Ni");
+        public static ShaderCompileFlag OutputInstructionNumbersInAssemblyListings { get; } = new ShaderCompileFlag("-Ni");
         /// <summary>
         /// Do not use legacy cbuffer load
         /// </summary>
-        public static Flag NoLegacyCbufLayout { get; } = new Flag("-no-legacy-cbuf-layout");
+        public static ShaderCompileFlag NoLegacyCbufLayout { get; } = new ShaderCompileFlag("-no-legacy-cbuf-layout");
         /// <summary>
         /// Suppress warnings
         /// </summary>
-        public static Flag NoWarnings { get; } = new Flag("-no-warnings");
+        public static ShaderCompileFlag NoWarnings { get; } = new ShaderCompileFlag("-no-warnings");
         /// <summary>
         /// Output instruction byte offsets in assembly listings
         /// </summary>
-        public static Flag OutputInstructionByteOffsetsInAssemblyListings { get; } = new Flag("-No");
+        public static ShaderCompileFlag OutputInstructionByteOffsetsInAssemblyListings { get; } = new ShaderCompileFlag("-No");
         /// <summary>
         /// Print the optimizer commands.
         /// </summary>
-        public static Flag Dump { get; } = new Flag("-Odump");
+        public static ShaderCompileFlag Dump { get; } = new ShaderCompileFlag("-Odump");
         /// <summary>
         /// Disable optimizations
         /// </summary>
-        public static Flag DisableOptimizations { get; } = new Flag("-Od");
+        public static ShaderCompileFlag DisableOptimizations { get; } = new ShaderCompileFlag("-Od");
         /// <summary>
         /// Optimize signature packing assuming identical signature provided for each connecting stage
         /// </summary>
-        public static Flag PackOptimized { get; } = new Flag("-pack-optimized");
+        public static ShaderCompileFlag PackOptimized { get; } = new ShaderCompileFlag("-pack-optimized");
         /// <summary>
         /// Pack signatures preserving prefix-stable property - appended elements will not disturb placement of prior elements
         /// </summary>
-        public static Flag PackPrefixStable { get; } = new Flag("-pack-prefix-stable");
+        public static ShaderCompileFlag PackPrefixStable { get; } = new ShaderCompileFlag("-pack-prefix-stable");
         /// <summary>
         /// recompile from DXIL container with Debug Info or Debug Info bitcode file
         /// </summary>
-        public static Flag Recompile { get; } = new Flag("-recompile");
+        public static ShaderCompileFlag Recompile { get; } = new ShaderCompileFlag("-recompile");
         /// <summary>
         /// Assume that UAVs/SRVs may alias
         /// </summary>
-        public static Flag ResMayAlias { get; } = new Flag("-res-may-alias");
+        public static ShaderCompileFlag ResMayAlias { get; } = new ShaderCompileFlag("-res-may-alias");
 
         /// <summary>
         /// Read root signature from a #define
         /// </summary>
-        public static Flag RootSignatureDefine(string value) => new Flag($"-rootsig-define {value}");
+        public static ShaderCompileFlag RootSignatureDefine(string value) => new ShaderCompileFlag($"-rootsig-define {value}");
 
         /// <summary>
         /// Disable validation
         /// </summary>
-        public static Flag DisableValidation { get; } = new Flag("-Vd");
+        public static ShaderCompileFlag DisableValidation { get; } = new ShaderCompileFlag("-Vd");
         /// <summary>
         /// Display details about the include process.
         /// </summary>
-        public static Flag DisplayDetailsAboutTheIncludeProcess { get; } = new Flag("-Vi");
+        public static ShaderCompileFlag DisplayDetailsAboutTheIncludeProcess { get; } = new ShaderCompileFlag("-Vi");
         /// <summary>
         /// Use name as variable name in header file
         /// </summary>
 
-        public static Flag UseNameAsVariableNameInHeaderFile(string name) => new Flag($"-Vn {name}");
+        public static ShaderCompileFlag UseNameAsVariableNameInHeaderFile(string name) => new ShaderCompileFlag($"-Vn {name}");
         /// <summary>
         /// Treat warnings as errors
         /// </summary>
-        public static Flag TreatWarningsAsErrors { get; } = new Flag("-WX");
+        public static ShaderCompileFlag TreatWarningsAsErrors { get; } = new ShaderCompileFlag("-WX");
         /// <summary>
         /// Enable debug information
         /// </summary>
-        public static Flag EnableDebugInformation { get; } = new Flag("-Zi");
+        public static ShaderCompileFlag EnableDebugInformation { get; } = new ShaderCompileFlag("-Zi");
         /// <summary>
         /// Pack matrices in column-major order
         /// </summary>
-        public static Flag PackMatricesInColumnMajorOrder { get; } = new Flag("-Zpc");
+        public static ShaderCompileFlag PackMatricesInColumnMajorOrder { get; } = new ShaderCompileFlag("-Zpc");
         /// <summary>
         /// Pack matrices in row-major order
         /// </summary>
-        public static Flag PackMatricesInRowMajorOrder { get; } = new Flag("-Zpr");
+        public static ShaderCompileFlag PackMatricesInRowMajorOrder { get; } = new ShaderCompileFlag("-Zpr");
         /// <summary>
         /// Compute Shader Hash considering only output binary
         /// </summary>
-        public static Flag ComputeShaderHashConsideringOnlyOutputBinary { get; } = new Flag("-Zsb");
+        public static ShaderCompileFlag ComputeShaderHashConsideringOnlyOutputBinary { get; } = new ShaderCompileFlag("-Zsb");
         /// <summary>
         /// Compute Shader Hash considering source information
         /// </summary>
-        public static Flag ComputeShaderHashConsideringSourceInformation { get; } = new Flag("-Zss");
+        public static ShaderCompileFlag ComputeShaderHashConsideringSourceInformation { get; } = new ShaderCompileFlag("-Zss");
 
         /// <summary>
         /// Move uniform parameters from entry point to global scope
         /// </summary>
-        public static Flag ExtractEntryUniforms { get; } = new Flag("-extract-entry-uniforms");
+        public static ShaderCompileFlag ExtractEntryUniforms { get; } = new ShaderCompileFlag("-extract-entry-uniforms");
         /// <summary>
         /// Set extern on non-static globals
         /// </summary>
-        public static Flag GlobalExternByDefault { get; } = new Flag("-global-extern-by-default");
+        public static ShaderCompileFlag GlobalExternByDefault { get; } = new ShaderCompileFlag("-global-extern-by-default");
         /// <summary>
         /// Write out user defines after rewritten HLSL
         /// </summary>
-        public static Flag KeepUserMacro { get; } = new Flag("-keep-user-macro");
+        public static ShaderCompileFlag KeepUserMacro { get; } = new ShaderCompileFlag("-keep-user-macro");
         /// <summary>
         /// Remove unused static globals and functions
         /// </summary>
-        public static Flag RemoveUnusedGlobals { get; } = new Flag("-remove-unused-globals");
+        public static ShaderCompileFlag RemoveUnusedGlobals { get; } = new ShaderCompileFlag("-remove-unused-globals");
         /// <summary>
         /// Translate function definitions to declarations
         /// </summary>
-        public static Flag SkipFnBody { get; } = new Flag("-skip-fn-body");
+        public static ShaderCompileFlag SkipFnBody { get; } = new ShaderCompileFlag("-skip-fn-body");
         /// <summary>
         /// Remove static functions and globals when used with -skip-fn-body
         /// </summary>
-        public static Flag SkipStatic { get; } = new Flag("-skip-static");
+        public static ShaderCompileFlag SkipStatic { get; } = new ShaderCompileFlag("-skip-static");
         /// <summary>
         /// Rewrite HLSL, without changes.
         /// </summary>
-        public static Flag Unchanged { get; } = new Flag("-unchanged");
+        public static ShaderCompileFlag Unchanged { get; } = new ShaderCompileFlag("-unchanged");
         /// <summary>
         /// Specify whitelist of debug info category (file -  source -  line, tool)
         /// </summary>
 
-        public static Flag FspvDebug(string value) => new Flag($"-fspv-debug {value}");
+        public static ShaderCompileFlag FspvDebug(string value) => new ShaderCompileFlag($"-fspv-debug {value}");
         /// <summary>
         /// Specify SPIR-V extension permitted to use
         /// </summary>
 
-        public static Flag FspvExtension(string value) => new Flag($"-fspv-extension {value}");
+        public static ShaderCompileFlag FspvExtension(string value) => new ShaderCompileFlag($"-fspv-extension {value}");
         /// <summary>
         /// Flatten arrays of resources so each array element takes one binding number
         /// </summary>
-        public static Flag FspvFlattenResourceArrays { get; } = new Flag("-fspv-flatten-resource-arrays");
+        public static ShaderCompileFlag FspvFlattenResourceArrays { get; } = new ShaderCompileFlag("-fspv-flatten-resource-arrays");
         /// <summary>
         /// Emit additional SPIR-V instructions to aid reflection
         /// </summary>
-        public static Flag FspvReflect { get; } = new Flag("-fspv-reflect");
+        public static ShaderCompileFlag FspvReflect { get; } = new ShaderCompileFlag("-fspv-reflect");
         /// <summary>
         /// Specify the target environment: vulkan1.0 (default) or vulkan1.1
         /// </summary>
 
-        public static Flag FspvTargetEnv(string value) => new Flag($"-fspv-target-env {value}");
+        public static ShaderCompileFlag FspvTargetEnv(string value) => new ShaderCompileFlag($"-fspv-target-env {value}");
         /// <summary>
         /// Specify Vulkan binding number shift for b-type register
         /// </summary>
 
-        public static Flag FvkBShift(string shift, string space) => new Flag($"-fvk-b-shift {shift} {space}");
+        public static ShaderCompileFlag FvkBShift(string shift, string space) => new ShaderCompileFlag($"-fvk-b-shift {shift} {space}");
         /// <summary>
         /// Specify Vulkan binding number and set number for the $Globals cbuffer
         /// </summary>
 
-        public static Flag FvkBindGlobals(string binding, string set) => new Flag($"-fvk-bind-globals {binding} {set}");
+        public static ShaderCompileFlag FvkBindGlobals(string binding, string set) => new ShaderCompileFlag($"-fvk-bind-globals {binding} {set}");
         /// <summary>
         /// Specify Vulkan descriptor set and binding for a specific register
         /// </summary>
 
-        public static Flag FvkBindRegister(string typeNumber, string space, string binding, string set) => new Flag($"-fvk-bind-register {typeNumber} {space} {binding} {set}");
+        public static ShaderCompileFlag FvkBindRegister(string typeNumber, string space, string binding, string set) => new ShaderCompileFlag($"-fvk-bind-register {typeNumber} {space} {binding} {set}");
         /// <summary>
         /// Negate SV_Position.y before writing to stage output in VS/DS/GS to accommodate Vulkan's coordinate system
         /// </summary>
-        public static Flag FvkInvertY { get; } = new Flag("-fvk-invert-y");
+        public static ShaderCompileFlag FvkInvertY { get; } = new ShaderCompileFlag("-fvk-invert-y");
         /// <summary>
         /// Specify Vulkan binding number shift for s-type register
         /// </summary>
 
-        public static Flag FvkSShift(string shift, string space) => new Flag($"-fvk-s-shift {shift} {space}");
+        public static ShaderCompileFlag FvkSShift(string shift, string space) => new ShaderCompileFlag($"-fvk-s-shift {shift} {space}");
         /// <summary>
         /// Specify Vulkan binding number shift for t-type register
         /// </summary>
 
-        public static Flag FvkTShift(string shift, string space) => new Flag($"-fvk-t-shift {shift} {space}");
+        public static ShaderCompileFlag FvkTShift(string shift, string space) => new ShaderCompileFlag($"-fvk-t-shift {shift} {space}");
         /// <summary>
         /// Specify Vulkan binding number shift for u-type register
         /// </summary>
 
-        public static Flag FvkUShift(string shift, string space) => new Flag($"-fvk-u-shift {shift} {space}");
+        public static ShaderCompileFlag FvkUShift(string shift, string space) => new ShaderCompileFlag($"-fvk-u-shift {shift} {space}");
         /// <summary>
         /// Use DirectX memory layout for Vulkan resources
         /// </summary>
-        public static Flag FvkUseDxLayout { get; } = new Flag("-fvk-use-dx-layout");
+        public static ShaderCompileFlag FvkUseDxLayout { get; } = new ShaderCompileFlag("-fvk-use-dx-layout");
         /// <summary>
         /// Reciprocate SV_Position.w after reading from stage input in PS to accommodate the difference between Vulkan and DirectX
         /// </summary>
-        public static Flag FvkUseDxPositionW { get; } = new Flag("-fvk-use-dx-position-w");
+        public static ShaderCompileFlag FvkUseDxPositionW { get; } = new ShaderCompileFlag("-fvk-use-dx-position-w");
         /// <summary>
         /// Use strict OpenGL std140/std430 memory layout for Vulkan resources
         /// </summary>
-        public static Flag FvkUseGlLayout { get; } = new Flag("-fvk-use-gl-layout");
+        public static ShaderCompileFlag FvkUseGlLayout { get; } = new ShaderCompileFlag("-fvk-use-gl-layout");
         /// <summary>
         /// Use scalar memory layout for Vulkan resources
         /// </summary>
-        public static Flag FvkUseScalarLayout { get; } = new Flag("-fvk-use-scalar-layout");
+        public static ShaderCompileFlag FvkUseScalarLayout { get; } = new ShaderCompileFlag("-fvk-use-scalar-layout");
 
         /// <summary>
         /// Specify a comma-separated list of SPIRV-Tools passes to customize optimization configuration(see http:// khr.io/hlsl2spirv#optimization)
         /// </summary>
-        public static Flag Config(object value) => new Flag($"-Oconfig {value}");
+        public static ShaderCompileFlag Config(object value) => new ShaderCompileFlag($"-Oconfig {value}");
         /// <summary>
         /// Generate SPIR-V code
         /// </summary>
-        public static Flag Spirv { get; } = new Flag("-spirv");
+        public static ShaderCompileFlag Spirv { get; } = new ShaderCompileFlag("-spirv");
         /// <summary>
         /// Load a binary file rather than compiling
         /// </summary>
-        public static Flag Dumpbin { get; } = new Flag("-dumpbin");
+        public static ShaderCompileFlag Dumpbin { get; } = new ShaderCompileFlag("-dumpbin");
         /// <summary>
         /// Extract root signature from shader bytecode (must be used with /Fo{file})
         /// </summary>
-        public static Flag ExtractRootSignature { get; } = new Flag("-extractrootsignature");
+        public static ShaderCompileFlag ExtractRootSignature { get; } = new ShaderCompileFlag("-extractrootsignature");
 
         /// <summary>
         /// Save private data from shader blob
         /// </summary>
 
-        public static Flag SavePrivateDataToFile(string file) => new Flag($"-getprivate {file}");
+        public static ShaderCompileFlag SavePrivateDataToFile(string file) => new ShaderCompileFlag($"-getprivate {file}");
 
         /// <summary>
         /// Preprocess to file(must be used alone)
         /// </summary>
 
-        public static Flag PreprocessToFile(string file) => new Flag($"-P {file}");
+        public static ShaderCompileFlag PreprocessToFile(string file) => new ShaderCompileFlag($"-P {file}");
         /// <summary>
         /// Embed PDB in shader container(must be used with /Zi)
         /// </summary>
-        public static Flag EmbedDebug { get; } = new Flag("-Qembed_debug");
+        public static ShaderCompileFlag EmbedDebug { get; } = new ShaderCompileFlag("-Qembed_debug");
         /// <summary>
         /// Strip debug information from 4_0+ shader bytecode(must be used with /Fo{file})
         /// </summary>
-        public static Flag StripDebug { get; } = new Flag("-Qstrip_debug");
+        public static ShaderCompileFlag StripDebug { get; } = new ShaderCompileFlag("-Qstrip_debug");
         /// <summary>
         /// Strip private data from shader bytecode(must be used with /Fo{file})
         /// </summary>
-        public static Flag StripPriv { get; } = new Flag("-Qstrip_priv");
+        public static ShaderCompileFlag StripPriv { get; } = new ShaderCompileFlag("-Qstrip_priv");
         /// <summary>
         /// Strip reflection data from shader bytecode(must be used with /Fo{file})
         /// </summary>
-        public static Flag StripReflect { get; } = new Flag("-Qstrip_reflect");
+        public static ShaderCompileFlag StripReflect { get; } = new ShaderCompileFlag("-Qstrip_reflect");
         /// <summary>
         /// Strip root signature data from shader bytecode(must be used with /Fo{file})
         /// </summary>
-        public static Flag StripRootsignature { get; } = new Flag("-Qstrip_rootsignature");
+        public static ShaderCompileFlag StripRootsignature { get; } = new ShaderCompileFlag("-Qstrip_rootsignature");
         /// <summary>
         /// Private data to add to compiled shader blob
         /// </summary>
 
-        public static Flag Setprivate(object file) => new Flag($"-setprivate {file}");
+        public static ShaderCompileFlag Setprivate(object file) => new ShaderCompileFlag($"-setprivate {file}");
         /// <summary>
         /// Attach root signature to shader bytecode
         /// </summary>
 
-        public static Flag Setrootsignature(object file) => new Flag($"-setrootsignature {file}");
+        public static ShaderCompileFlag Setrootsignature(object file) => new ShaderCompileFlag($"-setrootsignature {file}");
         /// <summary>
         /// Verify shader bytecode with root signature
         /// </summary>
 
-        public static Flag Verifyrootsignature(object file) => new Flag($"-verifyrootsignature {file}");
+        public static ShaderCompileFlag Verifyrootsignature(object file) => new ShaderCompileFlag($"-verifyrootsignature {file}");
 
         /// <summary>
         /// Enable the specified warning
         /// </summary>
-        public static Flag EnableWarning(int value) => new Flag($"-W{value}");
+        public static ShaderCompileFlag EnableWarning(int value) => new ShaderCompileFlag($"-W{value}");
 
 
         /// <summary>
         /// Disable the specified warning
         /// </summary>
-        public static Flag DisableWarning(int value) => new Flag($"-Wno{value}");
+        public static ShaderCompileFlag DisableWarning(int value) => new ShaderCompileFlag($"-Wno{value}");
     }
 }

@@ -37,6 +37,31 @@ namespace Voltium.Core
             _resolver = new Resolver(this);
         }
 
+        public void CreateComponent<T0>(T0 component0)
+            => _resolver.CreateComponent(component0);
+
+
+        public void CreateComponents<T0, T1>(T0 component0, T1 component1)
+        {
+            _resolver.CreateComponent(component0);
+            _resolver.CreateComponent(component1);
+        }
+
+        public void CreateComponents<T0, T1, T2>(T0 component0, T1 component1, T2 component2)
+        {
+            _resolver.CreateComponent(component0);
+            _resolver.CreateComponent(component1);
+            _resolver.CreateComponent(component2);
+        }
+
+        public void CreateComponents<T0, T1, T2, T3>(T0 component0, T1 component1, T2 component2, T3 component3)
+        {
+            _resolver.CreateComponent(component0);
+            _resolver.CreateComponent(component1);
+            _resolver.CreateComponent(component2);
+            _resolver.CreateComponent(component3);
+        }
+
         public void AddPass<T>(T pass) where T : RenderPass
         {
             var passIndex = _renderPasses.Count;

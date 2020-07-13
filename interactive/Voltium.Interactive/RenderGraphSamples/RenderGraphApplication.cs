@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using TerraFX.Interop;
 using Voltium.Core;
+using Voltium.Core.Configuration.Graphics;
 using Voltium.Core.Devices;
 
 namespace Voltium.Interactive.RenderGraphSamples
@@ -19,6 +20,7 @@ namespace Voltium.Interactive.RenderGraphSamples
         private OutputPass _outputPass = null!;
         private Output _output = null!;
         private bool _isPaused;
+        private PipelineSettings _settings;
 
         public override unsafe void Init(Size data, IOutputOwner output)
         {
@@ -42,6 +44,11 @@ namespace Voltium.Interactive.RenderGraphSamples
                 SyncInterval = 0
             };
 
+            _settings = new PipelineSettings
+            {
+                Msaa = MultisamplingDesc.None
+            };
+
             _output = Output.Create(_device, desc, output, implicitExecuteOnPresent: true);
 
             _renderer = new(_device, data);
@@ -62,7 +69,14 @@ namespace Voltium.Interactive.RenderGraphSamples
                 return;
             }
 
+            var settings = new PipelineSettings
+            {
+                Msaa = MultisamplingDesc.None,
+            };
+
             var graph = new RenderGraph(_device);
+
+            graph.CreateComponent(_settings);
 
             graph.AddPass(_renderer);
             graph.AddPass(_outputPass);
@@ -86,6 +100,17 @@ namespace Voltium.Interactive.RenderGraphSamples
             if (key == ConsoleKey.P)
             {
                 _isPaused = !_isPaused;
+            }
+            if (key == ConsoleKey.M)
+            {
+                if (_settings.Msaa == MultisamplingDesc.None)
+                {
+                    _settings.Msaa = MultisamplingDesc.X8;
+                }
+                else
+                {
+                    _settings.Msaa = MultisamplingDesc.None;
+                }    
             }
         }
 

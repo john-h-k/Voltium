@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
@@ -9,13 +10,15 @@ namespace Voltium.Analyzers.IEquatable
     [Generator]
     internal sealed class IEquatableGenerator : PredicatedTypeGenerator
     {
+        // BUG: does not work with nested types
         protected override void Generate(SourceGeneratorContext context, INamedTypeSymbol symbol)
         {
+
             var equalsCandidates = symbol.GetMembers(nameof(Equals))
                                         .Where(member => member is IMethodSymbol method
                                                         && SymbolEqualityComparer.Default.Equals(method.ReturnType, context.Compilation.GetSpecialType(SpecialType.System_Boolean))
                                                         && method.Parameters.Length == 1
-                                                        && SymbolEqualityComparer.Default.Equals(method.Parameters[0], symbol));
+                                                        && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, symbol));
 
             var ghcCandidates = symbol.GetMembers(nameof(GetHashCode))
                                         .Where(member => member is IMethodSymbol method

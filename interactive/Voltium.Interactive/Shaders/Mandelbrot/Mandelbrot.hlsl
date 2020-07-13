@@ -22,7 +22,14 @@ struct MandelbrotFactors
     uint ColorCount;
 };
 
+#if FXC
+cbuffer _Constants
+{
+    MandelbrotFactors Constants;
+}
+#else
 ConstantBuffer<MandelbrotFactors> Constants : register(b0);
+#endif
 
 FP lengthsquared(FP2 val)
 {
@@ -48,7 +55,7 @@ float4 main(
 
     FP2 seed = tex * scale + center;
 
-    const int iter = 256 /** 4 * 5*/;
+    const int iter = 256;
     int i;
 
     FP2 z = seed;
