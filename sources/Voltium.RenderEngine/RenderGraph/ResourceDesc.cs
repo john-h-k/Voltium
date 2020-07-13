@@ -1,7 +1,8 @@
+using Voltium.Core;
 using Voltium.Core.Memory;
 using Buffer = Voltium.Core.Memory.Buffer;
 
-namespace Voltium.Core
+namespace Voltium.RenderEngine
 {
     internal struct ResourceDesc
     {

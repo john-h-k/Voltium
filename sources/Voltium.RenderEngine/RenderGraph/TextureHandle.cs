@@ -1,8 +1,10 @@
-#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
+using Voltium.Core.Memory;
 
-
-namespace Voltium.Core
+namespace Voltium.RenderEngine
 {
+    /// <summary>
+    /// An opaque handle representing a <see cref="Texture"/>
+    /// </summary>
     public readonly struct TextureHandle
     {
         // index into the graph's list of resources

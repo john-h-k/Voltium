@@ -3,7 +3,7 @@ using Voltium.Core.Memory;
 using Voltium.RenderEngine.RenderGraph;
 using Buffer = Voltium.Core.Memory.Buffer;
 
-namespace Voltium.Core
+namespace Voltium.RenderEngine
 {
     /// <summary>
     /// The type used for resolving resources and application-defined components between render passes

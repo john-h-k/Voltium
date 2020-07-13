@@ -1,7 +1,4 @@
-#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
-
-
-namespace Voltium.Core
+namespace Voltium.RenderEngine
 {
     internal readonly struct ResourceHandle
     {

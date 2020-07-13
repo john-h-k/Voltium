@@ -44,6 +44,16 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="device">The <see cref="GraphicsDevice"/> used to create the root signature</param>
         /// <param name="rootParameters">The <see cref="RootParameter"/>s in the signature</param>
+        /// <param name="staticSampler">The <see cref="StaticSampler"/> in the signature</param>
+        /// <returns>A new <see cref="RootSignature"/></returns>
+        public static RootSignature Create(GraphicsDevice device, ReadOnlyMemory<RootParameter> rootParameters, StaticSampler staticSampler)
+            => Create(device, rootParameters, new[] { staticSampler });
+
+        /// <summary>
+        /// Creates a new <see cref="RootSignature"/>
+        /// </summary>
+        /// <param name="device">The <see cref="GraphicsDevice"/> used to create the root signature</param>
+        /// <param name="rootParameters">The <see cref="RootParameter"/>s in the signature</param>
         /// <param name="staticSamplers">The <see cref="StaticSampler"/>s in the signature</param>
         /// <returns>A new <see cref="RootSignature"/></returns>
         public static RootSignature Create(GraphicsDevice device, ReadOnlyMemory<RootParameter> rootParameters, ReadOnlyMemory<StaticSampler> staticSamplers)

@@ -84,7 +84,7 @@ namespace Voltium.Interactive
                 PixelShader = ShaderManager.CompileShader("Shaders/Mandelbrot/Mandelbrot.hlsl", ShaderType.Pixel, flags)
             };
 
-            _pso = _device.PipelineManager.CreatePso("Mandelbrot", psoDesc);
+            _pso = _device.PipelineManager.CreatePipelineStateObject("Mandelbrot", psoDesc);
 
             _constants = new MandelbrotConstants
             {

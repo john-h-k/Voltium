@@ -171,19 +171,16 @@ namespace Voltium.Interactive
                 RootParameter.CreateDescriptorTable(DescriptorRangeType.ShaderResourceView, 0, 2, 0)
             };
 
-            var samplers = new[]
-            {
-                new StaticSampler(
-                    TextureAddressMode.Clamp,
-                    SamplerFilterType.Anistropic,
-                    shaderRegister: 0,
-                    registerSpace: 0,
-                    ShaderVisibility.All,
-                    StaticSampler.OpaqueWhite
-                )
-            };
+            var sampler = new StaticSampler(
+                TextureAddressMode.Clamp,
+                SamplerFilterType.Anistropic,
+                shaderRegister: 0,
+                registerSpace: 0,
+                ShaderVisibility.All,
+                StaticSampler.OpaqueWhite
+            );
 
-            _rootSig = RootSignature.Create(_device, rootParams, samplers);
+            _rootSig = RootSignature.Create(_device, rootParams, sampler);
 
             var compilationFlags = new[]
             {
@@ -205,10 +202,10 @@ namespace Voltium.Interactive
                 Topology = TopologyClass.Triangle
             };
 
-            _pso = _device.PipelineManager.CreatePso<TexturedVertex>("Texture", psoDesc);
+            _pso = _device.PipelineManager.CreatePipelineStateObject<TexturedVertex>("Texture", psoDesc);
 
             psoDesc.Msaa = MultisamplingDesc.X8;
-            _msaaPso = _device.PipelineManager.CreatePso<TexturedVertex>("TextureMSAA", psoDesc);
+            _msaaPso = _device.PipelineManager.CreatePipelineStateObject<TexturedVertex>("TextureMSAA", psoDesc);
         }
 
         public void InitializeConstants()

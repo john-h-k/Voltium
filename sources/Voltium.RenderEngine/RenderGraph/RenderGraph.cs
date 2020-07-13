@@ -1,19 +1,17 @@
-#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
-
 using System;
 using System.Collections.Generic;
 using Microsoft.Toolkit.HighPerformance.Extensions;
-using TerraFX.Interop;
 using Voltium.Common;
+using Voltium.Core;
 using Voltium.Core.Contexts;
 using Voltium.Core.Devices;
 using Voltium.Core.Memory;
-using Voltium.RenderEngine;
-using Voltium.RenderEngine.Passes;
-using Voltium.RenderEngine.RenderGraph;
 
-namespace Voltium.Core
+namespace Voltium.RenderEngine
 {
+    /// <summary>
+    /// A graph used to schedule and execute frames
+    /// </summary>
     public unsafe sealed class RenderGraph
     {
         private GraphicsDevice _device;
@@ -31,22 +29,38 @@ namespace Voltium.Core
         private int _maxDepth = 0;
         private Resolver _resolver;
 
+        /// <summary>
+        /// Creates a new <see cref="RenderGraph"/>
+        /// </summary>
+        /// <param name="device">The <see cref="GraphicsDevice"/> used for rendering</param>
         public RenderGraph(GraphicsDevice device)
         {
             _device = device;
             _resolver = new Resolver(this);
         }
 
+        // convience methods
+
+        /// <summary>
+        /// Creates a new component and adds it to the graph
+        /// </summary>
+        /// <typeparam name="T0">The type of the component</typeparam>
+        /// <param name="component0">The value of the component</param>
         public void CreateComponent<T0>(T0 component0)
             => _resolver.CreateComponent(component0);
 
-
+        /// <summary>
+        /// Creates new components and adds them to the graph
+        /// </summary>
         public void CreateComponents<T0, T1>(T0 component0, T1 component1)
         {
             _resolver.CreateComponent(component0);
             _resolver.CreateComponent(component1);
         }
 
+        /// <summary>
+        /// Creates new components and adds them to the graph
+        /// </summary>
         public void CreateComponents<T0, T1, T2>(T0 component0, T1 component1, T2 component2)
         {
             _resolver.CreateComponent(component0);
@@ -54,6 +68,9 @@ namespace Voltium.Core
             _resolver.CreateComponent(component2);
         }
 
+        /// <summary>
+        /// Creates new components and adds them to the graph
+        /// </summary>
         public void CreateComponents<T0, T1, T2, T3>(T0 component0, T1 component1, T2 component2, T3 component3)
         {
             _resolver.CreateComponent(component0);
@@ -62,6 +79,12 @@ namespace Voltium.Core
             _resolver.CreateComponent(component3);
         }
 
+        /// <summary>
+        /// Registers a pass into the graph, and calls the <see cref="RenderPass.Register(ref RenderPassBuilder, ref Resolver)"/> 
+        /// method immediately to register all dependencies
+        /// </summary>
+        /// <typeparam name="T">The type of the pass</typeparam>
+        /// <param name="pass">The pass</param>
         public void AddPass<T>(T pass) where T : RenderPass
         {
             var passIndex = _renderPasses.Count;
@@ -100,7 +123,20 @@ namespace Voltium.Core
             _renderPasses.Add(builder);
         }
 
-        public void Schedule()
+        /// <summary>
+        /// Executes the graph
+        /// </summary>
+        public void ExecuteGraph()
+        {
+            // false during the register passes
+            _resolver.CanResolveResources = true;
+            Schedule();
+            AllocateResources();
+            BuildBarriers();
+            RecordAndExecuteLayers();
+        }
+
+        private void Schedule()
         {
             _renderLayers = new GraphLayer[_maxDepth + 1];
 
@@ -138,16 +174,6 @@ namespace Voltium.Core
 
             /// <summary> The indices in the GpuContext array that can be executed in any order </summary>
             public List<int> Passes;
-        }
-
-        public void ExecuteGraph()
-        {
-            // false during the register passes
-            _resolver.CanResolveResources = true;
-            Schedule();
-            AllocateResources();
-            BuildBarriers();
-            RecordAndExecuteLayers();
         }
 
         private void AllocateResources()

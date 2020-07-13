@@ -41,7 +41,7 @@ namespace Voltium.Core.Devices
         /// </summary>
         /// <param name="name">The name of the pipeline state</param>
         /// <param name="graphicsDesc">The descriptor for the pipeline state</param>
-        public GraphicsPipelineStateObject CreatePso<TShaderInput>(string name, GraphicsPipelineDesc graphicsDesc) where TShaderInput : unmanaged, IBindableShaderType
+        public GraphicsPipelineStateObject CreatePipelineStateObject<TShaderInput>(string name, GraphicsPipelineDesc graphicsDesc) where TShaderInput : unmanaged, IBindableShaderType
         {
             try
             {
@@ -69,7 +69,7 @@ namespace Voltium.Core.Devices
 #endif
             }
 
-            return CreatePso(name, graphicsDesc);
+            return CreatePipelineStateObject(name, graphicsDesc);
         }
 
 
@@ -79,7 +79,7 @@ namespace Voltium.Core.Devices
         /// </summary>
         /// <param name="name">The name of the pipeline state</param>
         /// <param name="graphicsDesc">The descriptor for the pipeline state</param>
-        public GraphicsPipelineStateObject CreatePso(string name, in GraphicsPipelineDesc graphicsDesc)
+        public GraphicsPipelineStateObject CreatePipelineStateObject(string name, in GraphicsPipelineDesc graphicsDesc)
         {
             TranslateGraphicsPipelineDescriptionWithoutShadersOrShaderInputLayoutElements(graphicsDesc, out D3D12_GRAPHICS_PIPELINE_STATE_DESC desc);
 
@@ -144,7 +144,7 @@ namespace Voltium.Core.Devices
         /// </summary>
         /// <param name="name">The name of the pipeline state</param>
         /// <param name="computeDesc">The descriptor for the pipeline state</param>
-        public ComputePipelineStateObject CreatePso(string name, in ComputePipelineDesc computeDesc)
+        public ComputePipelineStateObject CreatePipelineStateObject(string name, in ComputePipelineDesc computeDesc)
         {
             fixed (byte* vs = computeDesc.ComputeShader)
             {

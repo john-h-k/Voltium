@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using Voltium.Common;
 
-namespace Voltium.RenderEngine.RenderGraph
+namespace Voltium.RenderEngine
 {
     /// <summary>
     /// Represents a set of components passed between render passes by the <see cref="RenderGraph"/>

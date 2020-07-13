@@ -1,11 +1,10 @@
-#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
-
 using System.Collections.Generic;
 using Microsoft.Toolkit.HighPerformance.Extensions;
+using Voltium.Core;
 using Voltium.Core.Contexts;
 using Voltium.Core.Memory;
 
-namespace Voltium.Core
+namespace Voltium.RenderEngine
 {
     internal struct TrackedResource
     {

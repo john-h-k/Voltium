@@ -17,6 +17,7 @@ using Voltium.RenderEngine;
 using Buffer = Voltium.Core.Memory.Buffer;
 
 using static Voltium.Core.Pipeline.GraphicsPipelineDesc;
+using TerraFX.Interop;
 
 #if DOUBLE
 using FloatType = System.Double;
@@ -102,7 +103,7 @@ namespace Voltium.Interactive.RenderGraphSamples
                 PixelShader = ShaderManager.CompileShader("Shaders/Mandelbrot/Mandelbrot.hlsl", ShaderModel.Ps_5_0, flags)
             };
 
-            DefaultPipelineState = _device.PipelineManager.CreatePso("Mandelbrot", psoDesc);
+            DefaultPipelineState = _device.PipelineManager.CreatePipelineStateObject("Mandelbrot", psoDesc);
 
             _constants = new MandelbrotConstants
             {
