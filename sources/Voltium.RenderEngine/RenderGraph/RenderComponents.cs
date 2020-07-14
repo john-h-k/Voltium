@@ -31,7 +31,7 @@ namespace Voltium.RenderEngine
                 {
                     if (_single is null && _values is null)
                     {
-                        ThrowHelper.ThrowInvalidOperationException("No components present");
+                        ThrowHelper.ThrowInvalidOperationException("No component of type present");
                     }
 
                     // if the dict is alive, _single is -1

@@ -1,10 +1,13 @@
+using Voltium.Common;
+
 namespace Voltium.Core
 {
     /// <summary>
     /// A static sampler. Up to 2032 <see cref="StaticSampler"/>s can be bound to the pipeline,
     /// without the need for a descriptor heap, althought they must use a specific set of border colors
     /// </summary>
-    public readonly struct StaticSampler
+    [GenerateEquality]
+    public readonly partial struct StaticSampler
     {
         /// <summary>
         /// A transparent black color. This is a legal border color for a static sampler

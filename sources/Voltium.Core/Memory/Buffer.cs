@@ -63,6 +63,7 @@ namespace Voltium.Core.Memory
             if (!leaveMapped)
             {
                 _resource.Unmap(0);
+                _cpuAddress = null;
             }
         }
 
@@ -84,6 +85,7 @@ namespace Voltium.Core.Memory
             if (!leaveMapped)
             {
                 _resource.Unmap(0);
+                _cpuAddress = null;
             }
         }
 
@@ -103,6 +105,7 @@ namespace Voltium.Core.Memory
             if (!leaveMapped)
             {
                 _resource.Unmap(0);
+                _cpuAddress = null;
             }
         }
 
@@ -122,6 +125,7 @@ namespace Voltium.Core.Memory
             if (!leaveMapped)
             {
                 _resource.Unmap(0);
+                _cpuAddress = null;
             }
         }
 

@@ -219,6 +219,10 @@ namespace Voltium.Core
         /// </summary>
         public readonly ReadOnlyMemory<StaticSampler> StaticSamplers;
 
+        ///// <inheritdoc cref="IEquatable{T}.Equals(T)"/>
+        //public bool Equals(RootSignature? other)
+        //    => other is not null && _value == other._value && StaticSamplers.Span.SequenceEqual(other.StaticSamplers.Span) && Parameters.Span.SequenceEqual(other.Parameters.Span);
+
         // TODO root sig flags (when exposed)
 
         private RootSignature(

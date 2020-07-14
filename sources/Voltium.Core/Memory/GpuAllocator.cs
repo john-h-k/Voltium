@@ -77,7 +77,7 @@ namespace Voltium.Core.Memory
         AllowDepthStencil = D3D12_RESOURCE_FLAGS.D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL,
 
         /// <summary>
-        /// Allows the resource to be used as a render target. This is only relevant if the resource is a texture
+        /// Allows the resource to be used as a render target
         /// </summary>
         AllowRenderTarget = D3D12_RESOURCE_FLAGS.D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET,
 
@@ -266,13 +266,9 @@ namespace Voltium.Core.Memory
         private void VerifyDesc(InternalAllocDesc desc)
         {
             var flags = desc.AllocFlags;
-            if (flags.HasFlag(AllocFlags.ForceAllocateComitted))
+            if (flags.HasFlag(AllocFlags.ForceAllocateComitted) && flags.HasFlag(AllocFlags.ForceAllocateNotComitted))
             {
-                Debug.Assert(!flags.HasFlag(AllocFlags.ForceAllocateNotComitted));
-            }
-            else if (flags.HasFlag(AllocFlags.ForceAllocateNotComitted))
-            {
-                Debug.Assert(!flags.HasFlag(AllocFlags.ForceAllocateComitted));
+                ThrowHelper.ThrowArgumentException("Invalid to say 'ForceAllocateComitted' and 'ForceAllocateNotComitted'");
             }
         }
 
@@ -695,6 +691,17 @@ namespace Voltium.Core.Memory
                 ResourceFlags = ResourceFlags.AllowDepthStencil | (shaderVisible ? 0 : ResourceFlags.DenyShaderResource),
             };
         }
+
+
+        /// <summary>
+        /// Creates a new <see cref="TextureDesc"/> representing a shader resource, with no height or width, for unspecified size resources
+        /// </summary>
+        /// <param name="format">The <see cref="DataFormat"/> for the shader resource</param>
+        /// <param name="dimension">The <see cref="TextureDimension"/> of the resource
+        /// is <see cref="TextureDimension.Tex3D"/>, else, the number of textures in the array</param>
+        /// <returns>A new <see cref="TextureDesc"/> representing a shader resource</returns>
+        public static TextureDesc CreateShaderResourceDesc(DataFormat format, TextureDimension dimension)
+            => CreateShaderResourceDesc(format, dimension, 0, 0, 0);
 
         /// <summary>
         /// Creates a new <see cref="TextureDesc"/> representing a shader resource

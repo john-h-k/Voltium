@@ -20,7 +20,7 @@ namespace Voltium.RenderEngine
         /// <param name="type">The <see cref="OutputClass"/> for the output desc</param>
         /// <param name="output">The <see cref="Output"/> to build this desc from</param>
         /// <returns>A new <see cref="OutputDesc"/> representing <paramref name="output"/></returns>
-        public static OutputDesc FromOutput(OutputClass type, Output output)
+        public static OutputDesc FromBackBuffer(OutputClass type, Output output)
         {
             var back = output.BackBuffer;
             return CreateTexture(type, back.Width, back.Height, back.DepthOrArraySize);

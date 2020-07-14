@@ -338,7 +338,7 @@ namespace Voltium.TextureLoading.DDS
                         Debug.Assert(index < mipCount * arraySize);
                         data[index++] = new SubresourceData(offset, surface.RowBytes, surface.NumBytes);
                     }
-                    else if (j == 0)
+                    else if (i == 0)
                     {
                         // Count number of skipped mipmaps (first item only)
                         skipMip++;

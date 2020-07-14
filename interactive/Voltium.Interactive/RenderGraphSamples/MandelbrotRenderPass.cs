@@ -37,7 +37,7 @@ namespace Voltium.Interactive.RenderGraphSamples
         {
             var settings = resolver.GetComponent<PipelineSettings>();
 
-            PipelineResources resources;
+            PipelineResources resources = default;
 
             resources.SceneColor = builder.CreatePrimaryOutputRelativeTexture(
                 TextureDesc.CreateRenderTargetDesc(BackBufferFormat.R8G8B8A8UnsignedNormalized, Rgba128.Black, settings.Msaa),

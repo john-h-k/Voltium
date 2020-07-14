@@ -1,11 +1,13 @@
 using System;
+using Voltium.Common;
 
 namespace Voltium.Core.Devices
 {
     /// <summary>
     /// Represents a compiled shader
     /// </summary>
-    public readonly unsafe struct CompiledShader
+    [GenerateEquality]
+    public readonly unsafe partial struct CompiledShader
     {
         /// <summary>
         /// Represents a <see cref="CompiledShader"/> containing no data
@@ -35,6 +37,9 @@ namespace Voltium.Core.Devices
             ShaderData = shaderData;
             Type = type;
         }
+
+        /// <inheritdoc cref="IEquatable{T}.Equals(T)"/>
+        public bool Equals(CompiledShader other) => Type == other.Type && ShaderData.Span.SequenceEqual(other.ShaderData.Span);
 
         /// <summary>
         /// Returns a <c>readonly ref byte</c> to the start of the shader data

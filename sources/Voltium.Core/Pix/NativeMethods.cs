@@ -125,6 +125,7 @@ namespace Voltium.Common.Pix
 
         public static PIXEventsThreadInfo* PIXGetThreadInfo()
         {
+            Debug.Assert(sizeof(nuint) == 8);
             var info = _PIXGetThreadInfo();
             Debug.Assert(info != null, "uh oh");
             return info;

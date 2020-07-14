@@ -72,7 +72,8 @@ namespace Voltium.TextureLoading
             }
 
             var data = new byte[streamSize];
-            stream.Read(data);
+            var read = stream.Read(data);
+
             return CreateTexture(
                 data,
                 type,

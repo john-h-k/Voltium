@@ -12,5 +12,9 @@
     </PackageReference>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="3.7.0-1.final" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="ComType\" />
+  </ItemGroup>
   
 </Project>

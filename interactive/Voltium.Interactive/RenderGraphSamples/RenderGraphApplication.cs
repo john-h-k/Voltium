@@ -8,6 +8,7 @@ using TerraFX.Interop;
 using Voltium.Core;
 using Voltium.Core.Configuration.Graphics;
 using Voltium.Core.Devices;
+using Voltium.RenderEngine;
 
 namespace Voltium.Interactive.RenderGraphSamples
 {
@@ -17,7 +18,7 @@ namespace Voltium.Interactive.RenderGraphSamples
 
         private GraphicsDevice _device = null!;
         private MandelbrotRenderPass _renderer = null!;
-        private OutputPass _outputPass = null!;
+        private TonemapPass _outputPass = null!;
         private Output _output = null!;
         private bool _isPaused;
         private PipelineSettings _settings;
@@ -68,11 +69,6 @@ namespace Voltium.Interactive.RenderGraphSamples
             {
                 return;
             }
-
-            var settings = new PipelineSettings
-            {
-                Msaa = MultisamplingDesc.None,
-            };
 
             var graph = new RenderGraph(_device);
 

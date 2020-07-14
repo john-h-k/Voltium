@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Common.Strings;
@@ -20,6 +21,15 @@ namespace Voltium.Core.Devices
         private ComPtr<ID3D12PipelineLibrary> _psoLibrary;
         private Dictionary<ComPtr<ID3D12PipelineState>, PipelineStateObject> _psoMap = new();
 
+        [MemberNotNullWhen(true, nameof(_legacyGraphicsMap))]
+        [MemberNotNullWhen(true, nameof(_legacyComputeMap))]
+#pragma warning disable CS8775 // Member must have a non-null value when exiting in some condition.
+        private bool IsLegacy { get; set; }
+#pragma warning restore CS8775 // Member must have a non-null value when exiting in some condition.
+
+        private Dictionary<(string Name, GraphicsPipelineDesc Desc), GraphicsPipelineStateObject>? _legacyGraphicsMap;
+        private Dictionary<(string Name, ComputePipelineDesc Desc), ComputePipelineStateObject>? _legacyComputeMap;
+
         /// <summary>
         /// Creates a new <see cref="PipelineManager"/> for a device
         /// </summary>
@@ -29,7 +39,9 @@ namespace Voltium.Core.Devices
             _device = device;
             if (device.DeviceLevel < ComputeDevice.SupportedDevice.Device1)
             {
-                ThrowHelper.ThrowPlatformNotSupportedException("ID3D12Device1 is currently required for a pipeline manager");
+                IsLegacy = true;
+                _legacyGraphicsMap = new();
+                _legacyComputeMap = new();
             }
 
             Reset();
@@ -112,12 +124,21 @@ namespace Voltium.Core.Devices
 
                 DebugHelpers.SetName(pso.Get(), $"Graphics pipeline state object '{name}'");
 
+
                 var pipeline = new GraphicsPipelineStateObject(pso.Move(), graphicsDesc);
                 _psoMap[pso] = pipeline;
 
-                fixed (char* pName = name)
+
+                if (IsLegacy)
                 {
-                    _psoLibrary.Get()->StorePipeline((ushort*)pName, pipeline.GetPso());
+                    _legacyGraphicsMap[(name, graphicsDesc)] = pipeline;
+                }
+                else
+                {
+                    fixed (char* pName = name)
+                    {
+                        _psoLibrary.Get()->StorePipeline((ushort*)pName, pipeline.GetPso());
+                    }
                 }
 
                 return pipeline;
@@ -132,10 +153,24 @@ namespace Voltium.Core.Devices
             _psoLibrary.Dispose();
 
             // TODO pipeline library caching
-            using ComPtr<ID3D12PipelineLibrary> psoLibrary = default;
-            Guard.ThrowIfFailed(_device.DevicePointerAs<ID3D12Device1>()->CreatePipelineLibrary(null, 0, psoLibrary.Iid, ComPtr.GetVoidAddressOf(&psoLibrary)));
+            if (!IsLegacy)
+            {
+                using ComPtr<ID3D12PipelineLibrary> psoLibrary = default;
+                int hr = _device.DevicePointerAs<ID3D12Device1>()->CreatePipelineLibrary(null, 0, psoLibrary.Iid, ComPtr.GetVoidAddressOf(&psoLibrary));
+                _psoLibrary = psoLibrary.Move();
 
-            _psoLibrary = psoLibrary.Move();
+                if (hr == Windows.DXGI_ERROR_UNSUPPORTED)
+                {
+                    IsLegacy = true;
+                    _legacyComputeMap = new();
+                    _legacyGraphicsMap = new();
+                }
+            }
+            else
+            {
+                _legacyComputeMap.Clear();
+                _legacyGraphicsMap.Clear();
+            }
         }
 
         /// <summary>
@@ -166,9 +201,16 @@ namespace Voltium.Core.Devices
                 var pipeline = new ComputePipelineStateObject(pso.Move(), computeDesc);
                 _psoMap[pso] = pipeline;
 
-                fixed (char* pName = name)
+                if (IsLegacy)
                 {
-                    _psoLibrary.Get()->StorePipeline((ushort*)pName, pipeline.GetPso());
+                    _legacyComputeMap[(name, computeDesc)] = pipeline;
+                }
+                else
+                {
+                    fixed (char* pName = name)
+                    {
+                        _psoLibrary.Get()->StorePipeline((ushort*)pName, pipeline.GetPso());
+                    }
                 }
 
                 return pipeline;
@@ -183,6 +225,11 @@ namespace Voltium.Core.Devices
         /// <returns>The PSO stored with the name</returns>
         public GraphicsPipelineStateObject RetrievePso(string name, in GraphicsPipelineDesc graphicsDesc)
         {
+            if (IsLegacy)
+            {
+                return _legacyGraphicsMap[(name, graphicsDesc)];
+            }
+
             TranslateGraphicsPipelineDescriptionWithoutShadersOrShaderInputLayoutElements(graphicsDesc, out D3D12_GRAPHICS_PIPELINE_STATE_DESC desc);
 
             // TODO use pinned pool
@@ -225,6 +272,11 @@ namespace Voltium.Core.Devices
         /// <returns>The PSO stored with the name</returns>
         public ComputePipelineStateObject RetrievePso(string name, in ComputePipelineDesc computeDesc)
         {
+            if (IsLegacy)
+            {
+                return _legacyComputeMap[(name, computeDesc)];
+            }
+
             fixed (byte* vs = computeDesc.ComputeShader)
             {
                 D3D12_COMPUTE_PIPELINE_STATE_DESC desc = new()

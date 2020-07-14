@@ -10,6 +10,7 @@ namespace Voltium.RenderEngine
             Index = index;
         }
 
+        internal bool IsInvalid => Index == 0;
         internal BufferHandle AsBufferHandle() => new BufferHandle(Index);
         internal TextureHandle AsTextureHandle() => new TextureHandle(Index);
     }

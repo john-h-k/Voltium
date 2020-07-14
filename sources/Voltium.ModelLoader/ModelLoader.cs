@@ -20,7 +20,7 @@ namespace Voltium.ModelLoading
         {
             Position = position;
             Normal = normal;
-            Tangent = tangent;
+            //Tangent = tangent;
             TexC = texC;
         }
 
@@ -33,13 +33,13 @@ namespace Voltium.ModelLoading
         {
             Position = new(vertexX, vertexY, vertexZ);
             Normal = new(normalX, normalY, normalZ);
-            Tangent = new(tangentX, tangentY, tangentZ);
+            //Tangent = new(tangentX, tangentY, tangentZ);
             TexC = new(texU, texV);
         }
 
         public Vector3 Position;
         public Vector3 Normal;
-        public Vector3 Tangent;
+        //public Vector3 Tangent;
 
         [InputLayout(Name = "TexCoord")]
         public Vector2 TexC;
@@ -179,7 +179,7 @@ namespace Voltium.ModelLoading
                         var vertices = new TexturedVertex[positions?.Count ?? 0];
                         for (var i = 0; i < vertices.Length; i++)
                         {
-                            var tangent = tangents![i];
+                            Vector4 tangent = default; // tangents![i];
                             vertices![i] = new TexturedVertex(positions![i], normals![i], Unsafe.As<Vector4, Vector3>(ref tangent), texCoords![i]);
                         }
 

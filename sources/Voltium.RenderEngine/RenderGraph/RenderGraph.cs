@@ -161,10 +161,18 @@ namespace Voltium.RenderEngine
             };
 
             _resources.Add(resource);
-            return new ResourceHandle((uint)_resources.Count - 1);
+            return new ResourceHandle((uint)_resources.Count);
         }
 
-        internal ref TrackedResource GetResource(ResourceHandle handle) => ref ListExtensions.GetRef(_resources, (int)handle.Index);
+        internal ref TrackedResource GetResource(ResourceHandle handle)
+        {
+            if (handle.IsInvalid)
+            {
+                ThrowHelper.ThrowInvalidOperationException("Resource was not created");
+            }
+            return ref ListExtensions.GetRef(_resources, (int)handle.Index - 1);
+        }
+
         internal ref RenderPassBuilder GetRenderPass(int index) => ref ListExtensions.GetRef(_renderPasses, index);
 
         private struct GraphLayer
@@ -209,6 +217,10 @@ namespace Voltium.RenderEngine
                                 resource.Desc.TextureDesc.Width = (ulong)(primary.TextureWidth * relative);
                                 break;
                         }
+
+                        // make sure no 0 height/depth
+                        resource.Desc.TextureDesc.DepthOrArraySize = Math.Max((ushort)1U, resource.Desc.TextureDesc.DepthOrArraySize);
+                        resource.Desc.TextureDesc.Height = Math.Max(1U, resource.Desc.TextureDesc.Height);
                     }
                 }
                 resource.Allocate(_device.Allocator);
@@ -223,7 +235,7 @@ namespace Voltium.RenderEngine
                 {
                     ref var pass = ref GetRenderPass(passIndex);
 
-                    foreach (ref var transition in pass.Transitions.AsSpan())
+                    foreach   (ref var transition in pass.Transitions.AsSpan())
                     {
                         ref var resource = ref GetResource(transition.Resource);
 
@@ -260,7 +272,7 @@ namespace Voltium.RenderEngine
                     if (pass is ComputeRenderPass compute)
                     {
                         using var ctx = _device.BeginComputeContext(compute.DefaultPipelineState);
-
+                        
                         compute.Record(ref ctx.AsMutable(), ref _resolver);
                     }
                     else /* must be true */ if (pass is GraphicsRenderPass graphics)

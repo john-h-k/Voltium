@@ -248,7 +248,7 @@ namespace Voltium.Core.Devices
         /// <summary>
         /// Write debug information to the given file, or automatically named file in directory
         /// </summary>
-        public static ShaderCompileFlag WriteDebugInformationToFile(string file = "/") => new ShaderCompileFlag($"-Fd {file}");
+        public static ShaderCompileFlag WriteDebugInformationToFile(string file = "./") => new ShaderCompileFlag($"-Fd {file}");
         /// <summary>
         /// Output warnings and errors to the given file
         /// </summary>
