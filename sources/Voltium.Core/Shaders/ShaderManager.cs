@@ -73,10 +73,10 @@ namespace Voltium.Core.Devices
             ComPtr<IDxcCompiler3> compiler = default;
             ComPtr<IDxcUtils> utils = default;
 
-            Guid clsid = Windows.CLSID_DxcCompiler;
-            Guard.ThrowIfFailed(Windows.DxcCreateInstance(&clsid, compiler.Iid, ComPtr.GetVoidAddressOf(&compiler)));
-            clsid = Windows.CLSID_DxcUtils;
-            Guard.ThrowIfFailed(Windows.DxcCreateInstance(&clsid, utils.Iid, ComPtr.GetVoidAddressOf(&utils)));
+            Guid clsid = CLSID_DxcCompiler;
+            Guard.ThrowIfFailed(DxcCreateInstance(&clsid, compiler.Iid, ComPtr.GetVoidAddressOf(&compiler)));
+            clsid = CLSID_DxcUtils;
+            Guard.ThrowIfFailed(DxcCreateInstance(&clsid, utils.Iid, ComPtr.GetVoidAddressOf(&utils)));
 
             Compiler = compiler.Move();
             Utils = utils.Move();
@@ -238,6 +238,9 @@ namespace Voltium.Core.Devices
             {
                 ThrowHelper.ThrowArgumentException("Shader libraries cannot have an entrypoint");
             }
+
+            DefaultDxcIncludeHandler.ShaderDirectory = shaderDir;
+            DefaultFxcIncludeHandler.ShaderDirectory = shaderDir;
 
             if (!target.IsDxil)
             {
@@ -409,8 +412,6 @@ namespace Voltium.Core.Devices
                 text.Size = (nuint)(shaderText.Length * sizeof(char));
                 text.Encoding = DXC_CP_UTF16;
 
-                DefaultDxcIncludeHandler.ShaderDirectory = shaderDir;
-
                 using ComPtr<IDxcResult> compileResult = default;
                 Guard.ThrowIfFailed(Compiler.Get()->Compile(
                     &text,
@@ -504,6 +505,8 @@ namespace Voltium.Core.Devices
             fixed (D3D_SHADER_MACRO* pDefines = macros)
             fixed (ID3DInclude* pInclude = DefaultFxcIncludeHandler)
             {
+                pInclude->Open(default, default, default, default, default);
+
                 int hr = D3DCompile2(
                     pSrcData,
                     (uint)shaderText.Length,

@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Runtime.CompilerServices;
@@ -34,7 +35,7 @@ namespace Voltium.Core.Devices
 
         static FxcIncludeHandler()
         {
-            Vtbl = (void**)Helpers.Alloc((uint)sizeof(nuint) * 4);
+            Vtbl = (void**)Helpers.Alloc((uint)sizeof(nuint) * 5);
 
             // these should be stdcall in the future
 
@@ -48,14 +49,15 @@ namespace Voltium.Core.Devices
             Vtbl[0] = (delegate*<ID3DInclude*, Guid*, void**, int>)&_QueryInterface;
             Vtbl[1] = (delegate*<ID3DInclude*, uint>)&_AddRef;
             Vtbl[2] = (delegate*<ID3DInclude*, uint>)&_Release;
-            Vtbl[3] = (delegate*<ID3DInclude*, void*, int>)&_Close;
-            Vtbl[4] = (delegate*<ID3DInclude*, D3D_INCLUDE_TYPE, sbyte*, void*, void**, uint*, int>)&_Open;
+            Vtbl[3] = (delegate*<ID3DInclude*, D3D_INCLUDE_TYPE, sbyte*, void*, void**, uint*, int>)&_Open;
+            Vtbl[4] = (delegate*<ID3DInclude*, void*, int>)&_Close;
         }
 
         public void Init()
         {
             _pVtbl = Vtbl;
 
+            Debug.Assert(_pVtbl[3] == (delegate*<ID3DInclude*, D3D_INCLUDE_TYPE, sbyte*, void*, void**, uint*, int>)&_Open);
             AppDirectory = Directory.GetCurrentDirectory();
         }
 
