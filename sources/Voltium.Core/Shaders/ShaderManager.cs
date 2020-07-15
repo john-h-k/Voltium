@@ -498,8 +498,8 @@ namespace Voltium.Core.Devices
 
             var fxcFlags = GetFxcFlags(flags, out var macros);
 
-            ID3DBlob* pCode;
-            ID3DBlob* pError;
+            using ComPtr<ID3DBlob> pCode = default;
+            using ComPtr<ID3DBlob> pError = default;
 
             fixed (byte* pSrcData = strBuff.Value)
             fixed (D3D_SHADER_MACRO* pDefines = macros)
@@ -518,8 +518,8 @@ namespace Voltium.Core.Devices
                     SecondaryDataFlags: 0,
                     pSecondaryData: null,
                     SecondaryDataSize: 0,
-                    &pCode,
-                    &pError
+                    ComPtr.GetAddressOf(&pCode),
+                    ComPtr.GetAddressOf(&pError)
                 );
 
                 if (FAILED(hr))
@@ -527,17 +527,12 @@ namespace Voltium.Core.Devices
                     var data = new ShaderCompilationData
                     {
                         Filename = name,
-                        Errors = AsString(pError)
+                        Errors = AsString(pError.Get())
                     };
                     throw new ShaderCompilationException(data);
                 }
 
-                if (pError != null)
-                {
-                    _ = pError->Release();
-                }
-
-                var shaderBytes = new ReadOnlySpan<byte>(pCode->GetBufferPointer(), (int)pCode->GetBufferSize());
+                var shaderBytes = new ReadOnlySpan<byte>(pCode.Get()->GetBufferPointer(), (int)pCode.Get()->GetBufferSize());
 
                 return new CompiledShader(shaderBytes.ToArray(), target.Type);
             }

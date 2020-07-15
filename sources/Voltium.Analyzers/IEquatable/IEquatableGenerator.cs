@@ -52,7 +52,7 @@ namespace Voltium.Analyzers.IEquatable
         {
             var comparisons = new List<string>();
 
-            foreach (var field in symbol.GetMembers().Where(member => member.Kind == SymbolKind.Field && !member.IsStatic).Select(field => (IFieldSymbol)field))
+            foreach (var field in symbol.GetMembers().OfType<IFieldSymbol>().Where(field => !field.IsStatic && field.CanBeReferencedByName))
             {
                 comparisons.Add(field.Name);
             }
@@ -116,7 +116,7 @@ namespace Voltium.Analyzers.IEquatable
         public override int GetHashCode() => {0};";
 
         private const string EquatableTemplate = @"/// <inheritdoc />
-        public override bool Equals(object? obj) => obj is Rgba128 other && Equals(other);
+        public override bool Equals(object? obj) => obj is {0} other && Equals(other);
 
         /// <summary>
         /// Compares if two <see cref=""{0}""/> objects are equal

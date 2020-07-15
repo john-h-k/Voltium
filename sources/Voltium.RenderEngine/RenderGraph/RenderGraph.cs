@@ -1,5 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Reflection;
 using Microsoft.Toolkit.HighPerformance.Extensions;
 using Voltium.Common;
 using Voltium.Core;
@@ -142,11 +145,16 @@ namespace Voltium.RenderEngine
             DeallocateResources();
         }
 
+        private static Dictionary<TextureDesc, Texture> _cachedTextures = new();
+
         private void DeallocateResources()
         {
             foreach (ref var resource in _resources.AsSpan())
             {
-                resource.Dispose();
+                if (resource.Desc.Type == ResourceType.Texture)
+                {
+                    _cachedTextures[resource.Desc.TextureDesc] = resource.Desc.Texture;
+                }
             }
         }
 
@@ -244,8 +252,7 @@ namespace Voltium.RenderEngine
                     }
                 }
 
-                if (!(resource.Desc.Type == ResourceType.Buffer && _buffers.TryGetValue(resource.Desc.BufferDesc, out resource.Desc.Buffer))
-                    && !(resource.Desc.Type == ResourceType.Texture && _textures.TryGetValue(resource.Desc.TextureDesc, out resource.Desc.Texture)))
+                if (!(resource.Desc.Type == ResourceType.Texture && _cachedTextures.TryGetValue(resource.Desc.TextureDesc, out resource.Desc.Texture)))
                 {
                     resource.AllocateFrom(_device.Allocator);
 
