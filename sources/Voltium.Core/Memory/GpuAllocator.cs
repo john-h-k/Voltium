@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Text.Json.Serialization;
 using System.Runtime.CompilerServices;
 using TerraFX.Interop;
 using Voltium.Common;
@@ -9,6 +10,7 @@ using Voltium.Core.Devices;
 using Voltium.Core.Memory;
 using Buffer = Voltium.Core.Memory.Buffer;
 using Rectangle = System.Drawing.Rectangle;
+using SixLabors.ImageSharp.PixelFormats;
 
 namespace Voltium.Core.Memory
 {
@@ -33,17 +35,17 @@ namespace Voltium.Core.Memory
         /// <summary>
         /// If used with a render target, the <see cref="Rgba128"/> to optimise clearing for
         /// </summary>
-        public Rgba128 Color;
+        public Rgba128 Color { get; set; }
 
         /// <summary>
         /// If used with a depth target, the <see cref="float"/> to optimise clearing depth for
         /// </summary>
-        public float Depth;
+        public float Depth { get; set; }
 
         /// <summary>
         /// If used with a depth target, the <see cref="byte"/> to optimise clearing stencil for
         /// </summary>
-        public byte Stencil;
+        public byte Stencil { get; set; }
 
         /// <summary>
         /// Creates a new <see cref="TextureClearValue"/> for a render target
@@ -107,7 +109,7 @@ namespace Voltium.Core.Memory
         /// Creates a new allocator
         /// </summary>
         /// <param name="device">The <see cref="ID3D12Device"/> to allocate on</param>
-        public GpuAllocator(GraphicsDevice device)
+        internal GpuAllocator(GraphicsDevice device)
         {
             Debug.Assert(device is not null);
             _device = device;
@@ -167,6 +169,8 @@ namespace Voltium.Core.Memory
                 Dimension = D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_BUFFER,
                 Flags = (D3D12_RESOURCE_FLAGS)resourceFlags,
                 MipLevels = 1,
+
+                // required values for a buffer
                 SampleDesc = new DXGI_SAMPLE_DESC(1, 0),
                 Layout = D3D12_TEXTURE_LAYOUT.D3D12_TEXTURE_LAYOUT_ROW_MAJOR
             };
@@ -212,7 +216,7 @@ namespace Voltium.Core.Memory
                 MipLevels = desc.MipCount,
                 Format = (DXGI_FORMAT)desc.Format,
                 Flags = (D3D12_RESOURCE_FLAGS)desc.ResourceFlags,
-                SampleDesc = sample // TODO: MSAA
+                SampleDesc = sample
             };
 
             D3D12_CLEAR_VALUE clearVal = new D3D12_CLEAR_VALUE { Format = resDesc.Format };
@@ -751,48 +755,48 @@ namespace Voltium.Core.Memory
         /// <summary>
         /// The format of the texture
         /// </summary>
-        public DataFormat Format;
+        public DataFormat Format { get; set; }
 
         /// <summary>
         /// The number of dimensions in the texture
         /// </summary>
-        public TextureDimension Dimension;
+        public TextureDimension Dimension { get; set; }
 
         /// <summary>
         /// The number of mips this resource will contain
         /// </summary>
-        public ushort MipCount;
+        public ushort MipCount { get; set; }
 
         /// <summary>
         /// The width, in bytes, of the texture
         /// </summary>
-        public ulong Width;
+        public ulong Width { get; set; }
 
         /// <summary>
         /// The height, in bytes, of the texture
         /// </summary>
-        public uint Height;
+        public uint Height { get; set; }
 
         /// <summary>
         /// The depth, if <see cref="Dimension"/> is <see cref="TextureDimension.Tex3D"/>, else the number of elements in this texture array
         /// </summary>
-        public ushort DepthOrArraySize;
+        public ushort DepthOrArraySize { get; set; }
 
         /// <summary>
         /// If this texture is a render target or depth stencil, the value for which it is optimised to call <see cref="GraphicsContext.ClearRenderTarget(DescriptorHandle, Rgba128, Rectangle)"/>
         /// or <see cref="GraphicsContext.ClearDepthStencil(DescriptorHandle, float, byte, ReadOnlySpan{Rectangle})"/> for
         /// </summary>
-        public TextureClearValue? ClearValue;
+        public TextureClearValue? ClearValue { get; set; }
 
         /// <summary>
         /// Any addition resource flags
         /// </summary>
-        public ResourceFlags ResourceFlags;
+        public ResourceFlags ResourceFlags { get; set; }
 
         /// <summary>
         /// Optionally, the <see cref="MultisamplingDesc"/> describing multi-sampling for this texture.
         /// This is only meaningful when used with a render target or depth stencil
         /// </summary>
-        public MultisamplingDesc Msaa;
+        public MultisamplingDesc Msaa { get; set; }
     }
 }

@@ -180,10 +180,6 @@ namespace Voltium.Core.Devices
         public MultisamplingDesc HighestSupportedMsaa()
         {
             MultisamplingDesc best;
-            if (IsSampleCountSupported(32, out best))
-            {
-                return best;
-            }
             if (IsSampleCountSupported(16, out best))
             {
                 return best;

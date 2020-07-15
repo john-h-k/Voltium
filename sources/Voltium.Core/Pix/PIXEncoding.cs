@@ -88,8 +88,8 @@ namespace Voltium.Common.Pix
         private static bool IsStringType<T>()
         {
             return typeof(T) == typeof(string)
-                   || typeof(T) == typeof(ReadOnlySpan<char>)
-                   || typeof(T) == typeof(Span<char>)
+                   || typeof(T) == typeof(ReadOnlySpan<char>) /* not yet a thing */
+                   || typeof(T) == typeof(Span<char>) /* not yet a thing */
                    || typeof(T) == typeof(ReadOnlyMemory<char>)
                    || typeof(T) == typeof(Memory<char>);
         }

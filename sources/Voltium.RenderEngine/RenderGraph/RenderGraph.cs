@@ -6,6 +6,7 @@ using Voltium.Core;
 using Voltium.Core.Contexts;
 using Voltium.Core.Devices;
 using Voltium.Core.Memory;
+using Buffer = Voltium.Core.Memory.Buffer;
 
 namespace Voltium.RenderEngine
 {
@@ -37,6 +38,8 @@ namespace Voltium.RenderEngine
         {
             _device = device;
             _resolver = new Resolver(this);
+
+            _index++;
         }
 
         // convience methods
@@ -134,6 +137,17 @@ namespace Voltium.RenderEngine
             AllocateResources();
             BuildBarriers();
             RecordAndExecuteLayers();
+
+            // TODO make better
+            DeallocateResources();
+        }
+
+        private void DeallocateResources()
+        {
+            foreach (ref var resource in _resources.AsSpan())
+            {
+                resource.Dispose();
+            }
         }
 
         private void Schedule()
@@ -184,6 +198,12 @@ namespace Voltium.RenderEngine
             public List<int> Passes;
         }
 
+        private static Dictionary<BufferDesc, Buffer> _buffers = new();
+        private static Dictionary<TextureDesc, Texture> _textures = new();
+
+
+        private static int _index = 0;
+
         private void AllocateResources()
         {
             foreach (ref var resource in _resources.AsSpan())
@@ -223,7 +243,14 @@ namespace Voltium.RenderEngine
                         resource.Desc.TextureDesc.Height = Math.Max(1U, resource.Desc.TextureDesc.Height);
                     }
                 }
-                resource.Allocate(_device.Allocator);
+
+                if (!(resource.Desc.Type == ResourceType.Buffer && _buffers.TryGetValue(resource.Desc.BufferDesc, out resource.Desc.Buffer))
+                    && !(resource.Desc.Type == ResourceType.Texture && _textures.TryGetValue(resource.Desc.TextureDesc, out resource.Desc.Texture)))
+                {
+                    resource.AllocateFrom(_device.Allocator);
+
+                    // TODO this isn't properly synced, need to only add them after they have finished being used
+                }
             }
         }
 

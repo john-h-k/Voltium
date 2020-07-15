@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Microsoft.Toolkit.HighPerformance.Extensions;
 using Voltium.Core;
@@ -6,7 +7,7 @@ using Voltium.Core.Memory;
 
 namespace Voltium.RenderEngine
 {
-    internal struct TrackedResource
+    internal struct TrackedResource : IDisposable
     {
         public const int NoWritePass = -1;
 
@@ -17,6 +18,7 @@ namespace Voltium.RenderEngine
 
         public int LastWritePassIndex;
         public List<int> LastReadPassIndices;
+
 
         public ResourceState CurrentTrackedState;
 
@@ -48,7 +50,7 @@ namespace Voltium.RenderEngine
             }
         }
 
-        public void Allocate(GpuAllocator allocator)
+        public void AllocateFrom(GpuAllocator allocator)
         {
             if (Desc.Type == ResourceType.Buffer)
             {
@@ -57,6 +59,18 @@ namespace Voltium.RenderEngine
             else
             {
                 Desc.Texture = allocator.AllocateTexture(Desc.TextureDesc, Desc.InitialState);
+            }
+        }
+
+        public void Dispose()
+        {
+            if (Desc.Type == ResourceType.Buffer)
+            {
+                Desc.Buffer.Dispose();
+            }
+            else
+            {
+                Desc.Texture.Dispose();
             }
         }
 

@@ -187,8 +187,8 @@ namespace Voltium.Interactive.BasicRenderPipeline
                 //ShaderCompileFlag.DefineMacro("NORMALS")
             };
 
-            var vertexShader = ShaderManager.CompileShader("Shaders/SimpleTexture/TextureVertexShader.hlsl", ShaderModel.Vs_5_0, compilationFlags);
-            var pixelShader = ShaderManager.CompileShader("Shaders/SimpleTexture/TexturePixelShader.hlsl", ShaderModel.Ps_5_0, compilationFlags);
+            var vertexShader = ShaderManager.CompileShader("Shaders/SimpleTexture/TextureVertexShader.hlsl", ShaderModel.Vs_6_0, compilationFlags);
+            var pixelShader = ShaderManager.CompileShader("Shaders/SimpleTexture/TexturePixelShader.hlsl", ShaderModel.Ps_6_0, compilationFlags);
 
             var psoDesc = new GraphicsPipelineDesc
             {
@@ -248,7 +248,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
         }
 
 
-        public void Update()
+        public void WriteConstantBuffers()
         {
             for (var i = 0U; i < _objectConstants.Length; i++)
             {
@@ -259,11 +259,9 @@ namespace Voltium.Interactive.BasicRenderPipeline
             _light.WriteConstantBufferData(ref _sceneLight, 0);
         }
 
-        private Rgba128 _background = Rgba128.CornflowerBlue;
-        private bool _red = false;
         public override void Record(ref GraphicsContext recorder, ref Resolver resolver)
         {
-            Update();
+            WriteConstantBuffers();
 
             using var _ = recorder.BeginScopedEvent(Argb32.Red, "BasicSceneRenderer");
 
@@ -278,18 +276,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
 
             recorder.SetViewportAndScissor(settings.Resolution);
 
-            recorder.SetAndClearRenderTarget(rtv, _background, dsv);
-
-            if (_red)
-            {
-                _background = Rgba128.CornflowerBlue;
-            }
-            else
-            {
-                _background = Rgba128.Red;
-            }
-
-            _red = !_red;
+            recorder.SetAndClearRenderTarget(rtv, Rgba128.CornflowerBlue, dsv);
 
             recorder.SetConstantBuffer(1, _frame);
             recorder.SetConstantBuffer(2, _light);
