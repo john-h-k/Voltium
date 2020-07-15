@@ -505,13 +505,11 @@ namespace Voltium.Core.Devices
             fixed (D3D_SHADER_MACRO* pDefines = macros)
             fixed (ID3DInclude* pInclude = DefaultFxcIncludeHandler)
             {
-                pInclude->Open(default, default, default, default, default);
-
                 int hr = D3DCompile2(
                     pSrcData,
                     (uint)shaderText.Length,
                     (sbyte*)(pSrcData + nameOffset),
-                    macros.Length == 0 ? null : pDefines,
+                    pDefines,
                     pInclude,
                     (sbyte*)(pSrcData + entrypointOffset),
                     (sbyte*)(pSrcData + targetOffset),
@@ -592,12 +590,6 @@ namespace Voltium.Core.Devices
                         flag
                     );
                 }
-            }
-
-            if (numMacros == 0)
-            {
-                macros = default;
-                return fxc;
             }
 
             // we need a dummy macro at the end to signify no-more macros

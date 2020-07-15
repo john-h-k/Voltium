@@ -35,43 +35,24 @@ namespace Voltium.Core.Devices
 
         static FxcIncludeHandler()
         {
-            Vtbl = (void**)Helpers.Alloc((uint)sizeof(nuint) * 5);
+            Vtbl = (void**)Helpers.Alloc((uint)sizeof(nuint) * 2);
 
             // these should be stdcall in the future
 
             // Native vtable layout
-            // - QueryInterface
-            // - AddRef
-            // - Release
             // - Close
             // - Open
 
-            Vtbl[0] = (delegate*<ID3DInclude*, Guid*, void**, int>)&_QueryInterface;
-            Vtbl[1] = (delegate*<ID3DInclude*, uint>)&_AddRef;
-            Vtbl[2] = (delegate*<ID3DInclude*, uint>)&_Release;
-            Vtbl[3] = (delegate*<ID3DInclude*, D3D_INCLUDE_TYPE, sbyte*, void*, void**, uint*, int>)&_Open;
-            Vtbl[4] = (delegate*<ID3DInclude*, void*, int>)&_Close;
+            Vtbl[0] = (delegate*<ID3DInclude*, D3D_INCLUDE_TYPE, sbyte*, void*, void**, uint*, int>)&_Open;
+            Vtbl[1] = (delegate*<ID3DInclude*, void*, int>)&_Close;
         }
 
         public void Init()
         {
             _pVtbl = Vtbl;
 
-            Debug.Assert(_pVtbl[3] == (delegate*<ID3DInclude*, D3D_INCLUDE_TYPE, sbyte*, void*, void**, uint*, int>)&_Open);
             AppDirectory = Directory.GetCurrentDirectory();
         }
-
-        [UnmanagedCallersOnly]
-        private static int _QueryInterface(ID3DInclude* pThis, Guid* riid, void** ppvObject)
-            => AsThis(pThis).QueryInterface(riid, ppvObject);
-
-        [UnmanagedCallersOnly]
-        private static uint _AddRef(ID3DInclude* pThis)
-            => AsThis(pThis).AddRef();
-
-        [UnmanagedCallersOnly]
-        public static uint _Release(ID3DInclude* pThis)
-            => AsThis(pThis).Release();
 
         [UnmanagedCallersOnly]
         private static int _Close(ID3DInclude* pThis, void* data)
@@ -118,21 +99,6 @@ namespace Voltium.Core.Devices
             }
 
             return hr;
-        }
-
-        public uint AddRef()
-        {
-            return default;
-        }
-
-        public int QueryInterface(Guid* riid, void** ppvObject)
-        {
-            return E_NOINTERFACE;
-        }
-
-        public uint Release()
-        {
-            return default;
         }
 
         public void Dispose()
@@ -263,6 +229,7 @@ namespace Voltium.Core.Devices
         public string ShaderDirectory { get; set; }
         public string AppDirectory { get; set; }
 
+        private string? _lastDirectory;
         
         public int LoadSource(string filename, out string text)
         {
@@ -330,11 +297,17 @@ namespace Voltium.Core.Devices
             {
                 file = new FileInfo(appLocalPath);
             }
+            else if (_lastDirectory is not null && Path.Combine(_lastDirectory, filename) is var lastPath && File.Exists(lastPath))
+            {
+                file = new FileInfo(lastPath);
+            }
             else
             {
                 file = default;
                 return false;
             }
+
+            _lastDirectory = file.DirectoryName;
 
             return true;
         }

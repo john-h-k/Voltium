@@ -8,7 +8,7 @@ struct Lights
     DirectionalLight Lights[SCENE_LIGHTS];
 };
 
-ConstantBuffer(Lights, SceneLight) : register(b2);
+ConstantBuffer(Lights, SceneLight, b2);
 Texture2D Texture : register(t0);
 #ifdef NORMALS
 Texture2D Normals : register(t1);

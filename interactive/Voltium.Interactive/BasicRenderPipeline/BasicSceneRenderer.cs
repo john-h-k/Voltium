@@ -187,8 +187,8 @@ namespace Voltium.Interactive.BasicRenderPipeline
                 //ShaderCompileFlag.DefineMacro("NORMALS")
             };
 
-            var vertexShader = ShaderManager.CompileShader("Shaders/SimpleTexture/TextureVertexShader.hlsl", ShaderModel.Vs_6_0, compilationFlags);
-            var pixelShader = ShaderManager.CompileShader("Shaders/SimpleTexture/TexturePixelShader.hlsl", ShaderModel.Ps_6_0, compilationFlags);
+            var vertexShader = ShaderManager.CompileShader("Shaders/SimpleTexture/TextureVertexShader.hlsl", ShaderModel.Vs_5_0, compilationFlags);
+            var pixelShader = ShaderManager.CompileShader("Shaders/SimpleTexture/TexturePixelShader.hlsl", ShaderModel.Ps_5_0, compilationFlags);
 
             var psoDesc = new GraphicsPipelineDesc
             {
