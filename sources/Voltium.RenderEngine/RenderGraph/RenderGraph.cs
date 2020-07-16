@@ -43,8 +43,6 @@ namespace Voltium.RenderEngine
         {
             _device = device;
             _resolver = new Resolver(this);
-
-            _index++;
         }
 
         // convience methods
@@ -212,12 +210,6 @@ namespace Voltium.RenderEngine
             public List<int> Passes;
         }
 
-        private static Dictionary<BufferDesc, Buffer> _buffers = new();
-        private static Dictionary<TextureDesc, Texture> _textures = new();
-
-
-        private static int _index = 0;
-
         private void AllocateResources()
         {
             foreach (ref var resource in _resources.AsSpan())
@@ -266,6 +258,8 @@ namespace Voltium.RenderEngine
 
                     // TODO this isn't properly synced, need to only add them after they have finished being used
                 }
+
+                resource.SetName();
             }
         }
 
@@ -303,7 +297,7 @@ namespace Voltium.RenderEngine
 
                 var barriers = layer.Barriers.AsROSpan();
 
-                using var barrierCtx = _device.BeginCopyContext();
+                using var barrierCtx = _device.BeginGraphicsContext();
                 barrierCtx.ResourceBarrier(barriers);
                 _contexts.Add(barrierCtx.AsMutable().AsGpuContext());
 

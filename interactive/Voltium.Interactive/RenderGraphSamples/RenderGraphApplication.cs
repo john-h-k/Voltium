@@ -25,7 +25,7 @@ namespace Voltium.Interactive.RenderGraphSamples
 
         public override unsafe void Init(Size data, IOutputOwner output)
         {
-            var config = new GraphicalConfiguration
+            var config = new DeviceConfiguration
             {
                 RequiredFeatureLevel = FeatureLevel.GraphicsLevel11_0,
                 DebugLayerConfiguration =

@@ -189,7 +189,7 @@ namespace Voltium.Core
                     var sz = (uint)lParam;
                     _screenData = new Size(LOWORD(sz), HIWORD(sz));
 
-                    if (!_isResizing)
+                    if (!_isResizing && wParam != SIZE_MINIMIZED)
                     {
                         _application.OnResize(_screenData);
                     }

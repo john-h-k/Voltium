@@ -19,5 +19,7 @@ namespace Voltium.RenderEngine
 
         // null if resource is not swapchain relative
         public double? OutputRelativeSize;
+
+        public string? DebugName;
     }
 }

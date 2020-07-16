@@ -42,14 +42,14 @@ namespace Voltium.Core.Devices
         /// </summary>
         /// <param name="device">The device used to initialize the type</param>
         /// <param name="config"></param>
-        public static GpuDispatchManager Create(GraphicsDevice device, GraphicalConfiguration config)
+        public static GpuDispatchManager Create(GraphicsDevice device, DeviceConfiguration config)
         {
             var value = new GpuDispatchManager();
             value.InternalCreate(device, config);
             return value;
         }
 
-        private unsafe void InternalCreate(GraphicsDevice device, GraphicalConfiguration config)
+        private unsafe void InternalCreate(GraphicsDevice device, DeviceConfiguration config)
         {
             _device = device;
 

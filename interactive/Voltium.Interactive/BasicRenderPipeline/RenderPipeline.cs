@@ -27,9 +27,9 @@ namespace Voltium.Interactive.BasicRenderPipeline
 
         public override unsafe void Init(Size data, IOutputOwner output)
         {
-            var debug = new DebugLayerConfiguration().DisableDeviceRemovedMetadata();
+            var debug = new DebugLayerConfiguration();
 
-            var config = new GraphicalConfiguration
+            var config = new DeviceConfiguration
             {
                 RequiredFeatureLevel = FeatureLevel.GraphicsLevel11_0,
 #if DEBUG
@@ -78,9 +78,15 @@ namespace Voltium.Interactive.BasicRenderPipeline
 
             graph.CreateComponent(_settings);
 
-            graph.AddPass(_renderer);
-            graph.AddPass(_msaaPass);
-            graph.AddPass(_outputPass);
+
+            using (var timer = ScopedTimer.Start())
+            {
+                graph.AddPass(_renderer);
+                graph.AddPass(_msaaPass);
+                graph.AddPass(_outputPass);
+
+                Console.WriteLine(timer.Elapsed.TotalMilliseconds);
+            }
 
             graph.ExecuteGraph();
 

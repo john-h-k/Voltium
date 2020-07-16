@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Microsoft.Toolkit.HighPerformance.Extensions;
+using Voltium.Common;
 using Voltium.Core;
 using Voltium.Core.Contexts;
 using Voltium.Core.Memory;
@@ -78,6 +79,23 @@ namespace Voltium.RenderEngine
         {
             public ResourceState RequiredState;
             public uint ResourceHandle;
+        }
+
+        internal void SetName()
+        {
+            if (Desc.DebugName is null)
+            {
+                return;
+            }
+
+            if (Desc.Type == ResourceType.Buffer)
+            {
+                Desc.Buffer.SetName(Desc.DebugName);
+            }
+            else
+            {
+                Desc.Texture.SetName(Desc.DebugName);
+            }
         }
     }
 }

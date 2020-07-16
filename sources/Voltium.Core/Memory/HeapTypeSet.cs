@@ -34,7 +34,7 @@ namespace Voltium.Core.Memory
     {
         Meaningless = 0,
         Tex = 1,
-        RtOrDs = 2,
+        RenderTargetOrDepthStencilTexture = 2,
         Buffer = 3
     }
 }

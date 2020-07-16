@@ -12,7 +12,7 @@ namespace Voltium.Core.Memory
     /// </summary>
     internal unsafe class GpuResource : CriticalFinalizerObject, IDisposable, IInternalD3D12Object
     {
-        ID3D12Object* IInternalD3D12Object.GetPointer() => (ID3D12Object*)UnderlyingResource;
+        ID3D12Object* IInternalD3D12Object.GetPointer() => (ID3D12Object*)GetGetResourcePointer();
         internal ID3D12Object* GetPointer() => ((IInternalD3D12Object)this).GetPointer();
 
         internal GpuResource(
@@ -29,13 +29,14 @@ namespace Voltium.Core.Memory
             State = (ResourceState)desc.InitialState;
             ResourceFormat = (DataFormat)desc.Desc.Format;
             HeapIndex = heapIndex;
+            Flags = desc.Desc.Flags;
             Block = block;
             _allocator = allocator;
 
             if (desc.Desc.Dimension == D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_BUFFER
                 && !desc.Desc.Flags.HasFlag(D3D12_RESOURCE_FLAGS.D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE))
             {
-                GpuAddress = UnderlyingResource->GetGPUVirtualAddress();
+                GpuAddress = GetGetResourcePointer()->GetGPUVirtualAddress();
             }
         }
 
@@ -60,40 +61,26 @@ namespace Voltium.Core.Memory
         /// <summary>
         /// The format of the buffer, if typed, else <see cref="DataFormat.Unknown"/>
         /// </summary>
-        public DataFormat ResourceFormat { get; private set; }
+        public DataFormat ResourceFormat;
 
-        /// <summary>
-        /// The underlying value of the resource
-        /// </summary>
-        public ID3D12Resource* UnderlyingResource => _value.Get();
+        public unsafe ID3D12Resource* GetGetResourcePointer() => _value.Get();
 
-        /// <summary>
         /// The current state of the resource
-        /// </summary>
-        public ResourceState State { get; internal set; }
+        public ResourceState State;
 
-        /// <summary>
         /// Whether a resource transition was began on this resource, making it temporarily inaccessible
-        /// </summary>
-        public bool TransitionBegan { get; internal set; }
+        public bool TransitionBegan;
 
         private ComPtr<ID3D12Resource> _value;
+        public D3D12_RESOURCE_FLAGS Flags;
 
-        /// <summary>
-        /// The GPU address of the underlying resource
-        /// </summary>
-        public ulong GpuAddress { get; private set; }
-
-        /// <summary>
-        /// The CPU address of the underlying resource. This may be null if the resource
-        /// is unmapped or not CPU accessible
-        /// </summary>
-        public unsafe void* CpuAddress { get; private set; }
+        // Null if texture
+        public ulong GpuAddress;
+        // Null if the resource is unmapped or not CPU accessible (default heap)
+        public unsafe void* CpuAddress;
 
 
         private ComputeDevice _device = null!;
-
-        internal ComputeDevice Device => _device;
 
         private GpuAllocator? _allocator;
         public int HeapIndex;
@@ -107,7 +94,7 @@ namespace Voltium.Core.Memory
         {
             // Apparently the range for map and unmap are for debugging purposes and yield no perf benefit. Maybe we could still support em
             void* pData;
-            Guard.ThrowIfFailed(UnderlyingResource->Map(subresource, null, &pData));
+            Guard.ThrowIfFailed(GetGetResourcePointer()->Map(subresource, null, &pData));
             return pData;
         }
 
@@ -118,7 +105,7 @@ namespace Voltium.Core.Memory
         public unsafe void Unmap(uint subresource)
         {
             // Apparently the range for map and unmap are for debugging purposes and yield no perf benefit. Maybe we could still support em
-            UnderlyingResource->Unmap(subresource, null);
+            GetGetResourcePointer()->Unmap(subresource, null);
         }
 
         /// <inheritdoc cref="IDisposable"/>

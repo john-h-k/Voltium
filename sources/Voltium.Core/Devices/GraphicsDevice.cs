@@ -14,23 +14,12 @@ using Voltium.Core.Pool;
 
 namespace Voltium.Core.Devices
 {
-    internal struct D3D11on12
-    {
-        public ComPtr<ID3D11On12Device> _device;
-        public ComPtr<ID3D11DeviceContext> _deviceContext;
-
-        public ComPtr<ID2D1Device> _d2dDevice;
-        public ComPtr<ID2D1DeviceContext> _d2dDeviceContext;
-    }
-
-
     /// <summary>
     /// The top-level manager for application resources
     /// </summary>
     public unsafe partial class GraphicsDevice : ComputeDevice
     {
-        private GraphicalConfiguration _config = null!;
-        private SynchronizedCommandQueue _graphicsQueue;
+        private DeviceConfiguration _config = null!;
 
         internal ulong TotalFramesRendered = 0;
 
@@ -41,75 +30,36 @@ namespace Voltium.Core.Devices
         /// </summary>
         public void Idle()
         {
-            _graphicsQueue.GetSynchronizerForIdle().Block();
+            GraphicsQueue.GetSynchronizerForIdle().Block();
         }
 
-        private GraphicsDevice(GraphicalConfiguration config, Adapter? adapter) : base(config.RequiredFeatureLevel, config.DebugLayerConfiguration, adapter)
+        private GraphicsDevice(DeviceConfiguration config, Adapter? adapter) : base(config, adapter)
         {
             Guard.NotNull(config);
 
             _config = config;
 
-            ulong frequency;
-            QueryPerformanceFrequency((LARGE_INTEGER*) /* <- can we do that? */ &frequency);
-            _cpuFrequency = frequency;
-
 
             Allocator = new GpuAllocator(this);
             PipelineManager = new PipelineManager(this);
 
-            _graphicsQueue = new SynchronizedCommandQueue(this, ExecutionContext.Graphics);
+            GraphicsQueue = new SynchronizedCommandQueue(this, ExecutionContext.Graphics);
 
             CreateSwapChain();
             CreateDescriptorHeaps();
         }
 
-        /// <summary>
-        /// Queries the GPU and timestamp
-        /// </summary>
-        /// <param name="context">The <see cref="ExecutionContext"/> indicating which queue should be queried</param>
-        /// <param name="gpu">The <see cref="TimeSpan"/> representing the GPU clock</param>
-        public void QueryTimestamp(ExecutionContext context, out TimeSpan gpu)
-            => QueryTimestamps(context, out gpu, out _);
-
-        /// <summary>
-        /// Queries the GPU and CPU timestamps in close succession
-        /// </summary>
-        /// <param name="context">The <see cref="ExecutionContext"/> indicating which queue should be queried</param>
-        /// <param name="gpu">The <see cref="TimeSpan"/> representing the GPU clock</param>
-        /// <param name="cpu">The <see cref="TimeSpan"/> representing the CPU clock</param>
-        public void QueryTimestamps(ExecutionContext context, out TimeSpan gpu, out TimeSpan cpu)
-        {
-            if (context != ExecutionContext.Graphics)
-            {
-                ThrowHelper.ThrowNotImplementedException("TODO");
-            }
-
-            ulong gpuTick, cpuTick;
-
-            var queue = _graphicsQueue;
-
-            if (!queue.TryQueryTimestamps(&gpuTick, &cpuTick))
-            {
-                ThrowHelper.ThrowExternalException("GPU timestamp query failed");
-            }
-
-            gpu = TimeSpan.FromSeconds(gpuTick / (double)queue.Frequency);
-            cpu = TimeSpan.FromSeconds(cpuTick / (double)_cpuFrequency);
-        }
-
         // Output requires this for swapchain creation
-        internal IUnknown* GetGraphicsQueue() => (IUnknown*)_graphicsQueue.GetQueue();
+        internal IUnknown* GetGraphicsQueue() => (IUnknown*)GraphicsQueue.GetQueue();
 
-        private ulong _cpuFrequency;
 
         /// <summary>
         /// Create a new <see cref="GraphicsDevice"/> with an output to a WinRT ICoreWindow
         /// </summary>
         /// <param name="adapter">The <see cref="Adapter"/> to create the device on, or <see langword="null"/> to use the default adapter</param>
-        /// <param name="config">The <see cref="GraphicalConfiguration"/> to create the device with</param>
+        /// <param name="config">The <see cref="DeviceConfiguration"/> to create the device with</param>
         /// <returns>A new <see cref="GraphicsDevice"/></returns>
-        public static GraphicsDevice Create(Adapter? adapter, GraphicalConfiguration config)
+        public static GraphicsDevice Create(Adapter? adapter, DeviceConfiguration config)
         {
             return new GraphicsDevice(config, adapter);
         }
@@ -192,39 +142,6 @@ namespace Voltium.Core.Devices
             return MultisamplingDesc.None;
         }
 
-
-        internal ComPtr<ID3D12RootSignature> CreateRootSignature(uint nodeMask, void* pSignature, uint signatureLength)
-        {
-            using ComPtr<ID3D12RootSignature> rootSig = default;
-            Guard.ThrowIfFailed(DevicePointer->CreateRootSignature(
-                nodeMask,
-                pSignature,
-                signatureLength,
-                rootSig.Iid,
-                ComPtr.GetVoidAddressOf(&rootSig)
-            ));
-
-            return rootSig.Move();
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        public CopyContext BeginCopyContext(bool executeOnClose = false)
-        {
-            var ctx = BeginGraphicsContext(executeOnClose: executeOnClose);
-            return ctx.AsCopyContext();
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        public ComputeContext BeginComputeContext(ComputePipelineStateObject? pso = null, bool executeOnClose = false)
-        {
-            var ctx = BeginGraphicsContext(pso, executeOnClose: executeOnClose);
-            return ctx.AsComputeContext();
-        }
-
         /// <summary>
         /// Returns a <see cref="GraphicsContext"/> used for recording graphical commands
         /// </summary>
@@ -233,6 +150,13 @@ namespace Voltium.Core.Devices
         {
             var context = ContextPool.Rent(ExecutionContext.Graphics, pso, executeOnClose: executeOnClose);
 
+            SetDefaultState(ref context, pso);
+
+            return new GraphicsContext(context);
+        }
+
+        private void SetDefaultState(ref GpuContext context, PipelineStateObject? pso)
+        {
             var rootSig = pso is null ? null : pso.GetRootSig();
             if (pso is ComputePipelineStateObject)
             {
@@ -243,20 +167,11 @@ namespace Voltium.Core.Devices
                 context.List->SetGraphicsRootSignature(rootSig);
             }
 
-            SetDefaultDescriptorHeaps(context.List);
-
-            return new GraphicsContext(context);
-        }
-
-        private void SetDefaultDescriptorHeaps(ID3D12GraphicsCommandList* list)
-        {
             const int numHeaps = 2;
             var heaps = stackalloc ID3D12DescriptorHeap*[numHeaps] { ResourceDescriptors.GetHeap(), _samplers.GetHeap() };
 
-            list->SetDescriptorHeaps(numHeaps, heaps);
+            context.List->SetDescriptorHeaps(numHeaps, heaps);
         }
-
-
 
         /// <summary>
         /// Submit a set of recorded commands to the list
@@ -266,9 +181,9 @@ namespace Voltium.Core.Devices
         {
             ID3D12GraphicsCommandList* list = context.List;
 
-            _graphicsQueue.GetQueue()->ExecuteCommandLists(1, (ID3D12CommandList**)&list);
+            GraphicsQueue.GetQueue()->ExecuteCommandLists(1, (ID3D12CommandList**)&list);
 
-            _graphicsQueue.GetSynchronizerForIdle().Block();
+            GraphicsQueue.GetSynchronizerForIdle().Block();
             ContextPool.Return(context);
         }
 
@@ -294,8 +209,8 @@ namespace Voltium.Core.Devices
                 ppLists[i] = (ID3D12CommandList*)contexts[i].List;
             }
 
-            _graphicsQueue.GetQueue()->ExecuteCommandLists((uint)contexts.Length, ppLists);
-            _graphicsQueue.GetSynchronizerForIdle().Block();
+            GraphicsQueue.GetQueue()->ExecuteCommandLists((uint)contexts.Length, ppLists);
+            GraphicsQueue.GetSynchronizerForIdle().Block();
 
             for (var i = 0; i < contexts.Length; i++)
             {
@@ -309,7 +224,7 @@ namespace Voltium.Core.Devices
         public void MoveToNextFrame()
         {
             //_graphicsQueue.MoveToNextFrame();
-            _graphicsQueue.GetSynchronizerForIdle().Block();
+            GraphicsQueue.GetSynchronizerForIdle().Block();
             _rtvs.ResetHeap();
             _dsvs.ResetHeap();
         }
@@ -373,7 +288,7 @@ namespace Voltium.Core.Devices
 
             Debug?.ReportDeviceLiveObjects();
 
-            _graphicsQueue.Dispose();
+            GraphicsQueue.Dispose();
         }
     }
 }

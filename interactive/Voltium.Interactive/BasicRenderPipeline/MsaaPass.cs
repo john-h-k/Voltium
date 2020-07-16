@@ -23,11 +23,11 @@ namespace Voltium.Interactive.BasicRenderPipeline
             {
                 resources.SampledOutput = builder.CreatePrimaryOutputRelativeTexture(
                     TextureDesc.CreateRenderTargetDesc(DataFormat.R8G8B8A8UnsignedNormalized, Rgba128.CornflowerBlue),
-                    ResourceState.GenericRead
+                    ResourceState.ResolveDestination,
+                    debugName: "SampledOutput"
                 );
 
                 builder.MarkUsage(resources.SceneColor, ResourceState.ResolveSource);
-                builder.MarkUsage(resources.SampledOutput, ResourceState.ResolveDestination);
             }
             else
             {

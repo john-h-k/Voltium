@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Runtime.CompilerServices;
 using TerraFX.Interop;
 using Voltium.Common;
+using Voltium.Core.Contexts;
 using Voltium.Core.Memory;
 using Voltium.Core.Pipeline;
 using Voltium.TextureLoading;
@@ -28,8 +29,8 @@ namespace Voltium.Core
 
         private static bool AreCopyable(GpuResource source, GpuResource destination)
         {
-            D3D12_RESOURCE_DESC srcDesc = source.UnderlyingResource->GetDesc();
-            D3D12_RESOURCE_DESC destDesc = destination.UnderlyingResource->GetDesc();
+            D3D12_RESOURCE_DESC srcDesc = source.GetGetResourcePointer()->GetDesc();
+            D3D12_RESOURCE_DESC destDesc = destination.GetGetResourcePointer()->GetDesc();
 
             return srcDesc.Width == destDesc.Width
                    && srcDesc.Height == destDesc.Height
@@ -52,7 +53,7 @@ namespace Voltium.Core
         private void Discard(GpuResource resource)
         {
             _context.FlushBarriers();
-            _context.List->DiscardResource(resource.UnderlyingResource, null);
+            _context.List->DiscardResource(resource.GetGetResourcePointer(), null);
         }
 
         /// <summary>
@@ -726,6 +727,14 @@ namespace Voltium.Core
         }
 
         #region CopyContext Methods
+
+        /// <inheritdoc cref="CopyContext"/>
+        public void ResourceBarrier(ResourceBarrier barrier)
+           => this.AsCopyContext().ResourceBarrier(barrier);
+
+        /// <inheritdoc cref="CopyContext"/>
+        public void ResourceBarrier(ReadOnlySpan<ResourceBarrier> barriers)
+           => this.AsCopyContext().ResourceBarrier(barriers);
 
         /// <summary>
         /// Copy a subresource

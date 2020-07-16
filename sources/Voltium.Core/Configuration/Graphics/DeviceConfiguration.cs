@@ -3,7 +3,7 @@ namespace Voltium.Core.Devices
     /// <summary>
     /// Describes configurable elements of the graphical engine
     /// </summary>
-    public sealed class GraphicalConfiguration
+    public sealed class DeviceConfiguration
     {
         /// <summary>
         /// The minimum feature level required for execution of the app

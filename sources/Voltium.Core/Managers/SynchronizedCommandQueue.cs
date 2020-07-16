@@ -6,6 +6,8 @@ using Voltium.Common;
 using Voltium.Core.D3D12;
 using Voltium.Core.Devices;
 
+using static TerraFX.Interop.Windows;
+
 namespace Voltium.Core.Devices
 {
     internal unsafe struct SynchronizedCommandQueue : IDisposable
@@ -65,12 +67,22 @@ namespace Voltium.Core.Devices
 
             ulong frequency;
             int hr = _queue.Get()->GetTimestampFrequency(&frequency);
-            Frequency = Windows.SUCCEEDED(hr) ? frequency : 0;
+
+            // E_FAIL is returned when the queue doesn't support timestamps
+            if (hr != E_FAIL)
+            {
+                Frequency = hr == E_FAIL ? 0 : frequency;
+            }
+            else
+            {
+                Frequency = 0;
+                Guard.ThrowIfFailed(hr, "_queue.Get()->GetTimestampFrequency(&frequency)");
+            }
         }
 
         public bool TryQueryTimestamps(ulong* gpu, ulong* cpu)
         {
-            return Windows.SUCCEEDED(_queue.Get()->GetClockCalibration(gpu, cpu));
+            return SUCCEEDED(_queue.Get()->GetClockCalibration(gpu, cpu));
         }
 
         private static unsafe ComPtr<ID3D12CommandQueue> CreateQueue(ComputeDevice device, ExecutionContext type)

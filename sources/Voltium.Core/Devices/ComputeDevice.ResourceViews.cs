@@ -16,11 +16,11 @@ namespace Voltium.Core.Devices
         protected DescriptorHeap ResourceDescriptors;
 
         private const int ResourceCount = 1024;
+
         private protected virtual void CreateDescriptorHeaps()
         {
             ResourceDescriptors = DescriptorHeap.Create(this, DescriptorHeapType.ConstantBufferShaderResourceOrUnorderedAccessView, ResourceCount);
         }
-
 
         /// <summary>
         /// Creates a shader resource view to a <see cref="Buffer"/>
@@ -55,7 +55,7 @@ namespace Voltium.Core.Devices
 
             var handle = ResourceDescriptors.GetNextHandle();
 
-            DevicePointer->CreateShaderResourceView(resource.Resource.UnderlyingResource, &srvDesc, ResourceDescriptors.GetNextHandle().CpuHandle);
+            DevicePointer->CreateShaderResourceView(resource.Resource.GetGetResourcePointer(), &srvDesc, ResourceDescriptors.GetNextHandle().CpuHandle);
 
             return handle;
         }
@@ -76,7 +76,7 @@ namespace Voltium.Core.Devices
         {
             var handle = ResourceDescriptors.GetNextHandle();
 
-            DevicePointer->CreateShaderResourceView(resource.Resource.UnderlyingResource, null, handle.CpuHandle);
+            DevicePointer->CreateShaderResourceView(resource.Resource.GetGetResourcePointer(), null, handle.CpuHandle);
 
             return handle;
         }
@@ -89,7 +89,7 @@ namespace Voltium.Core.Devices
         {
             var handle = ResourceDescriptors.GetNextHandle();
 
-            DevicePointer->CreateUnorderedAccessView(resource.Resource.UnderlyingResource, /* TODO: counter support? */ null, null, handle.CpuHandle);
+            DevicePointer->CreateUnorderedAccessView(resource.Resource.GetGetResourcePointer(), /* TODO: counter support? */ null, null, handle.CpuHandle);
 
             return handle;
         }

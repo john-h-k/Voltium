@@ -11,11 +11,13 @@ using Voltium.Core.Infrastructure;
 using Voltium.Core.Devices;
 using Voltium.Core.Pipeline;
 using ZLogger;
-using static TerraFX.Interop.Windows;
-using static TerraFX.Interop.D3D12_FEATURE;
-using Buffer = Voltium.Core.Memory.Buffer;
 using Voltium.Core.Devices.Shaders;
 using Voltium.Core.Pool;
+
+using static TerraFX.Interop.Windows;
+using static TerraFX.Interop.D3D12_FEATURE;
+
+using Buffer = Voltium.Core.Memory.Buffer;
 
 namespace Voltium.Core.Devices
 {
@@ -57,6 +59,27 @@ namespace Voltium.Core.Devices
         private protected DebugLayer? Debug;
         private protected ContextPool ContextPool;
 
+        private protected SynchronizedCommandQueue CopyQueue;
+        private protected SynchronizedCommandQueue ComputeQueue;
+
+        private protected SynchronizedCommandQueue GraphicsQueue;
+        private protected ulong CpuFrequency;
+
+        private ref SynchronizedCommandQueue GetQueueForContext(ExecutionContext context)
+        {
+            switch (context)
+            {
+                case ExecutionContext.Copy:
+                    return ref CopyQueue;
+                case ExecutionContext.Compute:
+                    return ref ComputeQueue;
+                case ExecutionContext.Graphics:
+                    return ref GraphicsQueue;
+            }
+
+            return ref Helpers.NullRef<SynchronizedCommandQueue>();
+        }
+
         /// <summary>
         /// The <see cref="Adapter"/> this device uses
         /// </summary>
@@ -90,38 +113,64 @@ namespace Voltium.Core.Devices
         private static Adapter GetDefaultAdapter()
         {
             using var factory = new DxgiDeviceFactory().GetEnumerator();
-            factory.MoveNext();
+            _ = factory.MoveNext();
             return factory.Current;
         }
 
-        private object _stateLock = new object();
+        private static readonly object StateLock = new object();
+
+        internal ComPtr<ID3D12RootSignature> CreateRootSignature(uint nodeMask, void* pSignature, uint signatureLength)
+        {
+            using ComPtr<ID3D12RootSignature> rootSig = default;
+            Guard.ThrowIfFailed(DevicePointer->CreateRootSignature(
+                nodeMask,
+                pSignature,
+                signatureLength,
+                rootSig.Iid,
+                ComPtr.GetVoidAddressOf(&rootSig)
+            ));
+
+            return rootSig.Move();
+        }
 
         // Prevent external types inheriting from this (we rely on expected internal behaviour in a few places)
-        private protected ComputeDevice(FeatureLevel requiredFeatureLevel, DebugLayerConfiguration? config, Adapter? adapter)
+        private protected ComputeDevice(DeviceConfiguration config, Adapter? adapter)
         {
-            Debug = new DebugLayer(config);
+            Debug = new DebugLayer(config.DebugLayerConfiguration);
 
             {
                 // Prevent another device creation messing with our settings
-                lock (_stateLock)
+                lock (StateLock)
                 {
                     Debug.SetGlobalStateForConfig();
 
-                    CreateNewDevice(adapter, requiredFeatureLevel);
+                    CreateNewDevice(adapter, config.RequiredFeatureLevel);
 
                     Debug.ResetGlobalState();
                 }
 
                 if (!Device.Exists)
                 {
-                    ThrowHelper.ThrowPlatformNotSupportedException($"FATAL: Creation of ID3D12Device with feature level '{requiredFeatureLevel}' failed");
+                    ThrowHelper.ThrowPlatformNotSupportedException($"FATAL: Creation of ID3D12Device with feature level '{config.RequiredFeatureLevel}' failed");
                 }
 
                 Debug.SetDeviceStateForConfig(this);
             }
 
+            ulong frequency;
+            var res = QueryPerformanceFrequency((LARGE_INTEGER*) /* <- can we do that? */ &frequency);
+
+            if (res == 0)
+            {
+                ThrowHelper.ThrowPlatformNotSupportedException("No high resolution timer found");
+            }
+
+            CpuFrequency = frequency;
+
             QueryFeaturesOnCreation();
             ContextPool = new ContextPool(this);
+            CopyQueue = new SynchronizedCommandQueue(this, ExecutionContext.Copy);
+            ComputeQueue = new SynchronizedCommandQueue(this, ExecutionContext.Compute);
         }
 
         private protected void CreateNewDevice(
@@ -172,7 +221,7 @@ namespace Voltium.Core.Devices
             PreexistingDevices.Add(Unsafe.As<LUID, ulong>(ref luid));
         }
 
-        private protected void QueryFeatureSupport<T>(D3D12_FEATURE feature, ref T val) where T : unmanaged
+        internal void QueryFeatureSupport<T>(D3D12_FEATURE feature, ref T val) where T : unmanaged
         {
             fixed (T* pVal = &val)
             {
@@ -251,21 +300,37 @@ namespace Voltium.Core.Devices
         public void EndCapture() => Debug?.EndCapture();
 
         /// <summary>
-        /// 
+        /// Returns a <see cref="CopyContext"/> used for recording copy commands
         /// </summary>
-        /// <returns></returns>
-        public CopyContext BeginCopyContext()
+        public CopyContext BeginCopyContext(bool executeOnClose = false)
         {
-            throw new NotImplementedException();
+            var context = ContextPool.Rent(ExecutionContext.Copy, null, executeOnClose: executeOnClose);
+            return new CopyContext(context);
         }
 
         /// <summary>
-        /// 
+        /// Returns a <see cref="ComputeContext"/> used for recording compute commands
         /// </summary>
-        /// <returns></returns>
-        public ComputeContext BeginComputeContext(ComputePipelineStateObject? pso = null)
+        public ComputeContext BeginComputeContext(ComputePipelineStateObject? pso = null, bool executeOnClose = false)
         {
-            throw new NotImplementedException();
+            var context = ContextPool.Rent(ExecutionContext.Compute, pso, executeOnClose: executeOnClose);
+
+            SetDefaultState(ref context, pso);
+
+            return new ComputeContext(context);
+        }
+
+        private unsafe void SetDefaultState(ref GpuContext context, ComputePipelineStateObject? pso)
+        {
+            if (pso is not null)
+            {
+                context.List->SetComputeRootSignature(pso.GetRootSig());
+            }
+
+            const int numHeaps = 1;
+            var heaps = stackalloc ID3D12DescriptorHeap*[1] { ResourceDescriptors.GetHeap() };
+
+            context.List->SetDescriptorHeaps(numHeaps, heaps);
         }
 
         internal ComPtr<ID3D12Heap> CreateHeap(D3D12_HEAP_DESC desc)
@@ -300,6 +365,35 @@ namespace Voltium.Core.Devices
                 offset = offset.Slice((int)tex.RowSize);
             }
             mapped.Slice(0, (int)tex.RowSize).CopyTo(offset);
+        }
+
+        /// <summary>
+        /// Queries the GPU and timestamp
+        /// </summary>
+        /// <param name="context">The <see cref="ExecutionContext"/> indicating which queue should be queried</param>
+        /// <param name="gpu">The <see cref="TimeSpan"/> representing the GPU clock</param>
+        public void QueryTimestamp(ExecutionContext context, out TimeSpan gpu)
+            => QueryTimestamps(context, out gpu, out _);
+
+        /// <summary>
+        /// Queries the GPU and CPU timestamps in close succession
+        /// </summary>
+        /// <param name="context">The <see cref="ExecutionContext"/> indicating which queue should be queried</param>
+        /// <param name="gpu">The <see cref="TimeSpan"/> representing the GPU clock</param>
+        /// <param name="cpu">The <see cref="TimeSpan"/> representing the CPU clock</param>
+        public void QueryTimestamps(ExecutionContext context, out TimeSpan gpu, out TimeSpan cpu)
+        {
+            ref var queue = ref GetQueueForContext(context);
+
+            ulong gpuTick, cpuTick;
+
+            if (!queue.TryQueryTimestamps(&gpuTick, &cpuTick))
+            {
+                ThrowHelper.ThrowExternalException("GPU timestamp query failed");
+            }
+
+            gpu = TimeSpan.FromSeconds(gpuTick / (double)queue.Frequency);
+            cpu = TimeSpan.FromSeconds(cpuTick / (double)CpuFrequency);
         }
 
 

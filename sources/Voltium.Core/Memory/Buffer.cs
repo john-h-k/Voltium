@@ -137,7 +137,7 @@ namespace Voltium.Core.Memory
 
         internal GpuResource Resource => _resource;
 
-        internal ID3D12Resource* GetResourcePointer() => _resource.UnderlyingResource;
+        internal ID3D12Resource* GetResourcePointer() => _resource.GetGetResourcePointer();
 
     }
 

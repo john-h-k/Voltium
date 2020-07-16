@@ -15,6 +15,7 @@ using Voltium.Common.Pix;
 using Buffer = Voltium.Core.Memory.Buffer;
 using Voltium.RenderEngine;
 using SixLabors.ImageSharp;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Voltium.Interactive.BasicRenderPipeline
 {
@@ -92,7 +93,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
             _vertexBuffer = new Buffer[_texturedObjects.Length];
             _indexBuffer = new Buffer[_texturedObjects.Length];
 
-            using (var list = _device.BeginCopyContext(executeOnClose: true))
+            using (var list = _device.BeginGraphicsContext(executeOnClose: true))
             using (_device.BeginScopedCapture())
             {
                 for (var i = 0; i < _texturedObjects.Length; i++)
@@ -128,27 +129,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
             InitializeConstants();
         }
 
-        public override void Register(ref RenderPassBuilder builder, ref Resolver resolver)
-        {
-            var resources = new PipelineResources();
-            var settings = resolver.GetComponent<PipelineSettings>();
-
-            resources.SceneColor = builder.CreatePrimaryOutputRelativeTexture(
-                TextureDesc.CreateRenderTargetDesc(DataFormat.R8G8B8A8UnsignedNormalized, Rgba128.CornflowerBlue),
-                ResourceState.RenderTarget
-            );
-
-            resources.SceneDepth = builder.CreatePrimaryOutputRelativeTexture(
-                TextureDesc.CreateDepthStencilDesc(DataFormat.Depth32Single, 1.0f, 0, false),
-                ResourceState.DepthWrite
-            );
-
-            resolver.CreateComponent(resources);
-
-            var fovAngleY = 70.0f * MathF.PI / 180.0f;
-            _frameConstants.Projection = Matrix4x4.CreatePerspectiveFieldOfView(fovAngleY, settings.AspectRatio, 0.001f, 100f);
-        }
-
+        [MemberNotNull(nameof(_tex), nameof(_texMsaa8x))]
         public void CreatePipelines()
         {
             var rootParams = new[]
@@ -195,8 +176,14 @@ namespace Voltium.Interactive.BasicRenderPipeline
                 Topology = TopologyClass.Triangle
             };
 
-            DefaultPipelineState = _device.PipelineManager.CreatePipelineStateObject<TexturedVertex>("Texture", psoDesc);
+            _tex = _device.PipelineManager.CreatePipelineStateObject<TexturedVertex>("Texture", psoDesc);
+
+            psoDesc.Msaa = MultisamplingDesc.X8;
+            _texMsaa8x = _device.PipelineManager.CreatePipelineStateObject<TexturedVertex>("Texture_MSAA8X", psoDesc);
         }
+
+        private GraphicsPipelineStateObject _tex;
+        private GraphicsPipelineStateObject _texMsaa8x;
 
         public void InitializeConstants()
         {
@@ -252,6 +239,33 @@ namespace Voltium.Interactive.BasicRenderPipeline
 
             _frame.WriteConstantBufferData(ref _frameConstants, 0);
             _light.WriteConstantBufferData(ref _sceneLight, 0);
+        }
+
+
+
+        public override void Register(ref RenderPassBuilder builder, ref Resolver resolver)
+        {
+            var resources = new PipelineResources();
+            var settings = resolver.GetComponent<PipelineSettings>();
+
+            resources.SceneColor = builder.CreatePrimaryOutputRelativeTexture(
+                TextureDesc.CreateRenderTargetDesc(DataFormat.R8G8B8A8UnsignedNormalized, Rgba128.CornflowerBlue, settings.Msaa),
+                ResourceState.RenderTarget,
+                debugName: "SceneColor"
+            );
+
+            resources.SceneDepth = builder.CreatePrimaryOutputRelativeTexture(
+                TextureDesc.CreateDepthStencilDesc(DataFormat.Depth32Single, 1.0f, 0, false, settings.Msaa),
+                ResourceState.DepthWrite,
+                debugName: "SceneDepth"
+            );
+
+            resolver.CreateComponent(resources);
+
+            DefaultPipelineState = settings.Msaa.IsMultiSampled ? _texMsaa8x : _tex;
+
+            var fovAngleY = 70.0f * MathF.PI / 180.0f;
+            _frameConstants.Projection = Matrix4x4.CreatePerspectiveFieldOfView(fovAngleY, settings.AspectRatio, 0.001f, 100f);
         }
 
         public override void Record(ref GraphicsContext recorder, ref Resolver resolver)

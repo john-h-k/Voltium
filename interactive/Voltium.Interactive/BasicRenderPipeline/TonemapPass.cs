@@ -25,21 +25,21 @@ namespace Voltium.Interactive.BasicRenderPipeline
             Output = OutputDesc.FromBackBuffer(OutputClass.Primary, _output);
         }
 
+        public override void Register(ref RenderPassBuilder builder, ref Resolver resolver)
+        {
+            var resources = resolver.GetComponent<PipelineResources>();
+            builder.MarkUsage(resources.SampledOutput, ResourceState.CopySource);
+        }
+
         public override void Record(ref GraphicsContext context, ref Resolver resolver)
         {
             using var _ = context.BeginScopedEvent(Argb32.Green, "Tonemap");
 
             var resources = resolver.GetComponent<PipelineResources>();
-            var sceneColor = resolver.ResolveResource(resources.SceneColor);
+            var sampledOutput = resolver.ResolveResource(resources.SampledOutput);
 
-            context.CopyResource(sceneColor, _output.BackBuffer);
+            context.CopyResource(sampledOutput, _output.BackBuffer);
             context.ResourceTransition(_output.BackBuffer, ResourceState.Present);
-        }
-
-        public override void Register(ref RenderPassBuilder builder, ref Resolver resolver)
-        {
-            var resources = resolver.GetComponent<PipelineResources>();
-            builder.MarkUsage(resources.SampledOutput, ResourceState.CopySource);
         }
     }
 }
