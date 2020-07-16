@@ -36,7 +36,7 @@ namespace Voltium.Interactive.RenderGraphSamples
 #endif
             };
 
-            _device = GraphicsDevice.Create(null, config);
+            _device = new GraphicsDevice(config, null);
 
             var desc = new OutputConfiguration
             {

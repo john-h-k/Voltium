@@ -40,8 +40,6 @@ namespace Voltium.Core.Memory
         private List<AllocatorHeap> _texture = null!;
         private List<AllocatorHeap> _rtOrDs = null!;
 
-        private List<GpuResource> _resources = new();
-
         private ComputeDevice _device;
         private const ulong HighestRequiredAlign = 1024 * 1024 * 4; // 4mb
 
@@ -223,7 +221,6 @@ namespace Voltium.Core.Memory
 
             var info = _device.GetAllocationInfo(desc);
             var res =  AllocatePlacedFromHeap(desc, info);
-            _resources.Add(res);
             return res;
         }
 
@@ -248,8 +245,8 @@ namespace Voltium.Core.Memory
         {
             D3D12_HEAP_PROPERTIES props;
             D3D12_HEAP_FLAGS flags;
-            Guard.ThrowIfFailed(allocation.GetGetResourcePointer()->GetHeapProperties(&props, &flags));
-            var desc = allocation.GetGetResourcePointer()->GetDesc();
+            Guard.ThrowIfFailed(allocation.GetResourcePointer()->GetHeapProperties(&props, &flags));
+            var desc = allocation.GetResourcePointer()->GetDesc();
 
             return ref GetHeapPool(props.Type, GetResType(desc.Dimension, desc.Flags));
         }
@@ -350,7 +347,7 @@ namespace Voltium.Core.Memory
 
             static void Release(GpuResource alloc)
             {
-                var refCount = alloc.GetGetResourcePointer()->Release();
+                var refCount = alloc.GetResourcePointer()->Release();
                 Debug.Assert(refCount == 0);
                 _ = refCount;
             }
@@ -359,7 +356,6 @@ namespace Voltium.Core.Memory
         private void ReturnPlacedAllocation(GpuResource gpuAllocation, ref AllocatorHeap heap)
         {
             AddFreeBlock(ref heap, gpuAllocation.Block);
-            _resources.Remove(gpuAllocation);
             // TODO defrag
         }
 
@@ -440,11 +436,6 @@ namespace Voltium.Core.Memory
         {
             var resource = _device.CreatePlacedResource(heap.Heap.Get(), block.Offset, desc);
 
-            if (block == EvilBlock)
-            {
-                Debugger.Break();
-            }
-
             return new GpuResource(
                 _device,
                 resource.Move(),
@@ -459,13 +450,9 @@ namespace Voltium.Core.Memory
         {
             ValidateFreeBlock(ref heap, usedBlock);
 
-            if (usedBlock == EvilBlock || wholeBlock == EvilBlock)
-            {
-                Debugger.Break();
-            }
-
             var removed = heap.FreeBlocks.Remove(wholeBlock);
             Debug.Assert(removed);
+            _ = removed;
 
             var alignOffset = usedBlock.Offset - wholeBlock.Offset;
 
@@ -482,16 +469,9 @@ namespace Voltium.Core.Memory
             }
         }
 
-        private static readonly HeapBlock EvilBlock = new HeapBlock { Offset = 4325376, Size = 4063232 };
-
         private void AddFreeBlock(ref AllocatorHeap heap, HeapBlock block)
         {
             ValidateFreeBlock(ref heap, block);
-
-            if (block == EvilBlock)
-            {
-                Debugger.Break();
-            }
 
             heap.FreeBlocks.Add(block);
         }
@@ -538,7 +518,7 @@ namespace Voltium.Core.Memory
 
         private void LogHeapCorruption(string message)
         {
-            Console.WriteLine("[CORRUPTION] HEAP_CORRUPTION: " + message);
+            LogHelper.LogCritical("HEAP_CORRUPTION: " + message);
         }
 
         private bool TryGetFreeBlock(ref AllocatorHeap heap, D3D12_RESOURCE_ALLOCATION_INFO info, out HeapBlock freeBlock)

@@ -33,7 +33,12 @@ namespace Voltium.Core.Devices
             GraphicsQueue.GetSynchronizerForIdle().Block();
         }
 
-        private GraphicsDevice(DeviceConfiguration config, Adapter? adapter) : base(config, adapter)
+        /// <summary>
+        /// Create a new <see cref="GraphicsDevice"/>
+        /// </summary>
+        /// <param name="adapter">The <see cref="Adapter"/> to create the device on, or <see langword="null"/> to use the default adapter</param>
+        /// <param name="config">The <see cref="DeviceConfiguration"/> to create the device with</param>
+        public GraphicsDevice(DeviceConfiguration config, Adapter? adapter) : base(config, adapter)
         {
             Guard.NotNull(config);
 
@@ -51,18 +56,6 @@ namespace Voltium.Core.Devices
 
         // Output requires this for swapchain creation
         internal IUnknown* GetGraphicsQueue() => (IUnknown*)GraphicsQueue.GetQueue();
-
-
-        /// <summary>
-        /// Create a new <see cref="GraphicsDevice"/> with an output to a WinRT ICoreWindow
-        /// </summary>
-        /// <param name="adapter">The <see cref="Adapter"/> to create the device on, or <see langword="null"/> to use the default adapter</param>
-        /// <param name="config">The <see cref="DeviceConfiguration"/> to create the device with</param>
-        /// <returns>A new <see cref="GraphicsDevice"/></returns>
-        public static GraphicsDevice Create(Adapter? adapter, DeviceConfiguration config)
-        {
-            return new GraphicsDevice(config, adapter);
-        }
 
         private protected override void QueryFeaturesOnCreation()
         {
@@ -256,7 +249,7 @@ namespace Voltium.Core.Devices
                 }
             }
 
-            LogHelper.Logger.ZLogError(
+            LogHelper.LogError(
                 "Device removed, no DRED present. Enable DEBUG or D3D12_DRED for enhanced device removed information");
         }
 

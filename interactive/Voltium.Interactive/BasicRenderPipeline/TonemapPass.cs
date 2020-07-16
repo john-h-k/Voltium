@@ -38,6 +38,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
             var resources = resolver.GetComponent<PipelineResources>();
             var sampledOutput = resolver.ResolveResource(resources.SampledOutput);
 
+            context.ResourceTransition(_output.BackBuffer, ResourceState.CopyDestination);
             context.CopyResource(sampledOutput, _output.BackBuffer);
             context.ResourceTransition(_output.BackBuffer, ResourceState.Present);
         }

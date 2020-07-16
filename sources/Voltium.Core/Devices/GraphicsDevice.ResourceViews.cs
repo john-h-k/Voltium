@@ -32,7 +32,7 @@ namespace Voltium.Core.Devices
         {
             var handle = _rtvs.GetNextHandle();
 
-            DevicePointer->CreateRenderTargetView(resource.Resource.GetGetResourcePointer(), null, handle.CpuHandle);
+            DevicePointer->CreateRenderTargetView(resource.Resource.GetResourcePointer(), null, handle.CpuHandle);
 
             return handle;
         }
@@ -52,7 +52,7 @@ namespace Voltium.Core.Devices
             rtvDesc.Anonymous.Buffer.FirstElement = desc.FirstElement;
             rtvDesc.Anonymous.Buffer.NumElements = desc.NumElements;
 
-            DevicePointer->CreateRenderTargetView(resource.Resource.GetGetResourcePointer(), &rtvDesc, handle.CpuHandle);
+            DevicePointer->CreateRenderTargetView(resource.Resource.GetResourcePointer(), &rtvDesc, handle.CpuHandle);
 
             return handle;
         }
@@ -65,7 +65,7 @@ namespace Voltium.Core.Devices
         {
             var handle = _rtvs.GetNextHandle();
 
-            DevicePointer->CreateRenderTargetView(resource.Resource.GetGetResourcePointer(), null, handle.CpuHandle);
+            DevicePointer->CreateRenderTargetView(resource.Resource.GetResourcePointer(), null, handle.CpuHandle);
 
             return handle;
         }
@@ -107,7 +107,7 @@ namespace Voltium.Core.Devices
 
             var handle = _rtvs.GetNextHandle();
 
-            DevicePointer->CreateRenderTargetView(resource.Resource.GetGetResourcePointer(), &rtvDesc, handle.CpuHandle);
+            DevicePointer->CreateRenderTargetView(resource.Resource.GetResourcePointer(), &rtvDesc, handle.CpuHandle);
 
             return handle;
         }
@@ -173,7 +173,7 @@ namespace Voltium.Core.Devices
         {
             var handle = ResourceDescriptors.GetNextHandle();
 
-            DevicePointer->CreateShaderResourceView(resource.Resource.GetGetResourcePointer(), null, handle.CpuHandle);
+            DevicePointer->CreateShaderResourceView(resource.Resource.GetResourcePointer(), null, handle.CpuHandle);
 
             return handle;
         }
@@ -223,7 +223,7 @@ namespace Voltium.Core.Devices
 
             var handle = ResourceDescriptors.GetNextHandle();
 
-            DevicePointer->CreateShaderResourceView(resource.Resource.GetGetResourcePointer(), &srvDesc, handle.CpuHandle);
+            DevicePointer->CreateShaderResourceView(resource.Resource.GetResourcePointer(), &srvDesc, handle.CpuHandle);
 
             return handle;
         }
@@ -236,7 +236,7 @@ namespace Voltium.Core.Devices
         {
             var handle = ResourceDescriptors.GetNextHandle();
 
-            DevicePointer->CreateUnorderedAccessView(resource.Resource.GetGetResourcePointer(), /* TODO: counter support? */ null, null, handle.CpuHandle);
+            DevicePointer->CreateUnorderedAccessView(resource.Resource.GetResourcePointer(), /* TODO: counter support? */ null, null, handle.CpuHandle);
 
             return handle;
         }

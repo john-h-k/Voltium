@@ -82,7 +82,7 @@ namespace Voltium.Core.Pool
                 ComPtr.GetVoidAddressOf(&allocator)
             ));
 
-            LogHelper.Logger.ZLogDebug($"New command allocator allocated (this is the #{_allocatorCount++} allocator)");
+            LogHelper.LogDebug($"New command allocator allocated (this is the #{_allocatorCount++} allocator)");
 
             DebugHelpers.SetName(allocator.Get(), $"Pooled allocator #{_allocatorCount}");
             DebugHelpers.SetPrivateData(allocator.Get(), Guid_AllocatorType, context);
@@ -103,7 +103,7 @@ namespace Voltium.Core.Pool
                 ComPtr.GetVoidAddressOf(&list)
             ));
 
-            LogHelper.Logger.ZLogDebug($"New command list allocated (this is the #{_listCount++} list)");
+            LogHelper.LogDebug($"New command list allocated (this is the #{_listCount++} list)");
 
             DebugHelpers.SetName(list.Get(), $"Pooled list #{_listCount}");
 

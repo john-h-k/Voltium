@@ -49,6 +49,11 @@ namespace Voltium.Core
 
         internal void AddBarriers(ReadOnlySpan<D3D12_RESOURCE_BARRIER> barriers)
         {
+            if (barriers.Length == 0)
+            {
+                return;
+            }
+
             if (barriers.Length > MaxNumBarriers)
             {
                 fixed (D3D12_RESOURCE_BARRIER* pBarriers = barriers)
@@ -63,6 +68,7 @@ namespace Voltium.Core
             }
 
             barriers.CopyTo(_barrierBuffer.AsSpan(_currentBarrierCount));
+            _currentBarrierCount += (uint)barriers.Length;
         }
 
         internal void FlushBarriers()
@@ -95,7 +101,7 @@ namespace Voltium.Core
                 => ref Unsafe.Add(ref GetPinnableReference(), (int)index);
 
             public ref D3D12_RESOURCE_BARRIER GetPinnableReference() => ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref E0, 0));
-            public Span<D3D12_RESOURCE_BARRIER> AsSpan(uint offset = 0) => MemoryMarshal.CreateSpan(ref Unsafe.Add(ref E0, (int)offset), 8);
+            public Span<D3D12_RESOURCE_BARRIER> AsSpan(uint offset = 0) => MemoryMarshal.CreateSpan(ref Unsafe.Add(ref E0, (int)offset), 8 - (int)offset);
         }
 
         /// <summary>

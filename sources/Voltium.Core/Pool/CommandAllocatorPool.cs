@@ -30,7 +30,7 @@ namespace Voltium.Core.Devices
                 ComPtr.GetVoidAddressOf(&allocator)
             ));
 
-            LogHelper.Logger.ZLogDebug($"New command allocator allocated (this is the #{_allocatorCount++} allocator)");
+            LogHelper.LogDebug($"New command allocator allocated (this is the #{_allocatorCount++} allocator)");
 
             DebugHelpers.SetName(allocator.Get(), $"Pooled allocator #{_allocatorCount}");
 

@@ -49,7 +49,14 @@ namespace Voltium.Common
             }
 
             uint size;
-            Guard.ThrowIfFailed(result->GetPrivateData(&guid, &size, null));
+            int hr = result->GetPrivateData(&guid, &size, null);
+
+            if (hr == Windows.DXGI_ERROR_NOT_FOUND)
+            {
+                return "<Unnamed>";
+            }
+
+            Guard.ThrowIfFailed(hr, "result->GetPrivateData(&guid, &size, null)");
 
             return string.Create((int)size, (ComPtr<ID3D12Object>)result, (buff, ptr) =>
             {
@@ -88,7 +95,13 @@ namespace Voltium.Common
 
             fixed (Guid* piid = &iid)
             {
-                Guard.ThrowIfFailed(unknown->GetPrivateData(piid, &size, &data));
+                int hr = unknown->GetPrivateData(piid, &size, &data);
+                if (hr == Windows.DXGI_ERROR_NOT_FOUND)
+                {
+                    ThrowHelper.ThrowKeyNotFoundException($"Key '{iid}' had not been set");
+                }
+
+                Guard.ThrowIfFailed(hr, "unknown->GetPrivateData(piid, &size, &data)");
             }
 
             bytesWritten = (int)size;

@@ -127,8 +127,8 @@ namespace Voltium.Core
         /// <param name="data"></param>
         public void ReadbackSubresource(Texture source, uint subresourceIndex, Buffer data)
         {
-            ResourceTransition(source, ResourceState.CopySource, subresourceIndex);
-            ResourceTransition(data, ResourceState.CopyDestination, 0);
+            //ResourceTransition(source, ResourceState.CopySource, subresourceIndex);
+            //ResourceTransition(data, ResourceState.CopyDestination, 0);
 
             _context.Device.GetCopyableFootprint(source, subresourceIndex, 1, out _, out _, out var rowSize, out var size);
 
@@ -162,11 +162,11 @@ namespace Voltium.Core
         /// <param name="dest">The resource to copy to</param>
         public void CopyResource(Buffer source, Buffer dest)
         {
-            ResourceTransition(source, ResourceState.CopySource, 0xFFFFFFFF);
-            ResourceTransition(dest, ResourceState.CopyDestination, 0xFFFFFFFF);
+            //ResourceTransition(source, ResourceState.CopySource, 0xFFFFFFFF);
+            //ResourceTransition(dest, ResourceState.CopyDestination, 0xFFFFFFFF);
 
             _context.FlushBarriers();
-            _context.List->CopyResource(dest.Resource.GetGetResourcePointer(), source.Resource.GetGetResourcePointer());
+            _context.List->CopyResource(dest.Resource.GetResourcePointer(), source.Resource.GetResourcePointer());
         }
 
         /// <summary>
@@ -176,11 +176,11 @@ namespace Voltium.Core
         /// <param name="dest">The resource to copy to</param>
         public void CopyResource(Texture source, Texture dest)
         {
-            ResourceTransition(source, ResourceState.CopySource, 0xFFFFFFFF);
-            ResourceTransition(dest, ResourceState.CopyDestination, 0xFFFFFFFF);
+            //ResourceTransition(source, ResourceState.CopySource, 0xFFFFFFFF);
+            //ResourceTransition(dest, ResourceState.CopyDestination, 0xFFFFFFFF);
 
             _context.FlushBarriers();
-            _context.List->CopyResource(dest.Resource.GetGetResourcePointer(), source.Resource.GetGetResourcePointer());
+            _context.List->CopyResource(dest.Resource.GetResourcePointer(), source.Resource.GetResourcePointer());
         }
 
         /// <summary>
@@ -278,7 +278,7 @@ namespace Voltium.Core
         public void UploadTexture(ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, ResourceState state, Texture destination)
         {
             var upload = _context.Device.Allocator.AllocateBuffer(
-                (long)Windows.GetRequiredIntermediateSize(destination.Resource.GetGetResourcePointer(), 0, (uint)subresources.Length),
+                (long)Windows.GetRequiredIntermediateSize(destination.Resource.GetResourcePointer(), 0, (uint)subresources.Length),
                 MemoryAccess.CpuUpload,
                 ResourceState.GenericRead
             );
@@ -296,8 +296,8 @@ namespace Voltium.Core
                 _context.FlushBarriers();
                 _ = Windows.UpdateSubresources(
                     _context.List,
-                    destination.Resource.GetGetResourcePointer(),
-                    upload.Resource.GetGetResourcePointer(),
+                    destination.Resource.GetResourcePointer(),
+                    upload.Resource.GetResourcePointer(),
                     0,
                     0,
                     (uint)subresources.Length,
@@ -410,7 +410,7 @@ namespace Voltium.Core
                 barrier.Flags = 0;
                 barrier.Anonymous.Transition = new D3D12_RESOURCE_TRANSITION_BARRIER
                 {
-                    pResource = resource.GetGetResourcePointer(),
+                    pResource = resource.GetResourcePointer(),
                     StateBefore = (D3D12_RESOURCE_STATES)state,
                     StateAfter = (D3D12_RESOURCE_STATES)transition,
                     Subresource = subresource
@@ -439,7 +439,7 @@ namespace Voltium.Core
                 barrier.Flags = D3D12_RESOURCE_BARRIER_FLAGS.D3D12_RESOURCE_BARRIER_FLAG_BEGIN_ONLY;
                 barrier.Anonymous.Transition = new D3D12_RESOURCE_TRANSITION_BARRIER
                 {
-                    pResource = resource.GetGetResourcePointer(),
+                    pResource = resource.GetResourcePointer(),
                     StateBefore = (D3D12_RESOURCE_STATES)state,
                     StateAfter = (D3D12_RESOURCE_STATES)transition,
                     Subresource = subresource
@@ -468,7 +468,7 @@ namespace Voltium.Core
                 barrier.Flags = D3D12_RESOURCE_BARRIER_FLAGS.D3D12_RESOURCE_BARRIER_FLAG_END_ONLY;
                 barrier.Anonymous.Transition = new D3D12_RESOURCE_TRANSITION_BARRIER
                 {
-                    pResource = resource.GetGetResourcePointer(),
+                    pResource = resource.GetResourcePointer(),
                     StateBefore = (D3D12_RESOURCE_STATES)state,
                     StateAfter = (D3D12_RESOURCE_STATES)transition,
                     Subresource = subresource

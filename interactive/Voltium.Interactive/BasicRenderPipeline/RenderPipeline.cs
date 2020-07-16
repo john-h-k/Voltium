@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using Voltium.Core;
 using Voltium.Core.Configuration.Graphics;
 using Voltium.Core.Devices;
@@ -28,6 +29,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
         public override unsafe void Init(Size data, IOutputOwner output)
         {
             var debug = new DebugLayerConfiguration();
+            debug.BreakpointLogLevel = LogLevel.Error;
 
             var config = new DeviceConfiguration
             {
@@ -39,7 +41,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
 #endif
             };
 
-            _device = GraphicsDevice.Create(null, config);
+            _device = new GraphicsDevice(config, null);
 
             var desc = new OutputConfiguration
             {
@@ -62,6 +64,8 @@ namespace Voltium.Interactive.BasicRenderPipeline
             _renderer = new BasicSceneRenderer(_device);
             _msaaPass = new MsaaPass();
             _outputPass = new TonemapPass(_output);
+
+            _graph = new RenderGraph(_device);
         }
 
         public override void Update(ApplicationTimer timer)
@@ -72,23 +76,16 @@ namespace Voltium.Interactive.BasicRenderPipeline
             }
         }
 
+        private RenderGraph _graph = null!;
         public override unsafe void Render()
         {
-            var graph = new RenderGraph(_device);
+            _graph.CreateComponent(_settings);
 
-            graph.CreateComponent(_settings);
+            _graph.AddPass(_renderer);
+            _graph.AddPass(_msaaPass);
+            _graph.AddPass(_outputPass);
 
-
-            using (var timer = ScopedTimer.Start())
-            {
-                graph.AddPass(_renderer);
-                graph.AddPass(_msaaPass);
-                graph.AddPass(_outputPass);
-
-                Console.WriteLine(timer.Elapsed.TotalMilliseconds);
-            }
-
-            graph.ExecuteGraph();
+            _graph.ExecuteGraph();
 
             _output.Present();
         }

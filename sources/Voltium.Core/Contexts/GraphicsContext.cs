@@ -29,8 +29,8 @@ namespace Voltium.Core
 
         private static bool AreCopyable(GpuResource source, GpuResource destination)
         {
-            D3D12_RESOURCE_DESC srcDesc = source.GetGetResourcePointer()->GetDesc();
-            D3D12_RESOURCE_DESC destDesc = destination.GetGetResourcePointer()->GetDesc();
+            D3D12_RESOURCE_DESC srcDesc = source.GetResourcePointer()->GetDesc();
+            D3D12_RESOURCE_DESC destDesc = destination.GetResourcePointer()->GetDesc();
 
             return srcDesc.Width == destDesc.Width
                    && srcDesc.Height == destDesc.Height
@@ -53,7 +53,7 @@ namespace Voltium.Core
         private void Discard(GpuResource resource)
         {
             _context.FlushBarriers();
-            _context.List->DiscardResource(resource.GetGetResourcePointer(), null);
+            _context.List->DiscardResource(resource.GetResourcePointer(), null);
         }
 
         /// <summary>
@@ -643,14 +643,8 @@ namespace Voltium.Core
         {
             DataFormat format = source.Format == DataFormat.Unknown ? dest.Format : source.Format;
 
-            if (!source.Resource.State.HasFlag(ResourceState.ResolveSource))
-            {
-                ResourceTransition(source, ResourceState.ResolveSource, sourceSubresource);
-            }
-            if (!dest.Resource.State.HasFlag(ResourceState.ResolveDestination))
-            {
-                ResourceTransition(dest, ResourceState.ResolveDestination, destSubresource);
-            }
+            //ResourceTransition(source, ResourceState.ResolveSource, sourceSubresource);
+            //ResourceTransition(dest, ResourceState.ResolveDestination, destSubresource);
 
             _context.FlushBarriers();
             _context.List->ResolveSubresource(dest.GetResourcePointer(), destSubresource, source.GetResourcePointer(), sourceSubresource, (DXGI_FORMAT)format);
@@ -666,8 +660,8 @@ namespace Voltium.Core
         /// <param name="destSubresource">The index of the subresource from <paramref name="dest"/> to use</param>
         public void ResolveSubresource(Texture source, Texture dest, DataFormat format, uint sourceSubresource = 0, uint destSubresource = 0)
         {
-            ResourceTransition(source, ResourceState.ResolveSource, sourceSubresource);
-            ResourceTransition(dest, ResourceState.ResolveDestination, destSubresource);
+            //ResourceTransition(source, ResourceState.ResolveSource, sourceSubresource);
+            //ResourceTransition(dest, ResourceState.ResolveDestination, destSubresource);
 
             _context.FlushBarriers();
             _context.List->ResolveSubresource(dest.GetResourcePointer(), destSubresource, source.GetResourcePointer(), sourceSubresource, (DXGI_FORMAT)format);

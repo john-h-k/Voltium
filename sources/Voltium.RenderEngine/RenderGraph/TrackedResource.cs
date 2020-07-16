@@ -20,7 +20,6 @@ namespace Voltium.RenderEngine
         public int LastWritePassIndex;
         public List<int> LastReadPassIndices;
 
-
         public ResourceState CurrentTrackedState;
 
         public ResourceBarrier CreateTransition(ResourceState state, ResourceBarrierOptions options)

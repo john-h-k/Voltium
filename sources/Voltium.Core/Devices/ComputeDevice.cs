@@ -133,8 +133,12 @@ namespace Voltium.Core.Devices
             return rootSig.Move();
         }
 
-        // Prevent external types inheriting from this (we rely on expected internal behaviour in a few places)
-        private protected ComputeDevice(DeviceConfiguration config, Adapter? adapter)
+        /// <summary>
+        /// Create a new <see cref="ComputeDevice"/>
+        /// </summary>
+        /// <param name="adapter">The <see cref="Adapter"/> to create the device on, or <see langword="null"/> to use the default adapter</param>
+        /// <param name="config">The <see cref="DeviceConfiguration"/> to create the device with</param>
+        public ComputeDevice(DeviceConfiguration config, Adapter? adapter)
         {
             Debug = new DebugLayer(config.DebugLayerConfiguration);
 
@@ -199,7 +203,7 @@ namespace Voltium.Core.Devices
                 ));
                 Device = p.Move();
 
-                LogHelper.Logger.ZLogInformationWithPayload(adapter, "New D3D12 device created from adapter");
+                LogHelper.LogInformation($"New D3D12 device created from adapter: \n{adapter}");
             }
 
             DebugHelpers.SetName(Device.Get(), "Primary Device");

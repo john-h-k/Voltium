@@ -49,7 +49,7 @@ namespace Voltium.Core.Devices
         /// <summary>
         /// Enables debug breakpointing when messages with a given <see cref="LogLevel"/> are sent
         /// </summary>
-        public LogLevel BreakpointLogLevel { get; set; } = LogLevel.Error;
+        public LogLevel BreakpointLogLevel { get; set; } = LogLevel.None;
 
         /// <summary>
         /// Whether profiling is enabled
@@ -121,8 +121,8 @@ namespace Voltium.Core.Devices
         /// </summary>
         public static DeviceRemovedMetadataConfig Default { get; } = new DeviceRemovedMetadataConfig
         {
-            PageFaultMetadata = EnvVars.IsDebug,
-            AutoBreadcrumbMetadata = EnvVars.IsDebug,
+            PageFaultMetadata = false,
+            AutoBreadcrumbMetadata = false,
             WindowsErrorReporting = false
         };
 

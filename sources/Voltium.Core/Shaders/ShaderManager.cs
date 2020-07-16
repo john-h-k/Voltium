@@ -65,7 +65,7 @@ namespace Voltium.Core.Devices
 
         private static ComPtr<IDxcCompiler3> Compiler;
         private static DxcIncludeHandler DefaultDxcIncludeHandler;
-        private static FxcIncludeHandler DefaultFxcIncludeHandler;
+        private static LegacyFxcIncludeHandler DefaultFxcIncludeHandler;
         private static ComPtr<IDxcUtils> Utils;
 
         static unsafe ShaderManager()
@@ -84,7 +84,7 @@ namespace Voltium.Core.Devices
             DefaultDxcIncludeHandler = new DxcIncludeHandler();
             DefaultDxcIncludeHandler.Init(Utils.Copy());
 
-            DefaultFxcIncludeHandler = new FxcIncludeHandler();
+            DefaultFxcIncludeHandler = new LegacyFxcIncludeHandler();
             DefaultFxcIncludeHandler.Init();
         }
 
@@ -580,9 +580,8 @@ namespace Voltium.Core.Devices
                 }
                 else
                 {
-                    LogHelper.Logger.ZLogInformation(
-                        "DXC Flag '{0}' skipped. This is not an error but may result in different behaviour when using legacy FXC pipeline",
-                        flag
+                    LogHelper.LogInformation(
+                        $"DXC Flag '{flag}' skipped. This is not an error but may result in different behaviour when using legacy FXC pipeline"
                     );
                 }
             }

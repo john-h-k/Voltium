@@ -59,7 +59,7 @@ namespace Voltium.Core.Pool
                 ComPtr.GetVoidAddressOf(&list)
             ));
 
-            LogHelper.Logger.ZLogDebug($"New command list allocated (this is the #{_listCount++} list)");
+            LogHelper.LogDebug($"New command list allocated (this is the #{_listCount++} list)");
 
             DebugHelpers.SetName(list.Get(), $"Pooled list #{_listCount}");
 

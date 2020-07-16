@@ -17,8 +17,7 @@ namespace Voltium.Core
             (delegate* stdcall<IntPtr, uint, nuint, nint, nint>)(delegate*<IntPtr, uint, nuint, nint, nint>)&WindowProc;
 
         private static bool _isResizing = false;
-        //private static bool _isPaused = false;
-        //private static bool _isMaximized = false;
+        private static bool _isPaused = false;
         private static HWND Hwnd;
 
         private static Size _screenData;
@@ -99,7 +98,7 @@ namespace Voltium.Core
                 }
                 else
                 {
-                    Thread.Sleep(10);
+                    Thread.Sleep(100);
                 }
             }
 
@@ -126,10 +125,10 @@ namespace Voltium.Core
         private static ApplicationTimer _timer = null!;
         private static Application _application = null!;
         private const int ScrollResolution = 120;
-        private static bool _isPaused;
 
         // Main message handler
-        [UnmanagedCallersOnly(CallingConvention = CallingConvention.StdCall)]
+        // Uncomment when JIT bug is fixed
+        //[UnmanagedCallersOnly(CallingConvention = CallingConvention.StdCall)]
         private static nint WindowProc(IntPtr hWnd, uint message, nuint wParam, nint lParam)
         {
             switch (message)

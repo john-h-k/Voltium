@@ -48,7 +48,7 @@ namespace Voltium.Core.Contexts
             Unsafe.SkipInit(out Barrier);
             Barrier.Type = D3D12_RESOURCE_BARRIER_TYPE.D3D12_RESOURCE_BARRIER_TYPE_UAV;
             Barrier.Flags = flags;
-            Barrier.Anonymous.UAV.pResource = resource is null ? null : resource.GetGetResourcePointer();
+            Barrier.Anonymous.UAV.pResource = resource is null ? null : resource.GetResourcePointer();
         }
 
         private ResourceBarrier(
@@ -61,7 +61,7 @@ namespace Voltium.Core.Contexts
             Unsafe.SkipInit(out Barrier);
             Barrier.Type = D3D12_RESOURCE_BARRIER_TYPE.D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
             Barrier.Flags = flags;
-            Barrier.Anonymous.Transition.pResource = resource.GetGetResourcePointer();
+            Barrier.Anonymous.Transition.pResource = resource.GetResourcePointer();
             Barrier.Anonymous.Transition.StateBefore = (D3D12_RESOURCE_STATES)before;
             Barrier.Anonymous.Transition.StateAfter = (D3D12_RESOURCE_STATES)after;
         }
@@ -75,8 +75,8 @@ namespace Voltium.Core.Contexts
             Unsafe.SkipInit(out Barrier);
             Barrier.Type = D3D12_RESOURCE_BARRIER_TYPE.D3D12_RESOURCE_BARRIER_TYPE_ALIASING;
             Barrier.Flags = flags;
-            Barrier.Anonymous.Aliasing.pResourceBefore = srcResource is null ? null : srcResource.GetGetResourcePointer();
-            Barrier.Anonymous.Aliasing.pResourceAfter = destResource is null ? null : destResource.GetGetResourcePointer();
+            Barrier.Anonymous.Aliasing.pResourceBefore = srcResource is null ? null : srcResource.GetResourcePointer();
+            Barrier.Anonymous.Aliasing.pResourceAfter = destResource is null ? null : destResource.GetResourcePointer();
         }
 
         /// <summary>

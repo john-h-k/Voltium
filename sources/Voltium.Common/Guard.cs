@@ -309,9 +309,8 @@ namespace Voltium.Common
             [CallerLineNumber] int lineNumber = default
         )
         {
-            LogHelper.Logger.ZLogError(
-                "OBJECT NOT DISPOSED ERROR\nFile: {0}\nMember: {1}\nLine: {2}\n",
-                filepath!, memberName!, lineNumber
+            LogHelper.LogError(
+                $"OBJECT NOT DISPOSED ERROR\nFile: {filepath}\nMember: {memberName}\nLine: {lineNumber}\n"
             );
 
 #if !DISPOSABLES_ALLOW_FINALIZE

@@ -10,9 +10,9 @@ namespace Voltium.Core.Memory
     /// <summary>
     /// Represents a GPU resource
     /// </summary>
-    internal unsafe class GpuResource : CriticalFinalizerObject, IDisposable, IInternalD3D12Object
+    internal unsafe sealed class GpuResource : IDisposable, IInternalD3D12Object
     {
-        ID3D12Object* IInternalD3D12Object.GetPointer() => (ID3D12Object*)GetGetResourcePointer();
+        ID3D12Object* IInternalD3D12Object.GetPointer() => (ID3D12Object*)GetResourcePointer();
         internal ID3D12Object* GetPointer() => ((IInternalD3D12Object)this).GetPointer();
 
         internal GpuResource(
@@ -36,7 +36,7 @@ namespace Voltium.Core.Memory
             if (desc.Desc.Dimension == D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_BUFFER
                 && !desc.Desc.Flags.HasFlag(D3D12_RESOURCE_FLAGS.D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE))
             {
-                GpuAddress = GetGetResourcePointer()->GetGPUVirtualAddress();
+                GpuAddress = GetResourcePointer()->GetGPUVirtualAddress();
             }
         }
 
@@ -63,7 +63,7 @@ namespace Voltium.Core.Memory
         /// </summary>
         public DataFormat ResourceFormat;
 
-        public unsafe ID3D12Resource* GetGetResourcePointer() => _value.Get();
+        public unsafe ID3D12Resource* GetResourcePointer() => _value.Get();
 
         /// The current state of the resource
         public ResourceState State;
@@ -94,7 +94,7 @@ namespace Voltium.Core.Memory
         {
             // Apparently the range for map and unmap are for debugging purposes and yield no perf benefit. Maybe we could still support em
             void* pData;
-            Guard.ThrowIfFailed(GetGetResourcePointer()->Map(subresource, null, &pData));
+            Guard.ThrowIfFailed(GetResourcePointer()->Map(subresource, null, &pData));
             return pData;
         }
 
@@ -105,13 +105,13 @@ namespace Voltium.Core.Memory
         public unsafe void Unmap(uint subresource)
         {
             // Apparently the range for map and unmap are for debugging purposes and yield no perf benefit. Maybe we could still support em
-            GetGetResourcePointer()->Unmap(subresource, null);
+            GetResourcePointer()->Unmap(subresource, null);
         }
 
         /// <inheritdoc cref="IDisposable"/>
         public void Dispose()
         {
-            if (_allocator is object)
+            if (_allocator is not null)
             {
                 _allocator.Return(this);
             }
@@ -119,11 +119,13 @@ namespace Voltium.Core.Memory
             {
                 _value.Dispose();
             }
+#if TRACE_DISPOSABLES || DEBUG
             GC.SuppressFinalize(this);
+#endif
         }
 
 
-#if TRACE_DISPOSABLES || !DEBUG
+#if TRACE_DISPOSABLES || DEBUG
         /// <summary>
         /// go fuck yourself roslyn why the fucking fuckeroni do finalizers need xml comments fucking fuck off fucking twatty compiler
         /// </summary>

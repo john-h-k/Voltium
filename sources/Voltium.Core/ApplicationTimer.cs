@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using TerraFX.Interop;
 using Voltium.Common;
@@ -12,11 +13,7 @@ namespace Voltium.Core
     {
         private ApplicationTimer()
         {
-            _frequency = QueryPerformanceFrequency();
-
-            _lastTime = QueryPerformanceCounter();
-
-            _maxDelta = (ulong)(_frequency.QuadPart / 10);
+            _lastTime = Stopwatch.GetTimestamp();
         }
 
         /// <summary>
@@ -95,7 +92,7 @@ namespace Voltium.Core
         /// </summary>
         public void ResetElapsedTime()
         {
-            _lastTime = QueryPerformanceCounter();
+            _lastTime = Stopwatch.GetTimestamp();
 
             _leftOverTicks = 0;
             _framesPerSecond = 0;
@@ -109,20 +106,20 @@ namespace Voltium.Core
         /// in fixed timestep mode, or immediately, in variable timestep mode
         public void Tick(Action update)
         {
-            var currentTime = QueryPerformanceCounter();
+            var currentTime = Stopwatch.GetTimestamp();
 
-            var timeDelta = (ulong)(currentTime.QuadPart - _lastTime.QuadPart);
+            var timeDelta = (ulong)(currentTime - _lastTime);
 
             _lastTime = currentTime;
             _qpcSecondCounter += timeDelta;
 
-            if (timeDelta > _maxDelta)
+            if (timeDelta > MaxDelta)
             {
-                timeDelta = _maxDelta;
+                timeDelta = MaxDelta;
             }
 
             timeDelta *= TicksPerSecond;
-            timeDelta /= (ulong)_frequency.QuadPart;
+            timeDelta /= (ulong)Frequency;
 
             uint lastFrameCount = _frameCount;
 
@@ -159,41 +156,20 @@ namespace Voltium.Core
                 _framesThisSecond++;
             }
 
-            if (_qpcSecondCounter >= (ulong)_frequency.QuadPart)
+            if (_qpcSecondCounter >= (ulong)Frequency)
             {
                 _framesPerSecond = _framesThisSecond;
                 _framesThisSecond = 0;
-                _qpcSecondCounter %= (ulong)_frequency.QuadPart;
+                _qpcSecondCounter %= (ulong)Frequency;
             }
-        }
-
-        private static unsafe LARGE_INTEGER QueryPerformanceCounter()
-        {
-            LARGE_INTEGER counter;
-            if (Windows.QueryPerformanceCounter(&counter) == Windows.TRUE)
-            {
-                return counter;
-            }
-            ThrowHelper.ThrowExternalException(Marshal.GetLastWin32Error());
-            return default;
-        }
-
-        private static unsafe LARGE_INTEGER QueryPerformanceFrequency()
-        {
-            LARGE_INTEGER frequency;
-            if (Windows.QueryPerformanceFrequency(&frequency) == Windows.TRUE)
-            {
-                return frequency;
-            }
-            ThrowHelper.ThrowExternalException(Marshal.GetLastWin32Error());
-            return default;
         }
 
         private const ulong TicksPerSecond = 10000000;
 
-        private LARGE_INTEGER _frequency;
-        private LARGE_INTEGER _lastTime;
-        private ulong _maxDelta;
+        private static readonly long Frequency = Stopwatch.Frequency;
+        private static readonly ulong MaxDelta = (ulong)(Stopwatch.Frequency / 10);
+
+        private long _lastTime;
 
         private ulong _elapsedTicks;
         private ulong _totalTicks;

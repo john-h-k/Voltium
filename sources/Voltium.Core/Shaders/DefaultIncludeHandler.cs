@@ -12,7 +12,7 @@ using static TerraFX.Interop.Windows;
 namespace Voltium.Core.Devices
 {
     [StructLayout(LayoutKind.Explicit)]
-    internal unsafe struct FxcIncludeHandler : IDisposable
+    internal unsafe struct LegacyFxcIncludeHandler : IDisposable
     {
         [FieldOffset(0)]
         private void** _pVtbl;
@@ -33,7 +33,7 @@ namespace Voltium.Core.Devices
             set => _handler.ShaderDirectory = value;
         }
 
-        static FxcIncludeHandler()
+        static LegacyFxcIncludeHandler()
         {
             Vtbl = (void**)Helpers.Alloc((uint)sizeof(nuint) * 2);
 
@@ -70,7 +70,7 @@ namespace Voltium.Core.Devices
             )
             => AsThis(pThis).Open(IncludeType, pFileName, pParentData, ppData, pBytes);
 
-        private static ref FxcIncludeHandler AsThis(ID3DInclude* ptr) => ref Unsafe.As<ID3DInclude, FxcIncludeHandler>(ref *ptr);
+        private static ref LegacyFxcIncludeHandler AsThis(ID3DInclude* ptr) => ref Unsafe.As<ID3DInclude, LegacyFxcIncludeHandler>(ref *ptr);
 
         public int Close(void* data)
         {
@@ -324,7 +324,7 @@ namespace Voltium.Core.Devices
             => ref Unsafe.As<DxcIncludeHandler, IDxcIncludeHandler>(ref handler);
 
 
-        public static ref ID3DInclude GetPinnableReference(ref this FxcIncludeHandler handler)
-            => ref Unsafe.As<FxcIncludeHandler, ID3DInclude>(ref handler);
+        public static ref ID3DInclude GetPinnableReference(ref this LegacyFxcIncludeHandler handler)
+            => ref Unsafe.As<LegacyFxcIncludeHandler, ID3DInclude>(ref handler);
     }
 }

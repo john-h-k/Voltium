@@ -68,7 +68,7 @@ namespace Voltium.Common
                 int hr = Windows.DXGIGetDebugInterface1(0, analysis.Iid, ComPtr.GetVoidAddressOf(&analysis));
                 if (Windows.SUCCEEDED(hr))
                 {
-                    LogHelper.Logger.ZLogInformation("PIX debugger is attached");
+                    LogHelper.LogInformation("PIX debugger is attached");
                 }
 
                 // E_NOINTERFACE occurs when PIX isn't attached, which is fine. Else something has gone wrong and it is worth failing
@@ -158,7 +158,7 @@ namespace Voltium.Common
 
         private void LogPixNotAttached()
         {
-            LogHelper.Logger.ZLogInformation("PIX Frame capture was created but PIX is not attached, so the capture was dropped");
+            LogHelper.LogInformation("PIX Frame capture was created but PIX is not attached, so the capture was dropped");
         }
 
         public void SetDeviceStateForConfig(ComputeDevice device)
@@ -262,7 +262,7 @@ namespace Voltium.Common
                             (int)msgBuffer->DescriptionByteLength
                         );
 
-                        LogHelper.Logger.ZLog(GetLogLevelForSeverity(msgBuffer->Severity), transcoded);
+                        LogHelper.Log(GetLogLevelForSeverity(msgBuffer->Severity), transcoded);
                     }
                 }
             }
@@ -290,7 +290,7 @@ namespace Voltium.Common
                             (int)msgBuffer->DescriptionByteLength
                         );
 
-                        LogHelper.Logger.ZLog(GetLogLevelForSeverity(msgBuffer->Severity), transcoded);
+                        LogHelper.Log(GetLogLevelForSeverity(msgBuffer->Severity), transcoded);
                     }
                 }
             }
@@ -298,7 +298,7 @@ namespace Voltium.Common
             // Guard.ThrowIfFailed calls this to flush messages, so we can't call it
             static void ThrowIfFailed(int hr)
             {
-                Console.WriteLine(
+                LogHelper.LogError(
                     $"if this next bit of text says E_INVALIDARG then this code is messing up. {DebugExtensions.TranslateHr(hr)}. " +
                     "Else you have really messed up and have managed to break the debug message queue");
             }
