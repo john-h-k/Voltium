@@ -121,7 +121,7 @@ namespace Voltium.Core.Devices
         /// <param name="desc">The <see cref="OutputConfiguration"/> for this output</param>
         /// <param name="window">The <see cref="IOutputOwner"/> that owns the window</param>
         /// <param name="outputArea">Optionally, the <see cref="Size"/> of the rendered output. By default, this will be the entire window</param>
-        /// <param name="implicitExecuteOnPresent">Whether <see cref="GraphicsDevice.Execute"/> should be called each time <see cref="Present"/> is called</param>
+        /// <param name="implicitExecuteOnPresent">Whether <see cref="GraphicsDevice.Execute()"/> should be called each time <see cref="Present"/> is called</param>
         /// <returns>A new <see cref="Output"/></returns>
         public static Output Create(GraphicsDevice device, OutputConfiguration desc, IOutputOwner window, Size outputArea = default, bool implicitExecuteOnPresent = false)
         {
@@ -141,7 +141,7 @@ namespace Voltium.Core.Devices
         /// <param name="desc">The <see cref="OutputConfiguration"/> for this output</param>
         /// <param name="window">The <see cref="IHwndOwner"/> that owns the window</param>
         /// <param name="outputArea">Optionally, the <see cref="Size"/> of the rendered output. By default, this will be the entire window</param>
-        /// <param name="implicitExecuteOnPresent">Whether <see cref="GraphicsDevice.Execute"/> should be called each time <see cref="Present"/> is called</param>
+        /// <param name="implicitExecuteOnPresent">Whether <see cref="GraphicsDevice.Execute()"/> should be called each time <see cref="Present"/> is called</param>
         /// <returns>A new <see cref="Output"/></returns>
         public static Output CreateForWin32(GraphicsDevice device, OutputConfiguration desc, IHwndOwner window, Size outputArea = default, bool implicitExecuteOnPresent = false)
             => CreateForWin32(device, desc, window.GetHwnd(), outputArea, implicitExecuteOnPresent);
@@ -153,7 +153,7 @@ namespace Voltium.Core.Devices
         /// <param name="desc">The <see cref="OutputConfiguration"/> for this output</param>
         /// <param name="window">The HWND for the window to bind to</param>
         /// <param name="outputArea">Optionally, the <see cref="Size"/> of the rendered output. By default, this will be the entire window</param>
-        /// <param name="implicitExecuteOnPresent">Whether <see cref="GraphicsDevice.Execute"/> should be called each time <see cref="Present"/> is called</param>
+        /// <param name="implicitExecuteOnPresent">Whether <see cref="GraphicsDevice.Execute()"/> should be called each time <see cref="Present"/> is called</param>
         /// <returns>A new <see cref="Output"/></returns>
         public static Output CreateForWin32(GraphicsDevice device, OutputConfiguration desc, IntPtr window, Size outputArea = default, bool implicitExecuteOnPresent = false)
         {
@@ -187,7 +187,7 @@ namespace Voltium.Core.Devices
         /// <param name="desc">The <see cref="OutputConfiguration"/> for this output</param>
         /// <param name="window">The <see cref="ICoreWindowsOwner"/> that owns the window</param>
         /// <param name="outputArea">Optionally, the <see cref="Size"/> of the rendered output. By default, this will be the entire window</param>
-        /// <param name="implicitExecuteOnPresent">Whether <see cref="GraphicsDevice.Execute"/> should be called each time <see cref="Present"/> is called</param>
+        /// <param name="implicitExecuteOnPresent">Whether <see cref="GraphicsDevice.Execute()"/> should be called each time <see cref="Present"/> is called</param>
         /// <returns>A new <see cref="Output"/></returns>
         public static Output CreateForWinRT(GraphicsDevice device, OutputConfiguration desc, ICoreWindowsOwner window, Size outputArea = default, bool implicitExecuteOnPresent = false)
             => CreateForWinRT(device, desc, window.GetIUnknownForWindow(), outputArea, implicitExecuteOnPresent);
@@ -199,7 +199,7 @@ namespace Voltium.Core.Devices
         /// <param name="desc">The <see cref="OutputConfiguration"/> for this output</param>
         /// <param name="window">The IUnknown* for the window to bind to</param>
         /// <param name="outputArea">Optionally, the <see cref="Size"/> of the rendered output. By default, this will be the entire window</param>
-        /// <param name="implicitExecuteOnPresent">Whether <see cref="GraphicsDevice.Execute"/> should be called each time <see cref="Present"/> is called</param>
+        /// <param name="implicitExecuteOnPresent">Whether <see cref="GraphicsDevice.Execute()"/> should be called each time <see cref="Present"/> is called</param>
         /// <returns>A new <see cref="Output"/></returns>
         public static Output CreateForWinRT(GraphicsDevice device, OutputConfiguration desc, void* window, Size outputArea = default, bool implicitExecuteOnPresent = false)
         {
@@ -231,7 +231,7 @@ namespace Voltium.Core.Devices
         /// <param name="desc">The <see cref="OutputConfiguration"/> for this output</param>
         /// <param name="swapChainPanelNative">The IUnknown* for the ISwapChainPanelNative to bind to</param>
         /// <param name="outputArea">The <see cref="Size"/> of the rendered output</param>
-        /// <param name="implicitExecuteOnPresent">Whether <see cref="GraphicsDevice.Execute"/> should be called each time <see cref="Present"/> is called</param>
+        /// <param name="implicitExecuteOnPresent">Whether <see cref="GraphicsDevice.Execute()"/> should be called each time <see cref="Present"/> is called</param>
         /// <returns>A new <see cref="Output"/></returns>
         public static Output CreateForSwapChainPanel(GraphicsDevice device, OutputConfiguration desc, void* swapChainPanelNative, Size outputArea, bool implicitExecuteOnPresent = false)
         {

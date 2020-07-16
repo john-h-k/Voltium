@@ -92,7 +92,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
             _vertexBuffer = new Buffer[_texturedObjects.Length];
             _indexBuffer = new Buffer[_texturedObjects.Length];
 
-            using (var list = _device.BeginCopyContext())
+            using (var list = _device.BeginCopyContext(executeOnClose: true))
             using (_device.BeginScopedCapture())
             {
                 for (var i = 0; i < _texturedObjects.Length; i++)
@@ -143,11 +143,6 @@ namespace Voltium.Interactive.BasicRenderPipeline
                 ResourceState.DepthWrite
             );
 
-            resources.SampledOutput = builder.CreatePrimaryOutputRelativeTexture(
-                TextureDesc.CreateRenderTargetDesc(DataFormat.R8G8B8A8UnsignedNormalized, Rgba128.CornflowerBlue),
-                ResourceState.GenericRead
-            );
-
             resolver.CreateComponent(resources);
 
             var fovAngleY = 70.0f * MathF.PI / 180.0f;
@@ -187,8 +182,8 @@ namespace Voltium.Interactive.BasicRenderPipeline
                 //ShaderCompileFlag.DefineMacro("NORMALS")
             };
 
-            var vertexShader = ShaderManager.CompileShader("Shaders/SimpleTexture/TextureVertexShader.hlsl", ShaderModel.Vs_5_0, compilationFlags);
-            var pixelShader = ShaderManager.CompileShader("Shaders/SimpleTexture/TexturePixelShader.hlsl", ShaderModel.Ps_5_0, compilationFlags);
+            var vertexShader = ShaderManager.CompileShader("Shaders/SimpleTexture/TextureVertexShader.hlsl", ShaderModel.Vs_6_0, compilationFlags);
+            var pixelShader = ShaderManager.CompileShader("Shaders/SimpleTexture/TexturePixelShader.hlsl", ShaderModel.Ps_6_0, compilationFlags);
 
             var psoDesc = new GraphicsPipelineDesc
             {

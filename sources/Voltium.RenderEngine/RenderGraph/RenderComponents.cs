@@ -81,6 +81,13 @@ namespace Voltium.RenderEngine
         public T Get<T>() => TypeComponent<T>.GetComponent(_handle);
 
         /// <summary>
+        /// Get a component by its type
+        /// </summary>
+        /// <typeparam name="T">The type of the component to retrieve</typeparam>
+        /// <returns>The component, if present</returns>
+        public void Set<T>(T component) => TypeComponent<T>.SetComponent(_handle, component);
+
+        /// <summary>
         /// Adds a new component by its type
         /// </summary>
         /// <typeparam name="T">The type of the component to add</typeparam>

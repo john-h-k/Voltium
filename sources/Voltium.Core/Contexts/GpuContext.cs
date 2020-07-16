@@ -12,9 +12,10 @@ namespace Voltium.Core
     /// </summary>
     public unsafe struct GpuContext : IDisposable
     {
-        internal GraphicsDevice Device;
+        internal ComputeDevice Device;
         internal ComPtr<ID3D12GraphicsCommandList> _list;
         internal ComPtr<ID3D12CommandAllocator> _allocator;
+        internal bool _executeOnClose;
 
         internal ID3D12GraphicsCommandList* List => _list.Get();
         internal ID3D12CommandAllocator* Allocator => _allocator.Get();
@@ -23,11 +24,12 @@ namespace Voltium.Core
         private uint _currentBarrierCount;
         internal const uint MaxNumBarriers = 8;
 
-        internal GpuContext(GraphicsDevice device, ComPtr<ID3D12GraphicsCommandList> list, ComPtr<ID3D12CommandAllocator> allocator)
+        internal GpuContext(ComputeDevice device, ComPtr<ID3D12GraphicsCommandList> list, ComPtr<ID3D12CommandAllocator> allocator, bool executeOnClose)
         {
             Device = device;
             _list = list.Move();
             _allocator = allocator.Move();
+            _executeOnClose = executeOnClose;
             // We can't read past this many buffers as we skip init'ing them
             _currentBarrierCount = 0;
 
@@ -102,7 +104,11 @@ namespace Voltium.Core
         public void Dispose()
         {
             FlushBarriers();
-            Device.End(ref this);
+            Guard.ThrowIfFailed(List->Close());
+            if (_executeOnClose)
+            {
+                ((GraphicsDevice)Device).Execute(ref this);
+            }
         }
     }
 }

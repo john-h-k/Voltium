@@ -62,6 +62,39 @@ namespace Voltium.Common
             });
         }
 
+        internal static unsafe void SetPrivateData<T, TData>(T obj, in Guid iid, in TData data) where T : IInternalD3D12Object where TData : unmanaged
+            => SetPrivateData(obj.GetPointer(), iid, data);
+
+        internal static unsafe void SetPrivateData<T, TData>(T* obj, in Guid iid, in TData data) where T : unmanaged where TData : unmanaged
+        {
+            var unknown = (ID3D12Object*)obj;
+
+            fixed (Guid* piid = &iid)
+            fixed (TData* pData = &data)
+            {
+                Guard.ThrowIfFailed(unknown->SetPrivateData(piid, (uint)sizeof(TData), pData));
+            }
+        }
+
+        internal static unsafe TData GetPrivateData<T, TData>(this ref T obj, in Guid iid, out int bytesWritten) where T : struct, IInternalD3D12Object where TData : unmanaged
+            => GetPrivateData<ID3D12Object, TData>(obj.GetPointer(), iid, out bytesWritten);
+
+        internal static unsafe TData GetPrivateData<T, TData>(T* obj, in Guid iid, out int bytesWritten) where T : unmanaged where TData : unmanaged
+        {
+            var unknown = (ID3D12Object*)obj;
+
+            uint size;
+            TData data;
+
+            fixed (Guid* piid = &iid)
+            {
+                Guard.ThrowIfFailed(unknown->GetPrivateData(piid, &size, &data));
+            }
+
+            bytesWritten = (int)size;
+            return data;
+        }
+
         internal static unsafe string GetName<T>(T obj) where T : IInternalD3D12Object
             => GetName(obj.GetPointer());
     }

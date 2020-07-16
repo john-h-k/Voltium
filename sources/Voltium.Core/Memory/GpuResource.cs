@@ -19,8 +19,8 @@ namespace Voltium.Core.Memory
             ComputeDevice device,
             ComPtr<ID3D12Resource> resource,
             InternalAllocDesc desc,
-            GpuAllocator? allocator = null,
-            AllocatorHeap heap = default,
+            GpuAllocator? allocator,
+            int heapIndex,
             HeapBlock block = default
         )
         {
@@ -28,7 +28,7 @@ namespace Voltium.Core.Memory
             _value = resource.Move();
             State = (ResourceState)desc.InitialState;
             ResourceFormat = (DataFormat)desc.Desc.Format;
-            Heap = heap;
+            HeapIndex = heapIndex;
             Block = block;
             _allocator = allocator;
 
@@ -96,7 +96,7 @@ namespace Voltium.Core.Memory
         internal ComputeDevice Device => _device;
 
         private GpuAllocator? _allocator;
-        public AllocatorHeap Heap;
+        public int HeapIndex;
         public HeapBlock Block;
 
         /// <summary>

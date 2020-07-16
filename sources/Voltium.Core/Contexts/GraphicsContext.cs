@@ -991,6 +991,28 @@ namespace Voltium.Core
         /// <returns></returns>
         public static ref GraphicsContext AsMutable(this in GraphicsContext context) => ref Unsafe.AsRef(in context);
 
+
+        /// <summary>
+        /// Returns the <see cref="GpuContext"/> for a given <see cref="CopyContext"/>
+        /// </summary>
+        /// <param name="context">The <see cref="CopyContext"/> to convert</param>
+        /// <returns>A <see cref="GpuContext"/> recording to the same list as <paramref name="context"/></returns>
+        public static ref GpuContext AsGpuContext(this ref CopyContext context) => ref Unsafe.As<CopyContext, GpuContext>(ref context);
+
+        /// <summary>
+        /// Returns the <see cref="GpuContext"/> for a given <see cref="GraphicsContext"/>
+        /// </summary>
+        /// <param name="context">The <see cref="GraphicsContext"/> to convert</param>
+        /// <returns>A <see cref="GpuContext"/> recording to the same list as <paramref name="context"/></returns>
+        public static ref GpuContext AsGpuContext(this ref GraphicsContext context) => ref Unsafe.As<GraphicsContext, GpuContext>(ref context);
+
+        /// <summary>
+        /// Returns the <see cref="GpuContext"/> for a given <see cref="ComputeContext"/>
+        /// </summary>
+        /// <param name="context">The <see cref="ComputeContext"/> to convert</param>
+        /// <returns>A <see cref="GpuContext"/> recording to the same list as <paramref name="context"/></returns>
+        public static ref GpuContext AsGpuContext(this ref ComputeContext context) => ref Unsafe.As<ComputeContext, GpuContext>(ref context);
+
         /// <summary>
         /// Returns the <see cref="CopyContext"/> for a given <see cref="GraphicsContext"/>
         /// </summary>

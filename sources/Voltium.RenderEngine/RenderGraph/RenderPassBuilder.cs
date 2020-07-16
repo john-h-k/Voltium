@@ -95,7 +95,6 @@ namespace Voltium.RenderEngine
 
                 // If we write to resource, we need to mark that to the resource
                 res.LastWritePassIndex = _passIndex;
-                Transitions.Add((resource, flags, ResourceBarrierOptions.Full));
             }
             else if (flags.HasReadOnlyFlags())
             {
@@ -108,8 +107,9 @@ namespace Voltium.RenderEngine
                 // If we read from it, we need to mark that we do
                 res.LastReadPassIndices.Add(_passIndex);
 
-                Transitions.Add((resource, flags, ResourceBarrierOptions.Full));
             }
+
+            Transitions.Add((resource, flags, ResourceBarrierOptions.Full));
         }
 
         private const string InvalidResourceStateFlags = "ResourceStateFlags is invalid, which means it contains both write and read states, or multiple write states";

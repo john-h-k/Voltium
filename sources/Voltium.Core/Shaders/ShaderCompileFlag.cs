@@ -64,6 +64,15 @@ namespace Voltium.Core.Devices
         // this is for interop and because those strings are seperate to IDxcCompiler3
         internal readonly char[] Value;
         internal readonly int ArgCount;
+
+        /// <inheritdoc/>
+        public override string ToString() => string.Create(Value.Length, Value, (buff, arr) =>
+        {
+            for (var i = 0; i < buff.Length; i++)
+            {
+                buff[i] = arr[i] == 0 ? ' ' : arr[i];
+            }
+        });
     }
 
     ///// <summary>

@@ -10,6 +10,7 @@ using Voltium.Core.Infrastructure;
 using Voltium.Core.Pipeline;
 using ZLogger;
 using static TerraFX.Interop.Windows;
+using Voltium.Core.Pool;
 
 namespace Voltium.Core.Devices
 {
@@ -31,15 +32,7 @@ namespace Voltium.Core.Devices
         private GraphicalConfiguration _config = null!;
         private SynchronizedCommandQueue _graphicsQueue;
 
-        private Adapter _adapter;
-
-        /// <summary>
-        /// The <see cref="Adapter"/> this device uses
-        /// </summary>
-        public Adapter Adapter => _adapter;
-
         internal ulong TotalFramesRendered = 0;
-        private GpuDispatchManager _dispatch = null!;
 
         private bool _disposed;
 
@@ -152,7 +145,6 @@ namespace Voltium.Core.Devices
             public uint X8;
             public uint X16;
             public uint X32;
-            public uint X64;
             public uint GetQualityLevelsForSampleCount(uint sampleCount)
                 => Unsafe.Add(ref X1, BitOperations.Log2(sampleCount));
         }
@@ -167,7 +159,7 @@ namespace Voltium.Core.Devices
         /// <returns><see langword="true"/> if multisampling for <paramref name="sampleCount"/> is supported, else <see langword="false"/></returns>
         public bool IsSampleCountSupported(uint sampleCount, out MultisamplingDesc highestQualityLevel)
         {
-            highestQualityLevel = new (sampleCount, _sampleCounts.GetQualityLevelsForSampleCount(sampleCount) - 1);
+            highestQualityLevel = new(sampleCount, _sampleCounts.GetQualityLevelsForSampleCount(sampleCount) - 1);
 
             // When unsupported, num quality levels = 0, which wil underflow to maxvalue in the above calc
             return highestQualityLevel.QualityLevel != 0xFFFFFFFF;
@@ -218,21 +210,18 @@ namespace Voltium.Core.Devices
         /// <summary>
         /// 
         /// </summary>
-        /// <returns></returns>
-        public new CopyContext BeginCopyContext()
+        public CopyContext BeginCopyContext(bool executeOnClose = false)
         {
-            var ctx = BeginGraphicsContext();
+            var ctx = BeginGraphicsContext(executeOnClose: executeOnClose);
             return ctx.AsCopyContext();
         }
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="pso"></param>
-        /// <returns></returns>
-        public new ComputeContext BeginComputeContext(ComputePipelineStateObject? pso = null)
+        public ComputeContext BeginComputeContext(ComputePipelineStateObject? pso = null, bool executeOnClose = false)
         {
-            var ctx = BeginGraphicsContext(pso);
+            var ctx = BeginGraphicsContext(pso, executeOnClose: executeOnClose);
             return ctx.AsComputeContext();
         }
 
@@ -240,46 +229,24 @@ namespace Voltium.Core.Devices
         /// Returns a <see cref="GraphicsContext"/> used for recording graphical commands
         /// </summary>
         /// <returns>A new <see cref="GraphicsContext"/></returns>
-        public GraphicsContext BeginGraphicsContext(PipelineStateObject? pso = null)
+        public GraphicsContext BeginGraphicsContext(PipelineStateObject? pso = null, bool executeOnClose = false)
         {
-            if (_list == null || _allocator == null)
-            {
-                ID3D12GraphicsCommandList* list;
-                ID3D12CommandAllocator* allocator;
-
-                var iid0 = IID_ID3D12CommandAllocator;
-                var iid1 = IID_ID3D12GraphicsCommandList;
-                Guard.ThrowIfFailed(DevicePointer->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE.D3D12_COMMAND_LIST_TYPE_DIRECT, &iid0, (void**)&allocator));
-                Guard.ThrowIfFailed(DevicePointer->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE.D3D12_COMMAND_LIST_TYPE_DIRECT, allocator, pso is null ? null : pso.GetPso(), &iid1, (void**)&list));
-
-                Guard.ThrowIfFailed(list->Close());
-
-                _list = list;
-                _allocator = allocator;
-            }
-
-            Guard.ThrowIfFailed(_allocator->Reset());
-            Guard.ThrowIfFailed(_list->Reset(_allocator, pso is null ? null : pso.GetPso()));
+            var context = ContextPool.Rent(ExecutionContext.Graphics, pso, executeOnClose: executeOnClose);
 
             var rootSig = pso is null ? null : pso.GetRootSig();
             if (pso is ComputePipelineStateObject)
             {
-                _list->SetComputeRootSignature(rootSig);
+                context.List->SetComputeRootSignature(rootSig);
             }
             else if (pso is GraphicsPipelineStateObject)
             {
-                _list->SetGraphicsRootSignature(rootSig);
+                context.List->SetGraphicsRootSignature(rootSig);
             }
 
-            SetDefaultDescriptorHeaps(_list);
+            SetDefaultDescriptorHeaps(context.List);
 
-
-            return new GraphicsContext(new(this, new(_list), new(_allocator)));
-
-            //return _dispatch.BeginGraphicsContext(pso);
+            return new GraphicsContext(context);
         }
-
-        private TimeSpan _start;
 
         private void SetDefaultDescriptorHeaps(ID3D12GraphicsCommandList* list)
         {
@@ -289,34 +256,20 @@ namespace Voltium.Core.Devices
             list->SetDescriptorHeaps(numHeaps, heaps);
         }
 
-        [ThreadStatic]
-        private ID3D12GraphicsCommandList* _list;
 
-        [ThreadStatic]
-        private ID3D12CommandAllocator* _allocator;
-
-        private bool _recFrame = true;
 
         /// <summary>
         /// Submit a set of recorded commands to the list
         /// </summary>
         /// <param name="context">The commands to submit for execution</param>
-        internal void End(ref GpuContext context)
+        public void Execute(ref GpuContext context)
         {
-            ComPtr<ID3D12GraphicsCommandList> list = new(context.List);
-            list.Get()->Close();
+            ID3D12GraphicsCommandList* list = context.List;
+
             _graphicsQueue.GetQueue()->ExecuteCommandLists(1, (ID3D12CommandList**)&list);
 
-            QueryTimestamp(ExecutionContext.Graphics, out var start);
             _graphicsQueue.GetSynchronizerForIdle().Block();
-            QueryTimestamp(ExecutionContext.Graphics, out var end);
-
-            if (_recFrame)
-            {
-                Console.WriteLine((end - start).TotalMilliseconds);
-                _recFrame = false;
-            }
-            //return _dispatch.End(context);
+            ContextPool.Return(context);
         }
 
         /// <summary>
@@ -325,6 +278,29 @@ namespace Voltium.Core.Devices
         public void Execute()
         {
 
+        }
+
+        /// <summary>
+        /// Execute all provided command lists
+        /// </summary>
+        public void Execute(Span<GpuContext> contexts)
+        {
+            StackSentinel.StackAssert(StackSentinel.SafeToStackallocPointers(contexts.Length));
+
+            ID3D12CommandList** ppLists = stackalloc ID3D12CommandList*[contexts.Length];
+
+            for (var i = 0; i < contexts.Length; i++)
+            {
+                ppLists[i] = (ID3D12CommandList*)contexts[i].List;
+            }
+
+            _graphicsQueue.GetQueue()->ExecuteCommandLists((uint)contexts.Length, ppLists);
+            _graphicsQueue.GetSynchronizerForIdle().Block();
+
+            for (var i = 0; i < contexts.Length; i++)
+            {
+                ContextPool.Return(contexts[i]);
+            }
         }
 
         /// <summary>
@@ -357,7 +333,7 @@ namespace Voltium.Core.Devices
         {
             // we don't cache DRED state. we could, as this is the only class that should
             // change DRED state, but this isn't a fast path so there is no point
-            if (_device.TryQueryInterface<ID3D12DeviceRemovedExtendedData>(out var dred))
+            if (Device.TryQueryInterface<ID3D12DeviceRemovedExtendedData>(out var dred))
             {
                 using (dred)
                 {
@@ -371,7 +347,7 @@ namespace Voltium.Core.Devices
 
         private void OnDeviceRemovedWithDred(ID3D12DeviceRemovedExtendedData* dred)
         {
-            Debug.Assert(dred != null);
+            System.Diagnostics.Debug.Assert(dred != null);
 
             D3D12_DRED_AUTO_BREADCRUMBS_OUTPUT breadcrumbs;
             D3D12_DRED_PAGE_FAULT_OUTPUT pageFault;
@@ -395,7 +371,7 @@ namespace Voltium.Core.Devices
 
             base.Dispose();
 
-            _debug?.ReportDeviceLiveObjects();
+            Debug?.ReportDeviceLiveObjects();
 
             _graphicsQueue.Dispose();
         }

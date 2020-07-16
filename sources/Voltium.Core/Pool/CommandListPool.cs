@@ -11,9 +11,9 @@ namespace Voltium.Core.Pool
     /// </summary>
     internal unsafe sealed class CommandListPool : ThreadSafeComPool<ID3D12GraphicsCommandList, CommandListPool.ListCreationParams>
     {
-        private GraphicsDevice _device;
+        private ComputeDevice _device;
 
-        public CommandListPool(GraphicsDevice device)
+        public CommandListPool(ComputeDevice device)
         {
             Debug.Assert(device is object);
             _device = device;

@@ -15,6 +15,7 @@ using static TerraFX.Interop.Windows;
 using static TerraFX.Interop.D3D12_FEATURE;
 using Buffer = Voltium.Core.Memory.Buffer;
 using Voltium.Core.Devices.Shaders;
+using Voltium.Core.Pool;
 
 namespace Voltium.Core.Devices
 {
@@ -49,17 +50,23 @@ namespace Voltium.Core.Devices
         /// </summary>
         public PipelineManager PipelineManager { get; private protected set; } = null!;
 
-        private protected ComPtr<ID3D12Device> _device;
+        private protected ComPtr<ID3D12Device> Device;
         internal SupportedDevice DeviceLevel;
         internal enum SupportedDevice { Unknown, Device, Device1, Device2, Device3, Device4, Device5, Device6, Device7, Device8 }
-        private protected static HashSet<ulong> _preexistingDevices = new(1);
-        private protected DebugLayer? _debug;
+        private protected static HashSet<ulong> PreexistingDevices = new(1);
+        private protected DebugLayer? Debug;
+        private protected ContextPool ContextPool;
+
+        /// <summary>
+        /// The <see cref="Adapter"/> this device uses
+        /// </summary>
+        public Adapter Adapter { get; private set; }
 
         internal enum SupportedGraphicsCommandList { Unknown, GraphicsCommandList, GraphicsCommandList1, GraphicsCommandList2, GraphicsCommandList3, GraphicsCommandList4, GraphicsCommandList5 }
-        private SupportedGraphicsCommandList _supportedList;
+        private SupportedGraphicsCommandList SupportedList;
 
-        internal ID3D12Device* DevicePointer => _device.Get();
-        internal TDevice* DevicePointerAs<TDevice>() where TDevice : unmanaged => _device.AsBase<TDevice>().Get();
+        internal ID3D12Device* DevicePointer => Device.Get();
+        internal TDevice* DevicePointerAs<TDevice>() where TDevice : unmanaged => Device.AsBase<TDevice>().Get();
 
         /// <summary>
         /// The number of physical adapters, referred to as nodes, that the device uses
@@ -92,28 +99,29 @@ namespace Voltium.Core.Devices
         // Prevent external types inheriting from this (we rely on expected internal behaviour in a few places)
         private protected ComputeDevice(FeatureLevel requiredFeatureLevel, DebugLayerConfiguration? config, Adapter? adapter)
         {
-            _debug = new DebugLayer(config);
+            Debug = new DebugLayer(config);
 
             {
                 // Prevent another device creation messing with our settings
                 lock (_stateLock)
                 {
-                    _debug.SetGlobalStateForConfig();
+                    Debug.SetGlobalStateForConfig();
 
                     CreateNewDevice(adapter, requiredFeatureLevel);
 
-                    _debug.ResetGlobalState();
+                    Debug.ResetGlobalState();
                 }
 
-                if (!_device.Exists)
+                if (!Device.Exists)
                 {
                     ThrowHelper.ThrowPlatformNotSupportedException($"FATAL: Creation of ID3D12Device with feature level '{requiredFeatureLevel}' failed");
                 }
 
-                _debug.SetDeviceStateForConfig(this);
+                Debug.SetDeviceStateForConfig(this);
             }
 
             QueryFeaturesOnCreation();
+            ContextPool = new ContextPool(this);
         }
 
         private protected void CreateNewDevice(
@@ -123,7 +131,7 @@ namespace Voltium.Core.Devices
         {
             adapter ??= GetDefaultAdapter();
 
-            if (_preexistingDevices.Contains(adapter.GetValueOrDefault().AdapterLuid))
+            if (PreexistingDevices.Contains(adapter.GetValueOrDefault().AdapterLuid))
             {
                 ThrowHelper.ThrowArgumentException("Device already exists for adapter");
             }
@@ -140,28 +148,28 @@ namespace Voltium.Core.Devices
                     p.Iid,
                     ComPtr.GetVoidAddressOf(&p)
                 ));
-                _device = p.Move();
+                Device = p.Move();
 
                 LogHelper.Logger.ZLogInformationWithPayload(adapter, "New D3D12 device created from adapter");
             }
 
-            DebugHelpers.SetName(_device.Get(), "Primary Device");
+            DebugHelpers.SetName(Device.Get(), "Primary Device");
 
-            DeviceLevel = _device switch
+            DeviceLevel = Device switch
             {
-                _ when _device.HasInterface<ID3D12Device8>() => SupportedDevice.Device8,
-                _ when _device.HasInterface<ID3D12Device7>() => SupportedDevice.Device7,
-                _ when _device.HasInterface<ID3D12Device6>() => SupportedDevice.Device6,
-                _ when _device.HasInterface<ID3D12Device5>() => SupportedDevice.Device5,
-                _ when _device.HasInterface<ID3D12Device4>() => SupportedDevice.Device4,
-                _ when _device.HasInterface<ID3D12Device3>() => SupportedDevice.Device3,
-                _ when _device.HasInterface<ID3D12Device2>() => SupportedDevice.Device2,
-                _ when _device.HasInterface<ID3D12Device1>() => SupportedDevice.Device1,
+                _ when Device.HasInterface<ID3D12Device8>() => SupportedDevice.Device8,
+                _ when Device.HasInterface<ID3D12Device7>() => SupportedDevice.Device7,
+                _ when Device.HasInterface<ID3D12Device6>() => SupportedDevice.Device6,
+                _ when Device.HasInterface<ID3D12Device5>() => SupportedDevice.Device5,
+                _ when Device.HasInterface<ID3D12Device4>() => SupportedDevice.Device4,
+                _ when Device.HasInterface<ID3D12Device3>() => SupportedDevice.Device3,
+                _ when Device.HasInterface<ID3D12Device2>() => SupportedDevice.Device2,
+                _ when Device.HasInterface<ID3D12Device1>() => SupportedDevice.Device1,
                 _ => SupportedDevice.Device
             };
 
             LUID luid = DevicePointer->GetAdapterLuid();
-            _preexistingDevices.Add(Unsafe.As<LUID, ulong>(ref luid));
+            PreexistingDevices.Add(Unsafe.As<LUID, ulong>(ref luid));
         }
 
         private protected void QueryFeatureSupport<T>(D3D12_FEATURE feature, ref T val) where T : unmanaged
@@ -230,17 +238,17 @@ namespace Voltium.Core.Devices
         /// Begins a scoped PIX capture that ends when the <see cref="ScopedCapture"/> is disposed
         /// </summary>
         /// <returns>A new <see cref="ScopedCapture"/></returns>
-        public ScopedCapture BeginScopedCapture() => new ScopedCapture(_debug);
+        public ScopedCapture BeginScopedCapture() => new ScopedCapture(Debug);
 
         /// <summary>
         /// Begins a PIX capture
         /// </summary>
-        public void BeginCapture() => _debug?.BeginCapture();
+        public void BeginCapture() => Debug?.BeginCapture();
 
         /// <summary>
         /// Ends a PIX capture
         /// </summary>
-        public void EndCapture() => _debug?.EndCapture();
+        public void EndCapture() => Debug?.EndCapture();
 
         /// <summary>
         /// 
@@ -434,7 +442,7 @@ namespace Voltium.Core.Devices
         /// <inheritdoc/>
         public virtual void Dispose()
         {
-            _device.Dispose();
+            Device.Dispose();
             Allocator.Dispose();
             PipelineManager.Dispose();
         }

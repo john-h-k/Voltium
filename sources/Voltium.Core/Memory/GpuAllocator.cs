@@ -10,7 +10,6 @@ using Voltium.Core.Devices;
 using Voltium.Core.Memory;
 using Buffer = Voltium.Core.Memory.Buffer;
 using Rectangle = System.Drawing.Rectangle;
-using SixLabors.ImageSharp.PixelFormats;
 
 namespace Voltium.Core.Memory
 {
@@ -28,78 +27,24 @@ namespace Voltium.Core.Memory
     }
 
     /// <summary>
-    /// 
-    /// </summary>
-    public struct TextureClearValue
-    {
-        /// <summary>
-        /// If used with a render target, the <see cref="Rgba128"/> to optimise clearing for
-        /// </summary>
-        public Rgba128 Color { get; set; }
-
-        /// <summary>
-        /// If used with a depth target, the <see cref="float"/> to optimise clearing depth for
-        /// </summary>
-        public float Depth { get; set; }
-
-        /// <summary>
-        /// If used with a depth target, the <see cref="byte"/> to optimise clearing stencil for
-        /// </summary>
-        public byte Stencil { get; set; }
-
-        /// <summary>
-        /// Creates a new <see cref="TextureClearValue"/> for a render target
-        /// </summary>
-        /// <param name="color">The <see cref="Rgba128"/> to optimise clearing for</param>
-        /// <returns>A new <see cref="TextureClearValue"/></returns>
-        public static TextureClearValue CreateForRenderTarget(Rgba128 color) => new TextureClearValue { Color = color };
-
-        /// <summary>
-        /// Creates a new <see cref="TextureClearValue"/> for a render target
-        /// </summary>
-        /// <param name="depth">The <see cref="float"/> to optimise clearing depth for</param>
-        /// <param name="stencil">The <see cref="byte"/> to optimise clearing stencil for</param>
-        /// <returns>A new <see cref="TextureClearValue"/></returns>
-        public static TextureClearValue CreateForDepthStencil(float depth, byte stencil) => new TextureClearValue { Depth = depth, Stencil = stencil };
-    }
-
-    /// <summary>
-    /// Flags used in resource creation
-    /// </summary>
-    public enum ResourceFlags : uint
-    {
-        /// <summary>
-        /// None
-        /// </summary>
-        None = D3D12_RESOURCE_FLAGS.D3D12_RESOURCE_FLAG_NONE,
-
-        /// <summary>
-        /// Allows the resource to be used as a depth stencil. This is only relevant if the resource is a texture
-        /// </summary>
-        AllowDepthStencil = D3D12_RESOURCE_FLAGS.D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL,
-
-        /// <summary>
-        /// Allows the resource to be used as a render target
-        /// </summary>
-        AllowRenderTarget = D3D12_RESOURCE_FLAGS.D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET,
-
-        /// <summary>
-        /// Allows the resource to be used as an unordered access resource
-        /// </summary>
-        AllowUnorderedAccess = D3D12_RESOURCE_FLAGS.D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
-
-        /// <summary>
-        /// Prevents the resource being used by shaders
-        /// </summary>
-        DenyShaderResource = D3D12_RESOURCE_FLAGS.D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE,
-    }
-
-    /// <summary>
     /// An allocator used for allocating temporary and long
     /// </summary>
     public unsafe sealed class GpuAllocator : IDisposable
     {
-        private List<AllocatorHeap>[] _heapPools = null!;
+        internal enum OpaqueAllocTag : uint
+        {
+        }
+
+        private List<AllocatorHeap> _readback = new();
+        private List<AllocatorHeap> _upload = new();
+
+        // single merged heap
+        private List<AllocatorHeap> _default = null!;
+
+        private List<AllocatorHeap> _buffer = null!;
+        private List<AllocatorHeap> _texture = null!;
+        private List<AllocatorHeap> _rtOrDs = null!;
+
         private ComputeDevice _device;
         private const ulong HighestRequiredAlign = 1024 * 1024 * 4; // 4mb
 
@@ -115,6 +60,17 @@ namespace Voltium.Core.Memory
             _device = device;
 
             _hasMergedHeapSupport = CheckMergedHeapSupport(_device.DevicePointer);
+
+            if (_hasMergedHeapSupport)
+            {
+                _default = new();
+            }
+            else
+            {
+                _buffer = new();
+                _texture = new();
+                _rtOrDs = new();
+            }
 
             CreateOriginalHeaps();
         }
@@ -258,7 +214,7 @@ namespace Voltium.Core.Memory
 
             // *BUG* heaps don't properly work because of byval passing , TODO
             // for now just commit all
-            if (true || desc.AllocFlags.HasFlag(AllocFlags.ForceAllocateComitted))
+            if (/*true || */ desc.AllocFlags.HasFlag(AllocFlags.ForceAllocateComitted))
             {
                 return AllocateCommitted(desc);
             }
@@ -291,64 +247,53 @@ namespace Voltium.Core.Memory
 
         private void CreateOriginalHeaps()
         {
+
+        }
+
+        private ref List<AllocatorHeap> GetHeap(GpuResource allocation)
+        {
+            D3D12_HEAP_PROPERTIES props;
+            D3D12_HEAP_FLAGS flags;
+            Guard.ThrowIfFailed(allocation.UnderlyingResource->GetHeapProperties(&props, &flags));
+            var desc = allocation.UnderlyingResource->GetDesc();
+
+            return ref GetHeapPool(props.Type, GetResType(desc.Dimension, desc.Flags));
+        }
+
+        private ref List<AllocatorHeap> GetHeapPool(D3D12_HEAP_TYPE mem, GpuResourceType res)
+        {
             if (_hasMergedHeapSupport)
             {
-                // one for each memory type (default, upload, readback)
-                _heapPools = new List<AllocatorHeap>[3];
-            }
-            else
-            {
-                // three for each memory type (default, upload, readback),
-                // - where those three are for buffers, render targets/depth stencils, and textures
-                _heapPools = new List<AllocatorHeap>[9];
+                return ref _default;
             }
 
-            for (var i = D3D12_HEAP_TYPE.D3D12_HEAP_TYPE_DEFAULT; i <= D3D12_HEAP_TYPE.D3D12_HEAP_TYPE_READBACK; i++)
+            switch (mem)
             {
-                if (_hasMergedHeapSupport)
-                {
-                    ref var list = ref _heapPools[GetHeapIndex(i, GpuResourceType.Meaningless)];
-                    list = new(1);
-                    list.Add(CreateNewHeap(i, GpuResourceType.Meaningless));
-                }
-                else
-                {
-                    for (var j = GpuResourceType.Tex; j <= GpuResourceType.Buffer; j++)
+                case D3D12_HEAP_TYPE.D3D12_HEAP_TYPE_READBACK:
+                    return ref _readback;
+                case D3D12_HEAP_TYPE.D3D12_HEAP_TYPE_UPLOAD:
+                    return ref _upload;
+                case D3D12_HEAP_TYPE.D3D12_HEAP_TYPE_DEFAULT:
+                    switch (res)
                     {
-                        ref var list = ref _heapPools[GetHeapIndex(i, j)];
-                        list = new(1);
-                        list.Add(CreateNewHeap(i, j));
+                        // meaningless is the value if we have merged heap support
+                        case GpuResourceType.Meaningless:
+                            return ref _default;
+                        case GpuResourceType.Tex:
+                            return ref _texture;
+                        case GpuResourceType.RtOrDs:
+                            return ref _rtOrDs;
+                        case GpuResourceType.Buffer:
+                            return ref _buffer;
                     }
-                }
-            }
-        }
-
-        private void GetHeapType(int index, out D3D12_HEAP_TYPE mem, out GpuResourceType res)
-        {
-            if (_hasMergedHeapSupport)
-            {
-                mem = (D3D12_HEAP_TYPE)index + 1;
-                res = GpuResourceType.Meaningless;
-                return;
+                    break;
             }
 
-            mem = (D3D12_HEAP_TYPE)(index / 3) + 1;
-            res = GpuResourceType.Meaningless;
-        }
-
-        private int GetHeapIndex(D3D12_HEAP_TYPE mem, GpuResourceType res)
-        {
-            if (_hasMergedHeapSupport)
-            {
-                return (int)(mem - 1);
-            }
-
-            var ind = (((int)mem - 1) * 3) + (int)(res - 1);
-            return ind;
+            return ref Helpers.NullRef<List<AllocatorHeap>>();
         }
 
         private const ulong DefaultHeapAlignment = Windows.D3D12_DEFAULT_MSAA_RESOURCE_PLACEMENT_ALIGNMENT; // 4mb for MSAA textures
-        private ref AllocatorHeap CreateNewHeap(D3D12_HEAP_TYPE mem, GpuResourceType res)
+        private ref AllocatorHeap CreateNewHeap(D3D12_HEAP_TYPE mem, GpuResourceType res, out int index)
         {
             D3D12_HEAP_FLAGS flags = default;
 
@@ -370,12 +315,12 @@ namespace Voltium.Core.Memory
             var heap = _device.CreateHeap(desc);
 
             var allocatorHeap = new AllocatorHeap { Heap = heap.Move(), FreeBlocks = new() };
-            bool result = allocatorHeap.FreeBlocks.Add(new HeapBlock { Offset = 0, Size = desc.SizeInBytes });
-            Debug.Assert(result);
-            _ = result;
+            allocatorHeap.FreeBlocks.Add(new HeapBlock { Offset = 0, Size = desc.SizeInBytes });
 
-            var pool = _heapPools[GetHeapIndex(mem, res)];
+            ref var pool = ref GetHeapPool(mem, res);
             pool.Add(allocatorHeap);
+
+            index = pool.Count - 1;
 
             return ref ListExtensions.GetRef(pool, pool.Count - 1);
         }
@@ -398,30 +343,33 @@ namespace Voltium.Core.Memory
             return guess;
         }
 
+        private const int CommittedResourceHeapIndex = -1;
         internal void Return(GpuResource gpuAllocation)
         {
-            var heap = gpuAllocation.Heap;
+            if (gpuAllocation.HeapIndex != CommittedResourceHeapIndex)
+            {
+                ref var heap = ref GetHeap(gpuAllocation).AsSpan()[gpuAllocation.HeapIndex];
 
-            uint refCount = uint.MaxValue;
-            while (refCount != 0)
-            {
-                refCount = gpuAllocation.UnderlyingResource->Release();
-            }
-            if (heap.Heap.Exists)
-            {
-                ReturnPlacedAllocation(gpuAllocation);
+                Release(gpuAllocation);
+
+                ReturnPlacedAllocation(gpuAllocation, ref heap);
             }
             else
             {
+                Release(gpuAllocation);
+            }
+
+            static void Release(GpuResource alloc)
+            {
+                var refCount = alloc.UnderlyingResource->Release();
+                Debug.Assert(refCount == 0);
+                _ = refCount;
             }
         }
 
-        private void ReturnPlacedAllocation(GpuResource gpuAllocation)
+        private void ReturnPlacedAllocation(GpuResource gpuAllocation, ref AllocatorHeap heap)
         {
-            var block = gpuAllocation.Block;
-            var heap = gpuAllocation.Heap;
-
-            heap.FreeBlocks.Add(block);
+            heap.FreeBlocks.Add(gpuAllocation.Block);
 
             // TODO defrag
         }
@@ -437,15 +385,16 @@ namespace Voltium.Core.Memory
                 _device,
                 resource.Move(),
                 desc,
-                default
+                null,
+                CommittedResourceHeapIndex
             );
         }
 
-        private bool TryAllocateFromHeap(InternalAllocDesc desc, D3D12_RESOURCE_ALLOCATION_INFO info, ref AllocatorHeap heap, out GpuResource allocation)
+        private bool TryAllocateFromHeap(InternalAllocDesc desc, D3D12_RESOURCE_ALLOCATION_INFO info, ref AllocatorHeap heap, int heapIndex, out GpuResource allocation)
         {
             if (TryGetFreeBlock(ref heap, info, out HeapBlock freeBlock))
             {
-                allocation = CreatePlaced(desc, heap, freeBlock);
+                allocation = CreatePlaced(desc, heap, heapIndex, freeBlock);
                 return true;
             }
 
@@ -455,20 +404,20 @@ namespace Voltium.Core.Memory
 
         private GpuResource AllocatePlacedFromHeap(InternalAllocDesc desc, D3D12_RESOURCE_ALLOCATION_INFO info)
         {
-            var resType = GetResType(desc);
+            var resType = GetResType(desc.Desc.Dimension, desc.Desc.Flags);
             GpuResource allocation;
-            var heapList = _heapPools[GetHeapIndex(desc.HeapType, resType)];
+            ref var heapList = ref GetHeapPool(desc.HeapType, resType);
             for (var i = 0; i < heapList.Count; i++)
             {
-                if (TryAllocateFromHeap(desc, info, ref ListExtensions.GetRef(heapList, i), out allocation))
+                if (TryAllocateFromHeap(desc, info, ref ListExtensions.GetRef(heapList, i), i, out allocation))
                 {
                     return allocation;
                 }
             }
 
             // No free blocks available anywhere. Create a new heap
-            ref var newHeap = ref CreateNewHeap(desc.HeapType, resType);
-            var result = TryAllocateFromHeap(desc, info, ref newHeap, out allocation);
+            ref var newHeap = ref CreateNewHeap(desc.HeapType, resType, out int index);
+            var result = TryAllocateFromHeap(desc, info, ref newHeap, index, out allocation);
             if (!result) // too big to fit in heap, realloc as comitted
             {
                 if (desc.AllocFlags.HasFlag(AllocFlags.ForceAllocateNotComitted))
@@ -483,7 +432,7 @@ namespace Voltium.Core.Memory
             return allocation;
         }
 
-        private GpuResourceType GetResType(InternalAllocDesc desc)
+        private GpuResourceType GetResType(D3D12_RESOURCE_DIMENSION dimension, D3D12_RESOURCE_FLAGS flags)
         {
             const D3D12_RESOURCE_FLAGS rtOrDsFlags =
                 D3D12_RESOURCE_FLAGS.D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL | D3D12_RESOURCE_FLAGS.D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
@@ -493,18 +442,18 @@ namespace Voltium.Core.Memory
                 return GpuResourceType.Meaningless;
             }
 
-            if (desc.Desc.Dimension == D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_BUFFER)
+            if (dimension == D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_BUFFER)
             {
                 return GpuResourceType.Buffer;
             }
-            if ((desc.Desc.Flags & rtOrDsFlags) != 0)
+            if ((flags & rtOrDsFlags) != 0)
             {
                 return GpuResourceType.RtOrDs;
             }
             return GpuResourceType.Tex;
         }
 
-        private GpuResource CreatePlaced(InternalAllocDesc desc, AllocatorHeap heap, HeapBlock block)
+        private GpuResource CreatePlaced(InternalAllocDesc desc, AllocatorHeap heap, int heapIndex, HeapBlock block)
         {
             var resource = _device.CreatePlacedResource(heap.Heap.Get(), block.Offset, desc);
 
@@ -513,14 +462,15 @@ namespace Voltium.Core.Memory
                 resource.Move(),
                 desc,
                 this,
-                heap,
+                heapIndex,
                 block
             );
         }
 
         private void MarkFreeBlockUsed(ref AllocatorHeap heap, HeapBlock wholeBlock, HeapBlock usedBlock)
         {
-            heap.FreeBlocks.Remove(wholeBlock);
+            var removed = heap.FreeBlocks.Remove(wholeBlock);
+            Debug.Assert(removed);
 
             var alignOffset = usedBlock.Offset - wholeBlock.Offset;
 

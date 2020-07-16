@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Voltium.Common.Pix;
 using Voltium.Core;
 using Voltium.Core.Configuration.Graphics;
+using Voltium.Core.Memory;
 using Voltium.RenderEngine;
 
 namespace Voltium.Interactive.BasicRenderPipeline
@@ -17,9 +18,23 @@ namespace Voltium.Interactive.BasicRenderPipeline
             var resources = resolver.GetComponent<PipelineResources>();
             var settings = resolver.GetComponent<PipelineSettings>();
 
-            bool hasMsaa = settings.Msaa == MultisamplingDesc.None;
-            builder.MarkUsage(resources.SceneColor, hasMsaa ? ResourceState.ResolveSource: ResourceState.CopySource);
-            builder.MarkUsage(resources.SampledOutput, hasMsaa ? ResourceState.ResolveDestination : ResourceState.CopyDestination);
+
+            if (settings.Msaa.IsMultiSampled)
+            {
+                resources.SampledOutput = builder.CreatePrimaryOutputRelativeTexture(
+                    TextureDesc.CreateRenderTargetDesc(DataFormat.R8G8B8A8UnsignedNormalized, Rgba128.CornflowerBlue),
+                    ResourceState.GenericRead
+                );
+
+                builder.MarkUsage(resources.SceneColor, ResourceState.ResolveSource);
+                builder.MarkUsage(resources.SampledOutput, ResourceState.ResolveDestination);
+            }
+            else
+            {
+                resources.SampledOutput = resources.SceneColor;
+            }
+
+            resolver.SetComponent(resources);
         }
 
         public override void Record(ref GraphicsContext context, ref Resolver resolver)
@@ -35,7 +50,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
 
             if (settings.Msaa == MultisamplingDesc.None)
             {
-                context.CopyResource(sceneColor, sampleOutput);
+                //context.CopyResource(sceneColor, sampleOutput);
             }
             else
             {

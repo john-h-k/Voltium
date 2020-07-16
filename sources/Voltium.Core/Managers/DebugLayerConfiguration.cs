@@ -49,7 +49,7 @@ namespace Voltium.Core.Devices
         /// <summary>
         /// Enables debug breakpointing when messages with a given <see cref="LogLevel"/> are sent
         /// </summary>
-        public LogLevel BreakpointLogLevel { get; set; } = LogLevel.None;
+        public LogLevel BreakpointLogLevel { get; set; } = LogLevel.Error;
 
         /// <summary>
         /// Whether profiling is enabled

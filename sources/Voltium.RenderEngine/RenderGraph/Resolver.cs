@@ -29,11 +29,17 @@ namespace Voltium.RenderEngine
         /// <returns>The value of the component if it was found</returns>
         public TComponent GetComponent<TComponent>() => _components.Get<TComponent>();
 
+
+        /// <summary>
+        /// Writes to an existing application-defined component
+        /// </summary>
+        /// <typeparam name="TComponent">The type of the component to write to</typeparam>
+        public void SetComponent<TComponent>(TComponent component) => _components.Set(component);
+
         /// <summary>
         /// Creates a new application-defined component
         /// </summary>
-        /// <typeparam name="TComponent">The type of the component to resolve</typeparam>
-        /// <param name="component"></param>
+        /// <typeparam name="TComponent">The type of the component to create</typeparam>
         public void CreateComponent<TComponent>(TComponent component) => _components.Add(component);
 
         /// <summary>
@@ -57,6 +63,7 @@ namespace Voltium.RenderEngine
             AssertCanResolveResources();
             return _graph.GetResource(handle.AsResourceHandle()).Desc.Buffer;
         }
+
         private void AssertCanResolveResources()
         {
             if (!CanResolveResources)

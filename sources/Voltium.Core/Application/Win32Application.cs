@@ -79,8 +79,8 @@ namespace Voltium.Core
             _ = ShowWindow(Hwnd, SW_SHOWDEFAULT);
 
             _timer = ApplicationTimer.StartNew();
-            _timer.TargetElapsedSeconds = 1 / 120d;
-            _timer.IsFixedTimeStep = true;
+            _timer.TargetElapsedSeconds = 1 / 500d;
+            _timer.IsFixedTimeStep = false;
 
             // Main sample loop.
             MSG msg = default;

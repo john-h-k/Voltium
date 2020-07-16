@@ -33,6 +33,8 @@ namespace Voltium.RenderEngine
         private int _maxDepth = 0;
         private Resolver _resolver;
 
+        private static bool EnablePooling => false;
+
         /// <summary>
         /// Creates a new <see cref="RenderGraph"/>
         /// </summary>
@@ -151,9 +153,13 @@ namespace Voltium.RenderEngine
         {
             foreach (ref var resource in _resources.AsSpan())
             {
-                if (resource.Desc.Type == ResourceType.Texture)
+                if (EnablePooling && resource.Desc.Type == ResourceType.Texture)
                 {
                     _cachedTextures[resource.Desc.TextureDesc] = resource.Desc.Texture;
+                }
+                else
+                {
+                    resource.Dispose();
                 }
             }
         }
@@ -252,9 +258,11 @@ namespace Voltium.RenderEngine
                     }
                 }
 
-                if (!(resource.Desc.Type == ResourceType.Texture && _cachedTextures.TryGetValue(resource.Desc.TextureDesc, out resource.Desc.Texture)))
+                if (!EnablePooling || !(resource.Desc.Type == ResourceType.Texture && _cachedTextures.Remove(resource.Desc.TextureDesc, out resource.Desc.Texture)))
                 {
                     resource.AllocateFrom(_device.Allocator);
+                    _renderLayers![0].Barriers ??= new();
+
 
                     // TODO this isn't properly synced, need to only add them after they have finished being used
                 }
@@ -269,7 +277,7 @@ namespace Voltium.RenderEngine
                 {
                     ref var pass = ref GetRenderPass(passIndex);
 
-                    foreach   (ref var transition in pass.Transitions.AsSpan())
+                    foreach (ref var transition in pass.Transitions.AsSpan())
                     {
                         ref var resource = ref GetResource(transition.Resource);
 
@@ -286,6 +294,7 @@ namespace Voltium.RenderEngine
             }
         }
 
+        private List<GpuContext> _contexts = new();
         private void RecordAndExecuteLayers()
         {
             foreach (ref var layer in _renderLayers.AsSpan())
@@ -294,11 +303,15 @@ namespace Voltium.RenderEngine
 
                 var barriers = layer.Barriers.AsROSpan();
 
-                using (var barrierCtx = _device.BeginCopyContext())
-                {
-                    barrierCtx.ResourceBarrier(barriers);
-                }
+                using var barrierCtx = _device.BeginCopyContext();
+                barrierCtx.ResourceBarrier(barriers);
+                _contexts.Add(barrierCtx.AsMutable().AsGpuContext());
 
+                var numContexts = _contexts.Count + layer.Passes.Count;
+                if (_contexts.Capacity < numContexts)
+                {
+                    _contexts.Capacity = numContexts;
+                }
                 foreach (var passIndex in layer.Passes)
                 {
                     ref var pass = ref GetRenderPass(passIndex).Pass;
@@ -308,15 +321,20 @@ namespace Voltium.RenderEngine
                         using var ctx = _device.BeginComputeContext(compute.DefaultPipelineState);
                         
                         compute.Record(ref ctx.AsMutable(), ref _resolver);
+                        _contexts.Add(ctx.AsMutable().AsGpuContext());
                     }
                     else /* must be true */ if (pass is GraphicsRenderPass graphics)
                     {
                         using var ctx = _device.BeginGraphicsContext(graphics.DefaultPipelineState);
 
                         graphics.Record(ref ctx.AsMutable(), ref _resolver);
+                        _contexts.Add(ctx.AsMutable().AsGpuContext());
                     }
                 }
             }
+
+            _device.Execute(_contexts.AsSpan());
+            _contexts.Clear();
         }
     }
 }

@@ -40,7 +40,6 @@ namespace Voltium.Core.Devices
         private ExecutionContext _type;
         private FenceMarker _marker;
         private Queue<ExecutingAllocator> _executingAllocators;
-        private CommandAllocatorPool _allocatorPool;
         public readonly ulong Frequency;
 
         public ID3D12CommandQueue* GetQueue() => _queue.Get();
@@ -63,7 +62,6 @@ namespace Voltium.Core.Devices
             _marker = new FenceMarker(10);
             _executingAllocators = new();
             Guard.ThrowIfFailed(_queue.Get()->Signal(_fence.Get(), _marker.FenceValue));
-            _allocatorPool = new(device, context);
 
             ulong frequency;
             int hr = _queue.Get()->GetTimestampFrequency(&frequency);
@@ -122,19 +120,20 @@ namespace Voltium.Core.Devices
         {
             //return _allocatorPool.ForceCreate();
 
-            // if the pool has nothing left and we have in flight allocators
-            if (_allocatorPool.IsEmpty && _executingAllocators.Count != 0)
-            {
-                var currentReachedFence = GetReachedFence();
+            //// if the pool has nothing left and we have in flight allocators
+            //if (_allocatorPool.IsEmpty && _executingAllocators.Count != 0)
+            //{
+            //    var currentReachedFence = GetReachedFence();
 
-                // try and give back any allocators we have
-                while (_executingAllocators.Count != 0 && currentReachedFence >= _executingAllocators.Peek().Marker)
-                {
-                    _allocatorPool.Return(_executingAllocators.Dequeue().Allocator.Move());
-                }
-            }
+            //    // try and give back any allocators we have
+            //    while (_executingAllocators.Count != 0 && currentReachedFence >= _executingAllocators.Peek().Marker)
+            //    {
+            //        _allocatorPool.Return(_executingAllocators.Dequeue().Allocator.Move());
+            //    }
+            //}
 
-            return _allocatorPool.Rent().Move();
+            //return _allocatorPool.Rent().Move();
+            throw null!;
         }
 
         public FenceMarker GetFenceForNextExecution() => _marker + 1;
@@ -191,7 +190,6 @@ namespace Voltium.Core.Devices
         {
             _queue.Dispose();
             _fence.Dispose();
-            _allocatorPool.Dispose();
         }
 
         internal bool IsIdle()

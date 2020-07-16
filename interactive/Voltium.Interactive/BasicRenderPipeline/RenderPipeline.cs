@@ -28,7 +28,6 @@ namespace Voltium.Interactive.BasicRenderPipeline
         public override unsafe void Init(Size data, IOutputOwner output)
         {
             var debug = new DebugLayerConfiguration().DisableDeviceRemovedMetadata();
-            debug.Validation.GpuBasedValidation = true;
 
             var config = new GraphicalConfiguration
             {
@@ -36,7 +35,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
 #if DEBUG
                 DebugLayerConfiguration = debug
 #else
-                null
+                DebugLayerConfiguration = null
 #endif
             };
 
@@ -72,13 +71,9 @@ namespace Voltium.Interactive.BasicRenderPipeline
                 return;
             }
         }
+
         public override unsafe void Render()
         {
-            if (_isPaused)
-            {
-                return;
-            }
-
             var graph = new RenderGraph(_device);
 
             graph.CreateComponent(_settings);
@@ -91,6 +86,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
 
             _output.Present();
         }
+
         public override void Dispose()
         {
             _device.Dispose();

@@ -106,10 +106,10 @@ namespace Voltium.Common
         [DebuggerNonUserCode]
         [MethodImpl(MethodTypes.Validates)]
         public static void ThrowIfFailed(
-            int hr
+            int hr,
+            [CallerArgumentExpression("hr")] string? expression = null
 #if DEBUG || EXTENDED_ERROR_INFORMATION
             ,
-            [CallerArgumentExpression("hr")] string? expression = null,
             [CallerFilePath] string? filepath = default,
             [CallerMemberName] string? memberName = default,
             [CallerLineNumber] int lineNumber = default

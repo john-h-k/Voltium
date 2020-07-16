@@ -46,7 +46,7 @@ namespace Voltium.Common
         {
             _ = builder.ClearProviders()
                        .SetMinimumLevel(MinimumLogLevel)
-                       .AddZLoggerConsole(options => options.EnableStructuredLogging = true);
+                       .AddZLoggerConsole(options => options.EnableStructuredLogging = false);
         }).CreateLogger("GlobalLogger");
     }
 }
