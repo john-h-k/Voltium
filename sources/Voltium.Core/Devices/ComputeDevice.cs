@@ -178,11 +178,11 @@ namespace Voltium.Core.Devices
         }
 
         private protected void CreateNewDevice(
-            Adapter? adapter,
+            in Adapter? adapter,
             FeatureLevel level
         )
         {
-            adapter ??= GetDefaultAdapter();
+             var usedAdapter = adapter is Adapter notNull ? notNull : DefaultAdapter;
 
             if (PreexistingDevices.Contains(adapter.GetValueOrDefault().AdapterLuid))
             {
@@ -192,11 +192,9 @@ namespace Voltium.Core.Devices
             {
                 using ComPtr<ID3D12Device> p = default;
 
-                var underlying = adapter.GetValueOrDefault();
-
                 bool success = SUCCEEDED(D3D12CreateDevice(
                     // null device triggers D3D12 to select a default device
-                    adapter.GetValueOrDefault().UnderlyingAdapter,
+                    usedAdapter.UnderlyingAdapter,
                     (D3D_FEATURE_LEVEL)level,
                     p.Iid,
                     ComPtr.GetVoidAddressOf(&p)
@@ -337,11 +335,11 @@ namespace Voltium.Core.Devices
             context.List->SetDescriptorHeaps(numHeaps, heaps);
         }
 
-        internal ComPtr<ID3D12Heap> CreateHeap(D3D12_HEAP_DESC desc)
+        internal ComPtr<ID3D12Heap> CreateHeap(D3D12_HEAP_DESC* desc)
         {
             ComPtr<ID3D12Heap> heap = default;
             Guard.ThrowIfFailed(DevicePointer->CreateHeap(
-                &desc,
+                desc,
                 heap.Iid,
                 ComPtr.GetVoidAddressOf(&heap)
             ));
@@ -355,7 +353,7 @@ namespace Voltium.Core.Devices
         /// <param name="tex"></param>
         /// <param name="intermediate"></param>
         /// <param name="data"></param>
-        public void ReadbackIntermediateBuffer(TextureFootprint tex, Buffer intermediate, Span<byte> data)
+        public void ReadbackIntermediateBuffe(in TextureFootprint tex, in Buffer intermediate, Span<byte> data)
         {
             var offset = data;
             var mapped = intermediate.Data;
@@ -407,7 +405,7 @@ namespace Voltium.Core.Devices
         /// <param name="tex"></param>
         /// <param name="subresourceIndex"></param>
         /// <returns></returns>
-        public TextureFootprint GetSubresourceFootprint(Texture tex, uint subresourceIndex)
+        public TextureFootprint GetSubresourceFootprin(in Texture tex, uint subresourceIndex)
         {
             TextureFootprint result;
             GetCopyableFootprint(tex, subresourceIndex, 1, out _, out result.NumRows, out result.RowSize, out _);
@@ -415,7 +413,7 @@ namespace Voltium.Core.Devices
         }
 
         internal void GetCopyableFootprint(
-            Texture tex,
+            in Texture tex,
             uint firstSubresource,
             uint numSubresources,
             out D3D12_PLACED_SUBRESOURCE_FOOTPRINT layouts,
@@ -440,7 +438,7 @@ namespace Voltium.Core.Devices
         }
 
         internal void GetCopyableFootprints(
-            Texture tex,
+            in Texture tex,
             uint firstSubresource,
             uint numSubresources,
             out Span<D3D12_PLACED_SUBRESOURCE_FOOTPRINT> layouts,
@@ -473,38 +471,39 @@ namespace Voltium.Core.Devices
         /// <param name="numSubresources"></param>
         /// <returns></returns>
         public ulong GetRequiredSize(
-            Texture tex,
+            in Texture tex,
             uint numSubresources
         )
         {
-            return GetRequiredSize(tex.GetResourcePointer()->GetDesc(), numSubresources);
+            var desc = tex.GetResourcePointer()->GetDesc();
+            return GetRequiredSize(&desc, numSubresources);
         }
 
         internal ulong GetRequiredSize(
-            D3D12_RESOURCE_DESC desc,
+            D3D12_RESOURCE_DESC* desc,
             uint numSubresources
         )
         {
             ulong requiredSize;
-            DevicePointer->GetCopyableFootprints(&desc, 0, numSubresources, 0, null, null, null, &requiredSize);
+            DevicePointer->GetCopyableFootprints(desc, 0, numSubresources, 0, null, null, null, &requiredSize);
             return requiredSize;
         }
 
-        internal D3D12_RESOURCE_ALLOCATION_INFO GetAllocationInfo(InternalAllocDesc desc)
-            => DevicePointer->GetResourceAllocationInfo(0, 1, &desc.Desc);
+        internal D3D12_RESOURCE_ALLOCATION_INFO GetAllocationInfo(InternalAllocDesc* desc)
+            => DevicePointer->GetResourceAllocationInfo(0, 1, &desc->Desc);
 
-        internal ComPtr<ID3D12Resource> CreatePlacedResource(ID3D12Heap* heap, ulong offset, InternalAllocDesc desc)
+        internal ComPtr<ID3D12Resource> CreatePlacedResource(ID3D12Heap* heap, ulong offset, InternalAllocDesc* desc)
         {
-            var clearVal = desc.ClearValue.GetValueOrDefault();
+            var clearVal = desc->ClearValue.GetValueOrDefault();
 
             using ComPtr<ID3D12Resource> resource = default;
 
             Guard.ThrowIfFailed(DevicePointer->CreatePlacedResource(
                  heap,
                  offset,
-                 &desc.Desc,
-                 desc.InitialState,
-                 desc.ClearValue is null ? null : &clearVal,
+                 &desc->Desc,
+                 desc->InitialState,
+                 desc->ClearValue is null ? null : &clearVal,
                  resource.Iid,
                  ComPtr.GetVoidAddressOf(&resource)
              ));
@@ -512,26 +511,26 @@ namespace Voltium.Core.Devices
             return resource.Move();
         }
 
-        internal ComPtr<ID3D12Resource> CreateCommittedResource(InternalAllocDesc desc)
+        internal ComPtr<ID3D12Resource> CreateCommittedResource(InternalAllocDesc* desc)
         {
-            var heapProperties = GetHeapProperties(desc);
-            var clearVal = desc.ClearValue.GetValueOrDefault();
+            var heapProperties = GetHeapProperties(in *desc);
+            var clearVal = desc->ClearValue.GetValueOrDefault();
 
             using ComPtr<ID3D12Resource> resource = default;
 
             Guard.ThrowIfFailed(DevicePointer->CreateCommittedResource(
                  &heapProperties,
                  D3D12_HEAP_FLAGS.D3D12_HEAP_FLAG_NONE,
-                 &desc.Desc,
-                 desc.InitialState,
-                 desc.ClearValue is null ? null : &clearVal,
+                 &desc->Desc,
+                 desc->InitialState,
+                 desc->ClearValue is null ? null : &clearVal,
                  resource.Iid,
                  ComPtr.GetVoidAddressOf(&resource)
             ));
 
             return resource.Move();
 
-            static D3D12_HEAP_PROPERTIES GetHeapProperties(InternalAllocDesc desc)
+            static D3D12_HEAP_PROPERTIES GetHeapProperties(in InternalAllocDesc desc)
             {
                 return new D3D12_HEAP_PROPERTIES(desc.HeapType);
             }

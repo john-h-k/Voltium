@@ -42,9 +42,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "scripts", "scripts", "{CFFD
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "sources", "sources", "{DD29EA8F-B1A6-45AA-8D2E-B38DA56D9EF6}"
 	ProjectSection(SolutionItems) = preProject
+		sources\BannedSymbols.txt = sources\BannedSymbols.txt
 		sources\Directory.Build.props = sources\Directory.Build.props
 		sources\Directory.Build.targets = sources\Directory.Build.targets
-		sources\BannedSymbols.txt = sources\BannedSymbols.txt
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{A5578D12-9E77-4647-8C22-0DBD17760BFF}"
@@ -87,7 +87,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Voltium.Analyzers", "source
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Voltium.RenderEngine", "sources\Voltium.RenderEngine\Voltium.RenderEngine.csproj", "{4B85A9DD-248D-4A6C-96BF-68B8902FA68C}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}}") = "Voltium.Input", "sources\Voltium.Input\Voltium.Input.csproj", "{62F8A7DE-9304-4CFE-BE87-7913DBDAC2BE}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Voltium.Input", "sources\Voltium.Input\Voltium.Input.csproj", "{62F8A7DE-9304-4CFE-BE87-7913DBDAC2BE}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Voltium.Annotations", "Voltium.Annotations\Voltium.Annotations.csproj", "{453599D5-17ED-4E16-BF9F-657ACEA57618}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -231,6 +233,18 @@ Global
 		{62F8A7DE-9304-4CFE-BE87-7913DBDAC2BE}.Release|x64.Build.0 = Release|Any CPU
 		{62F8A7DE-9304-4CFE-BE87-7913DBDAC2BE}.Release|x86.ActiveCfg = Release|Any CPU
 		{62F8A7DE-9304-4CFE-BE87-7913DBDAC2BE}.Release|x86.Build.0 = Release|Any CPU
+		{453599D5-17ED-4E16-BF9F-657ACEA57618}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{453599D5-17ED-4E16-BF9F-657ACEA57618}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{453599D5-17ED-4E16-BF9F-657ACEA57618}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{453599D5-17ED-4E16-BF9F-657ACEA57618}.Debug|x64.Build.0 = Debug|Any CPU
+		{453599D5-17ED-4E16-BF9F-657ACEA57618}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{453599D5-17ED-4E16-BF9F-657ACEA57618}.Debug|x86.Build.0 = Debug|Any CPU
+		{453599D5-17ED-4E16-BF9F-657ACEA57618}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{453599D5-17ED-4E16-BF9F-657ACEA57618}.Release|Any CPU.Build.0 = Release|Any CPU
+		{453599D5-17ED-4E16-BF9F-657ACEA57618}.Release|x64.ActiveCfg = Release|Any CPU
+		{453599D5-17ED-4E16-BF9F-657ACEA57618}.Release|x64.Build.0 = Release|Any CPU
+		{453599D5-17ED-4E16-BF9F-657ACEA57618}.Release|x86.ActiveCfg = Release|Any CPU
+		{453599D5-17ED-4E16-BF9F-657ACEA57618}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -247,8 +261,7 @@ Global
 		{3EBF640E-8062-41FD-8BF0-211FCE022DA1} = {DD29EA8F-B1A6-45AA-8D2E-B38DA56D9EF6}
 		{4B85A9DD-248D-4A6C-96BF-68B8902FA68C} = {DD29EA8F-B1A6-45AA-8D2E-B38DA56D9EF6}
 		{62F8A7DE-9304-4CFE-BE87-7913DBDAC2BE} = {DD29EA8F-B1A6-45AA-8D2E-B38DA56D9EF6}
-	EndGlobalSection
-	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {78D2CF6A-60A1-43E3-837B-00B73C9DA384}
+		{453599D5-17ED-4E16-BF9F-657ACEA57618} = {DD29EA8F-B1A6-45AA-8D2E-B38DA56D9EF6}
+		{453599D5-17ED-4E16-BF9F-657ACEA57618} = {DD29EA8F-B1A6-45AA-8D2E-B38DA56D9EF6}
 	EndGlobalSection
 EndGlobal

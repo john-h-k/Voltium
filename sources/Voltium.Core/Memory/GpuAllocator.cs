@@ -141,7 +141,7 @@ namespace Voltium.Core.Memory
                 InitialState = (D3D12_RESOURCE_STATES)initialResourceState
             };
 
-            return new Buffer((ulong)length, Allocate(resource));
+            return new Buffer((ulong)length, Allocate(&resource));
         }
         /// <summary>
         /// Allocates a texture
@@ -199,7 +199,7 @@ namespace Voltium.Core.Memory
                 HeapType = D3D12_HEAP_TYPE.D3D12_HEAP_TYPE_DEFAULT
             };
 
-            return new Texture(desc, Allocate(resource));
+            return new Texture(desc, Allocate(&resource));
         }
 
 
@@ -209,7 +209,7 @@ namespace Voltium.Core.Memory
         /// <param name="desc">The description for the resource to allocate</param>
         /// <returns>A new <see cref="GpuResource"/> which encapsulates the allocated region</returns>
         internal GpuResource Allocate(
-            InternalAllocDesc desc
+            InternalAllocDesc* desc
         )
         {
             VerifyDesc(desc);
@@ -227,14 +227,14 @@ namespace Voltium.Core.Memory
         private static bool IsRenderTargetOrDepthStencil(D3D12_RESOURCE_FLAGS flags)
             => (flags & RenderTargetOrDepthStencilFlags) != 0;
 
-        private bool ShouldCommitResource(InternalAllocDesc desc)
+        private bool ShouldCommitResource(InternalAllocDesc* desc)
         {
-            return ForceAllAllocationsCommitted || /*IsRenderTargetOrDepthStencil(desc.Desc.Flags) ||*/ desc.AllocFlags.HasFlag(AllocFlags.ForceAllocateComitted);
+            return ForceAllAllocationsCommitted || IsRenderTargetOrDepthStencil(desc->Desc.Flags) || desc->AllocFlags.HasFlag(AllocFlags.ForceAllocateComitted);
         }
 
-        private void VerifyDesc(InternalAllocDesc desc)
+        private void VerifyDesc(InternalAllocDesc* desc)
         {
-            var flags = desc.AllocFlags;
+            var flags = desc->AllocFlags;
             if (flags.HasFlag(AllocFlags.ForceAllocateComitted) && flags.HasFlag(AllocFlags.ForceAllocateNotComitted))
             {
                 ThrowHelper.ThrowArgumentException("Invalid to say 'ForceAllocateComitted' and 'ForceAllocateNotComitted'");
@@ -298,7 +298,7 @@ namespace Voltium.Core.Memory
             var props = new D3D12_HEAP_PROPERTIES(mem);
             var desc = new D3D12_HEAP_DESC(GetNewHeapSize(mem, res), props, alignment: DefaultHeapAlignment, flags: flags);
 
-            var heap = _device.CreateHeap(desc);
+            var heap = _device.CreateHeap(&desc);
 
             var allocatorHeap = new AllocatorHeap { Heap = heap.Move(), FreeBlocks = new() };
             AddFreeBlock(ref allocatorHeap, new HeapBlock { Offset = 0, Size = desc.SizeInBytes });
@@ -359,20 +359,19 @@ namespace Voltium.Core.Memory
             // TODO defrag
         }
 
-        private GpuResource AllocateCommitted(InternalAllocDesc desc)
+        private GpuResource AllocateCommitted(InternalAllocDesc* desc)
         {
             var resource = _device.CreateCommittedResource(desc);
 
             return new GpuResource(
-                _device,
                 resource.Move(),
-                desc,
+                *desc,
                 null,
                 CommittedResourceHeapIndex
             );
         }
 
-        private bool TryAllocateFromHeap(InternalAllocDesc desc, D3D12_RESOURCE_ALLOCATION_INFO info, ref AllocatorHeap heap, int heapIndex, out GpuResource allocation)
+        private bool TryAllocateFromHeap(InternalAllocDesc* desc, D3D12_RESOURCE_ALLOCATION_INFO info, ref AllocatorHeap heap, int heapIndex, out GpuResource allocation)
         {
             if (TryGetFreeBlock(ref heap, info, out HeapBlock freeBlock))
             {
@@ -384,11 +383,11 @@ namespace Voltium.Core.Memory
             return false;
         }
 
-        private GpuResource AllocatePlacedFromHeap(InternalAllocDesc desc, D3D12_RESOURCE_ALLOCATION_INFO info)
+        private GpuResource AllocatePlacedFromHeap(InternalAllocDesc* desc, D3D12_RESOURCE_ALLOCATION_INFO info)
         {
-            var resType = GetResType(desc.Desc.Dimension, desc.Desc.Flags);
+            var resType = GetResType(desc->Desc.Dimension, desc->Desc.Flags);
             GpuResource allocation;
-            ref var heapList = ref GetHeapPool(desc.HeapType, resType);
+            ref var heapList = ref GetHeapPool(desc->HeapType, resType);
             for (var i = 0; i < heapList.Count; i++)
             {
                 if (TryAllocateFromHeap(desc, info, ref ListExtensions.GetRef(heapList, i), i, out allocation))
@@ -398,11 +397,11 @@ namespace Voltium.Core.Memory
             }
 
             // No free blocks available anywhere. Create a new heap
-            ref var newHeap = ref CreateNewHeap(desc.HeapType, resType, out int index);
+            ref var newHeap = ref CreateNewHeap(desc->HeapType, resType, out int index);
             var result = TryAllocateFromHeap(desc, info, ref newHeap, index, out allocation);
             if (!result) // too big to fit in heap, realloc as comitted
             {
-                if (desc.AllocFlags.HasFlag(AllocFlags.ForceAllocateNotComitted))
+                if (desc->AllocFlags.HasFlag(AllocFlags.ForceAllocateNotComitted))
                 {
                     ThrowHelper.ThrowInsufficientMemoryException(
                         $"Could not satisfy allocation - required {info.SizeInBytes} bytes, but this " +
@@ -432,14 +431,13 @@ namespace Voltium.Core.Memory
             return GpuResourceType.Tex;
         }
 
-        private GpuResource CreatePlaced(InternalAllocDesc desc, ref AllocatorHeap heap, int heapIndex, HeapBlock block)
+        private GpuResource CreatePlaced(InternalAllocDesc* desc, ref AllocatorHeap heap, int heapIndex, HeapBlock block)
         {
             var resource = _device.CreatePlacedResource(heap.Heap.Get(), block.Offset, desc);
 
             return new GpuResource(
-                _device,
                 resource.Move(),
-                desc,
+                *desc,
                 this,
                 heapIndex,
                 block

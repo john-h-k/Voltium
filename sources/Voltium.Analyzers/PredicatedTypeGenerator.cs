@@ -31,7 +31,7 @@ namespace Voltium.Analyzers
                     continue;
                 }
 
-                Generate(context, type);
+                GenerateFromSymbol(context, type);
                 visited.Add(type.Name);
             }
         }
@@ -40,7 +40,9 @@ namespace Voltium.Analyzers
 
         protected abstract bool Predicate(SourceGeneratorContext context, INamedTypeSymbol decl);
 
-        protected abstract void Generate(SourceGeneratorContext context, INamedTypeSymbol symbol);
+
+        protected virtual void GenerateFromSyntax(SourceGeneratorContext context, TypeDeclarationSyntax syntax) { }
+        protected virtual void GenerateFromSymbol(SourceGeneratorContext context, INamedTypeSymbol symbol) {  }
 
         public void Initialize(InitializationContext context)
             => context.RegisterForSyntaxNotifications(() => new SyntaxTypeReceiver<TypeDeclarationSyntax>());

@@ -30,7 +30,7 @@ namespace Voltium.Core.Devices
         /// <param name="offset"></param>
         /// <param name="format"></param>
         /// <param name="isRaw"></param>
-        public DescriptorHandle CreateShaderResourceView<T>(Buffer resource, uint lengthInElements, uint offset = 0, DataFormat format = DataFormat.Unknown, bool isRaw = false) where T : unmanaged
+        public DescriptorHandle CreateShaderResourceView<T>(in Buffer resource, uint lengthInElements, uint offset = 0, DataFormat format = DataFormat.Unknown, bool isRaw = false) where T : unmanaged
             => CreateShaderResourceView(resource, lengthInElements, (uint)sizeof(T), offset, format, isRaw);
 
         /// <summary>
@@ -42,7 +42,7 @@ namespace Voltium.Core.Devices
         /// <param name="offset"></param>
         /// <param name="format"></param>
         /// <param name="isRaw"></param>
-        public DescriptorHandle CreateShaderResourceView(Buffer resource, uint lengthInElements, uint elementSize, uint offset = 0, DataFormat format = DataFormat.Unknown, bool isRaw = false)
+        public DescriptorHandle CreateShaderResourceView(in Buffer resource, uint lengthInElements, uint elementSize, uint offset = 0, DataFormat format = DataFormat.Unknown, bool isRaw = false)
         {
             Unsafe.SkipInit(out D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc);
             srvDesc.Format = (DXGI_FORMAT)format;
@@ -65,14 +65,14 @@ namespace Voltium.Core.Devices
         /// </summary>
         /// <param name="resource">The <see cref="Buffer"/> resource to create the view for</param>
         /// <param name="desc">The <see cref="BufferShaderResourceViewDesc"/> describing the metadata used to create the view</param>
-        public DescriptorHandle CreateShaderResourceView(Buffer resource, in BufferShaderResourceViewDesc desc)
+        public DescriptorHandle CreateShaderResourceView(in Buffer resource, in BufferShaderResourceViewDesc desc)
             => CreateShaderResourceView(resource, desc.ElementCount, desc.ElementStride, desc.Offset, desc.Format, desc.IsRaw);
 
         /// <summary>
         /// Creates a shader resource view to a <see cref="Buffer"/>
         /// </summary>
         /// <param name="resource">The <see cref="Buffer"/> resource to create the view for</param>
-        public DescriptorHandle CreateShaderResourceView(Buffer resource)
+        public DescriptorHandle CreateShaderResourceView(in Buffer resource)
         {
             var handle = ResourceDescriptors.GetNextHandle();
 
@@ -85,7 +85,7 @@ namespace Voltium.Core.Devices
         /// Creates a shader resource view to a <see cref="Buffer"/>
         /// </summary>
         /// <param name="resource">The <see cref="Buffer"/> resource to create the view for</param>
-        public DescriptorHandle CreateUnorderedAccessView(Buffer resource)
+        public DescriptorHandle CreateUnorderedAccessView(in Buffer resource)
         {
             var handle = ResourceDescriptors.GetNextHandle();
 

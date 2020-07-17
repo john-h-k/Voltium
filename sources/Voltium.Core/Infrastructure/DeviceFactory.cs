@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 
 namespace Voltium.Core.Infrastructure
 {
@@ -9,6 +10,9 @@ namespace Voltium.Core.Infrastructure
     /// </summary>
     public unsafe abstract class DeviceFactory : IEnumerable<Adapter>, IDisposable
     {
+        // DXGI only supported on windows
+        private static bool IsNonWindowsOs => !RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+
         /// <summary>
         /// Creates a new <see cref="DeviceFactory"/>
         /// </summary>

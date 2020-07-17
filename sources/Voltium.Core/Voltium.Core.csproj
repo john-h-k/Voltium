@@ -9,10 +9,12 @@
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <CheckForOverflowUnderflow>false</CheckForOverflowUnderflow>
+    <NoWarn>1701;1702;</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
     <!--PrivateAssets="All"-->
+    <ProjectReference Include="..\..\Voltium.Annotations\Voltium.Annotations.csproj" />
     <ProjectReference Include="..\Voltium.Common\Voltium.Common.csproj" />
   </ItemGroup>
 

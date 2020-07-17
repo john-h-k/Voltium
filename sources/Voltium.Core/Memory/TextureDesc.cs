@@ -113,7 +113,7 @@ namespace Voltium.Core.Memory
         /// <param name="dimension">The <see cref="TextureDimension"/> of the resource
         /// is <see cref="TextureDimension.Tex3D"/>, else, the number of textures in the array</param>
         /// <returns>A new <see cref="TextureDesc"/> representing a shader resource</returns>
-        public static TextureDesc CreateShaderResourceDesc(DataFormat format, TextureDimension dimension)
+        public static TextureDesc CreateShaderResourceDesc(DataFormat format, in TextureDimension dimension)
             => CreateShaderResourceDesc(format, dimension, 0, 0, 0);
 
         /// <summary>
@@ -126,7 +126,7 @@ namespace Voltium.Core.Memory
         /// <param name="depthOrArraySize">The depth, in texels, of the resource, if <paramref name="dimension"/>
         /// is <see cref="TextureDimension.Tex3D"/>, else, the number of textures in the array</param>
         /// <returns>A new <see cref="TextureDesc"/> representing a shader resource</returns>
-        public static TextureDesc CreateShaderResourceDesc(DataFormat format, TextureDimension dimension, uint height, uint width = 1, ushort depthOrArraySize = 1)
+        public static TextureDesc CreateShaderResourceDesc(DataFormat format, in TextureDimension dimension, uint height, uint width = 1, ushort depthOrArraySize = 1)
         {
             return new TextureDesc
             {
@@ -148,7 +148,7 @@ namespace Voltium.Core.Memory
         /// <param name="depthOrArraySize">The depth, in texels, of the resource, if <paramref name="dimension"/>
         /// is <see cref="TextureDimension.Tex3D"/>, else, the number of textures in the array</param>
         /// <returns>A new <see cref="TextureDesc"/> representing a shader resource</returns>
-        public static TextureDesc CreateUnorderedAccessResourceDesc(DataFormat format, TextureDimension dimension, uint height, uint width = 1, ushort depthOrArraySize = 1)
+        public static TextureDesc CreateUnorderedAccessResourceDesc(DataFormat format, in TextureDimension dimension, uint height, uint width = 1, ushort depthOrArraySize = 1)
         {
             return new TextureDesc
             {

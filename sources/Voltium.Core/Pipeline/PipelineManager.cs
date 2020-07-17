@@ -53,11 +53,15 @@ namespace Voltium.Core.Devices
         /// </summary>
         /// <param name="name">The name of the pipeline state</param>
         /// <param name="graphicsDesc">The descriptor for the pipeline state</param>
-        public GraphicsPipelineStateObject CreatePipelineStateObject<TShaderInput>(string name, GraphicsPipelineDesc graphicsDesc) where TShaderInput : unmanaged, IBindableShaderType
+        public GraphicsPipelineStateObject CreatePipelineStateObject<TShaderInput>(string name, in GraphicsPipelineDesc graphicsDesc) where TShaderInput : unmanaged, IBindableShaderType
         {
             try
             {
-                graphicsDesc.Inputs = default(TShaderInput).GetShaderInputs();
+                var copy = graphicsDesc;
+                copy.Inputs = default(TShaderInput).GetShaderInputs();
+
+
+                return CreatePipelineStateObject(name, copy);
             }
             catch (Exception e)
             {
@@ -78,10 +82,10 @@ namespace Voltium.Core.Devices
                 ThrowHelper.ThrowArgumentException(
                     $"IA input type '{nameof(TShaderInput)}' threw an exception. " +
                     $"Inspect InnerException to view this exception. Reflection is disabled so no further information could be gathered", e);
+
+                return default!;
 #endif
             }
-
-            return CreatePipelineStateObject(name, graphicsDesc);
         }
 
 

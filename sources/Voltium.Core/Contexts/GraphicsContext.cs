@@ -41,13 +41,13 @@ namespace Voltium.Core
         /// <summary>
         /// Discard the entire resource value
         /// </summary>
-        public void Discard(Buffer buffer)
+        public void Discard(in Buffer buffer)
             => Discard(buffer.Resource);
 
         /// <summary>
         /// Discard the entire resource value
         /// </summary>
-        public void Discard(Texture texture)
+        public void Discard(in Texture texture)
             => Discard(texture.Resource);
 
         private void Discard(GpuResource resource)
@@ -106,7 +106,7 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
-        public void SetBuffer(uint paramIndex, Buffer cbuffer)
+        public void SetBuffer(uint paramIndex, in Buffer cbuffer)
             => SetBuffer<byte>(paramIndex, cbuffer, 0);
 
         /// <summary>
@@ -115,7 +115,7 @@ namespace Voltium.Core
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
         /// <param name="offset">The offset in elements of <typeparamref name="T"/> to start the view at</param>
-        public void SetBuffer<T>(uint paramIndex, Buffer cbuffer, uint offset = 0) where T : unmanaged
+        public void SetBuffer<T>(uint paramIndex, in Buffer cbuffer, uint offset = 0) where T : unmanaged
         {
             _context.List->SetGraphicsRootShaderResourceView(paramIndex, cbuffer.GpuAddress + (ulong)(sizeof(T) * offset));
         }
@@ -126,7 +126,7 @@ namespace Voltium.Core
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
         /// <param name="offset">The offset in bytes to start the view at</param>
-        public void SetBufferByteOffset(uint paramIndex, Buffer cbuffer, uint offset = 0)
+        public void SetBufferByteOffset(uint paramIndex, in Buffer cbuffer, uint offset = 0)
         {
             _context.List->SetGraphicsRootShaderResourceView(paramIndex, cbuffer.GpuAddress + offset);
         }
@@ -136,7 +136,7 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
-        public void SetConstantBuffer(uint paramIndex, Buffer cbuffer)
+        public void SetConstantBuffer(uint paramIndex, in Buffer cbuffer)
             => SetConstantBuffer<byte>(paramIndex, cbuffer, 0);
 
         /// <summary>
@@ -145,7 +145,7 @@ namespace Voltium.Core
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
         /// <param name="offset">The offset in elements of <typeparamref name="T"/> to start the view at</param>
-        public void SetConstantBuffer<T>(uint paramIndex, Buffer cbuffer, uint offset = 0) where T : unmanaged
+        public void SetConstantBuffer<T>(uint paramIndex, in Buffer cbuffer, uint offset = 0) where T : unmanaged
         {
             var alignedSize = (sizeof(T) + 255) & ~255;
 
@@ -158,7 +158,7 @@ namespace Voltium.Core
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
         /// <param name="offset">The offset in bytes to start the view at</param>
-        public void SetConstantBufferByteOffset(uint paramIndex, Buffer cbuffer, uint offset = 0)
+        public void SetConstantBufferByteOffset(uint paramIndex, in Buffer cbuffer, uint offset = 0)
         {
             _context.List->SetGraphicsRootConstantBufferView(paramIndex, cbuffer.GpuAddress + offset);
         }
@@ -502,9 +502,12 @@ namespace Voltium.Core
         /// Set the viewports
         /// </summary>
         /// <param name="viewport">The viewport to set</param>
-        public void SetViewports(Viewport viewport)
+        public void SetViewports(in Viewport viewport)
         {
-            _context.List->RSSetViewports(1, (D3D12_VIEWPORT*)&viewport);
+            fixed (Viewport* pViewport = &viewport)
+            {
+                _context.List->RSSetViewports(1, (D3D12_VIEWPORT*)pViewport);
+            }
         }
 
         /// <summary>
@@ -546,7 +549,7 @@ namespace Voltium.Core
         /// <param name="vertexResource">The vertex buffer to set</param>
         /// <param name="startSlot">The slot on the device array to start setting vertex buffers to</param>
         /// <typeparam name="T">The type of the vertex in <see cref="Buffer"/></typeparam>
-        public void SetVertexBuffers<T>(Buffer vertexResource, uint startSlot = 0)
+        public void SetVertexBuffers<T>(in Buffer vertexResource, uint startSlot = 0)
             where T : unmanaged
         {
             var desc = CreateVertexBufferView<T>(vertexResource);
@@ -576,7 +579,7 @@ namespace Voltium.Core
             _context.List->IASetVertexBuffers(startSlot, (uint)vertexBuffers.Length, views);
         }
 
-        private static D3D12_VERTEX_BUFFER_VIEW CreateVertexBufferView<T>(Buffer buffer)
+        private static D3D12_VERTEX_BUFFER_VIEW CreateVertexBufferView<T>(in Buffer buffer)
             where T : unmanaged
         {
             return new D3D12_VERTEX_BUFFER_VIEW
@@ -592,13 +595,13 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="indexResource">The index buffer to set</param>
         /// <typeparam name="T">The type of the index in <see cref="Buffer"/></typeparam>
-        public void SetIndexBuffer<T>(Buffer indexResource)
+        public void SetIndexBuffer<T>(in Buffer indexResource)
             where T : unmanaged
         {
             var desc = CreateIndexBufferView(indexResource);
             _context.List->IASetIndexBuffer(&desc);
 
-            static D3D12_INDEX_BUFFER_VIEW CreateIndexBufferView(Buffer buffer)
+            static D3D12_INDEX_BUFFER_VIEW CreateIndexBufferView(in Buffer buffer)
             {
                 return new D3D12_INDEX_BUFFER_VIEW
                 {
@@ -639,7 +642,7 @@ namespace Voltium.Core
         /// <param name="dest">The single-sampled dest <see cref="Texture"/></param>
         /// <param name="sourceSubresource">The index of the subresource from <paramref name="source"/> to use</param>
         /// <param name="destSubresource">The index of the subresource from <paramref name="dest"/> to use</param>
-        public void ResolveSubresource(Texture source, Texture dest, uint sourceSubresource = 0, uint destSubresource = 0)
+        public void ResolveSubresource(in Texture source, in Texture dest, uint sourceSubresource = 0, uint destSubresource = 0)
         {
             DataFormat format = source.Format == DataFormat.Unknown ? dest.Format : source.Format;
 
@@ -658,7 +661,7 @@ namespace Voltium.Core
         /// <param name="format">The <see cref="DataFormat"/> to resolve as</param>
         /// <param name="sourceSubresource">The index of the subresource from <paramref name="source"/> to use</param>
         /// <param name="destSubresource">The index of the subresource from <paramref name="dest"/> to use</param>
-        public void ResolveSubresource(Texture source, Texture dest, DataFormat format, uint sourceSubresource = 0, uint destSubresource = 0)
+        public void ResolveSubresource(in Texture source, in Texture dest, DataFormat format, uint sourceSubresource = 0, uint destSubresource = 0)
         {
             //ResourceTransition(source, ResourceState.ResolveSource, sourceSubresource);
             //ResourceTransition(dest, ResourceState.ResolveDestination, destSubresource);
@@ -736,7 +739,7 @@ namespace Voltium.Core
         /// <param name="source">The resource to copy from</param>
         /// <param name="subresourceIndex">The index of the subresource to copy from</param>
         /// <param name="data"></param>
-        public void ReadbackSubresource(Texture source, uint subresourceIndex, out Buffer data)
+        public void ReadbackSubresource(in Texture source, uint subresourceIndex, out Buffer data)
             => this.AsCopyContext().ReadbackSubresource(source, subresourceIndex, out data);
 
         /// <summary>
@@ -745,15 +748,15 @@ namespace Voltium.Core
         /// <param name="source">The resource to copy from</param>
         /// <param name="subresourceIndex">The index of the subresource to copy from</param>
         /// <param name="data"></param>
-        public void ReadbackSubresource(Texture source, uint subresourceIndex, Buffer data)
-            => this.AsCopyContext().ReadbackSubresource(source, subresourceIndex, data);
+        public void ReadbackSubresourceToPreexisting(in Texture source, uint subresourceIndex, in Buffer data)
+            => this.AsCopyContext().ReadbackSubresourceToPreexisting(source, subresourceIndex, data);
 
         /// <summary>
         /// Copy an entire resource
         /// </summary>
         /// <param name="source">The resource to copy from</param>
         /// <param name="dest">The resource to copy to</param>
-        public void CopyResource(Buffer source, Buffer dest)
+        public void CopyResource(in Buffer source, in Buffer dest)
             => this.AsCopyContext().CopyResource(source, dest);
 
         /// <summary>
@@ -761,7 +764,7 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="source">The resource to copy from</param>
         /// <param name="dest">The resource to copy to</param>
-        public void CopyResource(Texture source, Texture dest)
+        public void CopyResource(in Texture source, in Texture dest)
             => this.AsCopyContext().CopyResource(source, dest);
 
 
@@ -771,7 +774,7 @@ namespace Voltium.Core
         /// <param name="source">The resource to copy from</param>
         /// <param name="dest">The resource to copy to</param>
         /// <param name="sourceSubresource">The index of the subresource to copy from</param>
-        public void CopySubresource(Texture source, Buffer dest, uint sourceSubresource = 0)
+        public void CopySubresource(in Texture source, in Buffer dest, uint sourceSubresource = 0)
             => this.AsCopyContext().CopySubresource(source, dest, sourceSubresource);
 
         /// <summary>
@@ -781,7 +784,7 @@ namespace Voltium.Core
         /// <param name="dest">The resource to copy to</param>
         /// <param name="sourceSubresource">The index of the subresource to copy from</param>
         /// <param name="destSubresource">The index of the subresource to copy to</param>
-        public void CopySubresource(Texture source, Texture dest, uint sourceSubresource, uint destSubresource)
+        public void CopySubresource(in Texture source, in Texture dest, uint sourceSubresource, uint destSubresource)
             => this.AsCopyContext().CopySubresource(source, dest, sourceSubresource, destSubresource);
 
         /// <summary>
@@ -790,8 +793,8 @@ namespace Voltium.Core
         /// <param name="buffer"></param>
         /// <param name="state"></param>
         /// <param name="destination"></param>
-        public void UploadBuffer<T>(T[] buffer, ResourceState state, Buffer destination) where T : unmanaged
-            => UploadBuffer((ReadOnlySpan<T>)buffer, state, destination);
+        public void UploadBufferToPreexisting<T>(T[] buffer, ResourceState state, in Buffer destination) where T : unmanaged
+            => UploadBufferToPreexisting((ReadOnlySpan<T>)buffer, state, destination);
 
 
         /// <summary>
@@ -800,8 +803,8 @@ namespace Voltium.Core
         /// <param name="state"></param>
         /// <param name="buffer"></param>
         /// <param name="destination"></param>
-        public void UploadBuffer<T>(Span<T> buffer, ResourceState state, Buffer destination) where T : unmanaged
-            => UploadBuffer((ReadOnlySpan<T>)buffer, state, destination);
+        public void UploadBufferToPreexisting<T>(Span<T> buffer, ResourceState state, in Buffer destination) where T : unmanaged
+            => UploadBufferToPreexisting((ReadOnlySpan<T>)buffer, state, destination);
 
 
         /// <summary>
@@ -810,8 +813,8 @@ namespace Voltium.Core
         /// <param name="state"></param>
         /// <param name="buffer"></param>
         /// <param name="destination"></param>
-        public void UploadBuffer<T>(ReadOnlySpan<T> buffer, ResourceState state, Buffer destination) where T : unmanaged
-            => this.AsCopyContext().UploadBuffer<T>(buffer, state, destination);
+        public void UploadBufferToPreexisting<T>(ReadOnlySpan<T> buffer, ResourceState state, in Buffer destination) where T : unmanaged
+            => this.AsCopyContext().UploadBufferToPreexisting<T>(buffer, state, destination);
 
         /// <summary>
         /// Uploads a buffer from the CPU to the GPU
@@ -850,7 +853,7 @@ namespace Voltium.Core
         /// <param name="state"></param>
         /// <param name="tex"></param>
         /// <param name="destination"></param>
-        public void UploadTexture(ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, TextureDesc tex, ResourceState state, out Texture destination)
+        public void UploadTexture(ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, in TextureDesc tex, ResourceState state, out Texture destination)
             => this.AsCopyContext().UploadTexture(texture, subresources, tex, state, out destination);
 
         /// <summary>
@@ -860,7 +863,7 @@ namespace Voltium.Core
         /// <param name="state"></param>
         /// <param name="subresources"></param>
         /// <param name="destination"></param>
-        public void UploadTexture(ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, ResourceState state, Texture destination)
+        public void UploadTexture(ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, ResourceState state, in Texture destination)
             => this.AsCopyContext().UploadTexture(texture, subresources, state, destination);
 
         /// <summary>
@@ -869,7 +872,7 @@ namespace Voltium.Core
         /// <param name="resource">The resource to transition</param>
         /// <param name="transition">The transition</param>
         /// <param name="subresource">The subresource to transition</param>
-        public void ResourceTransition(Buffer resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
+        public void ResourceTransition(in Buffer resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
             => this.AsCopyContext().ResourceTransition(resource, transition, subresource);
 
         /// <summary>
@@ -878,7 +881,7 @@ namespace Voltium.Core
         /// <param name="resource">The resource to transition</param>
         /// <param name="transition">The transition</param>
         /// <param name="subresource">The subresource to transition</param>
-        public void ResourceTransition(Texture resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
+        public void ResourceTransition(in Texture resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
             => this.AsCopyContext().ResourceTransition(resource, transition, subresource);
 
 
@@ -889,7 +892,7 @@ namespace Voltium.Core
         /// <param name="resource">The resource to transition</param>
         /// <param name="transition">The transition</param>
         /// <param name="subresource">The subresource to transition</param>
-        public void BeginResourceTransition(Buffer resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
+        public void BeginResourceTransition(in Buffer resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
             => this.AsCopyContext().BeginResourceTransition(resource, transition, subresource);
 
         /// <summary>
@@ -898,7 +901,7 @@ namespace Voltium.Core
         /// <param name="resource">The resource to transition</param>
         /// <param name="transition">The transition</param>
         /// <param name="subresource">The subresource to transition</param>
-        public void BeginResourceTransition(Texture resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
+        public void BeginResourceTransition(in Texture resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
             => this.AsCopyContext().BeginResourceTransition(resource, transition, subresource);
 
 
@@ -908,7 +911,7 @@ namespace Voltium.Core
         /// <param name="resource">The resource to transition</param>
         /// <param name="transition">The transition</param>
         /// <param name="subresource">The subresource to transition</param>
-        public void EndResourceTransition(Buffer resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
+        public void EndResourceTransition(in Buffer resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
             => this.AsCopyContext().EndResourceTransition(resource, transition, subresource);
 
         /// <summary>
@@ -917,7 +920,7 @@ namespace Voltium.Core
         /// <param name="resource">The resource to transition</param>
         /// <param name="transition">The transition</param>
         /// <param name="subresource">The subresource to transition</param>
-        public void EndResourceTransition(Texture resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
+        public void EndResourceTransition(in Texture resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
             => this.AsCopyContext().EndResourceTransition(resource, transition, subresource);
 
         #endregion

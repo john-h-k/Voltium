@@ -87,7 +87,7 @@ namespace Voltium.Core.Contexts
         /// <param name="after">The after <see cref="ResourceState"/> of <paramref name="buffer"/></param>
         /// <param name="options">The <see cref="ResourceBarrierOptions"/> for the barrier</param>
         /// <returns>A new <see cref="ResourceBarrier"/> representing a resource state transition</returns>
-        public static ResourceBarrier Transition(Buffer buffer, ResourceState before, ResourceState after, ResourceBarrierOptions options = ResourceBarrierOptions.Full)
+        public static ResourceBarrier Transition(in Buffer buffer, ResourceState before, ResourceState after, ResourceBarrierOptions options = ResourceBarrierOptions.Full)
             => Transition(buffer.Resource, before, after, options);
 
         /// <summary>
@@ -98,7 +98,7 @@ namespace Voltium.Core.Contexts
         /// <param name="after">The after <see cref="ResourceState"/> of <paramref name="tex"/></param>
         /// <param name="options">The <see cref="ResourceBarrierOptions"/> for the barrier</param>
         /// <returns>A new <see cref="ResourceBarrier"/> representing a resource state transition</returns>
-        public static ResourceBarrier Transition(Texture tex, ResourceState before, ResourceState after, ResourceBarrierOptions options = ResourceBarrierOptions.Full)
+        public static ResourceBarrier Transition(in Texture tex, ResourceState before, ResourceState after, ResourceBarrierOptions options = ResourceBarrierOptions.Full)
             => Transition(tex.Resource, before, after, options);
 
         internal static ResourceBarrier Transition(GpuResource resource, ResourceState before, ResourceState after, ResourceBarrierOptions options)
@@ -110,7 +110,7 @@ namespace Voltium.Core.Contexts
         /// <param name="buffer">The <see cref="Buffer"/> to barrier</param>
         /// <param name="options">The <see cref="ResourceBarrierOptions"/> for the barrier</param>
         /// <returns>A new <see cref="ResourceBarrier"/> representing a UAV read/writer barrier</returns>
-        public static ResourceBarrier Uav(Buffer buffer, ResourceBarrierOptions options = ResourceBarrierOptions.Full)
+        public static ResourceBarrier Uav(in Buffer buffer, ResourceBarrierOptions options = ResourceBarrierOptions.Full)
             => Uav(buffer.Resource, options);
 
         /// <summary>
@@ -119,7 +119,7 @@ namespace Voltium.Core.Contexts
         /// <param name="tex">The <see cref="Texture"/> to barrier</param>
         /// <param name="options">The <see cref="ResourceBarrierOptions"/> for the barrier</param>
         /// <returns>A new <see cref="ResourceBarrier"/> representing a UAV read/writer barrier</returns>
-        public static ResourceBarrier Uav(Texture tex, ResourceBarrierOptions options = ResourceBarrierOptions.Full)
+        public static ResourceBarrier Uav(in Texture tex, ResourceBarrierOptions options = ResourceBarrierOptions.Full)
             => Uav(tex.Resource, options);
 
         internal static ResourceBarrier Uav(GpuResource resource, ResourceBarrierOptions options)

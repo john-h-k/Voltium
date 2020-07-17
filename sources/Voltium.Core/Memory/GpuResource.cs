@@ -16,15 +16,13 @@ namespace Voltium.Core.Memory
         internal ID3D12Object* GetPointer() => ((IInternalD3D12Object)this).GetPointer();
 
         internal GpuResource(
-            ComputeDevice device,
             ComPtr<ID3D12Resource> resource,
-            InternalAllocDesc desc,
+            in InternalAllocDesc desc,
             GpuAllocator? allocator,
-            int heapIndex,
+            int heapIndex = -1 /* no relevant heap block */,
             HeapBlock block = default
         )
         {
-            _device = device;
             _value = resource.Move();
             State = (ResourceState)desc.InitialState;
             ResourceFormat = (DataFormat)desc.Desc.Format;
@@ -44,14 +42,12 @@ namespace Voltium.Core.Memory
 
         // this is a hack. TODO make it right
         internal static GpuResource FromBackBuffer(
-            ComputeDevice device,
             ComPtr<ID3D12Resource> resource
         )
         {
             var desc = resource.Get()->GetDesc();
             return new GpuResource
             {
-                _device = device,
                 _value = resource.Move(),
                 ResourceFormat = (DataFormat)desc.Format,
                 State = (ResourceState)D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_COMMON

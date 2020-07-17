@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Devices;
+using Voltium.Core.Memory;
 
 namespace Voltium.Core
 {

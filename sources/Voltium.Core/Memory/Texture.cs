@@ -99,7 +99,7 @@ namespace Voltium.Core.Memory
         internal static Texture FromResource(ComputeDevice device, ComPtr<ID3D12Resource> buffer)
         {
             var resDesc = buffer.Get()->GetDesc();
-            var res = new GpuResource(device, buffer.Move(), new InternalAllocDesc { Desc = resDesc, InitialState = D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_COMMON }, null, -1);
+            var res = new GpuResource(buffer.Move(), new InternalAllocDesc { Desc = resDesc, InitialState = D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_COMMON }, null, -1);
 
             var texDesc = new TextureDesc
             {

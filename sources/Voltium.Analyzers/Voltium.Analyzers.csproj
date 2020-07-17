@@ -10,11 +10,12 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
+    <PackageReference Include="Microsoft.CodeAnalysis.AnalyzerUtilities" Version="3.3.0" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="3.7.0-1.final" />
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="ComType\" />
+    <ProjectReference Include="..\..\Voltium.Annotations\Voltium.Annotations.csproj" />
   </ItemGroup>
   
 </Project>

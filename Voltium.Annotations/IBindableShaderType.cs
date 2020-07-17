@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace Voltium.Core.Devices.Shaders
 {
@@ -12,6 +13,7 @@ namespace Voltium.Core.Devices.Shaders
         /// <summary>
         /// The inputs to the shader
         /// </summary>
-        public ReadOnlyMemory<ShaderInput> GetShaderInputs();
+        // array because NS2.0 has no ReadOnlyMemory<T>
+        public ShaderInput[] GetShaderInputs();
     }
 }

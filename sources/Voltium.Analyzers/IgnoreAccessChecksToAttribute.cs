@@ -4,7 +4,7 @@
 
 using System.Runtime.CompilerServices;
 
-[assembly: IgnoresAccessChecksTo("System.Private.CoreLib")]
+[assembly: IgnoresAccessChecksTo("Microsoft.CodeAnalysis.AnalyzerUtilities")]
 
 namespace System.Runtime.CompilerServices
 {

@@ -28,7 +28,7 @@ namespace Voltium.Core.Devices
         /// Creates a render target view to a <see cref="Buffer"/>
         /// </summary>
         /// <param name="resource">The <see cref="Buffer"/> resource to create the view for</param>
-        public DescriptorHandle CreateRenderTargetView(Buffer resource)
+        public DescriptorHandle CreateRenderTargetView(in Buffer resource)
         {
             var handle = _rtvs.GetNextHandle();
 
@@ -42,7 +42,7 @@ namespace Voltium.Core.Devices
         /// </summary>
         /// <param name="resource">The <see cref="Buffer"/> resource to create the view for</param>
         /// <param name="desc">The <see cref="BufferRenderTargetViewDesc"/> describing the metadata used to create the view</param>
-        public DescriptorHandle CreateRenderTargetView(Buffer resource, in BufferRenderTargetViewDesc desc)
+        public DescriptorHandle CreateRenderTargetView(in Buffer resource, in BufferRenderTargetViewDesc desc)
         {
             var handle = _rtvs.GetNextHandle();
 
@@ -61,7 +61,7 @@ namespace Voltium.Core.Devices
         /// Creates a render target view to a <see cref="Texture"/>
         /// </summary>
         /// <param name="resource">The <see cref="Texture"/> resource to create the view for</param>
-        public DescriptorHandle CreateRenderTargetView(Texture resource)
+        public DescriptorHandle CreateRenderTargetView(in Texture resource)
         {
             var handle = _rtvs.GetNextHandle();
 
@@ -75,7 +75,7 @@ namespace Voltium.Core.Devices
         /// </summary>
         /// <param name="resource">The <see cref="Texture"/> resource to create the view for</param>
         /// <param name="desc">The <see cref="TextureRenderTargetViewDesc"/> describing the metadata used to create the view</param>
-        public DescriptorHandle CreateRenderTargetView(Texture resource, in TextureRenderTargetViewDesc desc)
+        public DescriptorHandle CreateRenderTargetView(in Texture resource, in TextureRenderTargetViewDesc desc)
         {
             if (desc.IsMultiSampled)
             {
@@ -116,7 +116,7 @@ namespace Voltium.Core.Devices
         /// Creates a depth stencil view to a <see cref="Texture"/>
         /// </summary>
         /// <param name="resource">The <see cref="Texture"/> resource to create the view for</param>
-        public DescriptorHandle CreateDepthStencilView(Texture resource)
+        public DescriptorHandle CreateDepthStencilView(in Texture resource)
         {
             var handle = _dsvs.GetNextHandle();
 
@@ -130,7 +130,7 @@ namespace Voltium.Core.Devices
         /// </summary>
         /// <param name="resource">The <see cref="Texture"/> resource to create the view for</param>
         /// <param name="desc">The <see cref="TextureShaderResourceViewDesc"/> describing the metadata used to create the view</param>
-        public DescriptorHandle CreateDepthStencilView(Texture resource, in TextureDepthStencilViewDesc desc)
+        public DescriptorHandle CreateDepthStencilView(in Texture resource, in TextureDepthStencilViewDesc desc)
         {
             if (desc.IsMultiSampled)
             {
@@ -169,7 +169,7 @@ namespace Voltium.Core.Devices
         /// Creates a shader resource view to a <see cref="Texture"/>
         /// </summary>
         /// <param name="resource">The <see cref="Texture"/> resource to create the view for</param>
-        public DescriptorHandle CreateShaderResourceView(Texture resource)
+        public DescriptorHandle CreateShaderResourceView(in Texture resource)
         {
             var handle = ResourceDescriptors.GetNextHandle();
 
@@ -183,7 +183,7 @@ namespace Voltium.Core.Devices
         /// </summary>
         /// <param name="resource">The <see cref="Texture"/> resource to create the view for</param>
         /// <param name="desc">The <see cref="TextureShaderResourceViewDesc"/> describing the metadata used to create the view</param>
-        public DescriptorHandle CreateShaderResourceView(Texture resource, in TextureShaderResourceViewDesc desc)
+        public DescriptorHandle CreateShaderResourceView(in Texture resource, in TextureShaderResourceViewDesc desc)
         {
             // multisampled textures can be created without a desc
             if (resource.Msaa.SampleCount > 1)
@@ -232,7 +232,7 @@ namespace Voltium.Core.Devices
         /// Creates a shader resource view to a <see cref="Texture"/>
         /// </summary>
         /// <param name="resource">The <see cref="Texture"/> resource to create the view for</param>
-        public DescriptorHandle CreateUnorderedAccessView(Texture resource)
+        public DescriptorHandle CreateUnorderedAccessView(in Texture resource)
         {
             var handle = ResourceDescriptors.GetNextHandle();
 

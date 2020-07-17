@@ -1,15 +1,18 @@
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Voltium.Core;
+using Voltium.Core.Devices.Shaders;
 
 namespace Voltium.Analyzers
 {
     internal sealed class IAInputDescBuilder
     {
-        private List<(string Name, string Type, AttributeData? Attr)> _elements = new();
+        private List<(string Name, DataFormat Type, AttributeData? Attr)> _elements = new();
 
-        public unsafe void Add(string name, string format, AttributeData? attr)
+        public unsafe void Add(string name, DataFormat format, AttributeData? attr)
         {
             _elements.Add((name, format, attr));
         }
@@ -17,24 +20,23 @@ namespace Voltium.Analyzers
 
         public string ToString(INamedTypeSymbol type)
         {
-            var template = @"
+            var template = @$"
 using System;
 using Voltium.Core;
 using Voltium.Core.Devices.Shaders;
 
-namespace {0}
-{{
-    partial struct {1} : Voltium.Core.Devices.Shaders.IBindableShaderType
-    {{
-        ReadOnlyMemory<ShaderInput> IBindableShaderType.GetShaderInputs() => Elements;
-        private static readonly ReadOnlyMemory<ShaderInput> Elements = new ShaderInput[] {{{2}}};
-    }}
-}}
+namespace {{0}}
+{{{{
+    partial struct {{1}} : {nameof(IBindableShaderType)}
+    {{{{
+        {nameof(ShaderInput)}[] {nameof(IBindableShaderType)}.{nameof(IBindableShaderType.GetShaderInputs)}() => Elements;
+        private static readonly {nameof(ShaderInput)}[] Elements = new {nameof(ShaderInput)}[] {{{{ {{2}} }}}};
+    }}}}
+}}}}
 ";
             var str = string.Format(template, type.ContainingNamespace, type.Name, FormatElements());
 
             _elements.Clear();
-
 
             return str;
         }
@@ -45,9 +47,10 @@ namespace {0}
 
             foreach (var desc in _elements)
             {
-                builder.Append("new ShaderInput(");
+                builder.Append($"new {nameof(ShaderInput)}(");
 
-                string? name = null, type = null;
+                string? name = null;
+                DataFormat? type = null;
 
                 if (desc.Attr is not null)
                 {
@@ -63,7 +66,7 @@ namespace {0}
                                 }
                                 else
                                 {
-                                    name = layoutMember.Value.ToCSharpString();
+                                    name = "\"" + (string)layoutMember.Value.Value! + "\"";
                                 }
                                 break;
 
@@ -74,7 +77,7 @@ namespace {0}
                                 }
                                 else
                                 {
-                                    type = layoutMember.Value.ToCSharpString();
+                                    type = (DataFormat)layoutMember.Value.Value!;
                                 }
                                 break;
 
@@ -84,12 +87,11 @@ namespace {0}
                                 break;
                         }
                     }
-
-                    builder.Append($"name: {name?.ToUpper() ?? desc.Name}, type: {type ?? desc.Type}");
+                    builder.Append($"name: {name?.ToUpper() ?? desc.Name}, type: {nameof(DataFormat)}.{type ?? desc.Type}");
                 }
                 else
                 {
-                    builder.Append($@"""{desc.Name.ToUpper()}"", {desc.Type}");
+                    builder.Append($@"name: ""{desc.Name.ToUpper()}"", type: {nameof(DataFormat)}.{desc.Type}");
                 }
 
                 builder.Append("), ");

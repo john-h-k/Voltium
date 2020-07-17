@@ -5,6 +5,8 @@ using System.Numerics;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
+using Voltium.Core;
+using Voltium.Core.Devices.Shaders;
 
 namespace Voltium.Analyzers
 {
@@ -17,14 +19,14 @@ namespace Voltium.Analyzers
         protected override void OnExecute(SourceGeneratorContext context)
             => InitBasicTypes(context.Compilation);
 
-        private const string ShaderInputAttributeName = "Voltium.Core.Devices.Shaders.ShaderInputAttribute";
-        private const string InputLayoutAttributeName = "Voltium.Core.Devices.Shaders.InputLayoutAttribute";
-        private const string ShaderIgnoreAttributeName = "Voltium.Core.Devices.Shaders.ShaderIgnoreAttribute";
+        private static readonly string ShaderInputAttributeName = typeof(ShaderInputAttribute).FullName;
+        private static readonly string InputLayoutAttributeName = typeof(InputLayoutAttribute).FullName;
+        private static readonly string ShaderIgnoreAttributeName = typeof(ShaderIgnoreAttribute).FullName;
 
         protected override bool Predicate(SourceGeneratorContext context, INamedTypeSymbol decl)
             => decl.HasAttribute(ShaderInputAttributeName, context.Compilation);
 
-        protected override void Generate(SourceGeneratorContext context, INamedTypeSymbol typeSymbol)
+        protected override void GenerateFromSymbol(SourceGeneratorContext context, INamedTypeSymbol typeSymbol)
         {
             var builder = new IAInputDescBuilder();
 
@@ -76,15 +78,15 @@ namespace Voltium.Analyzers
                 return;
             }
 
-            BasicTypes = new Dictionary<ITypeSymbol, string>()
+            BasicTypes = new Dictionary<ITypeSymbol, DataFormat>()
             {
-                [GetSymbolForType<float>(comp)] = "DataFormat.R32Single",
-                [GetSymbolForType<Vector2>(comp)] = "DataFormat.R32G32Single",
-                [GetSymbolForType<Vector3>(comp)] = "DataFormat.R32G32B32Single",
-                [GetSymbolForType<Vector4>(comp)] = "DataFormat.R32G32B32A32Single",
+                [GetSymbolForType<float>(comp)] = DataFormat.R32Single,
+                [GetSymbolForType<Vector2>(comp)] = DataFormat.R32G32Single,
+                [GetSymbolForType<Vector3>(comp)] = DataFormat.R32G32B32Single,
+                [GetSymbolForType<Vector4>(comp)] = DataFormat.R32G32B32A32Single,
             };
         }
 
-        private Dictionary<ITypeSymbol, string> BasicTypes = null!;
+        private Dictionary<ITypeSymbol, DataFormat> BasicTypes = null!;
     }
 }
