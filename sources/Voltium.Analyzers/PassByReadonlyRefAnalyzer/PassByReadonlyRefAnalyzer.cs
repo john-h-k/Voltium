@@ -184,7 +184,7 @@ namespace Voltium.Analyzers
                 return info;
             }
 
-            if (type.IsReferenceType)
+            if (type.IsReferenceType || type.TypeKind is TypeKind.Pointer)
             {
                 return ReferenceTypeInfo;
             }
