@@ -17,6 +17,7 @@ namespace Voltium.Core
         internal ComPtr<ID3D12GraphicsCommandList> _list;
         internal ComPtr<ID3D12CommandAllocator> _allocator;
         internal bool _executeOnClose;
+        internal ExecutionContext Context;
 
         internal ID3D12GraphicsCommandList* List => _list.Get();
         internal ID3D12CommandAllocator* Allocator => _allocator.Get();
@@ -25,12 +26,13 @@ namespace Voltium.Core
         private uint _currentBarrierCount;
         internal const uint MaxNumBarriers = 8;
 
-        internal GpuContext(ComputeDevice device, ComPtr<ID3D12GraphicsCommandList> list, ComPtr<ID3D12CommandAllocator> allocator, bool executeOnClose)
+        internal GpuContext(ComputeDevice device, ComPtr<ID3D12GraphicsCommandList> list, ComPtr<ID3D12CommandAllocator> allocator, ExecutionContext context, bool executeOnClose)
         {
             Device = device;
             _list = list.Move();
             _allocator = allocator.Move();
             _executeOnClose = executeOnClose;
+            Context = context;
             // We can't read past this many buffers as we skip init'ing them
             _currentBarrierCount = 0;
 

@@ -1,50 +1,34 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Threading;
 using TerraFX.Interop;
 using Voltium.Common;
-using Voltium.Core.D3D12;
 using Voltium.Core.Devices;
-
+using Voltium.Core.Memory;
 using static TerraFX.Interop.Windows;
 
 namespace Voltium.Core.Devices
 {
-    internal unsafe struct SynchronizedCommandQueue : IDisposable
+    internal unsafe struct SynchronizedCommandQueue : IDisposable, IInternalD3D12Object
     {
-        private struct ExecutingAllocator : IDisposable
-        {
-            public ComPtr<ID3D12CommandAllocator> Allocator;
-            public FenceMarker Marker;
-
-            public ExecutingAllocator Move()
-            {
-                var copy = this;
-                copy.Allocator = Allocator.Move();
-                return copy;
-            }
-
-            public ExecutingAllocator Copy()
-            {
-                var copy = this;
-                copy.Allocator = Allocator.Copy();
-                return copy;
-            }
-
-            public void Dispose()
-            {
-                Allocator.Dispose();
-            }
-        }
-
         private ComPtr<ID3D12CommandQueue> _queue;
         private ComPtr<ID3D12Fence> _fence;
+        private ulong _lastFence;
+
         private ExecutionContext _type;
-        private FenceMarker _marker;
-        private Queue<ExecutingAllocator> _executingAllocators;
         public readonly ulong Frequency;
 
         public ID3D12CommandQueue* GetQueue() => _queue.Get();
+
+        private static ulong StartingFenceForContext(ExecutionContext context) => context switch
+        {
+            // we do this to prevent conflicts when comparing markers
+            ExecutionContext.Copy => (ulong.MaxValue / 4) * 0,
+            ExecutionContext.Compute => (ulong.MaxValue / 4) * 1,
+            ExecutionContext.Graphics => (ulong.MaxValue / 4) * 2,
+            _ => 0xFFFFFFFFFFFFFFFF
+        };
 
         public SynchronizedCommandQueue(
             ComputeDevice device,
@@ -55,15 +39,14 @@ namespace Voltium.Core.Devices
 
             _type = context;
 
-            _queue = CreateQueue(device, context);
-            _fence = CreateFence(device);
+            _queue = device.CreateQueue(context);
+            _fence = device.CreateFence();
 
             DebugHelpers.SetName(_queue.Get(), GetListTypeName(context) + " Queue");
             DebugHelpers.SetName(_fence.Get(), GetListTypeName(context) + " Fence");
 
-            _marker = new FenceMarker(10);
-            _executingAllocators = new();
-            Guard.ThrowIfFailed(_queue.Get()->Signal(_fence.Get(), _marker.FenceValue));
+            _lastFence = StartingFenceForContext(context);
+            Guard.ThrowIfFailed(_queue.Get()->Signal(_fence.Get(), _lastFence));
 
             ulong frequency;
             int hr = _queue.Get()->GetTimestampFrequency(&frequency);
@@ -80,122 +63,31 @@ namespace Voltium.Core.Devices
             }
         }
 
-        public bool TryQueryTimestamps(ulong* gpu, ulong* cpu)
-        {
-            return SUCCEEDED(_queue.Get()->GetClockCalibration(gpu, cpu));
-        }
-
-        private static unsafe ComPtr<ID3D12CommandQueue> CreateQueue(ComputeDevice device, ExecutionContext type)
-        {
-            var desc = new D3D12_COMMAND_QUEUE_DESC
-            {
-                Type = (D3D12_COMMAND_LIST_TYPE)type,
-                Flags = D3D12_COMMAND_QUEUE_FLAGS.D3D12_COMMAND_QUEUE_FLAG_NONE,
-                NodeMask = 0, // TODO: MULTI-GPU
-                Priority = (int)D3D12_COMMAND_QUEUE_PRIORITY.D3D12_COMMAND_QUEUE_PRIORITY_NORMAL // why are you like this D3D12
-            };
-
-            ComPtr<ID3D12CommandQueue> p = default;
-
-            Guard.ThrowIfFailed(device.DevicePointer->CreateCommandQueue(
-                &desc,
-                p.Iid,
-                ComPtr.GetVoidAddressOf(&p)
-            ));
-
-            return p.Move();
-        }
-
-        private static unsafe ComPtr<ID3D12Fence> CreateFence(ComputeDevice device)
-        {
-            ComPtr<ID3D12Fence> fence = default;
-
-            Guard.ThrowIfFailed(device.DevicePointer->CreateFence(
-                0,
-                0,
-                fence.Iid,
-                (void**)&fence
-            ));
-
-            return fence;
-        }
+        public bool TryQueryTimestamps(ulong* gpu, ulong* cpu) => SUCCEEDED(_queue.Get()->GetClockCalibration(gpu, cpu));
 
         private static string GetListTypeName(ExecutionContext type) => type switch
         {
-            ExecutionContext.Graphics => "Graphics",
-            ExecutionContext.Compute => "Compute",
-            ExecutionContext.Copy => "Copy",
+            ExecutionContext.Graphics => nameof(ExecutionContext.Graphics),
+            ExecutionContext.Compute => nameof(ExecutionContext.Compute),
+            ExecutionContext.Copy => nameof(ExecutionContext.Copy),
             _ => "Unknown"
         };
 
-        public ComPtr<ID3D12CommandAllocator> RentAllocator()
+        internal GpuTask GetSynchronizerForIdle()
         {
-            //return _allocatorPool.ForceCreate();
-
-            //// if the pool has nothing left and we have in flight allocators
-            //if (_allocatorPool.IsEmpty && _executingAllocators.Count != 0)
-            //{
-            //    var currentReachedFence = GetReachedFence();
-
-            //    // try and give back any allocators we have
-            //    while (_executingAllocators.Count != 0 && currentReachedFence >= _executingAllocators.Peek().Marker)
-            //    {
-            //        _allocatorPool.Return(_executingAllocators.Dequeue().Allocator.Move());
-            //    }
-            //}
-
-            //return _allocatorPool.Rent().Move();
-            throw null!;
+            Signal();
+            return new GpuTask(_fence, _lastFence);
         }
 
-        public FenceMarker GetFenceForNextExecution() => _marker + 1;
-
-        public void Execute(
-            ReadOnlySpan<GpuCommandSet> lists,
-            out FenceMarker completion
-        )
+        internal void Wait(in GpuTask waitable)
         {
-            // TODO make the lists blittable to elide this copy
-            ComPtr<ID3D12GraphicsCommandList>* pLists = stackalloc ComPtr<ID3D12GraphicsCommandList>[lists.Length];
-
-            for (var i = 0; i < lists.Length; i++)
-            {
-                pLists[i] = lists[i].List.Move();
-                _executingAllocators.Enqueue(new ExecutingAllocator { Allocator = lists[i].Allocator.Move(), Marker = _marker + 1 });
-            }
-
-            // we still increment the fence to keep it in sync with the other queues
-            if (!lists.IsEmpty)
-            {
-                _queue.Get()->ExecuteCommandLists((uint)lists.Length, (ID3D12CommandList**)pLists);
-            }
-
-            InsertNextFence();
-            completion = _marker;
+            waitable.GetFenceAndMarker(out var fence, out var marker);
+            Guard.ThrowIfFailed(_queue.Get()->Wait(fence, marker));
         }
 
-        internal FenceMarker GetReachedFence()
+        internal void Signal()
         {
-            return new FenceMarker(_fence.Get()->GetCompletedValue());
-        }
-
-        internal FenceMarker GetNextFence() => _marker;
-
-        internal GpuDispatchSynchronizer GetSynchronizerForIdle()
-        {
-            InsertNextFence();
-            return GetSynchronizer(_marker);
-        }
-
-        internal void InsertNextFence()
-        {
-            _marker++;
-            Guard.ThrowIfFailed(_queue.Get()->Signal(_fence.Get(), _marker.FenceValue));
-        }
-
-        internal GpuDispatchSynchronizer GetSynchronizer(FenceMarker fenceMarker)
-        {
-            return new GpuDispatchSynchronizer(_fence.Copy(), fenceMarker);
+            Guard.ThrowIfFailed(_queue.Get()->Signal(_fence.Get(), Interlocked.Increment(ref _lastFence)));
         }
 
         public void Dispose()
@@ -204,9 +96,6 @@ namespace Voltium.Core.Devices
             _fence.Dispose();
         }
 
-        internal bool IsIdle()
-        {
-            return GetReachedFence() >= _marker;
-        }
+        ID3D12Object* IInternalD3D12Object.GetPointer() => (ID3D12Object*)_queue.Get();
     }
 }

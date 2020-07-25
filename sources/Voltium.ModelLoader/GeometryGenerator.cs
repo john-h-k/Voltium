@@ -16,9 +16,16 @@ using Vertex = Voltium.ModelLoading.TexturedVertex;
 
 namespace Voltium.Interactive
 {
-
+    /// <summary>
+    /// A utility class to generate
+    /// </summary>
     public static class GeometryGenerator
     {
+        /// <summary>
+        /// Create a cube with a given radius
+        /// </summary>
+        /// <param name="radius">The radius of the cube</param>
+        /// <returns>A new <see cref="Mesh{TVertex}"/></returns>
         public static Mesh<Vertex> CreateCube(float radius)
         {
             var cubeVertices = new Vertex[24]
@@ -63,6 +70,13 @@ namespace Voltium.Interactive
             return new Mesh<Vertex>(cubeVertices, CubeIndices);
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="radius"></param>
+        /// <param name="sliceCount"></param>
+        /// <param name="stackCount"></param>
+        /// <returns></returns>
         public static Mesh<Vertex> CreateSphere(float radius, uint sliceCount, uint stackCount)
         {
             var meshData = new ArrayBuilder<Vertex>();
@@ -164,7 +178,7 @@ namespace Voltium.Interactive
                 indices.Add(baseIndex + i + 1);
             }
 
-            return meshData;
+            return new Mesh<Vertex>(meshData.MoveTo(), indices.MoveTo());
         }
 
         private const string AssetsFolder = "Assets/";
@@ -178,7 +192,10 @@ namespace Voltium.Interactive
         private static readonly IMaterialStreamProvider _assetsProvider = new AssetsProvider();
         private static ThreadLocal<IObjLoader> _loader = new(() => { lock (_factory) { return _factory.Create(_assetsProvider); } });
 
-        public static Mesh<Vertex> LoadSingleModel(string filename, Material material = default)
+        /// <summary>
+        /// Load a OBJ file
+        /// </summary>
+        private static Mesh<Vertex> LoadSingleModel(string filename, Material material = default)
         {
             var model = _loader.Value!.Load(File.OpenRead(AssetsFolder + filename));
 
@@ -186,7 +203,7 @@ namespace Voltium.Interactive
                 .Aggregate(0, (val, group) => val += group.Faces
                     .Aggregate(0, (val, face) => val + face.Count));
 
-            var indices = new ushort[indexCount];
+            var indices = new uint[indexCount];
             var vertices = new Vertex[indexCount];
 
 
@@ -229,7 +246,7 @@ namespace Voltium.Interactive
             Shininess = material.SpecularCoefficient
         };
 
-        private static ushort[] CubeIndices = new ushort[36]
+        private static uint[] CubeIndices = new uint[36]
         {
             // Fill in the front face index data
 	        0, 1, 2,

@@ -128,7 +128,8 @@ namespace Voltium.Core
 
         ID3D12Object* IInternalD3D12Object.GetPointer() => (ID3D12Object*)_heap.Get();
 
-        internal ID3D12Pageable* GetPageable() => (ID3D12Pageable*)_heap.Get();
+        ID3D12Pageable* IEvictable.GetPageable() => (ID3D12Pageable*)_heap.Get();
+        bool IEvictable.IsBlittableToPointer => false;
     }
 
     /// <summary>

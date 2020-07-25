@@ -58,7 +58,7 @@ namespace Voltium.Core.Pool
                 list = CreateList(context, allocator.Get(), pso is null ? null : pso.GetPso());
             }
 
-            return new GpuContext(_device, list, allocator, executeOnClose);
+            return new GpuContext(_device, list, allocator, context, executeOnClose);
         }
 
         public void Return(in GpuContext gpuContext)

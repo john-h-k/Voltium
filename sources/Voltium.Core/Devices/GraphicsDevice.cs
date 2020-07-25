@@ -167,51 +167,6 @@ namespace Voltium.Core.Devices
         }
 
         /// <summary>
-        /// Submit a set of recorded commands to the list
-        /// </summary>
-        /// <param name="context">The commands to submit for execution</param>
-        public void Execute(ref GpuContext context)
-        {
-            ID3D12GraphicsCommandList* list = context.List;
-
-            GraphicsQueue.GetQueue()->ExecuteCommandLists(1, (ID3D12CommandList**)&list);
-
-            GraphicsQueue.GetSynchronizerForIdle().Block();
-            ContextPool.Return(context);
-        }
-
-        /// <summary>
-        /// Execute all submitted command lists
-        /// </summary>
-        public void Execute()
-        {
-
-        }
-
-        /// <summary>
-        /// Execute all provided command lists
-        /// </summary>
-        public void Execute(Span<GpuContext> contexts)
-        {
-            StackSentinel.StackAssert(StackSentinel.SafeToStackallocPointers(contexts.Length));
-
-            ID3D12CommandList** ppLists = stackalloc ID3D12CommandList*[contexts.Length];
-
-            for (var i = 0; i < contexts.Length; i++)
-            {
-                ppLists[i] = (ID3D12CommandList*)contexts[i].List;
-            }
-
-            GraphicsQueue.GetQueue()->ExecuteCommandLists((uint)contexts.Length, ppLists);
-            GraphicsQueue.GetSynchronizerForIdle().Block();
-
-            for (var i = 0; i < contexts.Length; i++)
-            {
-                ContextPool.Return(contexts[i]);
-            }
-        }
-
-        /// <summary>
         /// Move to the next frame's set of resources
         /// </summary>
         public void MoveToNextFrame()

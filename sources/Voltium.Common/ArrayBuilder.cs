@@ -50,6 +50,14 @@ namespace Voltium.Common
             _buffer[_length++] = t;
         }
 
+        public void Add(ReadOnlySpan<T> t)
+        {
+            EnsureCanAdd(t.Length);
+
+            t.CopyTo(_buffer.AsSpan(_length));
+            _length += t.Length;
+        }
+
         private void EnsureCanAdd(int count)
         {
             if (_length + count < _buffer.Length)

@@ -19,6 +19,7 @@ using static TerraFX.Interop.D3D12_FEATURE;
 
 using Buffer = Voltium.Core.Memory.Buffer;
 using Voltium.Allocators;
+using System.Threading;
 
 namespace Voltium.Core.Devices
 {
@@ -74,7 +75,7 @@ namespace Voltium.Core.Devices
                     return ref CopyQueue;
                 case ExecutionContext.Compute:
                     return ref ComputeQueue;
-                case ExecutionContext.Graphics:
+                case ExecutionContext.Graphics when this is GraphicsDevice:
                     return ref GraphicsQueue;
             }
 
@@ -111,22 +112,167 @@ namespace Voltium.Core.Devices
         /// </summary>
         public bool IsDxilSupported => HighestSupportedShaderModel.IsDxil;
 
+        // this fence is specifically used by the device for MakeResidentAsync. unrelated to queue fences
         private ComPtr<ID3D12Fence> _residencyFence;
+        private ulong _lastFenceSignal;
 
-        public void Evict<T>(T evictable) where T : IEvictable
+        /// <summary>
+        /// Indicates whether calls to <see cref="MakeResidentAsync{T}(T)"/> and <see cref="MakeResidentAsync{T}(ReadOnlySpan{T})"/> can succeed
+        /// </summary>
+        public bool CanMakeResidentAsync => DeviceLevel >= SupportedDevice.Device3;
+
+        private const string Error_CantMakeResidentAsync = "Cannot MakeResidentAsync on a system that does not support ID3D12Device3.\n" +
+            "Check CanMakeResidentAsync to determine if you can call MakeResidentAsync without it failing";
+
+        /// <summary>
+        /// Asynchronously makes <paramref name="evicted"/> resident on the device
+        /// </summary>
+        /// <typeparam name="T">The type of the evicted resource</typeparam>
+        /// <param name="evicted">The <typeparamref name="T"/> to make resident</param>
+        /// <returns>A <see cref="GpuTask"/> that can be used to work out when the resource is resident</returns>
+        public GpuTask MakeResidentAsync<T>(T evicted) where T : IEvictable
         {
-            var pageable = evictable.GetPageable();
-            Guard.ThrowIfFailed(DevicePointer->Evict(1, &pageable));
+            if (DeviceLevel < SupportedDevice.Device3)
+            {
+                ThrowHelper.ThrowNotSupportedException(Error_CantMakeResidentAsync);
+            }
+
+            var newValue = Interlocked.Increment(ref _lastFenceSignal);
+            var pageable = evicted.GetPageable();
+
+            Guard.ThrowIfFailed(DevicePointerAs<ID3D12Device3>()->EnqueueMakeResident(
+                D3D12_RESIDENCY_FLAGS.D3D12_RESIDENCY_FLAG_DENY_OVERBUDGET,
+                1,
+                &pageable,
+                _residencyFence.Get(),
+                newValue
+            ));
+
+            return new GpuTask(_residencyFence, newValue);
         }
 
-        public void Evict<T>(ReadOnlySpan<T> evictables) where T : IEvictable
+        /// <summary>
+        /// Asynchronously makes <paramref name="evicted"/> resident on the device
+        /// </summary>
+        /// <typeparam name="T">The type of the evicted resourcse</typeparam>
+        /// <param name="evicted">The <typeparamref name="T"/>s to make resident</param>
+        /// <returns>A <see cref="GpuTask"/> that can be used to work out when the resource is resident</returns>
+        public GpuTask MakeResidentAsync<T>(ReadOnlySpan<T> evicted) where T : IEvictable
+        {
+            if (DeviceLevel < SupportedDevice.Device3)
+            {
+                ThrowHelper.ThrowNotSupportedException(Error_CantMakeResidentAsync);
+            }
+
+            var newValue = Interlocked.Increment(ref _lastFenceSignal);
+            // classes will never be blittable to pointer, so this handles that
+            if (default(T)?.IsBlittableToPointer ?? false)
+            {
+                fixed (void* pEvictables = &Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(evicted)))
+                {
+                    Guard.ThrowIfFailed(DevicePointerAs<ID3D12Device3>()->EnqueueMakeResident(
+                        D3D12_RESIDENCY_FLAGS.D3D12_RESIDENCY_FLAG_DENY_OVERBUDGET,
+                        (uint)evicted.Length,
+                        (ID3D12Pageable**)pEvictables,
+                        _residencyFence.Get(),
+                        newValue
+                    ));
+                }
+            }
+            else
+            {
+
+                if (StackSentinel.SafeToStackallocPointers(evicted.Length))
+                {
+                    ID3D12Pageable** pEvictables = stackalloc ID3D12Pageable*[evicted.Length];
+                    for (int i = 0; i < evicted.Length; i++)
+                    {
+                        pEvictables[i] = evicted[i].GetPageable();
+                    }
+
+                    Guard.ThrowIfFailed(DevicePointerAs<ID3D12Device3>()->EnqueueMakeResident(
+                        D3D12_RESIDENCY_FLAGS.D3D12_RESIDENCY_FLAG_DENY_OVERBUDGET,
+                        (uint)evicted.Length,
+                        pEvictables,
+                        _residencyFence.Get(),
+                        newValue
+                    ));
+                }
+                else
+                {
+                    using var pool = RentedArray<nuint>.Create(evicted.Length, PinnedArrayPool<nuint>.Default);
+
+                    for (int i = 0; i < evicted.Length; i++)
+                    {
+                        pool.Value[i] = (nuint)evicted[i].GetPageable();
+                    }
+
+                    Guard.ThrowIfFailed(DevicePointerAs<ID3D12Device3>()->EnqueueMakeResident(
+                        D3D12_RESIDENCY_FLAGS.D3D12_RESIDENCY_FLAG_DENY_OVERBUDGET,
+                        (uint)evicted.Length,
+                        (ID3D12Pageable**)Unsafe.AsPointer(ref MemoryMarshal.GetArrayDataReference(pool.Value)),
+                        _residencyFence.Get(),
+                        newValue
+                    ));
+                }
+            }
+
+            return new GpuTask(_residencyFence, newValue);
+        }
+
+        // MakeResident is 34th member of vtable
+        // Evict is 35th
+        private delegate* stdcall<uint, ID3D12Pageable**, int> MakeResidentFunc => (delegate* stdcall<uint, ID3D12Pageable**, int>)DevicePointer->lpVtbl[34];
+        private delegate* stdcall<uint, ID3D12Pageable**, int> EvictFunc => (delegate* stdcall<uint, ID3D12Pageable**, int>)DevicePointer->lpVtbl[35];
+
+        // take advantage of the fact make resident and evict have same sig to reduce code duplication
+
+        /// <summary>
+        /// Synchronously makes <paramref name="evicted"/> resident on the device
+        /// </summary>
+        /// <typeparam name="T">The type of the evicted resource</typeparam>
+        /// <param name="evicted">The <typeparamref name="T"/> to make resident</param>
+        public void MakeResident<T>(T evicted) where T : IEvictable
+            => ChangeResidency(MakeResidentFunc, evicted);
+
+        /// <summary>
+        /// Synchronously makes <paramref name="evicted"/> resident on the device
+        /// </summary>
+        /// <typeparam name="T">The type of the evicted resource</typeparam>
+        /// <param name="evicted">The <typeparamref name="T"/>s to make resident</param>
+        public void MakeResident<T>(ReadOnlySpan<T> evicted) where T : IEvictable
+            => ChangeResidency(MakeResidentFunc, evicted);
+
+        /// <summary>
+        /// Indicates <paramref name="evicted"/> can be evicted if necessary
+        /// </summary>
+        /// <typeparam name="T">The type of the evictable resource</typeparam>
+        /// <param name="evicted">The <typeparamref name="T"/> to mark as evictable</param>
+        public void Evict<T>(T evicted) where T : IEvictable
+            => ChangeResidency(EvictFunc, evicted);
+
+        /// <summary>
+        /// Indicates <paramref name="evicted"/> can be evicted if necessary
+        /// </summary>
+        /// <typeparam name="T">The type of the evictable resource</typeparam>
+        /// <param name="evicted">The <typeparamref name="T"/>s to mark as evictable</param>
+        public void Evict<T>(ReadOnlySpan<T> evicted) where T : IEvictable
+            => ChangeResidency(EvictFunc, evicted);
+
+        private void ChangeResidency<T>(delegate* stdcall<uint, ID3D12Pageable**, int> changeFunc, T evictable) where T : IEvictable
+        {
+            var pageable = evictable.GetPageable();
+            Guard.ThrowIfFailed(changeFunc(1, &pageable));
+        }
+
+        private void ChangeResidency<T>(delegate* stdcall<uint, ID3D12Pageable**, int> changeFunc, ReadOnlySpan<T> evictables) where T : IEvictable
         {
             // classes will never be blittable to pointer, so this handles that
             if (default(T)?.IsBlittableToPointer ?? false)
             {
                 fixed (void* pEvictables = &Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(evictables)))
                 {
-                    Guard.ThrowIfFailed(DevicePointer->Evict((uint)evictables.Length, (ID3D12Pageable**)pEvictables));
+                    Guard.ThrowIfFailed(changeFunc((uint)evictables.Length, (ID3D12Pageable**)pEvictables));
                 }
             }
             else
@@ -140,18 +286,18 @@ namespace Voltium.Core.Devices
                         pEvictables[i] = evictables[i].GetPageable();
                     }
 
-                    Guard.ThrowIfFailed(DevicePointer->Evict((uint)evictables.Length, pEvictables));
+                    Guard.ThrowIfFailed(changeFunc((uint)evictables.Length, pEvictables));
                 }
                 else
                 {
-                    var pool = RentedArray<nuint>.Create(evictables.Length, PinnedArrayPool<nuint>.Default);
+                    using var pool = RentedArray<nuint>.Create(evictables.Length, PinnedArrayPool<nuint>.Default);
 
                     for (int i = 0; i < evictables.Length; i++)
                     {
                         pool.Value[i] = (nuint)evictables[i].GetPageable();
                     }
 
-                    Guard.ThrowIfFailed(DevicePointer->Evict((uint)evictables.Length, (ID3D12Pageable**)Unsafe.AsPointer(ref MemoryMarshal.GetArrayDataReference(pool.Value))));
+                    Guard.ThrowIfFailed(changeFunc((uint)evictables.Length, (ID3D12Pageable**)Unsafe.AsPointer(ref MemoryMarshal.GetArrayDataReference(pool.Value))));
                 }
             }
         }
@@ -217,10 +363,25 @@ namespace Voltium.Core.Devices
 
             CpuFrequency = frequency;
 
+            _residencyFence = CreateFence();
+
             QueryFeaturesOnCreation();
             ContextPool = new ContextPool(this);
             CopyQueue = new SynchronizedCommandQueue(this, ExecutionContext.Copy);
             ComputeQueue = new SynchronizedCommandQueue(this, ExecutionContext.Compute);
+        }
+        internal unsafe ComPtr<ID3D12Fence> CreateFence()
+        {
+            ComPtr<ID3D12Fence> fence = default;
+
+            Guard.ThrowIfFailed(DevicePointer->CreateFence(
+                0,
+                0,
+                fence.Iid,
+                (void**)&fence
+            ));
+
+            return fence;
         }
 
         private protected void CreateNewDevice(
@@ -373,6 +534,81 @@ namespace Voltium.Core.Devices
             return new ComputeContext(context);
         }
 
+        /// <summary>
+        /// Submit a set of recorded commands to the list
+        /// </summary>
+        /// <param name="context">The commands to submit for execution</param>
+        public GpuTask Execute(ref GpuContext context)
+        {
+            ID3D12GraphicsCommandList* list = context.List;
+
+            ref var queue = ref GetQueueForContext(context.Context);
+            if (Helpers.IsNullRef(ref queue))
+            {
+                ThrowHelper.ThrowInvalidOperationException("Invalid to try and execute a GpuContext that is not a CopyContext or ComputeContext on a ComputeDevice");
+            }
+
+            queue.GetQueue()->ExecuteCommandLists(1, (ID3D12CommandList**)&list);
+
+            GraphicsQueue.GetSynchronizerForIdle().Block();
+            ContextPool.Return(context);
+
+            return GpuTask.Completed;
+        }
+
+        /// <summary>
+        /// Execute all submitted command lists
+        /// </summary>
+        public void Execute()
+        {
+
+        }
+
+        /// <summary>
+        /// Execute all provided command lists
+        /// </summary>
+        public GpuTask Execute(Span<GpuContext> contexts)
+        {
+            if (contexts.IsEmpty)
+            {
+                return GpuTask.Completed;
+            }
+
+            StackSentinel.StackAssert(StackSentinel.SafeToStackallocPointers(contexts.Length));
+
+            ID3D12CommandList** ppLists = stackalloc ID3D12CommandList*[contexts.Length];
+
+            ExecutionContext requiredContext = default;
+            for (var i = 0; i < contexts.Length; i++)
+            {
+                ppLists[i] = (ID3D12CommandList*)contexts[i].List;
+
+
+                requiredContext = contexts[i].Context switch
+                {
+                    ExecutionContext.Copy => requiredContext,
+                    ExecutionContext.Compute when requiredContext is ExecutionContext.Copy => ExecutionContext.Compute,
+                    ExecutionContext.Graphics when requiredContext is ExecutionContext.Copy or ExecutionContext.Compute => ExecutionContext.Graphics,
+                    _ => (ExecutionContext)(0xFFFFFFFF)
+                };
+            }
+
+            if (requiredContext == (ExecutionContext)(0xFFFFFFFF))
+            {
+                ThrowHelper.ThrowArgumentException("Invalid execution context type provided in param contexts");
+            }
+            ref var queue = ref GetQueueForContext(requiredContext);
+            queue.GetQueue()->ExecuteCommandLists((uint)contexts.Length, ppLists);
+            queue.GetSynchronizerForIdle().Block();
+
+            for (var i = 0; i < contexts.Length; i++)
+            {
+                ContextPool.Return(contexts[i]);
+            }
+
+            return GpuTask.Completed;
+        }
+
         private unsafe void SetDefaultState(ref GpuContext context, ComputePipelineStateObject? pso)
         {
             if (pso is not null)
@@ -396,6 +632,27 @@ namespace Voltium.Core.Devices
             ));
 
             return heap.Move();
+        }
+
+        internal unsafe ComPtr<ID3D12CommandQueue> CreateQueue(ExecutionContext type)
+        {
+            var desc = new D3D12_COMMAND_QUEUE_DESC
+            {
+                Type = (D3D12_COMMAND_LIST_TYPE)type,
+                Flags = D3D12_COMMAND_QUEUE_FLAGS.D3D12_COMMAND_QUEUE_FLAG_NONE,
+                NodeMask = 0, // TODO: MULTI-GPU
+                Priority = (int)D3D12_COMMAND_QUEUE_PRIORITY.D3D12_COMMAND_QUEUE_PRIORITY_NORMAL // why are you like this D3D12
+            };
+
+            ComPtr<ID3D12CommandQueue> p = default;
+
+            Guard.ThrowIfFailed(DevicePointer->CreateCommandQueue(
+                &desc,
+                p.Iid,
+                ComPtr.GetVoidAddressOf(&p)
+            ));
+
+            return p.Move();
         }
 
         /// <summary>

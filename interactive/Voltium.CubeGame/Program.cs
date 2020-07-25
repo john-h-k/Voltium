@@ -4,9 +4,9 @@ using System.Runtime.Intrinsics.X86;
 
 namespace Voltium.CubeGame
 {
-    class Program
+    internal class Program
     {
-        static void Main(string[] args)
+        private static void Main(string[] args)
         {
             Console.WriteLine("Hello World!");
         }

@@ -15,8 +15,11 @@ using Voltium.Common;
 using SimpScene = Silk.NET.Assimp.Scene;
 using SimpMesh = Silk.NET.Assimp.Mesh;
 using SimpFace = Silk.NET.Assimp.Face;
+using SimpReturn = Silk.NET.Assimp.Return;
 using Node = SharpGLTF.Schema2.Node;
 using ModelRoot = SharpGLTF.Schema2.ModelRoot;
+using System;
+using System.Buffers;
 
 namespace Voltium.ModelLoading
 {
@@ -28,7 +31,7 @@ namespace Voltium.ModelLoading
         {
             Position = position;
             Normal = normal;
-            //Tangent = tangent;
+            Tangent = tangent;
             TexC = texC;
         }
 
@@ -95,14 +98,14 @@ namespace Voltium.ModelLoading
 
     }
 
-    public readonly struct Mesh<TVertex>
+    public struct Mesh<TVertex>
     {
         public readonly TVertex[] Vertices;
-        public readonly ushort[] Indices;
-        public readonly Material Material;
-        public readonly Matrix4x4 World;
+        public readonly uint[] Indices;
+        public Material Material;
+        public Matrix4x4 World;
 
-        public Mesh(TVertex[] vertices, ushort[] indices, Material material = default, Matrix4x4 world = default)
+        public Mesh(TVertex[] vertices, uint[] indices, Material material = default, Matrix4x4 world = default)
         {
             if (world == default)
             {
@@ -125,32 +128,70 @@ namespace Voltium.ModelLoading
         private static readonly IObjLoader _loader = _factory.Create(new MaterialStreamProvider());
         private static readonly Assimp _assimp = Assimp.GetApi();
 
+        private static MemoryHandle DiffuseKey = StringHelper.MarshalToUnmanagedAscii(Assimp.MaterialColorDiffuseBase);
+        private static MemoryHandle ShininessKey = StringHelper.MarshalToUnmanagedAscii(Assimp.MaterialShininessBase);
+        private static MemoryHandle ReflectionFactorKey = StringHelper.MarshalToUnmanagedAscii(Assimp.MaterialColorReflectiveBase);
         // TODO improve
         public static unsafe Mesh<TexturedVertex>[] Load(string filename)
         {
             using var ascii = StringHelper.MarshalToUnmanagedAscii(filename);
             SimpScene* pScene = _assimp.ImportFile((byte*)ascii.Pointer, 0);
 
+            var meshes = new ArrayBuilder<Mesh<TexturedVertex>>();
+
             for (var i = 0; i < pScene->MNumMeshes; i++)
             {
                 SimpMesh* pMesh = pScene->MMeshes[i];
                 var vertices = new TexturedVertex[pMesh->MNumVertices];
-                int writtenVertices = 0;
 
+                var material = new Material();
+                var simpMaterial = pScene->MMaterials[pMesh->MMaterialIndex];
+
+                ThrowIfFailed(_assimp.GetMaterialColor(simpMaterial, (byte*)DiffuseKey.Pointer, 0, 0, &material.DiffuseAlbedo));
+                ThrowIfFailed(_assimp.GetMaterialFloatArray(simpMaterial, (byte*)ShininessKey.Pointer, 0, 0, &material.Shininess, null));
+                ThrowIfFailed(_assimp.GetMaterialColor(simpMaterial, (byte*)ReflectionFactorKey.Pointer, 0, 0, &material.ReflectionFactor));
+
+                for (var k = 0; k < pMesh->MNumVertices; k++)
+                {
+                    var vertex = new TexturedVertex(
+                        pMesh->MVertices[k],
+                        pMesh->MNormals[k],
+                        pMesh->MTangents[k],
+                        ToVector2(pMesh->MTextureCoords_0[k])
+                    );
+
+                    vertices[k] = vertex;
+                }
+
+                var indices = new ArrayBuilder<uint>();
                 for (var j = 0; j < pMesh->MNumFaces; j++)
                 {
-                    SimpFace* /* <- insert mug of dylan */ pFace = pMesh->MFaces;
+                    SimpFace /* <- insert mug of dylan */ pFace = pMesh->MFaces[j];
+                    indices.Add(new Span<uint>(pFace.MIndices, (int)pFace.MNumIndices));
+                }
 
-                    for (var k = 0; k < pFace->MNumIndices; k++)
-                    {
-                        uint index = pFace->MIndices[k];
+                meshes.Add(new Mesh<TexturedVertex>(vertices, indices.MoveTo(), material));
+            }
 
-                        var vertex = new TexturedVertex(pMesh->MVertices[index], pMesh->MNormals[index], pMesh->MTangents[index], ToVector2(pMesh->MTextureCoords_0[index]));
-                        vertices[writtenVertices] = vertex;
-                    }
+            return meshes.MoveTo();
+
+
+
+            static void ThrowIfFailed(SimpReturn @return)
+            {
+                if (@return == SimpReturn.ReturnSuccess)
+                {
+                    return;
+                }
+                if (@return == SimpReturn.ReturnOutofmemory)
+                {
+                    ThrowHelper.ThrowInsufficientMemoryException("'ReturnOutofmemory' returned by ASSIMP");
+                }
+                else
+                {
+                    ThrowHelper.ThrowExternalException("ASSIMP returned a generic error code");
                 }
             }
-            return default!;
         }
 
         private static Vector2 ToVector2(Vector3 vec) => Unsafe.As<Vector3, Vector2>(ref vec);
@@ -217,7 +258,7 @@ namespace Voltium.ModelLoading
                     var tangents = mesh.GetVertexAccessor("TANGENT")?.AsVector4Array();
                     var triangleIndices = mesh.GetTriangleIndices()?.ToArray();
 
-                    var indices = triangleIndices?.SelectMany(i => new[] { (ushort)i.A, (ushort)i.B, (ushort)i.C }).ToArray();
+                    var indices = triangleIndices?.SelectMany(i => new[] { i.A, i.B, i.C }).ToArray();
 
                     if (texCoords is not null)
                     {
@@ -228,7 +269,7 @@ namespace Voltium.ModelLoading
                             vertices![i] = new TexturedVertex(positions![i], normals![i], Unsafe.As<Vector4, Vector3>(ref tangent), texCoords![i]);
                         }
 
-                        texturedObjs.Add(new(vertices, indices!, mat, world));
+                        texturedObjs.Add(new(vertices, Unsafe.As<uint[]>(indices!), mat, world));
                     }
                 }
             }

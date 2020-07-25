@@ -14,6 +14,11 @@ namespace Voltium.Core.Memory
     public unsafe struct GpuTask
     {
         /// <summary>
+        /// Represents an already completed <see cref="GpuTask"/>
+        /// </summary>
+        public static GpuTask Completed => new GpuTask(default, 0);
+
+        /// <summary>
         /// This type should not be used except by compilers
         /// </summary>
         [EditorBrowsable(EditorBrowsableState.Never)]
@@ -29,7 +34,7 @@ namespace Voltium.Core.Memory
                 _fence = fence;
                 _reached = reached;
                 _scheduler = scheduler;
-                _finished = false;
+                _finished =  /* if the fence is null, this is a dummy completed task */ !fence.Exists;
             }
 
             /// <summary>
@@ -82,13 +87,19 @@ namespace Voltium.Core.Memory
                     Guard.ThrowIfFailed(_fence.Get()->SetEventOnCompletion(_reached, default));
                 }
             }
+
+            internal void GetFenceAndMarker(out ID3D12Fence* fence, out ulong marker)
+            {
+                fence = _fence.Get();
+                marker = _reached;
+            }
         }
 
         private Awaiter _awaiter;
 
-        internal GpuTask(ComPtr<ID3D12Fence> fence, FenceMarker marker)
+        internal GpuTask(ComPtr<ID3D12Fence> fence, ulong marker)
         {
-            _awaiter = new(fence, marker.FenceValue, TaskScheduler.Default);
+            _awaiter = new(fence, marker, TaskScheduler.Default);
         }
 
         /// <summary>
@@ -107,5 +118,7 @@ namespace Voltium.Core.Memory
         /// Whether the GPU has reached the point represented by this <see cref="GpuTask"/>
         /// </summary>
         public bool IsCompleted => _awaiter.IsCompleted;
+
+        internal void GetFenceAndMarker(out ID3D12Fence* fence, out ulong marker) => _awaiter.GetFenceAndMarker(out fence, out marker);
     }
 }

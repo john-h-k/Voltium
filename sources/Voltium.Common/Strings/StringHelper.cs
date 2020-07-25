@@ -90,9 +90,10 @@ namespace Voltium.Common
 
         public static unsafe MemoryHandle MarshalToUnmanagedAscii(string str)
         {
-            var arr = RentedArray<byte>.Create(Encoding.ASCII.GetMaxByteCount(str.Length), PinnedArrayPool<byte>.Default);
+            var arr = RentedArray<byte>.Create(Encoding.ASCII.GetMaxByteCount(str.Length) + 1, PinnedArrayPool<byte>.Default);
 
             int len = Encoding.ASCII.GetBytes(str, arr.Value);
+            arr.Value[^1] = 0; // null char
 
             return arr.CreatePinnable(underlyingArrayIsPrePinned: true).Pin();
         }
