@@ -241,7 +241,7 @@ namespace Voltium.Common
     /// <summary>
     /// Defines a set of utility methods on <see cref="ComPtr{T}"/>
     /// </summary>
-    public static unsafe class ComPtr
+    public unsafe static class ComPtr
     {
         /// <summary>
         /// Returns the address of the underlying pointer in the <see cref="ComPtr{T}"/>.

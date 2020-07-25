@@ -170,8 +170,6 @@ namespace Voltium.Common
 
             _device = device;
 
-            Guard.OnExternalError += FlushQueues;
-
             if (!_config.Validation.GraphicsLayerValidation && _config.Validation.GpuBasedValidation)
             {
                 ThrowHelper.ThrowArgumentException("Cannot have GPU based validation enabled unless graphics layer validation is");

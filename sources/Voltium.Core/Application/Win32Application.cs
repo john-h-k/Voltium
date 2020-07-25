@@ -11,7 +11,7 @@ namespace Voltium.Core
     /// <summary>
     /// Used for creation and execution of Win32 backed applications
     /// </summary>
-    public static unsafe class Win32Application
+    public unsafe static class Win32Application
     {
         private static readonly delegate* stdcall<IntPtr, uint, nuint, nint, nint> WindowProcHandle =
             (delegate* stdcall<IntPtr, uint, nuint, nint, nint>)(delegate*<IntPtr, uint, nuint, nint, nint>)&WindowProc;
@@ -73,7 +73,7 @@ namespace Voltium.Core
 
             _screenData = new Size((int)height, (int)width);
 
-            application.Init(_screenData, IOutputOwner.FromHwnd(Hwnd));
+            application.Initialize(_screenData, IOutputOwner.FromHwnd(Hwnd));
 
             _ = ShowWindow(Hwnd, SW_SHOWDEFAULT);
 

@@ -13,7 +13,7 @@ namespace Voltium.TextureLoading
     /// <summary>
     /// The type used for loading of texture files
     /// </summary>
-    public static unsafe partial class TextureLoader
+    public unsafe  static partial class TextureLoader
     {
         /// <summary>
         /// Create a texture from a file

@@ -11,7 +11,7 @@ namespace Voltium.Common.Pix
      * the intermediates between the horrific generic mess we used for the public API and the real lowlevel implementation
      * note we take a pointer and length because we wanna get rid of the <T0, ..., TN> mess early rather than having it leak down here
      */
-    internal static unsafe class PIXEvents
+    internal unsafe static class PIXEvents
     {
         public static void BeginEvent(
             ulong* args,

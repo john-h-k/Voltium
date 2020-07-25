@@ -12,6 +12,7 @@ using System.Linq;
 
 namespace Voltium.Core.Memory
 {
+
     // This type is "semi lowered". It needs high level alloc flags because they don't necessarily have a D3D12 equivalent
     // So we just lower most of it
     internal struct InternalAllocDesc
@@ -36,6 +37,7 @@ namespace Voltium.Core.Memory
         // single merged heap
         private List<AllocatorHeap> _default = null!;
 
+        // 3 seperate heaps when merged heap isn't supported
         private List<AllocatorHeap> _buffer = null!;
         private List<AllocatorHeap> _texture = null!;
         private List<AllocatorHeap> _rtOrDs = null!;
@@ -62,7 +64,7 @@ namespace Voltium.Core.Memory
             _device = device;
 
             D3D12_FEATURE_DATA_D3D12_OPTIONS options = default;
-            _device.QueryFeatureSupport(D3D12_FEATURE.D3D12_FEATURE_D3D12_OPTIONS, ref options);
+            _device.QueryFeatureSupport(D3D12_FEATURE.D3D12_FEATURE_D3D12_OPTIONS, &options);
             _hasMergedHeapSupport = options.ResourceHeapTier == D3D12_RESOURCE_HEAP_TIER.D3D12_RESOURCE_HEAP_TIER_2;
 
             if (_hasMergedHeapSupport)
@@ -202,6 +204,7 @@ namespace Voltium.Core.Memory
             return new Texture(desc, Allocate(&resource));
         }
 
+        private const int BufferAlignment = /* 64kb */ 64 * 1024;
 
         /// <summary>
         /// Allocates a new region of GPU memory
@@ -209,7 +212,7 @@ namespace Voltium.Core.Memory
         /// <param name="desc">The description for the resource to allocate</param>
         /// <returns>A new <see cref="GpuResource"/> which encapsulates the allocated region</returns>
         internal GpuResource Allocate(
-            InternalAllocDesc* desc
+            InternalAllocDesc* desc // we use a pointer here because eventually we have to pass D3D12_RESOURCE_DESC*, so avoid unnecessary pinning
         )
         {
             VerifyDesc(desc);
@@ -219,7 +222,17 @@ namespace Voltium.Core.Memory
                 return AllocateCommitted(desc);
             }
 
-            var info = _device.GetAllocationInfo(desc);
+            D3D12_RESOURCE_ALLOCATION_INFO info;
+
+            // avoid native call as we don't need to for buffers
+            if (desc->Desc.Dimension == D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_BUFFER)
+            {
+                info = new D3D12_RESOURCE_ALLOCATION_INFO(desc->Desc.Width, BufferAlignment);
+            }
+            else
+            {
+                info = _device.GetAllocationInfo(desc);
+            }
             var res =  AllocatePlacedFromHeap(desc, info);
             return res;
         }
@@ -236,7 +249,7 @@ namespace Voltium.Core.Memory
         {
             var flags = desc->AllocFlags;
             if (flags.HasFlag(AllocFlags.ForceAllocateComitted) && flags.HasFlag(AllocFlags.ForceAllocateNotComitted))
-            {
+            { 
                 ThrowHelper.ThrowArgumentException("Invalid to say 'ForceAllocateComitted' and 'ForceAllocateNotComitted'");
             }
         }

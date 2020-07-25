@@ -1,10 +1,14 @@
 using System;
+using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
+using TerraFX.Interop;
+using Voltium.Allocators;
 using Voltium.Common.HashHelper;
 
 namespace Voltium.Common
@@ -83,6 +87,15 @@ namespace Voltium.Common
                     ref Unsafe.As<char, byte>(
                         ref Unsafe.AsRef(in str.GetPinnableReference())), (nuint)(str.Length * sizeof(char)))
                 : 0;
+
+        public static unsafe MemoryHandle MarshalToUnmanagedAscii(string str)
+        {
+            var arr = RentedArray<byte>.Create(Encoding.ASCII.GetMaxByteCount(str.Length), PinnedArrayPool<byte>.Default);
+
+            int len = Encoding.ASCII.GetBytes(str, arr.Value);
+
+            return arr.CreatePinnable(underlyingArrayIsPrePinned: true).Pin();
+        }
     }
 
     [Flags]

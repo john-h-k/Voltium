@@ -1,4 +1,4 @@
-using TerraFX.Interop;
+  using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Devices;
 using Voltium.Core.Memory;
@@ -10,7 +10,7 @@ namespace Voltium.Core
     /// <summary>
     /// A heap of descriptors for resources
     /// </summary>
-    public unsafe struct DescriptorHeap
+    public unsafe struct DescriptorHeap : IInternalD3D12Object, IEvictable
     {
         private ComPtr<ID3D12DescriptorHeap> _heap;
 
@@ -81,7 +81,7 @@ namespace Voltium.Core
             Type = (DescriptorHeapType)desc.Type;
             NumDescriptors = desc.NumDescriptors;
 
-            DebugHelpers.SetName(_heap.Get(), nameof(ID3D12DescriptorHeap) + " " + desc.Type.ToString());
+            DebugHelpers.SetName(this, nameof(ID3D12DescriptorHeap) + " " + desc.Type.ToString());
         }
 
         /// <summary>
@@ -125,6 +125,10 @@ namespace Voltium.Core
 
         /// <inheritdoc cref="IComType.Dispose"/>
         public void Dispose() => _heap.Dispose();
+
+        ID3D12Object* IInternalD3D12Object.GetPointer() => (ID3D12Object*)_heap.Get();
+
+        internal ID3D12Pageable* GetPageable() => (ID3D12Pageable*)_heap.Get();
     }
 
     /// <summary>

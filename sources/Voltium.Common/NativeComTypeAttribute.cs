@@ -24,10 +24,14 @@ namespace Voltium.Annotations
         public const int Append = -1;
 
         /// <summary>
+        /// The index in the vtable to place this at, or append it to the end by default 
+        /// </summary>
+        public int Index { get; set; } = Append;
+
+        /// <summary>
         /// Creates a new instance of <see cref="NativeComMethodAttribute"/>
         /// </summary>
-        /// <param name="index">The index in the vtable to place this at, or append it to the end by default</param>
-        public NativeComMethodAttribute(int index = Append)
+        public NativeComMethodAttribute()
         {
 
         }

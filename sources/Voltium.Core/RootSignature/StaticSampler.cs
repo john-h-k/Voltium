@@ -48,7 +48,7 @@ namespace Voltium.Core
         /// <summary>
         /// Creates a new instance of <see cref="StaticSampler"/>
         /// </summary>
-        public StaticSampler(Sampler sampler, uint shaderRegister, uint registerSpace, ShaderVisibility visibility)
+        public StaticSampler(in Sampler sampler, uint shaderRegister, uint registerSpace, ShaderVisibility visibility)
         {
             Sampler = sampler;
             ShaderRegister = shaderRegister;

@@ -1,7 +1,7 @@
 using System;
 using System.Diagnostics;
 
-namespace Voltium.Core.D3D12
+namespace Voltium.Core
 {
     /// <summary>
     /// Represents a position on a fence

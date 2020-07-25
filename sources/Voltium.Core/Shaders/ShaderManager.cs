@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using TerraFX.Interop;
+using Voltium.Allocators;
 using Voltium.Common;
 using Voltium.Core.Devices.Shaders;
 using ZLogger;
@@ -281,8 +282,7 @@ namespace Voltium.Core.Devices
             // 4 for target + encoding (as each are flag + arg), and 2 extra for entrypoint if present
             flagPointerLength += (entrypoint.IsEmpty ? 4 : 6) * sizeof(nuint);
 
-            // rent as short term usage TODO: POH pool
-            using var rentedFlagBuff = RentedArray<byte>.Create(flagPointerLength + flagLength + prefixLength);
+            using var rentedFlagBuff = RentedArray<byte>.Create(flagPointerLength + flagLength + prefixLength, PinnedArrayPool<byte>.Default);
 
             // can't have Span<ushort*>
             var flagPointerBuff = MemoryMarshal.Cast<byte, nuint>(rentedFlagBuff.Value.AsSpan());
@@ -403,8 +403,9 @@ namespace Voltium.Core.Devices
                 flagBuff = flagBuff.Slice(len);
             }
 
+            byte* ppFlags = (byte*)Unsafe.AsPointer(ref rentedFlagBuff.GetPinnableReference());
+
             fixed (char* pText = shaderText)
-            fixed (byte* ppFlags = rentedFlagBuff.Value)
             fixed (IDxcIncludeHandler* pInclude = DefaultDxcIncludeHandler)
             {
                 DxcBuffer text;

@@ -19,7 +19,7 @@ namespace Voltium.Core
     {
         private GpuContext _context;
 
-        internal CopyContext(GpuContext context)
+        internal CopyContext(in GpuContext context)
         {
             _context = context;
         }
@@ -313,7 +313,7 @@ namespace Voltium.Core
         /// Mark a resource barrierson the command list
         /// </summary>
         /// <param name="barrier">The barrier</param>
-        public void ResourceBarrier(ResourceBarrier barrier)
+        public void ResourceBarrier(in ResourceBarrier barrier)
         {
             _context.AddBarrier(barrier.Barrier);
         }

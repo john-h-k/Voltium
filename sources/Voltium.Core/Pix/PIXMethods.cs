@@ -63,7 +63,7 @@ using System.Diagnostics;
 namespace Voltium.Common.Pix
 {
 #pragma warning disable
-    public static unsafe partial class PIXMethods
+    public unsafe static partial class PIXMethods
     {
 
         [Conditional("DEBUG")]

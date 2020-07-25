@@ -116,18 +116,19 @@ namespace Voltium.Common
 #endif
         )
         {
-            if (FAILED(hr))
+            // invert branch so JIT assumes the HR is S_OK
+            if (SUCCEEDED(hr))
             {
-                ThrowForHr(hr
+                return;
+            }
+
+            ThrowForHr(hr
 #if DEBUG || EXTENDED_ERROR_INFORMATION
                     ,
-                    expression, filepath, memberName, lineNumber
+                expression, filepath, memberName, lineNumber
 #endif
                     );
-            }
         }
-
-        public static event Action OnExternalError = () => { };
 
         [DebuggerNonUserCode]
         [DebuggerStepThrough]
@@ -162,8 +163,6 @@ namespace Voltium.Common
                 hr,
                 additionalInfo
             );
-
-            OnExternalError.Invoke();
 
             Exception ex = hr switch
             {
@@ -309,11 +308,11 @@ namespace Voltium.Common
             [CallerLineNumber] int lineNumber = default
         )
         {
+#if !DISPOSABLES_ALLOW_FINALIZE
             LogHelper.LogError(
                 $"OBJECT NOT DISPOSED ERROR\nFile: {filepath}\nMember: {memberName}\nLine: {lineNumber}\n"
             );
 
-#if !DISPOSABLES_ALLOW_FINALIZE
             Debug.Fail("OBJECT NOT DISPOSED ERROR - see logs");
 #endif
         }

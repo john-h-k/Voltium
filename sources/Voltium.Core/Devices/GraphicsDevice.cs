@@ -38,7 +38,7 @@ namespace Voltium.Core.Devices
         /// </summary>
         /// <param name="adapter">The <see cref="Adapter"/> to create the device on, or <see langword="null"/> to use the default adapter</param>
         /// <param name="config">The <see cref="DeviceConfiguration"/> to create the device with</param>
-        public GraphicsDevice(DeviceConfiguration config, Adapter? adapter) : base(config, adapter)
+        public GraphicsDevice(DeviceConfiguration config, in Adapter? adapter) : base(config, adapter)
         {
             Guard.NotNull(config);
 

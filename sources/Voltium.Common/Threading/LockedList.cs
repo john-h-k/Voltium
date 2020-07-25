@@ -3,58 +3,43 @@ using System.Collections.Generic;
 
 namespace Voltium.Common.Threading
 {
-    [Obsolete("TODO", true)]
     internal struct LockedList<T, TLock> where TLock : struct, IValueLock
     {
-        public LockedList(TLock @lock, int capacity = -1)
+        public LockedList(TLock @lock, int capacity = 4)
         {
             Guard.Positive(capacity);
-            UnderlyingList = new List<T>(capacity);
+            _underlyingList = new List<T>(capacity);
             _lock = @lock;
         }
 
-        private List<T> UnderlyingList;
+        private List<T> _underlyingList;
         private TLock _lock;
 
-        public List<T> GetUnderlyingQueue() => UnderlyingList;
+        public int Count => _underlyingList.Count;
 
         public T this[int index]
         {
             get
             {
-                var taken = false;
-                _lock.Enter(ref taken);
-                try
+                using (_lock.EnterScoped())
                 {
-                    return UnderlyingList[index];
-                }
-                finally
-                {
-                    ExitIf(taken);
+                    return _underlyingList[index];
                 }
             }
 
             set
             {
-                var taken = false;
-                _lock.Enter(ref taken);
-                try
+                using (_lock.EnterScoped())
                 {
-                    UnderlyingList[index] = value;
-                }
-                finally
-                {
-                    ExitIf(taken);
+                    _underlyingList[index] = value;
                 }
             }
         }
 
-        private void ExitIf(bool taken)
+        public void Add(T value)
         {
-            if (taken)
-            {
-                _lock.Exit();
-            }
+            using var _ = _lock.EnterScoped();
+            _underlyingList.Add(value);
         }
     }
 }

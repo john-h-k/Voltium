@@ -4,7 +4,6 @@ using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
-using Voltium.Common;
 
 namespace Voltium.Analyzers.IEquatable
 {
@@ -96,7 +95,7 @@ namespace Voltium.Analyzers.IEquatable
             return string.Join(" && ", comparisons);
         }
 
-        private static readonly string GenerateEqualityAttributeName = typeof(GenerateEqualityAttribute).FullName;
+        private const string GenerateEqualityAttributeName = "Voltium.Common.GenerateEqualityAttribute";
 
         protected override bool Predicate(SourceGeneratorContext context, INamedTypeSymbol decl)
             => decl.HasAttribute(GenerateEqualityAttributeName, context.Compilation);

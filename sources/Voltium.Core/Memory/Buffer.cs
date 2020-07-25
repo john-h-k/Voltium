@@ -242,7 +242,7 @@ namespace Voltium.Core.Memory
 
     }
 
-    //public static unsafe class BufferExtensions
+    //public unsafe static class BufferExtensions
     //{
     //public static void CopyTo<T>(this Span<T> src, in Buffer<T> dest) where T : unmanaged
     //    => CopyTo((ReadOnlySpan<T>)src, dest);

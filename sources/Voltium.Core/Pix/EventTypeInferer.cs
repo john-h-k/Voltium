@@ -1,6 +1,6 @@
 namespace Voltium.Common.Pix
 {
-    internal static unsafe class EventTypeInferer
+    internal unsafe static class EventTypeInferer
     {
         public static PIXEventType BeginEvent(uint length, bool hasContext)
         {

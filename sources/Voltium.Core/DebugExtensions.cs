@@ -6,7 +6,7 @@ using TerraFX.Interop;
 
 namespace Voltium.Common
 {
-    internal static unsafe class DebugExtensions
+    internal unsafe static class DebugExtensions
     {
         [DebuggerNonUserCode]
         public static void PossibleDeviceDisconnect(this ComPtr<ID3D12Device> device)

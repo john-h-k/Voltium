@@ -81,7 +81,7 @@ namespace Voltium.Core.Infrastructure
             {
                 Current.Dispose();
 
-                bool result = _base.TryGetAdapterByIndex(_index, out var current);
+                bool result = _base.TryGetAdapterByIndex(_index++, out var current);
                 Current = current;
                 return result;
             }

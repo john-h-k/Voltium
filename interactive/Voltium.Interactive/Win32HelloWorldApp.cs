@@ -16,7 +16,7 @@ namespace Voltium.Interactive
         private Output _output = null!;
         private bool _isPaused;
 
-        public override unsafe void Init(Size data, IOutputOwner output)
+        public override unsafe void Initialize(Size data, IOutputOwner output)
         {
             var config = new DeviceConfiguration
             {

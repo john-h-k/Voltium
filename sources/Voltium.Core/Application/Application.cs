@@ -10,7 +10,7 @@ namespace Voltium.Core
     {
         public abstract string Title { get; }
 
-        public abstract void Init(Size data, IOutputOwner output);
+        public abstract void Initialize(Size data, IOutputOwner output);
         public abstract void Update(ApplicationTimer timer);
         public abstract void Render();
         public abstract void Dispose();

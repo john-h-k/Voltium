@@ -95,7 +95,7 @@ namespace Voltium.Interactive
 
             _maxMsaaDesc = _device.HighestSupportedMsaa();
 
-            _texturedObjects = ModelLoader.LoadGl("Assets/Gltf/Handgun_Tangent.gltf");
+            _texturedObjects = ModelLoader.LoadGl_Old("Assets/Gltf/Handgun_Tangent.gltf");
             var texture = TextureLoader.CreateTexture("Assets/Textures/handgun_c.dds");
             var normals = TextureLoader.CreateTexture("Assets/Textures/handgun_n.dds");
 
@@ -291,7 +291,7 @@ namespace Voltium.Interactive
 
             recorder.SetTopology(Topology.TriangeList);
 
-            using (recorder.BeginScopedEvent(Argb32.AliceBlue, "Render Objects"))
+            using (recorder.BeginEvent(Argb32.AliceBlue, "Render Objects"))
             {
                 for (var i = 0u; i < _texturedObjects.Length; i++)
                 {

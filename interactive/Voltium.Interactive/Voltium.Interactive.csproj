@@ -32,6 +32,7 @@
     <ProjectReference Include="..\..\sources\Voltium.Core\Voltium.Core.csproj" />
     <ProjectReference Include="..\..\sources\Voltium.Analyzers\Voltium.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\..\sources\Voltium.ModelLoader\Voltium.ModelLoading.csproj" />
+    <ProjectReference Include="..\..\sources\Voltium.Monitor\Voltium.Monitor.csproj" />
     <ProjectReference Include="..\..\sources\Voltium.RenderEngine\Voltium.RenderEngine.csproj" />
     <ProjectReference Include="..\..\sources\Voltium.TextureLoading\Voltium.TextureLoading.csproj" />
   </ItemGroup>
@@ -43,6 +44,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" Version="0.12.1" />
     <PackageReference Include="Microsoft.DotNet.ILCompiler" Version="1.0.0-alpha-*" />
     <PackageReference Include="System.Drawing.Common" Version="5.0.0-preview.6.20305.6" />
   </ItemGroup>

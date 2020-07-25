@@ -1,6 +1,6 @@
-﻿namespace Voltium.TextureLoading
+namespace Voltium.TextureLoading
 {
-    public static unsafe partial class TextureLoader
+    public unsafe static partial class TextureLoader
     {
     }
 }

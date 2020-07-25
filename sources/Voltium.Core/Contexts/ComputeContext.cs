@@ -13,7 +13,7 @@ namespace Voltium.Core
     {
         private GpuContext _context;
 
-        internal ComputeContext(GpuContext context)
+        internal ComputeContext(in GpuContext context)
         {
             _context = context;
         }
@@ -85,11 +85,6 @@ namespace Voltium.Core
         //SetMarker
         //SetPipelineState
         //SetPredication
-
-        internal void Bad(Texture tex)
-        {
-
-        }
 
         /// <summary>
         /// Sets a directly-bound constant buffer view descriptor to the compute pipeline

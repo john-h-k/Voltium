@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Voltium.Core;
 using Voltium.Core.Configuration.Graphics;
 using Voltium.Core.Devices;
+using Voltium.Core.Infrastructure;
 using Voltium.RenderEngine;
 
 namespace Voltium.Interactive.BasicRenderPipeline
@@ -26,7 +27,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
         private bool _isPaused;
         private PipelineSettings _settings;
 
-        public override unsafe void Init(Size data, IOutputOwner output)
+        public override unsafe void Initialize(Size data, IOutputOwner output)
         {
             var debug = new DebugLayerConfiguration();
             debug.BreakpointLogLevel = LogLevel.Error;
@@ -40,6 +41,12 @@ namespace Voltium.Interactive.BasicRenderPipeline
                 DebugLayerConfiguration = null
 #endif
             };
+
+            using var factory = DeviceFactory.Create();
+            foreach (var device in factory)
+            {
+                Console.WriteLine(device);
+            }
 
             _device = new GraphicsDevice(config, null);
 

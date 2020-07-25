@@ -84,7 +84,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
 
             _device.PipelineManager.Reset();
 
-            _texturedObjects = ModelLoader.LoadGl("Assets/Gltf/Handgun_NoTangent.gltf");
+            _texturedObjects = ModelLoader.LoadGl_Old("Assets/Gltf/Handgun_NoTangent.gltf");
             //_texturedObjects = new[] { GeometryGenerator.CreateCube(0.5f) };
 
             var texture = TextureLoader.CreateTexture("Assets/Textures/handgun_c.dds");
@@ -272,7 +272,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
         {
             WriteConstantBuffers();
 
-            using var _ = recorder.BeginScopedEvent(Argb32.Red, "BasicSceneRenderer");
+            using var _ = recorder.BeginEvent(Argb32.Red, "BasicSceneRenderer");
 
             var resources = resolver.GetComponent<PipelineResources>();
             var settings = resolver.GetComponent<PipelineSettings>();
@@ -293,7 +293,8 @@ namespace Voltium.Interactive.BasicRenderPipeline
 
             recorder.SetTopology(Topology.TriangeList);
 
-            using (recorder.BeginScopedEvent(Argb32.AliceBlue, "Render Objects"))
+            using (Profiler.BeginProfileBlock("Render Object"))
+            using (recorder.BeginEvent(Argb32.AliceBlue, "Render Objects"))
             {
                 for (var i = 0u; i < _texturedObjects.Length; i++)
                 {

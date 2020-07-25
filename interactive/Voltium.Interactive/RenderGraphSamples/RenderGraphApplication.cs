@@ -23,7 +23,7 @@ namespace Voltium.Interactive.RenderGraphSamples
         private bool _isPaused;
         private PipelineSettings _settings;
 
-        public override unsafe void Init(Size data, IOutputOwner output)
+        public override unsafe void Initialize(Size data, IOutputOwner output)
         {
             var config = new DeviceConfiguration
             {

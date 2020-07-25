@@ -5,7 +5,7 @@ using Voltium.TextureLoading.DDS;
 
 namespace Voltium.TextureLoading
 {
-    public static unsafe partial class TextureLoader
+    public unsafe static partial class TextureLoader
     {
         /// <summary>
         /// Create a DDS texture from a file

@@ -6,7 +6,7 @@ using Voltium.Core;
 
 namespace Voltium.Common.Pix
 {
-    internal static unsafe class PIXEncoding
+    internal unsafe static class PIXEncoding
     {
         public static readonly bool IsXbox =
 #if PIX_XBOX

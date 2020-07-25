@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 
 namespace Voltium.Common
 {
-    internal static unsafe class StackSentinel
+    internal unsafe static class StackSentinel
     {
         public const int MaxStackallocBytes = 512;
 

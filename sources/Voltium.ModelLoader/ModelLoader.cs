@@ -5,10 +5,18 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using ObjLoader.Loader.Loaders;
-using SharpGLTF.Schema2;
 using UkooLabs.FbxSharpie;
 using Voltium.Core.Devices.Shaders;
+using Silk.NET;
+using Silk.NET.Assimp;
+using Voltium.Common;
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
+
+using SimpScene = Silk.NET.Assimp.Scene;
+using SimpMesh = Silk.NET.Assimp.Mesh;
+using SimpFace = Silk.NET.Assimp.Face;
+using Node = SharpGLTF.Schema2.Node;
+using ModelRoot = SharpGLTF.Schema2.ModelRoot;
 
 namespace Voltium.ModelLoading
 {
@@ -33,13 +41,15 @@ namespace Voltium.ModelLoading
         {
             Position = new(vertexX, vertexY, vertexZ);
             Normal = new(normalX, normalY, normalZ);
-            //Tangent = new(tangentX, tangentY, tangentZ);
+            Tangent = new(tangentX, tangentY, tangentZ);
             TexC = new(texU, texV);
         }
 
         public Vector3 Position;
+
+
         public Vector3 Normal;
-        //public Vector3 Tangent;
+        public Vector3 Tangent;
 
         [InputLayout(Name = "TexCoord")]
         public Vector2 TexC;
@@ -80,6 +90,11 @@ namespace Voltium.ModelLoading
         public float Shininess;
     }
 
+    public readonly struct Scene
+    {
+
+    }
+
     public readonly struct Mesh<TVertex>
     {
         public readonly TVertex[] Vertices;
@@ -108,9 +123,39 @@ namespace Voltium.ModelLoading
     {
         private static readonly ObjLoaderFactory _factory = new ObjLoaderFactory();
         private static readonly IObjLoader _loader = _factory.Create(new MaterialStreamProvider());
+        private static readonly Assimp _assimp = Assimp.GetApi();
 
         // TODO improve
-        public static Mesh<TexturedVertex>[] LoadGl(string filename)
+        public static unsafe Mesh<TexturedVertex>[] Load(string filename)
+        {
+            using var ascii = StringHelper.MarshalToUnmanagedAscii(filename);
+            SimpScene* pScene = _assimp.ImportFile((byte*)ascii.Pointer, 0);
+
+            for (var i = 0; i < pScene->MNumMeshes; i++)
+            {
+                SimpMesh* pMesh = pScene->MMeshes[i];
+                var vertices = new TexturedVertex[pMesh->MNumVertices];
+                int writtenVertices = 0;
+
+                for (var j = 0; j < pMesh->MNumFaces; j++)
+                {
+                    SimpFace* /* <- insert mug of dylan */ pFace = pMesh->MFaces;
+
+                    for (var k = 0; k < pFace->MNumIndices; k++)
+                    {
+                        uint index = pFace->MIndices[k];
+
+                        var vertex = new TexturedVertex(pMesh->MVertices[index], pMesh->MNormals[index], pMesh->MTangents[index], ToVector2(pMesh->MTextureCoords_0[index]));
+                        vertices[writtenVertices] = vertex;
+                    }
+                }
+            }
+            return default!;
+        }
+
+        private static Vector2 ToVector2(Vector3 vec) => Unsafe.As<Vector3, Vector2>(ref vec);
+
+        public static Mesh<TexturedVertex>[] LoadGl_Old(string filename)
         {
             var m = ModelRoot.Load(filename);
 

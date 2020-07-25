@@ -24,9 +24,6 @@ namespace Voltium.Analyzers
         internal const string Message = "Types which are estimated to have a runtime size of greater than 16 byte should be passed by pointer or readonly ref (in)";
 
 
-        private TextWriter Log { get; } =
-            //new StreamWriter(@"C:\Users\johnk\source\repos\PassByReadonlyRefAnalyzer_Log.txt");
-            TextWriter.Null;
 
         public static readonly DiagnosticDescriptor Rule = new DiagnosticDescriptor(
 #pragma warning disable RS2008 // Enable analyzer release tracking
@@ -43,67 +40,37 @@ namespace Voltium.Analyzers
 
         public override void Initialize(AnalysisContext context)
         {
-
-             Debugger.Launch();
-            try
-            {
-                //Debugger.Launch();
-                context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.Analyze | GeneratedCodeAnalysisFlags.ReportDiagnostics);
+            //Debugger.Launch();
+            context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.Analyze | GeneratedCodeAnalysisFlags.ReportDiagnostics);
             context.EnableConcurrentExecution();
 
             context.RegisterCompilationStartAction(comp => InitializeCompilation(comp));
-            }
-            catch (Exception e)
-            {
-                _ = e;
-                Debugger.Launch();
-            }
         }
 
         private void InitializeCompilation(CompilationStartAnalysisContext context)
         {
-            try
-            {
-                var compResolver = new TypeSizeResolver(context.Compilation);
+            var compResolver = new TypeSizeResolver(context.Compilation);
 
-                context.RegisterSyntaxNodeAction(
-                    invoc => _AnalyzeInvocation(invoc, compResolver),
-                    SyntaxKind.MethodDeclaration
-                // TODO
-                //SyntaxKind.ConstructorDeclaration,
-                //SyntaxKind.DestructorDeclaration,
-                //SyntaxKind.DelegateDeclaration
-                );
-            }
-            catch (Exception e)
-            {
-                _ = e;
-                Debugger.Launch();
-            }
+            context.RegisterSyntaxNodeAction(
+                invoc => AnalyzeInvocation(invoc, compResolver),
+                SyntaxKind.LocalFunctionStatement,
+                SyntaxKind.MethodDeclaration,
+                SyntaxKind.ConstructorDeclaration,
+                SyntaxKind.DelegateDeclaration
+            );
         }
 
-
-        private void _AnalyzeInvocation(SyntaxNodeAnalysisContext context, TypeSizeResolver resolver)
-        {
-            try
-            {
-                AnalyzeInvocation(context, resolver);
-            }
-            catch (Exception e)
-            {
-                _ = e;
-                Debugger.Launch();
-            }
-        }
         private void AnalyzeInvocation(SyntaxNodeAnalysisContext context, TypeSizeResolver resolver)
         {
-            var invocation = (MethodDeclarationSyntax)context.Node;
-
-            Log.WriteLine($"Analysing node {invocation}");
-
             var semantics = context.SemanticModel;
 
-            foreach (var param in invocation.ParameterList.Parameters)
+            var @params =
+                (context.Node as MethodDeclarationSyntax)?.ParameterList.Parameters
+                ?? (context.Node as ConstructorDeclarationSyntax)?.ParameterList.Parameters
+                ?? (context.Node as DelegateDeclarationSyntax)?.ParameterList.Parameters
+                ?? (context.Node as LocalFunctionStatementSyntax)?.ParameterList.Parameters;
+
+            foreach (var param in @params!)
             {
                 var symbol = semantics.GetDeclaredSymbol(param);
 
@@ -112,13 +79,13 @@ namespace Voltium.Analyzers
                     throw new Exception("null param symbol. not sure what to do here to be honest. :(");
                 }
 
-                if (CanModifyMethod(semantics.GetDeclaredSymbol(invocation)!) && resolver.AdvantageousToPassByRef(symbol))
+                if (CanModifyMethod(semantics.GetDeclaredSymbol(context.Node)!) && resolver.AdvantageousToPassByRef(symbol))
                 {
                     context.ReportDiagnostic(Diagnostic.Create(Rule, param.GetLocation()));
                 }
             }
 
-            static bool CanModifyMethod(IMethodSymbol method) => method.Parameters.All(p => !p.HasExplicitDefaultValue) && !method.IsImplementationOfInterfaceMethod() && !method.IsOverride;
+            static bool CanModifyMethod(ISymbol invocation) => invocation is IMethodSymbol method && method.Parameters.All(p => !p.HasExplicitDefaultValue) && !method.IsImplementationOfInterfaceMethod() && !method.IsOverride;
         }
     }
 

@@ -10,9 +10,12 @@ namespace Voltium.Core.Memory
     /// <summary>
     /// Represents a GPU resource
     /// </summary>
-    internal unsafe sealed class GpuResource : IDisposable, IInternalD3D12Object
+    internal unsafe sealed class GpuResource : IDisposable, IInternalD3D12Object, IEvictable
     {
         ID3D12Object* IInternalD3D12Object.GetPointer() => (ID3D12Object*)GetResourcePointer();
+        ID3D12Pageable* IEvictable.GetPageable() => (ID3D12Pageable*)GetResourcePointer();
+        bool IEvictable.IsBlittableToPointer => false; // we are a class
+
         internal ID3D12Object* GetPointer() => ((IInternalD3D12Object)this).GetPointer();
 
         internal GpuResource(

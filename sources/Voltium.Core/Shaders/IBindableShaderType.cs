@@ -13,7 +13,6 @@ namespace Voltium.Core.Devices.Shaders
         /// <summary>
         /// The inputs to the shader
         /// </summary>
-        // array because NS2.0 has no ReadOnlyMemory<T>
-        public ShaderInput[] GetShaderInputs();
+        public ReadOnlyMemory<ShaderInput> GetShaderInputs();
     }
 }

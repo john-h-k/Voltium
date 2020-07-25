@@ -8,7 +8,7 @@ using Voltium.Common;
 
 namespace Voltium.Common.Pix
 {
-    internal static unsafe class NativeMethods
+    internal unsafe static class NativeMethods
     {
         /*
          *

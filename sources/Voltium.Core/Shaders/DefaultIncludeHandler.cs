@@ -6,72 +6,18 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using TerraFX.Interop;
+using Voltium.Annotations;
 using Voltium.Common;
 using static TerraFX.Interop.Windows;
 
 namespace Voltium.Core.Devices
 {
-    [StructLayout(LayoutKind.Explicit)]
-    internal unsafe struct LegacyFxcIncludeHandler : IDisposable
+    [NativeComType]
+    internal unsafe partial struct LegacyFxcIncludeHandler : IDisposable
     {
-        [FieldOffset(0)]
-        private void** _pVtbl;
+        private void** Vtbl;
 
-        private static readonly IntPtr Heap;
-        private static void** Vtbl;
-        private static IncludeHandler _handler;
-
-        public string AppDirectory
-        {
-            get => _handler.AppDirectory;
-            set => _handler.AppDirectory = value;
-        }
-
-        public string ShaderDirectory
-        {
-            get => _handler.ShaderDirectory;
-            set => _handler.ShaderDirectory = value;
-        }
-
-        static LegacyFxcIncludeHandler()
-        {
-            Vtbl = (void**)Helpers.Alloc((uint)sizeof(nuint) * 2);
-
-            // these should be stdcall in the future
-
-            // Native vtable layout
-            // - Close
-            // - Open
-
-            Vtbl[0] = (delegate*<ID3DInclude*, D3D_INCLUDE_TYPE, sbyte*, void*, void**, uint*, int>)&_Open;
-            Vtbl[1] = (delegate*<ID3DInclude*, void*, int>)&_Close;
-        }
-
-        public void Init()
-        {
-            _pVtbl = Vtbl;
-
-            AppDirectory = Directory.GetCurrentDirectory();
-        }
-
-        [UnmanagedCallersOnly]
-        private static int _Close(ID3DInclude* pThis, void* data)
-            => AsThis(pThis).Close(data);
-
-
-        [UnmanagedCallersOnly]
-        private static int _Open(
-                ID3DInclude* pThis,
-                D3D_INCLUDE_TYPE IncludeType,
-                sbyte* pFileName,
-                void* pParentData,
-                void** ppData,
-                uint* pBytes
-            )
-            => AsThis(pThis).Open(IncludeType, pFileName, pParentData, ppData, pBytes);
-
-        private static ref LegacyFxcIncludeHandler AsThis(ID3DInclude* ptr) => ref Unsafe.As<ID3DInclude, LegacyFxcIncludeHandler>(ref *ptr);
-
+        [NativeComMethod]
         public int Close(void* data)
         {
             Helpers.Free(data);
@@ -79,6 +25,7 @@ namespace Voltium.Core.Devices
             return S_OK;
         }
 
+        [NativeComMethod]
         public int Open(
                 D3D_INCLUDE_TYPE includeType,
                 sbyte* pFileName,
@@ -101,6 +48,21 @@ namespace Voltium.Core.Devices
             return hr;
         }
 
+
+
+        private static IncludeHandler _handler;
+        public string AppDirectory
+        {
+            get => _handler.AppDirectory;
+            set => _handler.AppDirectory = value;
+        }
+
+        public string ShaderDirectory
+        {
+            get => _handler.ShaderDirectory;
+            set => _handler.ShaderDirectory = value;
+        }
+
         public void Dispose()
         {
 
@@ -111,15 +73,13 @@ namespace Voltium.Core.Devices
     // This type is safe because we pin it during its time in native code,
     // and the native code never accesses the references
     // but we must make it explicit layout so it works
-    [StructLayout(LayoutKind.Explicit)]
-    internal unsafe struct DxcIncludeHandler : IDisposable
+    [NativeComType]
+    internal unsafe partial struct DxcIncludeHandler : IDisposable
     {
-        [FieldOffset(0)]
-        private void** _pVtbl;
-        [FieldOffset(16)]
-        private ComPtr<IDxcUtils> _utils;
-        [FieldOffset(24)]
-        private IncludeHandler _handler;
+        private void** Vtbl;
+
+        private static ComPtr<IDxcUtils> _utils;
+        private static IncludeHandler _handler;
 
         public string AppDirectory
         {
@@ -133,63 +93,46 @@ namespace Voltium.Core.Devices
             set => _handler.ShaderDirectory = value;
         }
 
-        private static readonly IntPtr Heap;
-        private static void** Vtbl;
-
-        static DxcIncludeHandler()
-        {
-            Heap = GetProcessHeap();
-            Vtbl = (void**)Helpers.Alloc((uint)sizeof(nuint) * 4);
-
-            // these should be stdcall in the future
-
-            // Native vtable layout
-            // - QueryInterface
-            // - AddRef
-            // - Release
-            // - LoadSource
-
-            Vtbl[0] = (delegate*<IDxcIncludeHandler*, Guid*, void**, int>)&_QueryInterface;
-            Vtbl[1] = (delegate*<IDxcIncludeHandler*, uint>)&_AddRef;
-            Vtbl[2] = (delegate*<IDxcIncludeHandler*, uint>)&_Release;
-            Vtbl[3] = (delegate*<IDxcIncludeHandler*, ushort*, IDxcBlob**, int>)&_LoadSource;
-        }
-
         public void Init(ComPtr<IDxcUtils> utils)
         {
-            _pVtbl = Vtbl;
+            Init();
 
             AppDirectory = Directory.GetCurrentDirectory();
             _utils = utils.Move();
         }
 
+        [NativeComMethod]
+        public int QueryInterface(Guid* riid, void** ppvObject)
+        {
+            return E_NOINTERFACE;
+        }
 
-        [UnmanagedCallersOnly]
-        private static int _QueryInterface(IDxcIncludeHandler* pThis, Guid* riid, void** ppvObject)
-            => AsThis(pThis).QueryInterface(riid, ppvObject);
+        [NativeComMethod]
+        public uint AddRef()
+        {
+            return default;
+        }
 
-        [UnmanagedCallersOnly]
-        private static uint _AddRef(IDxcIncludeHandler* pThis)
-            => AsThis(pThis).AddRef();
+        [NativeComMethod]
+        public uint Release()
+        {
+            return default;
+        }
 
-        [UnmanagedCallersOnly]
-        public static uint _Release(IDxcIncludeHandler* pThis)
-            => AsThis(pThis).Release();
-
-        [UnmanagedCallersOnly]
-        private static int _LoadSource(IDxcIncludeHandler* pThis, ushort* pFilename, IDxcBlob** ppIncludeSource)
+        [NativeComMethod]
+        private int LoadSource(ushort* pFilename, IDxcBlob** ppIncludeSource)
         {
             var filename = new string((char*)pFilename);
-            var hr = AsThis(pThis)._handler.LoadSource(filename, out string text);
+            var hr = _handler.LoadSource(filename, out string text);
 
             if (SUCCEEDED(hr))
             {
-                *ppIncludeSource = AsThis(pThis).CreateBlob(text).Get();
+                *ppIncludeSource = CreateBlob(text).Get();
             }
 
             return hr;
         }
-        
+
 
         private ComPtr<IDxcBlob> CreateBlob(ReadOnlySpan<char> data)
         {
@@ -203,27 +146,12 @@ namespace Voltium.Core.Devices
 
         private static ref DxcIncludeHandler AsThis(IDxcIncludeHandler* pThis) => ref Unsafe.As<IDxcIncludeHandler, DxcIncludeHandler>(ref *pThis);
 
-        public uint AddRef()
-        {
-            return default;
-        }
-
-        public int QueryInterface(Guid* riid, void** ppvObject)
-        {
-            return E_NOINTERFACE;
-        }
-
-        public uint Release()
-        {
-            return default;
-        }
 
         public void Dispose()
         {
             _utils.Dispose();
         }
     }
-
     internal unsafe struct IncludeHandler
     {
         public string ShaderDirectory { get; set; }
@@ -318,7 +246,7 @@ namespace Voltium.Core.Devices
         }
     }
 
-    internal static unsafe class IncludeHandlerExtensions
+    internal unsafe static class IncludeHandlerExtensions
     {
         public static ref IDxcIncludeHandler GetPinnableReference(ref this DxcIncludeHandler handler)
             => ref Unsafe.As<DxcIncludeHandler, IDxcIncludeHandler>(ref handler);

@@ -1,4 +1,4 @@
-using static Voltium.Annotations.Internal_DXGI_FORMAT;
+using static TerraFX.Interop.DXGI_FORMAT;
 
 namespace Voltium.Core
 {

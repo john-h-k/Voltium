@@ -14,7 +14,7 @@ using static TerraFX.Interop.DXGI_FORMAT;
 
 namespace Voltium.TextureLoading.TGA
 {
-    internal static unsafe class TGAImplementationFunctions
+    internal unsafe static class TGAImplementationFunctions
     {
         public static LoadedTexture CreateTgaTexture(
             ReadOnlyMemory<byte> tgaData,

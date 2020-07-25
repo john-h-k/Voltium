@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Diagnostics;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -19,6 +20,7 @@ namespace Voltium.Analyzers
 
             OnExecute(context);
 
+
             // this handles partial types, which have multiple type declaration nodes
             var visited = new HashSet<string>();
             foreach (var (tree, node) in nodes)
@@ -31,6 +33,7 @@ namespace Voltium.Analyzers
                     continue;
                 }
 
+                GenerateFromSyntax(context, node, tree);
                 GenerateFromSymbol(context, type);
                 visited.Add(type.Name);
             }
@@ -41,7 +44,7 @@ namespace Voltium.Analyzers
         protected abstract bool Predicate(SourceGeneratorContext context, INamedTypeSymbol decl);
 
 
-        protected virtual void GenerateFromSyntax(SourceGeneratorContext context, TypeDeclarationSyntax syntax) { }
+        protected virtual void GenerateFromSyntax(SourceGeneratorContext context, TypeDeclarationSyntax syntax, SyntaxTree tree) { }
         protected virtual void GenerateFromSymbol(SourceGeneratorContext context, INamedTypeSymbol symbol) {  }
 
         public void Initialize(InitializationContext context)
@@ -56,7 +59,7 @@ namespace Voltium.Analyzers
             // ugly but works. blame roslyn devs not me
             //Debugger.Launch();
 
-            var receiver = (SyntaxTypeReceiver<MethodDeclarationSyntax>)context.SyntaxReceiver!;
+            var receiver = (SyntaxTypeReceiver<T>)context.SyntaxReceiver!;
 
             var nodes = receiver.SyntaxNodes;
 

@@ -6,8 +6,16 @@ namespace Voltium.Analyzers
     internal static class SymbolExtensions
     {
         public static bool HasAttribute(this ISymbol type, string attributeName, Compilation comp)
-            => type.GetAttributes().Any(attr
-                => SymbolEqualityComparer.Default.Equals(attr.AttributeClass, comp.GetTypeByMetadataName(attributeName)));
+            => type.GetAttributes()
+                    .Any(attr => SymbolEqualityComparer.Default.Equals(attr.AttributeClass, comp.GetTypeByMetadataName(attributeName)));
+
+
+        public static bool TryGetAttribute(this ISymbol type, string attributeName, Compilation comp, out AttributeData attr)
+        {
+            attr = type.GetAttributes().Where(attr => SymbolEqualityComparer.Default.Equals(attr.AttributeClass, comp.GetTypeByMetadataName(attributeName))).FirstOrDefault();
+
+            return attr is not null;
+        }
 
         public static bool IsImplementationOfInterfaceMethod(this IMethodSymbol method, ITypeSymbol? typeArgument = null)
         {

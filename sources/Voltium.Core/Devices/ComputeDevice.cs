@@ -18,6 +18,7 @@ using static TerraFX.Interop.Windows;
 using static TerraFX.Interop.D3D12_FEATURE;
 
 using Buffer = Voltium.Core.Memory.Buffer;
+using Voltium.Allocators;
 
 namespace Voltium.Core.Devices
 {
@@ -110,6 +111,51 @@ namespace Voltium.Core.Devices
         /// </summary>
         public bool IsDxilSupported => HighestSupportedShaderModel.IsDxil;
 
+        private ComPtr<ID3D12Fence> _residencyFence;
+
+        public void Evict<T>(T evictable) where T : IEvictable
+        {
+            var pageable = evictable.GetPageable();
+            Guard.ThrowIfFailed(DevicePointer->Evict(1, &pageable));
+        }
+
+        public void Evict<T>(ReadOnlySpan<T> evictables) where T : IEvictable
+        {
+            // classes will never be blittable to pointer, so this handles that
+            if (default(T)?.IsBlittableToPointer ?? false)
+            {
+                fixed (void* pEvictables = &Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(evictables)))
+                {
+                    Guard.ThrowIfFailed(DevicePointer->Evict((uint)evictables.Length, (ID3D12Pageable**)pEvictables));
+                }
+            }
+            else
+            {
+
+                if (StackSentinel.SafeToStackallocPointers(evictables.Length))
+                {
+                    ID3D12Pageable** pEvictables = stackalloc ID3D12Pageable*[evictables.Length];
+                    for (int i = 0; i < evictables.Length; i++)
+                    {
+                        pEvictables[i] = evictables[i].GetPageable();
+                    }
+
+                    Guard.ThrowIfFailed(DevicePointer->Evict((uint)evictables.Length, pEvictables));
+                }
+                else
+                {
+                    var pool = RentedArray<nuint>.Create(evictables.Length, PinnedArrayPool<nuint>.Default);
+
+                    for (int i = 0; i < evictables.Length; i++)
+                    {
+                        pool.Value[i] = (nuint)evictables[i].GetPageable();
+                    }
+
+                    Guard.ThrowIfFailed(DevicePointer->Evict((uint)evictables.Length, (ID3D12Pageable**)Unsafe.AsPointer(ref MemoryMarshal.GetArrayDataReference(pool.Value))));
+                }
+            }
+        }
+
         private static Adapter GetDefaultAdapter()
         {
             using var factory = new DxgiDeviceFactory().GetEnumerator();
@@ -138,7 +184,7 @@ namespace Voltium.Core.Devices
         /// </summary>
         /// <param name="adapter">The <see cref="Adapter"/> to create the device on, or <see langword="null"/> to use the default adapter</param>
         /// <param name="config">The <see cref="DeviceConfiguration"/> to create the device with</param>
-        public ComputeDevice(DeviceConfiguration config, Adapter? adapter)
+        public ComputeDevice(DeviceConfiguration config, in Adapter? adapter)
         {
             Debug = new DebugLayer(config.DebugLayerConfiguration);
 
@@ -182,7 +228,7 @@ namespace Voltium.Core.Devices
             FeatureLevel level
         )
         {
-             var usedAdapter = adapter is Adapter notNull ? notNull : DefaultAdapter;
+            var usedAdapter = adapter is Adapter notNull ? notNull : DefaultAdapter;
 
             if (PreexistingDevices.Contains(adapter.GetValueOrDefault().AdapterLuid))
             {
@@ -229,6 +275,11 @@ namespace Voltium.Core.Devices
             {
                 Guard.ThrowIfFailed(DevicePointer->CheckFeatureSupport(feature, pVal, (uint)sizeof(T)));
             }
+        }
+
+        internal void QueryFeatureSupport<T>(D3D12_FEATURE feature, T* pVal) where T : unmanaged
+        {
+            Guard.ThrowIfFailed(DevicePointer->CheckFeatureSupport(feature, pVal, (uint)sizeof(T)));
         }
 
         private protected virtual void QueryFeaturesOnCreation()
