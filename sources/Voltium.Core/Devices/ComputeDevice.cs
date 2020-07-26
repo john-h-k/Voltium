@@ -20,6 +20,7 @@ using static TerraFX.Interop.D3D12_FEATURE;
 using Buffer = Voltium.Core.Memory.Buffer;
 using Voltium.Allocators;
 using System.Threading;
+using System.Diagnostics;
 
 namespace Voltium.Core.Devices
 {
@@ -41,9 +42,8 @@ namespace Voltium.Core.Devices
     /// <summary>
     /// 
     /// </summary>
-    public unsafe partial class ComputeDevice : IDisposable
+    public unsafe partial class ComputeDevice : IDisposable, IInternalD3D12Object
     {
-
         /// <summary>
         /// The default allocator for the device
         /// </summary>
@@ -65,6 +65,7 @@ namespace Voltium.Core.Devices
         private protected SynchronizedCommandQueue ComputeQueue;
 
         private protected SynchronizedCommandQueue GraphicsQueue;
+
         private protected ulong CpuFrequency;
 
         private ref SynchronizedCommandQueue GetQueueForContext(ExecutionContext context)
@@ -399,7 +400,7 @@ namespace Voltium.Core.Devices
             {
                 using ComPtr<ID3D12Device> p = default;
 
-                bool success = SUCCEEDED(D3D12CreateDevice(
+                Guard.ThrowIfFailed(D3D12CreateDevice(
                     // null device triggers D3D12 to select a default device
                     usedAdapter.UnderlyingAdapter,
                     (D3D_FEATURE_LEVEL)level,
@@ -411,7 +412,7 @@ namespace Voltium.Core.Devices
                 LogHelper.LogInformation($"New D3D12 device created from adapter: \n{adapter}");
             }
 
-            DebugHelpers.SetName(Device.Get(), "Primary Device");
+            this.SetName("Primary Device");
 
             DeviceLevel = Device switch
             {
@@ -427,7 +428,9 @@ namespace Voltium.Core.Devices
             };
 
             LUID luid = DevicePointer->GetAdapterLuid();
-            PreexistingDevices.Add(Unsafe.As<LUID, ulong>(ref luid));
+            System.Diagnostics.Debug.Assert(sizeof(LUID) == sizeof(ulong));
+            _ = PreexistingDevices.Add(Unsafe.As<LUID, ulong>(ref luid));
+            Adapter = usedAdapter;
         }
 
         internal void QueryFeatureSupport<T>(D3D12_FEATURE feature, ref T val) where T : unmanaged
@@ -548,20 +551,11 @@ namespace Voltium.Core.Devices
                 ThrowHelper.ThrowInvalidOperationException("Invalid to try and execute a GpuContext that is not a CopyContext or ComputeContext on a ComputeDevice");
             }
 
-            queue.GetQueue()->ExecuteCommandLists(1, (ID3D12CommandList**)&list);
+            var finish = queue.ExecuteCommandLists(1, (ID3D12CommandList**)&list);
 
-            GraphicsQueue.GetSynchronizerForIdle().Block();
-            ContextPool.Return(context);
+            ContextPool.Return(context, finish);
 
             return GpuTask.Completed;
-        }
-
-        /// <summary>
-        /// Execute all submitted command lists
-        /// </summary>
-        public void Execute()
-        {
-
         }
 
         /// <summary>
@@ -578,7 +572,7 @@ namespace Voltium.Core.Devices
 
             ID3D12CommandList** ppLists = stackalloc ID3D12CommandList*[contexts.Length];
 
-            ExecutionContext requiredContext = default;
+            ExecutionContext requiredContext = ExecutionContext.Copy;
             for (var i = 0; i < contexts.Length; i++)
             {
                 ppLists[i] = (ID3D12CommandList*)contexts[i].List;
@@ -589,7 +583,7 @@ namespace Voltium.Core.Devices
                     ExecutionContext.Copy => requiredContext,
                     ExecutionContext.Compute when requiredContext is ExecutionContext.Copy => ExecutionContext.Compute,
                     ExecutionContext.Graphics when requiredContext is ExecutionContext.Copy or ExecutionContext.Compute => ExecutionContext.Graphics,
-                    _ => (ExecutionContext)(0xFFFFFFFF)
+                    _ => requiredContext
                 };
             }
 
@@ -598,12 +592,16 @@ namespace Voltium.Core.Devices
                 ThrowHelper.ThrowArgumentException("Invalid execution context type provided in param contexts");
             }
             ref var queue = ref GetQueueForContext(requiredContext);
-            queue.GetQueue()->ExecuteCommandLists((uint)contexts.Length, ppLists);
-            queue.GetSynchronizerForIdle().Block();
+            if (Helpers.IsNullRef(ref queue))
+            {
+                ThrowHelper.ThrowInvalidOperationException("Invalid to try and execute a GpuContext that is not a CopyContext or ComputeContext on a ComputeDevice");
+            }
+            var finish = queue.ExecuteCommandLists((uint)contexts.Length, ppLists);
 
             for (var i = 0; i < contexts.Length; i++)
             {
-                ContextPool.Return(contexts[i]);
+                ContextPool.Return(contexts[i], finish);
+                contexts[i]._list = default;
             }
 
             return GpuTask.Completed;
@@ -800,6 +798,33 @@ namespace Voltium.Core.Devices
         internal D3D12_RESOURCE_ALLOCATION_INFO GetAllocationInfo(InternalAllocDesc* desc)
             => DevicePointer->GetResourceAllocationInfo(0, 1, &desc->Desc);
 
+        internal ComPtr<ID3D12CommandAllocator> CreateAllocator(ExecutionContext context)
+        {
+            using ComPtr<ID3D12CommandAllocator> allocator = default;
+            Guard.ThrowIfFailed(DevicePointer->CreateCommandAllocator(
+                (D3D12_COMMAND_LIST_TYPE)context,
+                allocator.Iid,
+                ComPtr.GetVoidAddressOf(&allocator)
+            ));
+
+            return allocator.Move();
+        }
+
+        internal ComPtr<ID3D12GraphicsCommandList> CreateList(ExecutionContext context, ID3D12CommandAllocator* allocator, ID3D12PipelineState* pso)
+        {
+            using ComPtr<ID3D12GraphicsCommandList> list = default;
+            Guard.ThrowIfFailed(DevicePointer->CreateCommandList(
+                0, // TODO: MULTI-GPU
+                (D3D12_COMMAND_LIST_TYPE)context,
+                allocator,
+                pso,
+                list.Iid,
+                ComPtr.GetVoidAddressOf(&list)
+            ));
+
+            return list.Move();
+        }
+
         internal ComPtr<ID3D12Resource> CreatePlacedResource(ID3D12Heap* heap, ulong offset, InternalAllocDesc* desc)
         {
             var clearVal = desc->ClearValue.GetValueOrDefault();
@@ -851,6 +876,8 @@ namespace Voltium.Core.Devices
             Allocator.Dispose();
             PipelineManager.Dispose();
         }
+
+        ID3D12Object* IInternalD3D12Object.GetPointer() => (ID3D12Object*)DevicePointer;
 
         //CheckFeatureSupport
         //CopyDescriptors

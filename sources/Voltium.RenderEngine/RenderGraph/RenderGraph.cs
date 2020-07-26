@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Microsoft.Toolkit.HighPerformance.Extensions;
 using Voltium.Common;
 using Voltium.Core;
@@ -36,9 +38,28 @@ namespace Voltium.RenderEngine
             public Resolver Resolver;
         }
 
-        private FrameData Frame;
+        private struct GpuTaskBuffer8
+        {
+            public GpuTask E0;
+            public GpuTask E1;
+            public GpuTask E2;
+            public GpuTask E3;
+            public GpuTask E4;
+            public GpuTask E5;
+            public GpuTask E6;
+            public GpuTask E7;
 
-        private FrameData LastFrame;
+            public ref GpuTask this[uint index] => ref Unsafe.Add(ref GetPinnableReference(), (int)index);
+            public ref GpuTask GetPinnableReference() => ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref E0, 0));
+        }
+
+        private uint _maxFrameLatency;
+        private uint _frameIndex;
+        private GpuTaskBuffer8 _frames;
+
+        private FrameData _frame;
+
+        private FrameData _lastFrame;
 
         
 
@@ -50,12 +71,19 @@ namespace Voltium.RenderEngine
         /// Creates a new <see cref="RenderGraph"/>
         /// </summary>
         /// <param name="device">The <see cref="GraphicsDevice"/> used for rendering</param>
-        public RenderGraph(GraphicsDevice device)
+        /// <param name="maxFrameLatency">The maximum number of frames that can be enqueued to the </param>
+        public RenderGraph(GraphicsDevice device, uint maxFrameLatency)
         {
             _device = device;
+            _maxFrameLatency = maxFrameLatency;
+
+            if (maxFrameLatency > 8)
+            {
+                ThrowHelper.ThrowArgumentOutOfRangeException(nameof(maxFrameLatency), "8 is the maximum allowed maxFrameLatency");
+            }
 
             // we don't actually have last frame so elide pointless copy
-            MoveToNextGraphFrame(preserveLastFrame: false);
+            MoveToNextGraphFrame(GpuTask.Completed, preserveLastFrame: false);
         }
 
         // convience methods
@@ -66,15 +94,15 @@ namespace Voltium.RenderEngine
         /// <typeparam name="T0">The type of the component</typeparam>
         /// <param name="component0">The value of the component</param>
         public void CreateComponent<T0>(T0 component0)
-            => Frame.Resolver.CreateComponent(component0);
+            => _frame.Resolver.CreateComponent(component0);
 
         /// <summary>
         /// Creates new components and adds them to the graph
         /// </summary>
         public void CreateComponents<T0, T1>(T0 component0, T1 component1)
         {
-            Frame.Resolver.CreateComponent(component0);
-            Frame.Resolver.CreateComponent(component1);
+            _frame.Resolver.CreateComponent(component0);
+            _frame.Resolver.CreateComponent(component1);
         }
 
         /// <summary>
@@ -82,9 +110,9 @@ namespace Voltium.RenderEngine
         /// </summary>
         public void CreateComponents<T0, T1, T2>(T0 component0, T1 component1, T2 component2)
         {
-            Frame.Resolver.CreateComponent(component0);
-            Frame.Resolver.CreateComponent(component1);
-            Frame.Resolver.CreateComponent(component2);
+            _frame.Resolver.CreateComponent(component0);
+            _frame.Resolver.CreateComponent(component1);
+            _frame.Resolver.CreateComponent(component2);
         }
 
         /// <summary>
@@ -92,10 +120,10 @@ namespace Voltium.RenderEngine
         /// </summary>
         public void CreateComponents<T0, T1, T2, T3>(T0 component0, T1 component1, T2 component2, T3 component3)
         {
-            Frame.Resolver.CreateComponent(component0);
-            Frame.Resolver.CreateComponent(component1);
-            Frame.Resolver.CreateComponent(component2);
-            Frame.Resolver.CreateComponent(component3);
+            _frame.Resolver.CreateComponent(component0);
+            _frame.Resolver.CreateComponent(component1);
+            _frame.Resolver.CreateComponent(component2);
+            _frame.Resolver.CreateComponent(component3);
         }
 
         /// <summary>
@@ -106,21 +134,21 @@ namespace Voltium.RenderEngine
         /// <param name="pass">The pass</param>
         public void AddPass<T>(T pass) where T : RenderPass
         {
-            var passIndex = Frame.RenderPasses.Count;
+            var passIndex = _frame.RenderPasses.Count;
             var builder = new RenderPassBuilder(this, passIndex, pass);
 
-            pass.Register(ref builder, ref Frame.Resolver);
+            pass.Register(ref builder, ref _frame.Resolver);
 
             // anything with no dependencies is a top level input node implicity
             if ((builder.FrameDependencies?.Count ?? 0) == 0)
             {
                 // the index _renderPasses.Add results in
-                Frame.InputPassIndices.Add(passIndex);
+                _frame.InputPassIndices.Add(passIndex);
             }
 
-            if (builder.Depth > Frame.MaxDepth)
+            if (builder.Depth > _frame.MaxDepth)
             {
-                Frame.MaxDepth = builder.Depth;
+                _frame.MaxDepth = builder.Depth;
             }
 
             // outputs are explicit
@@ -129,17 +157,17 @@ namespace Voltium.RenderEngine
                 if (pass.Output.Type == OutputClass.Primary)
                 {
                     // can only have one primary output, but many secondaries
-                    if (Frame.PrimaryOutput is not null)
+                    if (_frame.PrimaryOutput is not null)
                     {
                         ThrowHelper.ThrowInvalidOperationException("Cannot register a primary output pass as one has already been registered");
                     }
-                    Frame.PrimaryOutput = pass.Output;
+                    _frame.PrimaryOutput = pass.Output;
                 }
                 // the index _renderPasses.Add results in
-                Frame.OutputPassIndices.Add(passIndex);
+                _frame.OutputPassIndices.Add(passIndex);
             }
 
-            Frame.RenderPasses.Add(builder);
+            _frame.RenderPasses.Add(builder);
         }
 
         /// <summary>
@@ -148,39 +176,50 @@ namespace Voltium.RenderEngine
         public void ExecuteGraph()
         {
             // false during the register passes
-            Frame.Resolver.CanResolveResources = true;
+            _frame.Resolver.CanResolveResources = true;
             Schedule();
             AllocateResources();
             BuildBarriers();
-            RecordAndExecuteLayers();
+            var task = RecordAndExecuteLayers();
 
             // TODO make better
             DeallocateResources();
 
-            MoveToNextGraphFrame(preserveLastFrame: true);
+            MoveToNextGraphFrame(task, preserveLastFrame: true);
         }
 
-        private void MoveToNextGraphFrame(bool preserveLastFrame)
+        private void MoveToNextGraphFrame(GpuTask task, bool preserveLastFrame)
         {
+            // won't block if frame is completed
+            _frames[_frameIndex].Block();
+            _frames[_frameIndex] = task;
+
+            if (_frameIndex == 0)
+            {
+                _device.ResetRenderTargetViewHeap();
+                _device.ResetDepthStencilViewHeap();
+            }
+            _frameIndex = (_frameIndex + 1) % _maxFrameLatency;
+
             if (preserveLastFrame)
             {
-                LastFrame = Frame;
-                LastFrame.Resources = null!;
+                _lastFrame = _frame;
+                _lastFrame.Resources = null!;
             }
 
-            Frame.Resolver = new Resolver(this);
-            Frame.RenderPasses = new();
-            Frame.RenderLayers = null;
-            Frame.OutputPassIndices = new();
-            Frame.Resources = new();
-            Frame.InputPassIndices = new();
-            Frame.PrimaryOutput = null;
-            Frame.MaxDepth = default;
+            _frame.Resolver = new Resolver(this);
+            _frame.RenderPasses = new();
+            _frame.RenderLayers = null;
+            _frame.OutputPassIndices = new();
+            _frame.Resources = new();
+            _frame.InputPassIndices = new();
+            _frame.PrimaryOutput = null;
+            _frame.MaxDepth = default;
         }
 
         private void DeallocateResources()
         {
-            foreach (ref var resource in Frame.Resources.AsSpan())
+            foreach (ref var resource in _frame.Resources.AsSpan())
             {
                 if (EnablePooling && ShouldTryPoolResource(ref resource))
                 {
@@ -198,12 +237,12 @@ namespace Voltium.RenderEngine
 
         private void Schedule()
         {
-            Frame.RenderLayers = new GraphLayer[Frame.MaxDepth + 1];
+            _frame.RenderLayers = new GraphLayer[_frame.MaxDepth + 1];
 
             int i = 0;
-            foreach (ref var pass in Frame.RenderPasses.AsSpan())
+            foreach (ref var pass in _frame.RenderPasses.AsSpan())
             {
-                ref GraphLayer layer = ref Frame.RenderLayers[pass.Depth];
+                ref GraphLayer layer = ref _frame.RenderLayers[pass.Depth];
 
                 layer.Passes ??= new();
 
@@ -220,8 +259,8 @@ namespace Voltium.RenderEngine
                 LastWritePassIndex = callerPassIndex
             };
 
-            Frame.Resources.Add(resource);
-            return new ResourceHandle((uint)Frame.Resources.Count);
+            _frame.Resources.Add(resource);
+            return new ResourceHandle((uint)_frame.Resources.Count);
         }
 
         internal ref TrackedResource GetResource(ResourceHandle handle)
@@ -230,10 +269,10 @@ namespace Voltium.RenderEngine
             {
                 ThrowHelper.ThrowInvalidOperationException("Resource was not created");
             }
-            return ref ListExtensions.GetRef(Frame.Resources, (int)handle.Index - 1);
+            return ref ListExtensions.GetRef(_frame.Resources, (int)handle.Index - 1);
         }
 
-        internal ref RenderPassBuilder GetRenderPass(int index) => ref ListExtensions.GetRef(Frame.RenderPasses, index);
+        internal ref RenderPassBuilder GetRenderPass(int index) => ref ListExtensions.GetRef(_frame.RenderPasses, index);
 
         private struct GraphLayer
         {
@@ -246,12 +285,12 @@ namespace Voltium.RenderEngine
 
         private void AllocateResources()
         {
-            foreach (ref var resource in Frame.Resources.AsSpan())
+            foreach (ref var resource in _frame.Resources.AsSpan())
             {
                 // handle relative sizes
                 if (resource.Desc.OutputRelativeSize is double relative)
                 {
-                    if (Frame.PrimaryOutput is not OutputDesc primary)
+                    if (_frame.PrimaryOutput is not OutputDesc primary)
                     {
                         ThrowHelper.ThrowInvalidOperationException("Cannot use a primary output relative resource as no primary output was registered");
                         return;
@@ -290,8 +329,8 @@ namespace Voltium.RenderEngine
 
                     if (resource.CurrentTrackedState != resource.Desc.InitialState)
                     {
-                        Frame.RenderLayers![0].Barriers ??= new();
-                        Frame.RenderLayers![0].Barriers.Add(resource.CreateTransition(resource.Desc.InitialState, ResourceBarrierOptions.Full));
+                        _frame.RenderLayers![0].Barriers ??= new();
+                        _frame.RenderLayers![0].Barriers.Add(resource.CreateTransition(resource.Desc.InitialState, ResourceBarrierOptions.Full));
                     }
                 }
                 else
@@ -306,7 +345,7 @@ namespace Voltium.RenderEngine
 
         private void BuildBarriers()
         {
-            foreach (ref var layer in Frame.RenderLayers.AsSpan())
+            foreach (ref var layer in _frame.RenderLayers.AsSpan())
             {
                 foreach (var passIndex in layer.Passes.AsSpan())
                 {
@@ -330,9 +369,9 @@ namespace Voltium.RenderEngine
         }
 
         private List<GpuContext> _contexts = new();
-        private void RecordAndExecuteLayers()
+        private GpuTask RecordAndExecuteLayers()
         {
-            foreach (ref var layer in Frame.RenderLayers.AsSpan())
+            foreach (ref var layer in _frame.RenderLayers.AsSpan())
             {
                 // TODO multithread
 
@@ -356,22 +395,27 @@ namespace Voltium.RenderEngine
                     if (pass is ComputeRenderPass compute)
                     {
                         using var ctx = _device.BeginComputeContext(compute.DefaultPipelineState);
-                        
-                        compute.Record(ref ctx.AsMutable(), ref Frame.Resolver);
+
+                        compute.Record(ref ctx.AsMutable(), ref _frame.Resolver);
                         _contexts.Add(ctx.AsMutable().AsGpuContext());
                     }
                     else /* must be true */ if (pass is GraphicsRenderPass graphics)
                     {
                         using var ctx = _device.BeginGraphicsContext(graphics.DefaultPipelineState);
 
-                        graphics.Record(ref ctx.AsMutable(), ref Frame.Resolver);
+                        graphics.Record(ref ctx.AsMutable(), ref _frame.Resolver);
                         _contexts.Add(ctx.AsMutable().AsGpuContext());
+                    }
+                    else
+                    {
+                        ThrowHelper.ThrowArgumentException("what the fuck have you done");
                     }
                 }
             }
 
-            _device.Execute(_contexts.AsSpan());
+            var task = _device.Execute(_contexts.AsSpan());
             _contexts.Clear();
+            return task;
         }
     }
 }

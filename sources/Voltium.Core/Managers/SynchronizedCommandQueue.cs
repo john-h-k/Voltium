@@ -63,6 +63,12 @@ namespace Voltium.Core.Devices
             }
         }
 
+        public GpuTask ExecuteCommandLists(uint numLists, ID3D12CommandList** ppLists)
+        {
+            _queue.Get()->ExecuteCommandLists(numLists, ppLists);
+            return Signal();
+        }
+
         public bool TryQueryTimestamps(ulong* gpu, ulong* cpu) => SUCCEEDED(_queue.Get()->GetClockCalibration(gpu, cpu));
 
         private static string GetListTypeName(ExecutionContext type) => type switch
@@ -73,11 +79,7 @@ namespace Voltium.Core.Devices
             _ => "Unknown"
         };
 
-        internal GpuTask GetSynchronizerForIdle()
-        {
-            Signal();
-            return new GpuTask(_fence, _lastFence);
-        }
+        internal GpuTask GetSynchronizerForIdle() => Signal();
 
         internal void Wait(in GpuTask waitable)
         {
@@ -85,9 +87,10 @@ namespace Voltium.Core.Devices
             Guard.ThrowIfFailed(_queue.Get()->Wait(fence, marker));
         }
 
-        internal void Signal()
+        internal GpuTask Signal()
         {
             Guard.ThrowIfFailed(_queue.Get()->Signal(_fence.Get(), Interlocked.Increment(ref _lastFence)));
+            return new GpuTask(_fence, _lastFence);
         }
 
         public void Dispose()

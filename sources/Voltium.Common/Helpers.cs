@@ -20,7 +20,7 @@ namespace Voltium.Common
         public static void Free(void* data) => Windows.HeapFree(Heap, 0, data);
 
         public static bool IsNullRef<T>(ref T val)
-          => Unsafe.AsPointer(ref val) == null;
+          => Unsafe.AreSame(ref val, ref NullRef<T>());
 
         public static bool IsNullIn<T>(in T val)
             => IsNullRef(ref Unsafe.AsRef(in val));
@@ -57,6 +57,6 @@ namespace Voltium.Common
         }
 
         public static bool Int32ToBool(int val) => val != 0;
-        public static int BoolToInt32(bool val) => Unsafe.As<bool, byte>(ref val);
+        public static int BoolToInt32(bool val) => (int)(uint)Unsafe.As<bool, byte>(ref val);
     }
 }

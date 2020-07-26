@@ -50,7 +50,7 @@ namespace Voltium.Core.Devices
 
 
 
-        private static IncludeHandler _handler;
+        private IncludeHandler _handler;
         public string AppDirectory
         {
             get => _handler.AppDirectory;
@@ -69,17 +69,14 @@ namespace Voltium.Core.Devices
         }
     }
 
-    // LayoutKind.Sequential is ignored when the type contains references
-    // This type is safe because we pin it during its time in native code,
-    // and the native code never accesses the references
-    // but we must make it explicit layout so it works
     [NativeComType]
     internal unsafe partial struct DxcIncludeHandler : IDisposable
     {
-        private void** Vtbl;
+        private string _time;
+        public nuint Vtbl;
 
-        private static ComPtr<IDxcUtils> _utils;
-        private static IncludeHandler _handler;
+        private ComPtr<IDxcUtils> _utils;
+        private IncludeHandler _handler;
 
         public string AppDirectory
         {
@@ -249,7 +246,7 @@ namespace Voltium.Core.Devices
     internal unsafe static class IncludeHandlerExtensions
     {
         public static ref IDxcIncludeHandler GetPinnableReference(ref this DxcIncludeHandler handler)
-            => ref Unsafe.As<DxcIncludeHandler, IDxcIncludeHandler>(ref handler);
+            => ref Unsafe.As<nuint, IDxcIncludeHandler>(ref handler.Vtbl);
 
 
         public static ref ID3DInclude GetPinnableReference(ref this LegacyFxcIncludeHandler handler)

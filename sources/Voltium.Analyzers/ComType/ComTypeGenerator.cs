@@ -16,9 +16,13 @@ namespace Voltium.Analyzers.ComType
     {
         protected override void GenerateFromSyntax(SourceGeneratorContext context, TypeDeclarationSyntax syntax, SyntaxTree tree)
         {
+            //Debugger.Launch();
             var semantics = context.Compilation.GetSemanticModel(tree);
 
             var typeSymbol = semantics.GetDeclaredSymbol(syntax)!;
+
+
+            var vtblType = ((IFieldSymbol)typeSymbol.GetMembers("Vtbl").First()).Type.ToString();
 
             var initBody = "";
             var wrappers = "";
@@ -40,22 +44,41 @@ namespace Voltium.Analyzers.ComType
             var hasExplicitLayout = typeSymbol.TryGetAttribute("System.Runtime.InteropServices.StructLayoutAttribute", context.Compilation, out var attr)
                 && attr.ConstructorArguments[0].Value is (int)LayoutKind.Explicit;
 
-            var create = string.Format(CreateTemplate, index + 1, initBody);
-            var source = string.Format(TypeTemplate, typeSymbol.ContainingNamespace, typeSymbol.Name, hasExplicitLayout ? "[FieldOffset(0)]" : "", create + wrappers);
+            var create = string.Format(CreateTemplate, vtblType, index + 1, initBody);
+            var asThis = string.Format(typeSymbol.IsUnmanagedType ? UnmanagedAsThisTemplate : ManagedAsThisTemplate, typeSymbol.Name);
+            var source = string.Format(TypeTemplate, typeSymbol.ContainingNamespace, typeSymbol.Name, hasExplicitLayout ? "[FieldOffset(0)]" : "", create + wrappers + asThis);
 
-            //Debugger.Launch();
             context.AddSource($"{typeSymbol.Name}.ComImplementation.cs", SourceText.From(source, Encoding.UTF8));
         }
 
         private const string CreateTemplate = @"
-        private static void** CreateVtbl()
+
+        private static {0} StaticVtbl = CreateVtbl();
+
+        private static {0} CreateVtbl()
         {{
-            void** vtbl = (void**)HeapAlloc(GetProcessHeap(), 0, (uint)sizeof(nuint) * {0});
+            void** vtbl = (void**)HeapAlloc(GetProcessHeap(), 0, (uint)sizeof(nuint) * {1});
 
-            {1}
+            {2}
 
-            return vtbl;
+            return ({0})vtbl;
         }}";
+
+
+        // sequential is not respected for managed types so we need to make a vtable offset
+        private const string ManagedAsThisTemplate = @"
+        private static int VtblOffset {{ get; }} = CalculateVtblOffset();
+
+        private static int CalculateVtblOffset()
+        {{
+            Unsafe.SkipInit(out {0} val);
+
+            return (int)((byte*)Unsafe.AsPointer(ref val) - (byte*)&val.Vtbl);
+        }}
+        private static ref {0} AsThis(void* pThis) => ref Unsafe.AsRef<{0}>((byte*)pThis + VtblOffset);";
+
+        private const string UnmanagedAsThisTemplate = @"private static ref {0} AsThis(void* pThis) => ref Unsafe.AsRef<{0}>(pThis);";
+
 
         private const string TypeTemplate = @"
         using System;
@@ -70,7 +93,6 @@ namespace Voltium.Analyzers.ComType
                 //{2}
                 //private void** Vtbl;
 
-                private static void** StaticVtbl = CreateVtbl();
 
                 public void Init()
                 {{
@@ -78,6 +100,10 @@ namespace Voltium.Analyzers.ComType
                 }}
 
                 {3}
+            }}
+
+            unsafe partial struct {1}Extensions
+            {{
             }}
         }}";
 
@@ -92,11 +118,10 @@ namespace Voltium.Analyzers.ComType
             var @params = GetParams(method);
             return string.Format(
                 @"[UnmanagedCallersOnly]" +
-                @"private static unsafe {0} {1}(void* @this{2}) => Unsafe.AsRef<{3}>(@this).{4}({5});",
+                @"private static unsafe {0} {1}(void* @this{2}) => AsThis(@this).{3}({4});",
                 method.ReturnType.Name,
                 remapName,
                 string.IsNullOrWhiteSpace(@params) ? string.Empty : ", " + @params,
-                method.ContainingType,
                 method.Name,
                 GetParamNames(method)
             );

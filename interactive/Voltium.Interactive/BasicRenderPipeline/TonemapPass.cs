@@ -17,9 +17,9 @@ namespace Voltium.Interactive.BasicRenderPipeline
     {
         public override OutputDesc Output { get; }
 
-        private Output _output;
+        private TextureOutput _output;
 
-        public TonemapPass(Output output)
+        public TonemapPass(TextureOutput output)
         {
             _output = output;
             Output = OutputDesc.FromBackBuffer(OutputClass.Primary, _output);
@@ -38,9 +38,9 @@ namespace Voltium.Interactive.BasicRenderPipeline
             var resources = resolver.GetComponent<PipelineResources>();
             var sampledOutput = resolver.ResolveResource(resources.SampledOutput);
 
-            context.ResourceTransition(_output.BackBuffer, ResourceState.CopyDestination);
-            context.CopyResource(sampledOutput, _output.BackBuffer);
-            context.ResourceTransition(_output.BackBuffer, ResourceState.Present);
+            context.ResourceTransition(_output.OutputBuffer, ResourceState.CopyDestination);
+            context.CopyResource(sampledOutput, _output.OutputBuffer);
+            context.ResourceTransition(_output.OutputBuffer, ResourceState.Present);
         }
     }
 }

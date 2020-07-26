@@ -81,7 +81,7 @@ namespace Voltium.Core
             Type = (DescriptorHeapType)desc.Type;
             NumDescriptors = desc.NumDescriptors;
 
-            DebugHelpers.SetName(this, nameof(ID3D12DescriptorHeap) + " " + desc.Type.ToString());
+            this.SetName(nameof(ID3D12DescriptorHeap) + " " + desc.Type.ToString());
         }
 
         /// <summary>

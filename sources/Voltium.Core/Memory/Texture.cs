@@ -35,6 +35,7 @@ namespace Voltium.Core.Memory
     public unsafe struct Texture : IInternalD3D12Object, IDisposable
     {
         ID3D12Object* IInternalD3D12Object.GetPointer() => _resource.GetPointer();
+        private GpuResource _resource;
 
         /// <summary>
         /// The format ofrmat format 
@@ -121,7 +122,6 @@ namespace Voltium.Core.Memory
         /// <returns></returns>
         public ID3D12Resource* GetResourcePointer() => _resource.GetResourcePointer();
 
-        private GpuResource _resource;
 
         /// <inheritdoc/>
         public void Dispose() => _resource?.Dispose();

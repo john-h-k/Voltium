@@ -167,15 +167,14 @@ namespace Voltium.Core.Devices
         }
 
         /// <summary>
-        /// Move to the next frame's set of resources
+        /// Resets the render target view heap
         /// </summary>
-        public void MoveToNextFrame()
-        {
-            //_graphicsQueue.MoveToNextFrame();
-            GraphicsQueue.GetSynchronizerForIdle().Block();
-            _rtvs.ResetHeap();
-            _dsvs.ResetHeap();
-        }
+        public void ResetRenderTargetViewHeap() => _rtvs.ResetHeap();
+
+        /// <summary>
+        /// Resets the depth stencil view heap
+        /// </summary>
+        public void ResetDepthStencilViewHeap() => _dsvs.ResetHeap();
 
         internal void ReleaseResourceAtFrameEnd(GpuResource resource)
         {

@@ -74,10 +74,10 @@
   <!-- Package references which are consumed by all projects -->
   <ItemGroup>
     <!-- <PackageReference Include="Microsoft.Net.Compilers.Toolset" IsImplicitlyDefined="true" PrivateAssets="all" /> -->
-    <PackageReference Include="Microsoft.Net.Compilers.Toolset" Version="3.7.0-3.final">
+    <!-- <PackageReference Include="Microsoft.Net.Compilers.Toolset" Version="3.7.0-4.final">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
+    </PackageReference> -->
     <None Include="$(MSBuildThisFileDirectory)nativedependencies/**/*" Visible="false">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

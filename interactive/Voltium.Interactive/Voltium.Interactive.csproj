@@ -32,7 +32,6 @@
     <ProjectReference Include="..\..\sources\Voltium.Core\Voltium.Core.csproj" />
     <ProjectReference Include="..\..\sources\Voltium.Analyzers\Voltium.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\..\sources\Voltium.ModelLoader\Voltium.ModelLoading.csproj" />
-    <ProjectReference Include="..\..\sources\Voltium.Monitor\Voltium.Monitor.csproj" />
     <ProjectReference Include="..\..\sources\Voltium.RenderEngine\Voltium.RenderEngine.csproj" />
     <ProjectReference Include="..\..\sources\Voltium.TextureLoading\Voltium.TextureLoading.csproj" />
   </ItemGroup>

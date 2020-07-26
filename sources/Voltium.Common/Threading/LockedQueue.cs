@@ -24,6 +24,8 @@ namespace Voltium.Common
 
         public int Count => _underlyingQueue.Count;
 
+        public ScopedIValueLockEntry<TLock> Lock() => _lock.EnterScoped();
+
         public Queue<T>.Enumerator GetEnumerator()
         {
             using var _ = _lock.EnterScoped();
@@ -58,6 +60,12 @@ namespace Voltium.Common
         {
             using var _ = _lock.EnterScoped();
             return _underlyingQueue.TryDequeue(out value);
+        }
+        public unsafe bool TryDequeue([MaybeNullWhen(false)] out T value, delegate* <ref T, bool> predicate)
+        {
+            using var _ = _lock.EnterScoped();
+            
+            return _underlyingQueue.TryPeek(out value) && predicate(ref value) && _underlyingQueue.Dequeue() is var _;
         }
 
         public void Clear()

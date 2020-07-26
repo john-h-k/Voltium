@@ -7,7 +7,6 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using BenchmarkDotNet.Attributes;
-using Microsoft.UI.Xaml;
 using Voltium.Core;
 using Voltium.Core.Memory;
 using Voltium.Interactive.BasicRenderPipeline;

@@ -50,6 +50,7 @@ namespace Voltium.RenderEngine
             }
         }
 
+
         public void AllocateFrom(GpuAllocator allocator)
         {
             if (Desc.Type == ResourceType.Buffer)

@@ -19,8 +19,7 @@ namespace Voltium.Interactive.RenderGraphSamples
         private GraphicsDevice _device = null!;
         private MandelbrotRenderPass _renderer = null!;
         private TonemapPass _outputPass = null!;
-        private Output _output = null!;
-        private bool _isPaused;
+        private TextureOutput _output = null!;
         private PipelineSettings _settings;
 
         public override unsafe void Initialize(Size data, IOutputOwner output)
@@ -50,7 +49,7 @@ namespace Voltium.Interactive.RenderGraphSamples
                 Msaa = MultisamplingDesc.None
             };
 
-            _output = Output.Create(_device, desc, output, implicitExecuteOnPresent: true);
+            _output = TextureOutput.Create(_device, desc, output);
 
             _renderer = new(_device, data);
             _outputPass = new(_output);
@@ -58,19 +57,10 @@ namespace Voltium.Interactive.RenderGraphSamples
 
         public override void Update(ApplicationTimer timer)
         {
-            if (_isPaused)
-            {
-                return;
-            }
         }
         public override unsafe void Render()
         {
-            if (_isPaused)
-            {
-                return;
-            }
-
-            var graph = new RenderGraph(_device);
+            var graph = new RenderGraph(_device, 3);
 
             graph.CreateComponent(_settings);
 
@@ -89,29 +79,6 @@ namespace Voltium.Interactive.RenderGraphSamples
         {
             _output.Resize(newScreenData);
             _renderer.Resize(newScreenData);
-        }
-
-        public override void OnKeyDown(ConsoleKey key)
-        {
-            if (key == ConsoleKey.P)
-            {
-                _isPaused = !_isPaused;
-            }
-            if (key == ConsoleKey.M)
-            {
-                if (_settings.Msaa == MultisamplingDesc.None)
-                {
-                    _settings.Msaa = MultisamplingDesc.X8;
-                }
-                else
-                {
-                    _settings.Msaa = MultisamplingDesc.None;
-                }    
-            }
-        }
-
-        public override void OnKeyUp(ConsoleKey key)
-        {
         }
     }
 }

@@ -23,8 +23,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
         private MsaaPass _msaaPass = null!;
         private TonemapPass _outputPass = null!;
 
-        private Output _output = null!;
-        private bool _isPaused;
+        private TextureOutput _output = null!;
         private PipelineSettings _settings;
 
         public override unsafe void Initialize(Size data, IOutputOwner output)
@@ -56,10 +55,10 @@ namespace Voltium.Interactive.BasicRenderPipeline
                 BackBufferCount = 3,
                 SyncInterval = 0
             };
+            
+            _output = TextureOutput.Create(_device, desc, output);
 
-            _output = Output.Create(_device, desc, output, implicitExecuteOnPresent: true);
-
-            var resolution = new Size((int)_output.BackBuffer.Width, (int)_output.BackBuffer.Height);
+            var resolution = _output.GetDimensions2D();
             _settings = new PipelineSettings
             {
                 Msaa = MultisamplingDesc.None,
@@ -72,15 +71,11 @@ namespace Voltium.Interactive.BasicRenderPipeline
             _msaaPass = new MsaaPass();
             _outputPass = new TonemapPass(_output);
 
-            _graph = new RenderGraph(_device);
+            _graph = new RenderGraph(_device, _output.Configuration.BackBufferCount);
         }
 
         public override void Update(ApplicationTimer timer)
         {
-            if (_isPaused)
-            {
-                return;
-            }
         }
 
         private RenderGraph _graph = null!;
@@ -105,29 +100,6 @@ namespace Voltium.Interactive.BasicRenderPipeline
         public override void OnResize(Size newScreenData)
         {
             _output.Resize(newScreenData);
-        }
-
-        public override void OnKeyDown(ConsoleKey key)
-        {
-            if (key == ConsoleKey.P)
-            {
-                _isPaused = !_isPaused;
-            }
-            if (key == ConsoleKey.M)
-            {
-                if (_settings.Msaa == MultisamplingDesc.None)
-                {
-                    _settings.Msaa = MultisamplingDesc.X8;
-                }
-                else
-                {
-                    _settings.Msaa = MultisamplingDesc.None;
-                }
-            }
-        }
-
-        public override void OnKeyUp(ConsoleKey key)
-        {
         }
     }
 }

@@ -79,7 +79,7 @@ namespace Voltium.Interactive
                 .Aggregate(0, (val, group) => val += group.Faces
                     .Aggregate(0, (val, face) => val + face.Count));
 
-            var indices = new ushort[indexCount];
+            var indices = new uint[indexCount];
             var vertices = new Vertex[indexCount];
 
 
@@ -100,7 +100,7 @@ namespace Voltium.Interactive
                         var tex = ToVector2(model.Textures[vertex.TextureIndex - 1]);
 
                         //vertices[c] = new Vertex(position, normal, tex);
-                        indices[c] = (ushort)c;
+                        indices[c] = (uint)c;
 
                         c++;
                     }
@@ -122,7 +122,7 @@ namespace Voltium.Interactive
             Shininess = material.SpecularCoefficient
         };
 
-        private static ushort[] CubeIndices = new ushort[36]
+        private static uint[] CubeIndices = new uint[36]
         {
             // Fill in the front face index data
 	        0, 1, 2,

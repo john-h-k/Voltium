@@ -10,17 +10,15 @@ namespace Voltium.Core
     {
         public abstract string Title { get; }
 
-        public abstract void Initialize(Size data, IOutputOwner output);
+        public abstract void Initialize(Size outputSize, IOutputOwner output);
+        public abstract void OnResize(Size newOutputSize);
+
+
         public abstract void Update(ApplicationTimer timer);
         public abstract void Render();
+
+
         public abstract void Dispose();
-
-
-        public virtual void OnResize(Size newScreenData) { }
-        public virtual void OnKeyDown(ConsoleKey key) { }
-        public virtual void OnKeyUp(ConsoleKey key) { }
-
-        public virtual void OnMouseScroll(int scroll) { }
     }
 }
 #pragma warning restore CS1591 // Missing XML comment for publicly visible type or member

@@ -100,11 +100,19 @@ namespace Voltium.Core
             _qpcSecondCounter = 0;
         }
 
+
         /// <summary>
         /// Ticks the timer, indicating a single frame has elapsed
         /// </summary>
         /// in fixed timestep mode, or immediately, in variable timestep mode
         public void Tick(Action update)
+            => Tick(0, (_, _) => update());
+
+        /// <summary>
+        /// Ticks the timer, indicating a single frame has elapsed
+        /// </summary>
+        /// in fixed timestep mode, or immediately, in variable timestep mode
+        public void Tick<T>(T val, Action<ApplicationTimer, T> update)
         {
             var currentTime = Stopwatch.GetTimestamp();
 
@@ -138,7 +146,7 @@ namespace Voltium.Core
                     _totalTicks += TargetElapsedTicks;
                     _leftOverTicks -= TargetElapsedTicks;
                     _frameCount++;
-                    update();
+                    update(this, val);
                 }
             }
             else
@@ -148,7 +156,7 @@ namespace Voltium.Core
                 _leftOverTicks = 0;
                 _frameCount++;
 
-                update();
+                update(this, val);
             }
 
             if (_frameCount != lastFrameCount)

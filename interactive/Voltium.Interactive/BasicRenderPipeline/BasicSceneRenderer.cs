@@ -300,7 +300,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
                 {
                     recorder.SetConstantBuffer<ObjectConstants>(0, _obj, i);
                     recorder.SetVertexBuffers<TexturedVertex>(_vertexBuffer[i]);
-                    recorder.SetIndexBuffer<ushort>(_indexBuffer[i]);
+                    recorder.SetIndexBuffer<uint>(_indexBuffer[i]);
 
                     recorder.DrawIndexed(_texturedObjects[i].Indices.Length);
                 }

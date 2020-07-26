@@ -11,6 +11,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Voltium.Common\Voltium.Common.csproj" PrivateAssets="All" />
     <ProjectReference Include="..\Voltium.Core\Voltium.Core.csproj" />
+    <ProjectReference Include="..\Voltium.Input\Voltium.Input.csproj" />
   </ItemGroup>
 
 </Project>

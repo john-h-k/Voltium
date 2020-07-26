@@ -16,9 +16,9 @@ namespace Voltium.Interactive.RenderGraphSamples
     {
         public override OutputDesc Output { get; }
 
-        private Output _output;
+        private TextureOutput _output;
 
-        public TonemapPass(Output output)
+        public TonemapPass(TextureOutput output)
         {
             _output = output;
             Output = OutputDesc.FromBackBuffer(OutputClass.Primary, _output);
@@ -30,9 +30,9 @@ namespace Voltium.Interactive.RenderGraphSamples
 
             var sceneColor = resolver.ResolveResource(resources.SceneColor);
 
-            context.CopyResource(sceneColor, _output.BackBuffer);
+            context.CopyResource(sceneColor, _output.OutputBuffer);
 
-            context.ResourceTransition(_output.BackBuffer, ResourceState.Present);
+            context.ResourceTransition(_output.OutputBuffer, ResourceState.Present);
         }
 
         public override void Register(ref RenderPassBuilder builder, ref Resolver resolver)

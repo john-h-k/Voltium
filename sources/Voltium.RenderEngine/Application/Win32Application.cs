@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using TerraFX.Interop;
 using Voltium.Core.Devices;
+using Voltium.Input;
 using static TerraFX.Interop.Windows;
 
 namespace Voltium.Core
@@ -29,7 +30,7 @@ namespace Voltium.Core
         /// <param name="width">The width, in pixels, of the screen</param>
         /// <param name="height">The height, in pixels, of the screen</param>
         /// <returns>The exit code of the app</returns>
-        public static int Run(Application application, uint width, uint height)
+        public static int Run(Application application, uint width = 700, uint height = 700)
         {
             var hInstance = GetModuleHandleW(null);
             _application = application;
@@ -110,15 +111,20 @@ namespace Voltium.Core
 
         private static void RunApp()
         {
-            fixed (char* pFps = $"Voltium - FPS: {_timer.FramesPerSeconds}")
+            //fixed (char* pFps = $"Voltium - FPS: {_timer.FramesPerSeconds}")
             {
-                _ = SetWindowTextW(Hwnd, (ushort*)pFps);
+                //_ = SetWindowTextW(Hwnd, (ushort*)pFps);
 
-                _timer.Tick(() =>
+                _timer.Tick(_application, (timer, app) =>
                 {
-                    _application.Update(_timer);
-                    _application.Render();
+                    app.Update(timer);
+                    app.Render();
                 });
+
+                if (_timer.FrameCount % 2000 == 0)
+                {
+                    Console.WriteLine(_timer.FramesPerSeconds);
+                }
             }
         }
 
@@ -146,16 +152,53 @@ namespace Voltium.Core
                     return 0;
                 }
 
+
                 case WM_KEYDOWN:
                 {
-                    _application.OnKeyDown((ConsoleKey)wParam);
+                    if (TryGetModifier(wParam, out var modifier))
+                    {
+                        KeyboardHandler.SetModifierState(modifier, true);
+                    }
+                    else
+                    {
+                        KeyboardHandler.SetKeyState((ConsoleKey)wParam, true);
+                    }
                     return 0;
                 }
 
                 case WM_KEYUP:
                 {
-                    _application.OnKeyUp((ConsoleKey)wParam);
+                    if (TryGetModifier(wParam, out var modifier))
+                    {
+                        KeyboardHandler.SetModifierState(modifier, false);
+                    }
+                    else
+                    {
+                        KeyboardHandler.SetKeyState((ConsoleKey)wParam, false);
+                    }
                     return 0;
+                }
+
+                // Can't just blindly cast as the values don't line up. 
+                static bool TryGetModifier(nuint wParam, out ConsoleModifiers modifier)
+                {
+                    if (wParam == VK_SHIFT)
+                    {
+                        modifier = ConsoleModifiers.Shift;
+                        return true;
+                    }
+                    if (wParam == /* weird name, but it is ALT key */ VK_MENU)
+                    {
+                        modifier = ConsoleModifiers.Alt;
+                        return true;
+                    }
+                    if (wParam == VK_CONTROL)
+                    {
+                        modifier = ConsoleModifiers.Control;
+                        return true;
+                    }
+                    modifier = 0;
+                    return false;
                 }
 
                 case WM_MOUSEMOVE:
@@ -166,7 +209,6 @@ namespace Voltium.Core
                 case WM_MOUSEWHEEL:
                 {
                     var delta = GET_WHEEL_DELTA_WPARAM(wParam) / ScrollResolution;
-                    _application.OnMouseScroll(delta);
                     return 0;
                 }
 

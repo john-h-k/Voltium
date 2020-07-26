@@ -13,8 +13,8 @@ namespace Voltium.Interactive
         private Renderer _renderer = new TRenderer();
 
         private GraphicsDevice _device = null!;
-        private Output _output = null!;
-        private bool _isPaused;
+        private TextureOutput _output = null!;
+        private bool _isPaused = false;
 
         public override unsafe void Initialize(Size data, IOutputOwner output)
         {
@@ -38,7 +38,7 @@ namespace Voltium.Interactive
                 SyncInterval = 0
             };
 
-            _output = Output.Create(_device, desc, output, implicitExecuteOnPresent: true);
+            _output = TextureOutput.Create(_device, desc, output);
 
             _renderer.Init(_device, data);
         }
@@ -62,13 +62,13 @@ namespace Voltium.Interactive
                 _renderer.Render(ref recorder.AsMutable(), out var render);
                 if (render.Msaa.IsMultiSampled)
                 {
-                    recorder.ResolveSubresource(render, _output.BackBuffer);
+                    recorder.ResolveSubresource(render, _output.OutputBuffer);
                 }
                 else
                 {
-                    recorder.CopyResource(render, _output.BackBuffer);
+                    recorder.CopyResource(render, _output.OutputBuffer);
                 }
-                recorder.ResourceTransition(_output.BackBuffer, ResourceState.Present);
+                recorder.ResourceTransition(_output.OutputBuffer, ResourceState.Present);
             }
 
             _output.Present();
@@ -82,28 +82,6 @@ namespace Voltium.Interactive
         {
             _output.Resize(newScreenData);
             _renderer.Resize(newScreenData);
-        }
-
-        public override void OnKeyDown(ConsoleKey key)
-        {
-            if (key == ConsoleKey.P)
-            {
-                _isPaused = !_isPaused;
-            }
-            if (key == ConsoleKey.M)
-            {
-                _device.Idle();
-                _renderer.ToggleMsaa();
-            }
-        }
-
-        public override void OnKeyUp(ConsoleKey key)
-        {
-        }
-
-        public override void OnMouseScroll(int scroll)
-        {
-            _renderer.OnMouseScroll(scroll);
         }
     }
 }
