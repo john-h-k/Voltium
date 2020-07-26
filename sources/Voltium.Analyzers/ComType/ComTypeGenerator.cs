@@ -22,7 +22,7 @@ namespace Voltium.Analyzers.ComType
             var typeSymbol = semantics.GetDeclaredSymbol(syntax)!;
 
 
-            var vtblType = ((IFieldSymbol)typeSymbol.GetMembers("Vtbl").First()).Type.ToString();
+            var vtblType = ((IFieldSymbol)typeSymbol.GetMembers("Vtbl").FirstOrDefault())?.Type.ToString();
 
             var initBody = "";
             var wrappers = "";
@@ -44,14 +44,15 @@ namespace Voltium.Analyzers.ComType
             var hasExplicitLayout = typeSymbol.TryGetAttribute("System.Runtime.InteropServices.StructLayoutAttribute", context.Compilation, out var attr)
                 && attr.ConstructorArguments[0].Value is (int)LayoutKind.Explicit;
 
-            var create = string.Format(CreateTemplate, vtblType, index + 1, initBody);
+            var create = string.Format(CreateTemplate, vtblType, index + 1, initBody, vtblType is null ? (hasExplicitLayout ? "[FieldOffset(0)]" : "") + "public readonly nuint Vtbl" : "");
             var asThis = string.Format(typeSymbol.IsUnmanagedType ? UnmanagedAsThisTemplate : ManagedAsThisTemplate, typeSymbol.Name);
-            var source = string.Format(TypeTemplate, typeSymbol.ContainingNamespace, typeSymbol.Name, hasExplicitLayout ? "[FieldOffset(0)]" : "", create + wrappers + asThis);
+            var source = string.Format(TypeTemplate, typeSymbol.ContainingNamespace, typeSymbol.Name, create + wrappers + asThis);
 
             context.AddSource($"{typeSymbol.Name}.ComImplementation.cs", SourceText.From(source, Encoding.UTF8));
         }
 
         private const string CreateTemplate = @"
+        {3}
 
         private static {0} StaticVtbl = CreateVtbl();
 
@@ -90,16 +91,12 @@ namespace Voltium.Analyzers.ComType
         {{
             unsafe partial struct {1}
             {{
-                //{2}
-                //private void** Vtbl;
-
-
                 public void Init()
                 {{
-                    Vtbl = StaticVtbl;
+                    Unsafe.AsRef(in Vtbl) = StaticVtbl;
                 }}
 
-                {3}
+                {2}
             }}
 
             unsafe partial struct {1}Extensions

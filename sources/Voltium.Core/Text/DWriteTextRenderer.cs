@@ -19,7 +19,7 @@ namespace Voltium.Core.Text
     [NativeComType]
     internal unsafe partial struct DWriteTextRenderer
     {
-        public void** Vtbl;
+        public nuint Vtbl;
 
         private uint _refCount;
 

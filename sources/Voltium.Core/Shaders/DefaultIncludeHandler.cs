@@ -15,7 +15,7 @@ namespace Voltium.Core.Devices
     [NativeComType]
     internal unsafe partial struct LegacyFxcIncludeHandler : IDisposable
     {
-        private void** Vtbl;
+        public readonly nuint Vtbl;
 
         [NativeComMethod]
         public int Close(void* data)
@@ -73,7 +73,7 @@ namespace Voltium.Core.Devices
     internal unsafe partial struct DxcIncludeHandler : IDisposable
     {
         private string _time;
-        public nuint Vtbl;
+        public readonly nuint Vtbl;
 
         private ComPtr<IDxcUtils> _utils;
         private IncludeHandler _handler;
@@ -246,10 +246,10 @@ namespace Voltium.Core.Devices
     internal unsafe static class IncludeHandlerExtensions
     {
         public static ref IDxcIncludeHandler GetPinnableReference(ref this DxcIncludeHandler handler)
-            => ref Unsafe.As<nuint, IDxcIncludeHandler>(ref handler.Vtbl);
+            => ref Unsafe.As<nuint, IDxcIncludeHandler>(ref Unsafe.AsRef(handler.Vtbl));
 
 
         public static ref ID3DInclude GetPinnableReference(ref this LegacyFxcIncludeHandler handler)
-            => ref Unsafe.As<LegacyFxcIncludeHandler, ID3DInclude>(ref handler);
+            => ref Unsafe.As<nuint, ID3DInclude>(ref Unsafe.AsRef(handler.Vtbl));
     }
 }
