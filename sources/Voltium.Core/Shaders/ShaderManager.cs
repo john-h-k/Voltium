@@ -59,9 +59,9 @@ namespace Voltium.Core.Devices
         /// <param name="data">The bytes containing the shader data</param>
         /// <param name="type">The type of the shader</param>
         /// <returns>A new <see cref="CompiledShader"/></returns>
-        public static CompiledShader ReadCompiledShader(ReadOnlyMemory<byte> data, ShaderType type)
+        public static CompiledShader ReadCompiledShader(Memory<byte> data, ShaderType type)
         {
-            return new CompiledShader(data, type);
+            return new CompiledShader(new NopMemoryOwner<byte>(data), type);
         }
 
         private static ComPtr<IDxcCompiler3> Compiler;
@@ -458,7 +458,7 @@ namespace Voltium.Core.Devices
                 Guard.ThrowIfFailed(compileResult.Get()->GetResult(ComPtr.GetAddressOf(&pBlob)));
                 var shaderBytes = FromBlob(pBlob.Get());
 
-                return new CompiledShader(shaderBytes.ToArray(), target.Type);
+                return new CompiledShader(new DxcBlobMemoryManager(pBlob.Move()), target.Type);
             }
         }
 
@@ -533,9 +533,7 @@ namespace Voltium.Core.Devices
                     throw new ShaderCompilationException(data);
                 }
 
-                var shaderBytes = new ReadOnlySpan<byte>(pCode.Get()->GetBufferPointer(), (int)pCode.Get()->GetBufferSize());
-
-                return new CompiledShader(shaderBytes.ToArray(), target.Type);
+                return new CompiledShader(new D3DBlobMemoryManager(pCode.Move()), target.Type);
             }
         }
 

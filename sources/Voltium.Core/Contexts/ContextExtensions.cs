@@ -1,4 +1,5 @@
-﻿using System.Runtime.CompilerServices;
+using System.Runtime.CompilerServices;
+using Voltium.Core.Contexts;
 
 namespace Voltium.Core
 {
@@ -27,6 +28,14 @@ namespace Voltium.Core
         /// <param name="context"></param>
         /// <returns></returns>
         public static ref GraphicsContext AsMutable(this in GraphicsContext context) => ref Unsafe.AsRef(in context);
+
+
+        /// <summary>
+        /// Returns 
+        /// </summary>
+        /// <param name="context"></param>
+        /// <returns></returns>
+        public static ref UploadContext AsMutable(this in UploadContext context) => ref Unsafe.AsRef(in context);
 
 
         /// <summary>
@@ -63,6 +72,14 @@ namespace Voltium.Core
         /// <param name="context">The <see cref="ComputeContext"/> to convert</param>
         /// <returns>A <see cref="CopyContext"/> recording to the same list as <paramref name="context"/></returns>
         public static ref CopyContext AsCopyContext(this ref ComputeContext context) => ref Unsafe.As<ComputeContext, CopyContext>(ref context);
+
+
+        /// <summary>
+        /// Returns the <see cref="CopyContext"/> for a given <see cref="UploadContext"/>
+        /// </summary>
+        /// <param name="context">The <see cref="UploadContext"/> to convert</param>
+        /// <returns>A <see cref="CopyContext"/> recording to the same list as <paramref name="context"/></returns>
+        public static ref CopyContext AsCopyContext(this ref UploadContext context) => ref Unsafe.As<UploadContext, CopyContext>(ref context);
 
         /// <summary>
         /// Returns the <see cref="ComputeContext"/> for a given <see cref="GraphicsContext"/>

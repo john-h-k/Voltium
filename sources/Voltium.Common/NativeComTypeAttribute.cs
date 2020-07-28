@@ -10,6 +10,14 @@ namespace Voltium.Annotations
     [AttributeUsage(AttributeTargets.Struct)]
     public class NativeComTypeAttribute : Attribute
     {
+        /// <summary>
+        /// Creates a new instance of <see cref="NativeComMethodAttribute"/>
+        /// </summary>
+        /// <param name="implements">The COM interface this type implements</param>
+        public NativeComTypeAttribute(Type? implements = null)
+        {
+
+        }
     }
 
     /// <summary>

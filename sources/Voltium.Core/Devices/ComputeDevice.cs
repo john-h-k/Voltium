@@ -21,6 +21,7 @@ using Buffer = Voltium.Core.Memory.Buffer;
 using Voltium.Allocators;
 using System.Threading;
 using System.Diagnostics;
+using Voltium.Core.Contexts;
 
 namespace Voltium.Core.Devices
 {
@@ -526,6 +527,17 @@ namespace Voltium.Core.Devices
         }
 
         /// <summary>
+        /// Returns a <see cref="UploadContext"/> used for recording upload commands
+        /// </summary>
+        /// <returns>A new <see cref="UploadContext"/></returns>
+        public UploadContext BeginUploadContext()
+        {
+            var context = ContextPool.Rent(ExecutionContext.Graphics, null, false);
+
+            return new UploadContext(context);
+        }
+
+        /// <summary>
         /// Returns a <see cref="ComputeContext"/> used for recording compute commands
         /// </summary>
         public ComputeContext BeginComputeContext(ComputePipelineStateObject? pso = null, bool executeOnClose = false)
@@ -555,7 +567,7 @@ namespace Voltium.Core.Devices
 
             ContextPool.Return(context, finish);
 
-            return GpuTask.Completed;
+            return finish;
         }
 
         /// <summary>
@@ -604,7 +616,7 @@ namespace Voltium.Core.Devices
                 contexts[i]._list = default;
             }
 
-            return GpuTask.Completed;
+            return finish;
         }
 
         private unsafe void SetDefaultState(ref GpuContext context, ComputePipelineStateObject? pso)
@@ -823,6 +835,13 @@ namespace Voltium.Core.Devices
             ));
 
             return list.Move();
+        }
+
+        internal ComPtr<ID3D12QueryHeap> CreateQueryHeap(D3D12_QUERY_HEAP_DESC desc)
+        {
+            using ComPtr<ID3D12QueryHeap> queryHeap = default;
+            DevicePointer->CreateQueryHeap(&desc, queryHeap.Iid, ComPtr.GetVoidAddressOf(&queryHeap));
+            return queryHeap.Move();
         }
 
         internal ComPtr<ID3D12Resource> CreatePlacedResource(ID3D12Heap* heap, ulong offset, InternalAllocDesc* desc)

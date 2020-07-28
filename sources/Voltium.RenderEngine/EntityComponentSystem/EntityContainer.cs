@@ -41,8 +41,6 @@ namespace Voltium.RenderEngine.EntityComponentSystem
 
         public EntityView<T0> ViewOf<T0>() where T0 : struct
             => new EntityView<T0>();
-
-
     }
 
     internal static class ComponentPool<TComponent> where TComponent : struct

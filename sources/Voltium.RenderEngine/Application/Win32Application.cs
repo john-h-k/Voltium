@@ -111,21 +111,11 @@ namespace Voltium.Core
 
         private static void RunApp()
         {
-            //fixed (char* pFps = $"Voltium - FPS: {_timer.FramesPerSeconds}")
+            _timer.Tick(_application, (timer, app) =>
             {
-                //_ = SetWindowTextW(Hwnd, (ushort*)pFps);
-
-                _timer.Tick(_application, (timer, app) =>
-                {
-                    app.Update(timer);
-                    app.Render();
-                });
-
-                if (_timer.FrameCount % 2000 == 0)
-                {
-                    Console.WriteLine(_timer.FramesPerSeconds);
-                }
-            }
+                app.Update(timer);
+                app.Render();
+            });
         }
 
         private static ApplicationTimer _timer = null!;

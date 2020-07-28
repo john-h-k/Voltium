@@ -5,6 +5,7 @@ using TerraFX.Interop;
 using Voltium.Common;
 using System.Threading.Tasks;
 using System.ComponentModel;
+using System.Runtime.InteropServices;
 
 namespace Voltium.Core.Memory
 {
@@ -61,11 +62,11 @@ namespace Voltium.Core.Memory
             {
                 if (_scheduler == TaskScheduler.Default)
                 {
-                    ThreadPool.UnsafeQueueUserWorkItem(state => Unsafe.As<Action>(state)!.Invoke(), continuation);
+                    _ = ThreadPool.UnsafeQueueUserWorkItem(state => Unsafe.As<Action>(state)!.Invoke(), continuation);
                 }
                 else
                 {
-                    Task.Factory.StartNew(continuation, CancellationToken.None, TaskCreationOptions.None, _scheduler);
+                    _ = Task.Factory.StartNew(continuation, CancellationToken.None, TaskCreationOptions.None, _scheduler);
                 }
             }
 
@@ -75,6 +76,53 @@ namespace Voltium.Core.Memory
             [EditorBrowsable(EditorBrowsableState.Never)]
             public bool IsCompleted => /* null fence = completed */ !_fence.Exists || _finished || _fence.Exists && (_finished = _fence.Get()->GetCompletedValue() >= _reached);
 
+            private struct CallbackData
+            {
+                public delegate*<object?, void> FnPtr;
+                public IntPtr ObjectHandle;
+            }
+
+            internal void RegisterCallback<T>(T state, delegate*<T, void> onFinished) where T : class?
+            {
+                IntPtr newHandle;
+                IntPtr handle = Windows.CreateEventW(null, Windows.FALSE, Windows.FALSE, null);
+
+                var gcHandle = GCHandle.Alloc(state);
+
+                // see below, we store the managed object handle and fnptr target in this little block
+                var context = Helpers.Alloc<CallbackData>();
+                context->FnPtr = (delegate*<object?, void>)onFinished;
+                context->ObjectHandle = GCHandle.ToIntPtr(gcHandle);
+
+                Guard.ThrowIfFailed(_fence.Get()->SetEventOnCompletion(_reached, handle));
+                int err = Windows.RegisterWaitForSingleObject(
+                    &newHandle,
+                    handle,
+                    (delegate* stdcall<void*, byte, void>)(delegate*<CallbackData*, byte, void>)&CallbackWrapper,
+                    context,
+                    Windows.INFINITE,
+                    0
+                );
+
+                if (err == 0)
+                {
+                    ThrowHelper.ThrowWin32Exception("RegisterWaitForSingleObject failed");
+                }
+            }
+
+            [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvStdcall) })]
+            private static void CallbackWrapper(CallbackData* context, byte _)
+            {
+                // we know it takes a T which is a ref type. provided no one does something weird and hacky to invoke this method, we can safely assume it is a T
+                delegate*<object?, void> fn = context->FnPtr;
+                var val = GCHandle.FromIntPtr(context->ObjectHandle);
+
+                // the user specified callback
+                fn(val.Target);
+
+                val.Free();
+                Helpers.Free(context);
+            }
 
             /// <summary>
             /// This method should not be used except by compilers
@@ -84,6 +132,7 @@ namespace Voltium.Core.Memory
             {
                 if (!IsCompleted)
                 {
+                    // blocks current thread until we complete
                     Guard.ThrowIfFailed(_fence.Get()->SetEventOnCompletion(_reached, default));
                 }
             }
@@ -112,6 +161,14 @@ namespace Voltium.Core.Memory
         /// Synchronously blocks until the GPU has reached the point represented by this <see cref="GpuTask"/>
         /// </summary>
         public void Block() => _awaiter.GetResult();
+
+        /// <summary>
+        /// Registers a callback for when this <see cref="GpuTask"/> completes
+        /// </summary>
+        /// <typeparam name="T">The type of the state to be passed to <paramref name="onFinished"/></typeparam>
+        /// <param name="state">The <typeparamref name="T"/> to pass to <paramref name="onFinished"/></param>
+        /// <param name="onFinished">The callback to invoke when this <see cref="GpuTask"/> finishes</param>
+        public void RegisterCallback<T>(T state, delegate*<T, void> onFinished) where T : class => _awaiter.RegisterCallback(state, onFinished);
 
 
         /// <summary>

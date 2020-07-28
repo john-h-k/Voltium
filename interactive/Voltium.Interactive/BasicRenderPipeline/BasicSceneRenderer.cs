@@ -93,24 +93,25 @@ namespace Voltium.Interactive.BasicRenderPipeline
             _vertexBuffer = new Buffer[_texturedObjects.Length];
             _indexBuffer = new Buffer[_texturedObjects.Length];
 
-            using (var list = _device.BeginGraphicsContext(executeOnClose: true))
-            using (_device.BeginScopedCapture())
+            using (var list = _device.BeginUploadContext())
             {
                 for (var i = 0; i < _texturedObjects.Length; i++)
                 {
-                    list.UploadBuffer(_texturedObjects[i].Vertices, ResourceState.VertexBuffer, out _vertexBuffer[i]);
+                    list.UploadBuffer(_texturedObjects[i].Vertices, out _vertexBuffer[i]);
                     _vertexBuffer[i].SetName("VertexBuffer");
 
-                    list.UploadBuffer(_texturedObjects[i].Indices, ResourceState.IndexBuffer, out _indexBuffer[i]);
+                    list.UploadBuffer(_texturedObjects[i].Indices, out _indexBuffer[i]);
                     _indexBuffer[i].SetName("IndexBuffer");
                 }
 
-                list.UploadTexture(texture.Data.Span, texture.SubresourceData.Span, texture.Desc, ResourceState.PixelShaderResource, out _texture);
+                list.UploadTexture(texture.Data.Span, texture.SubresourceData.Span, texture.Desc, out _texture);
                 _texture.SetName("Gun texture");
-
-                //list.UploadTexture(normals.Data.Span, normals.SubresourceData.Span, normals.Desc, ResourceState.PixelShaderResource, out _normals);
-                //_normals.SetName("Gun normals");
             }
+
+
+
+            //list.UploadTexture(normals.Data.Span, normals.SubresourceData.Span, normals.Desc, ResourceState.PixelShaderResource, out _normals);
+            //_normals.SetName("Gun normals");
 
             _texHandle = _device.CreateShaderResourceView(_texture);
             //_normalHandle = _device.CreateShaderResourceView(_normals);

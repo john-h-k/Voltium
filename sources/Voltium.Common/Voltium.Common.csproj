@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-    <DefineConstants>TRACE;DEBUG;REFLECTION;DISPOSABLES_ALLOW_FINALIZE</DefineConstants>
+    <DefineConstants>TRACE;DEBUG;REFLECTION;</DefineConstants>
     <CheckForOverflowUnderflow>false</CheckForOverflowUnderflow>
   </PropertyGroup>
 

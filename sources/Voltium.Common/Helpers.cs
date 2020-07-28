@@ -16,6 +16,7 @@ namespace Voltium.Common
 
         public static void* Alloc(nuint size) => Windows.HeapAlloc(Heap, 0, size);
         public static void* Alloc(nint size) => Alloc((nuint)size);
+        public static T* Alloc<T>(nint count = 1) where T : unmanaged => (T*)Alloc(sizeof(T) * count);
 
         public static void Free(void* data) => Windows.HeapFree(Heap, 0, data);
 

@@ -12,10 +12,10 @@ using static TerraFX.Interop.Windows;
 
 namespace Voltium.Core.Devices
 {
-    [NativeComType]
-    internal unsafe partial struct LegacyFxcIncludeHandler : IDisposable
+    [NativeComType(implements: typeof(ID3DInclude))]
+    internal unsafe partial struct LegacyFxcIncludeHandler
     {
-        public readonly nuint Vtbl;
+        private IncludeHandler _handler;
 
         [NativeComMethod]
         public int Close(void* data)
@@ -48,9 +48,6 @@ namespace Voltium.Core.Devices
             return hr;
         }
 
-
-
-        private IncludeHandler _handler;
         public string AppDirectory
         {
             get => _handler.AppDirectory;
@@ -62,19 +59,11 @@ namespace Voltium.Core.Devices
             get => _handler.ShaderDirectory;
             set => _handler.ShaderDirectory = value;
         }
-
-        public void Dispose()
-        {
-
-        }
     }
 
-    [NativeComType]
+    [NativeComType(implements: typeof(IDxcIncludeHandler))]
     internal unsafe partial struct DxcIncludeHandler : IDisposable
     {
-        private string _time;
-        public readonly nuint Vtbl;
-
         private ComPtr<IDxcUtils> _utils;
         private IncludeHandler _handler;
 
@@ -155,7 +144,7 @@ namespace Voltium.Core.Devices
         public string AppDirectory { get; set; }
 
         private string? _lastDirectory;
-        
+
         public int LoadSource(string filename, out string text)
         {
             text = null!;
@@ -173,7 +162,7 @@ namespace Voltium.Core.Devices
                 }
 
                 text = File.ReadAllText(file.FullName);
-                
+
                 return S_OK;
             }
             catch (Exception e)
@@ -243,13 +232,13 @@ namespace Voltium.Core.Devices
         }
     }
 
-    internal unsafe static class IncludeHandlerExtensions
-    {
-        public static ref IDxcIncludeHandler GetPinnableReference(ref this DxcIncludeHandler handler)
-            => ref Unsafe.As<nuint, IDxcIncludeHandler>(ref Unsafe.AsRef(handler.Vtbl));
+    //internal unsafe static class IncludeHandlerExtensions
+    //{
+    //    public static ref IDxcIncludeHandler GetPinnableReference(ref this DxcIncludeHandler handler)
+    //        => ref Unsafe.As<nuint, IDxcIncludeHandler>(ref Unsafe.AsRef(handler.Vtbl));
 
 
-        public static ref ID3DInclude GetPinnableReference(ref this LegacyFxcIncludeHandler handler)
-            => ref Unsafe.As<nuint, ID3DInclude>(ref Unsafe.AsRef(handler.Vtbl));
-    }
+    //    public static ref ID3DInclude GetPinnableReference(ref this LegacyFxcIncludeHandler handler)
+    //        => ref Unsafe.As<nuint, ID3DInclude>(ref Unsafe.AsRef(handler.Vtbl));
+    //}
 }

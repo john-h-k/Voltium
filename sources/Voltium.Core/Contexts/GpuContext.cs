@@ -116,7 +116,7 @@ namespace Voltium.Core
             Guard.ThrowIfFailed(List->Close());
             if (_executeOnClose)
             {
-                ((GraphicsDevice)Device).Execute(ref this);
+                _ = Device.Execute(ref this);
             }
         }
     }

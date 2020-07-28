@@ -16,11 +16,12 @@ namespace Voltium.Analyzers.ComType
     {
         protected override void GenerateFromSyntax(SourceGeneratorContext context, TypeDeclarationSyntax syntax, SyntaxTree tree)
         {
-            //Debugger.Launch();
             var semantics = context.Compilation.GetSemanticModel(tree);
 
             var typeSymbol = semantics.GetDeclaredSymbol(syntax)!;
 
+            _ = typeSymbol.TryGetAttribute(NativeComTypeAttributeName, context.Compilation, out var typeAttr);
+            var implName = typeAttr.ConstructorArguments[0].IsNull ? null : typeAttr.ConstructorArguments[0].Value?.ToString();
 
             var vtblType = ((IFieldSymbol)typeSymbol.GetMembers("Vtbl").FirstOrDefault())?.Type.ToString();
 
@@ -44,12 +45,17 @@ namespace Voltium.Analyzers.ComType
             var hasExplicitLayout = typeSymbol.TryGetAttribute("System.Runtime.InteropServices.StructLayoutAttribute", context.Compilation, out var attr)
                 && attr.ConstructorArguments[0].Value is (int)LayoutKind.Explicit;
 
-            var create = string.Format(CreateTemplate, vtblType, index + 1, initBody, vtblType is null ? (hasExplicitLayout ? "[FieldOffset(0)]" : "") + "public readonly nuint Vtbl" : "");
+            var vtablePrefix = hasExplicitLayout ? "[FieldOffset(0)]" : "";
+            var create = string.Format(CreateTemplate, vtblType ?? DefaultVtblType, index + 1, initBody, vtblType is null ? vtablePrefix + "public readonly nuint Vtbl;\n" : "");
             var asThis = string.Format(typeSymbol.IsUnmanagedType ? UnmanagedAsThisTemplate : ManagedAsThisTemplate, typeSymbol.Name);
-            var source = string.Format(TypeTemplate, typeSymbol.ContainingNamespace, typeSymbol.Name, create + wrappers + asThis);
+            var extensions = implName is null ? "" : string.Format(ExtensionsTemplate, typeSymbol.Name, implName, typeSymbol.DeclaredAccessibility.ToString().ToLower());
+            var source = string.Format(TypeTemplate, typeSymbol.ContainingNamespace, typeSymbol.Name, create + wrappers + asThis, vtblType is null && !hasExplicitLayout ? AutoLayout : "", extensions);
 
             context.AddSource($"{typeSymbol.Name}.ComImplementation.cs", SourceText.From(source, Encoding.UTF8));
         }
+
+        private const string DefaultVtblType = "nuint";
+        private const string AutoLayout = "[StructLayout(LayoutKind.Auto)]";
 
         private const string CreateTemplate = @"
         {3}
@@ -89,6 +95,7 @@ namespace Voltium.Analyzers.ComType
 
         namespace {0}
         {{
+            {3}
             unsafe partial struct {1}
             {{
                 public void Init()
@@ -99,10 +106,16 @@ namespace Voltium.Analyzers.ComType
                 {2}
             }}
 
-            unsafe partial struct {1}Extensions
-            {{
-            }}
+            {4}
         }}";
+
+        private const string ExtensionsTemplate = @"
+        {2} unsafe static partial class {0}Extensions
+        {{
+            public static ref {1} GetPinnableReference(this ref {0} @this) => ref Unsafe.As<nuint, {1}>(ref Unsafe.AsRef(in @this.Vtbl));
+        }}
+";
+
 
         private int GetComMethodVtableIndex(Compilation comp, IMethodSymbol symbol)
             => symbol.GetAttributes()

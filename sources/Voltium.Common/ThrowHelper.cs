@@ -193,6 +193,12 @@ namespace Voltium.Common
         public static void ThrowInsufficientMemoryException(string? message = null, Exception? inner = null) =>
             throw new InsufficientMemoryException(message, inner);
 
+
+        [DebuggerHidden]
+        [DoesNotReturn]
+        public static void ThrowWin32Exception(string? message = null) =>
+            throw new Win32Exception(Marshal.GetLastWin32Error(), message);
+
         [DebuggerHidden]
         [DoesNotReturn]
         public static void ThrowWin32Exception(string? message = null, Exception? inner = null) =>
