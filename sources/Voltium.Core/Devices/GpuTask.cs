@@ -74,7 +74,7 @@ namespace Voltium.Core.Memory
             /// This property should not be used except by compilers
             /// </summary>
             [EditorBrowsable(EditorBrowsableState.Never)]
-            public bool IsCompleted => /* null fence = completed */ !_fence.Exists || _finished || _fence.Exists && (_finished = _fence.Get()->GetCompletedValue() >= _reached);
+            public bool IsCompleted => /* null fence = completed */ !_fence.Exists || _finished || (_finished = _fence.Get()->GetCompletedValue() >= _reached);
 
             private struct CallbackData
             {
