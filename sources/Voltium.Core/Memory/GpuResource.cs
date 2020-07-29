@@ -33,12 +33,6 @@ namespace Voltium.Core.Memory
             Flags = desc.Desc.Flags;
             Block = block;
             _allocator = allocator;
-
-            if (desc.Desc.Dimension == D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_BUFFER
-                && !desc.Desc.Flags.HasFlag(D3D12_RESOURCE_FLAGS.D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE))
-            {
-                GpuAddress = GetResourcePointer()->GetGPUVirtualAddress();
-            }
         }
 
         private GpuResource() { }
@@ -73,8 +67,6 @@ namespace Voltium.Core.Memory
         private ComPtr<ID3D12Resource> _value;
         public D3D12_RESOURCE_FLAGS Flags;
 
-        // Null if texture
-        public ulong GpuAddress;
         // Null if the resource is unmapped or not CPU accessible (default heap)
         public unsafe void* CpuAddress;
 
@@ -130,6 +122,7 @@ namespace Voltium.Core.Memory
         /// </summary>
         ~GpuResource()
         {
+            var name = DebugHelpers.GetName(this);
             Guard.MarkDisposableFinalizerEntered();
         }
 #endif

@@ -85,7 +85,9 @@ namespace Voltium.Common
             => str is object
                 ? ArbitraryHash.HashBytes(
                     ref Unsafe.As<char, byte>(
-                        ref Unsafe.AsRef(in str.GetPinnableReference())), (nuint)(str.Length * sizeof(char)))
+                        ref Unsafe.Add(
+                            ref Unsafe.AsRef(in str.GetPinnableReference()), -(sizeof(int) / sizeof(char)))),
+                            (nuint)(str.Length * sizeof(char)))
                 : 0;
 
         public static unsafe MemoryHandle MarshalToUnmanagedAscii(string str)
@@ -93,7 +95,7 @@ namespace Voltium.Common
             var arr = RentedArray<byte>.Create(Encoding.ASCII.GetMaxByteCount(str.Length) + 1, PinnedArrayPool<byte>.Default);
 
             int len = Encoding.ASCII.GetBytes(str, arr.Value);
-            arr.Value[^1] = 0; // null char
+            arr.Value[len - 1] = 0; // null char
 
             return arr.CreatePinnable(underlyingArrayIsPrePinned: true).Pin();
         }

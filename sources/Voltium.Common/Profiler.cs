@@ -123,7 +123,7 @@ namespace Voltium.Common
             {
                 Unsafe.SkipInit(out BlockData data);
 
-                flags &= OverrideFlags;
+                flags |= OverrideFlags;
 
                 data.Name = name;
                 data.Flags = flags;
@@ -154,8 +154,9 @@ namespace Voltium.Common
             /// </summary>
             public void Dispose()
             {
+                var endTick = Stopwatch.GetTimestamp();
                 ref BlockData data = ref ListExtensions.GetRef(_localBlocks!, _id);
-                data.EndTick = Stopwatch.GetTimestamp();
+                data.EndTick = endTick;
 
                 if (data.Flags.HasFlag(ProfilerBlockFlags.CaptureGCMemoryInfo))
                 {

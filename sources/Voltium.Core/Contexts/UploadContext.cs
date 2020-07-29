@@ -20,6 +20,7 @@ namespace Voltium.Core.Contexts
     {
         private GpuContext _context;
         private List<Buffer> _listBuffers;
+        private DynamicAllocator _transientAllocator;
         private int _numBuffers;
         private const int MaxNumNonListBuffers = 8;
 
@@ -28,6 +29,7 @@ namespace Voltium.Core.Contexts
             _context = context;
             _listBuffers = new();
             _numBuffers = 0;
+            _transientAllocator = new DynamicAllocator(_context.Device);
         }
 
         //private struct BufferBuffer
@@ -45,6 +47,22 @@ namespace Voltium.Core.Contexts
         //    public ref Buffer GetPinnableReference() => ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref Buffer0, 0));
         //    public ref Buffer this[int index] => ref Unsafe.Add(ref GetPinnableReference(), index);
         //}
+
+
+
+#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
+        public void CopyBufferRegion(in BufferRegion source, in BufferRegion dest)
+            => CopyBufferRegion(source.Buffer, source.Offset, dest.Buffer, dest.Offset, source.Length);
+
+        public void CopyBufferRegion(in Buffer source, in BufferRegion dest)
+            => CopyBufferRegion(source, 0, dest.Buffer, dest.Offset, source.Length);
+
+        public void CopyBufferRegion(in BufferRegion source, in Buffer dest)
+            => CopyBufferRegion(source.Buffer, source.Offset, dest, 0, source.Length);
+
+        public void CopyBufferRegion(in Buffer source, uint sourceOffset, in Buffer dest, uint destOffset, uint numBytes)
+            => _context.List->CopyBufferRegion(dest.GetResourcePointer(), destOffset, source.GetResourcePointer(), sourceOffset, numBytes);
+#pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
 
         /// <summary>
         /// Copy an entire resource
@@ -129,11 +147,10 @@ namespace Voltium.Core.Contexts
         /// <param name="destination"></param>
         public void UploadBufferToPreexisting<T>(ReadOnlySpan<T> buffer, in Buffer destination) where T : unmanaged
         {
-            var upload = _context.Device.Allocator.AllocateBuffer(buffer.Length * sizeof(T), MemoryAccess.CpuUpload, ResourceState.GenericRead);
+            var upload = _transientAllocator.AllocateBuffer(buffer.Length * sizeof(T));
             upload.WriteData(buffer);
 
-            CopyResource(upload, destination);
-            RetireBuffer(upload);
+            CopyBufferRegion(upload, destination);
         }
 
         /// <summary>
@@ -144,10 +161,8 @@ namespace Voltium.Core.Contexts
         /// <param name="destination"></param>
         public void UploadTextureToPreexisting(ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, in Texture destination)
         {
-            var upload = _context.Device.Allocator.AllocateBuffer(
-                (long)Windows.GetRequiredIntermediateSize(destination.GetResourcePointer(), 0, (uint)subresources.Length),
-                MemoryAccess.CpuUpload,
-                ResourceState.GenericRead
+            var upload = _transientAllocator.AllocateBuffer(
+                checked((uint)Windows.GetRequiredIntermediateSize(destination.GetResourcePointer(), 0, (uint)subresources.Length))
             );
 
             fixed (byte* pTextureData = texture)
@@ -164,15 +179,13 @@ namespace Voltium.Core.Contexts
                 _ = Windows.UpdateSubresources(
                     _context.List,
                     destination.GetResourcePointer(),
-                    upload.GetResourcePointer(),
-                    0,
+                    upload.Buffer.GetResourcePointer(),
+                    upload.Offset,
                     0,
                     (uint)subresources.Length,
                     (D3D12_SUBRESOURCE_DATA*)pSubresources
                 );
             }
-
-            RetireBuffer(upload);
         }
 
 
@@ -190,8 +203,9 @@ namespace Voltium.Core.Contexts
             _context._executeOnClose = false;
             _context.Dispose();
             var task = _context.Device.Execute(ref _context);
+            _transientAllocator.Dispose(task);
 
-            if (_listBuffers is not null)
+            if (_listBuffers?.Count > 0)
             {
                 task.RegisterCallback(_listBuffers, &ReleaseBuffers);
             }

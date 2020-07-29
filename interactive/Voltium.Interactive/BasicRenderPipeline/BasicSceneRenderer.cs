@@ -118,12 +118,15 @@ namespace Voltium.Interactive.BasicRenderPipeline
             _objectConstants = new ObjectConstants[_texturedObjects.Length];
 
             _obj = _device.Allocator.AllocateBuffer(MathHelpers.AlignUp(sizeof(ObjectConstants), 256) * _texturedObjects.Length, MemoryAccess.CpuUpload);
+            _obj.Map();
             _obj.SetName("ObjectConstants buffer");
 
             _frame = _device.Allocator.AllocateBuffer(sizeof(FrameConstants), MemoryAccess.CpuUpload);
+            _frame.Map();
             _frame.SetName("FrameConstants buffer");
 
             _light = _device.Allocator.AllocateBuffer(sizeof(LightConstants), MemoryAccess.CpuUpload);
+            _light.Map();
             _light.SetName("LightConstants buffer");
 
             CreatePipelines();
@@ -241,8 +244,6 @@ namespace Voltium.Interactive.BasicRenderPipeline
             _frame.WriteConstantBufferData(ref _frameConstants, 0);
             _light.WriteConstantBufferData(ref _sceneLight, 0);
         }
-
-
 
         public override void Register(ref RenderPassBuilder builder, ref Resolver resolver)
         {

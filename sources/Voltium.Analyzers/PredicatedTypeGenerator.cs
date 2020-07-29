@@ -79,7 +79,7 @@ namespace Voltium.Analyzers
                     continue;
                 }
 
-                Generate(context, symbol);
+                Generate(context, symbol, node);
                 visited.Add(symbol);
             }
         }
@@ -88,7 +88,7 @@ namespace Voltium.Analyzers
 
         protected abstract bool Predicate(SourceGeneratorContext context, ISymbol decl);
 
-        protected abstract void Generate(SourceGeneratorContext context, ISymbol symbol);
+        protected abstract void Generate(SourceGeneratorContext context, ISymbol symbol, T syntax);
 
         public void Initialize(InitializationContext context)
             => context.RegisterForSyntaxNotifications(() => new SyntaxTypeReceiver<T>());

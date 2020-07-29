@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Common.Debugging;
@@ -15,13 +16,40 @@ namespace Voltium.Core.Memory
     public unsafe struct BufferRegion
     {
         internal Buffer Buffer;
-        internal ulong Offset;
-        internal int Length;
+        internal uint Offset;
+        internal uint Length;
+
+        /// <summary>
+        /// Writes the <typeparamref name="T"/> to the buffer
+        /// </summary>
+        /// <typeparam name="T">The type to write</typeparam>
+        public void WriteData<T>(ref T data, uint offset) where T : unmanaged
+            => Buffer.WriteData(ref data, Offset + offset);
+
+        /// <summary>
+        /// Writes the <typeparamref name="T"/> to the buffer
+        /// </summary>
+        /// <typeparam name="T">The type to write</typeparam>
+        public void WriteConstantBufferData<T>(ref T data, uint offset) where T : unmanaged
+            => Buffer.WriteConstantBufferData(ref data, Offset + offset);
+
+        /// <summary>
+        /// Writes the <typeparamref name="T"/> to the buffer
+        /// </summary>
+        /// <typeparam name="T">The type to write</typeparam>
+        public void WriteDataByteOffset<T>(ref T data, uint offset) where T : unmanaged
+            => Buffer.WriteDataByteOffset(ref data, Offset + offset);
+        /// <summary>
+        /// Writes the <typeparamref name="T"/> to the buffer
+        /// </summary>
+        /// <typeparam name="T">The type to write</typeparam>
+        public void WriteData<T>(ReadOnlySpan<T> data, uint offset = 0) where T : unmanaged
+            => Buffer.WriteData(data, Offset + offset);
 
         /// <summary>
         /// The <see cref="Span{T}"/> encompassing the data of this <see cref="BufferRegion"/>
         /// </summary>
-        public Span<byte> Data => new Span<byte>((byte*)Buffer.CpuAddress + Offset, Length);
+        public Span<byte> Data => new Span<byte>((byte*)Buffer.CpuAddress + Offset, (int)Length);
 
         internal ulong GpuAddress => Buffer.GpuAddress + Offset;
     }
@@ -30,16 +58,15 @@ namespace Voltium.Core.Memory
     /// An allocator used for short-lived per-frame GPU upload buffer allocations.
     /// This does not support textures, resource aliasing, or multi-frame resources
     /// </summary>
-    public unsafe class DynamicAllocator
+    public unsafe struct DynamicAllocator
     {
         private const nuint ConstantBufferAlignment = 256;
 
-        private ComputeDevice _device;
         private Buffer _page;
         private nuint _offset;
         private PageManager _manager;
-        private List<Buffer> _usedPages = new();
-        private List<Buffer> _usedLargePages = new();
+        private List<Buffer> _usedPages;
+        private List<Buffer> _usedLargePages;
 
         /// <summary>
         /// Create a new <see cref="DynamicAllocator"/>
@@ -47,18 +74,21 @@ namespace Voltium.Core.Memory
         /// <param name="device">The underlying <see cref="GraphicsDevice"/> to allocate from</param>
         public DynamicAllocator(ComputeDevice device)
         {
-            _device = device;
             if (!_pageManagers.TryGetValue(device, out var manager))
             {
                 lock (_pageManagers)
                 {
                     manager = new PageManager(device);
+                    _ = GCHandle.Alloc(manager);
                     _pageManagers[device] = manager;
                 }
             }
 
             _manager = manager;
             _page = _manager.GetPage();
+            _offset = 0;
+            _usedPages = new();
+            _usedLargePages = new();
         }
 
         /// <summary>
@@ -67,8 +97,8 @@ namespace Voltium.Core.Memory
         /// <param name="size">The size, in bytes, of the buffer</param>
         /// <param name="alignment">The alignment required by the buffer</param>
         /// <returns>A new <see cref="Buffer"/></returns>
-        public BufferRegion Allocate(int size, nuint alignment = ConstantBufferAlignment)
-            => Allocate((uint)size, alignment);
+        public BufferRegion AllocateBuffer(int size, nuint alignment = ConstantBufferAlignment)
+            => AllocateBuffer((uint)size, alignment);
 
 
         /// <summary>
@@ -77,7 +107,7 @@ namespace Voltium.Core.Memory
         /// <param name="size">The size, in bytes, of the buffer</param>
         /// <param name="alignment">The alignment required by the buffer</param>
         /// <returns>A new <see cref="Buffer"/></returns>
-        public BufferRegion Allocate(uint size, nuint alignment = ConstantBufferAlignment)
+        public BufferRegion AllocateBuffer(uint size, nuint alignment = ConstantBufferAlignment)
         {
             if (size > int.MaxValue)
             {
@@ -90,6 +120,7 @@ namespace Voltium.Core.Memory
             if (size > _page.Length)
             {
                 page = _manager.CreateLargePage(size);
+                _usedLargePages.Add(page);
                 offset = 0;
             }
             else
@@ -105,7 +136,7 @@ namespace Voltium.Core.Memory
                 _offset += size + (offset - _offset);
             }
 
-            return new BufferRegion { Buffer = page, Offset = offset, Length = (int)size };
+            return new BufferRegion { Buffer = page, Offset = (uint)offset, Length = size };
         }
 
         /// <summary>
@@ -114,6 +145,7 @@ namespace Voltium.Core.Memory
         /// <param name="task">The <see cref="GpuTask"/> to indicate when this intsance can dispose its memory</param>
         public void Dispose(in GpuTask task)
         {
+            _usedPages.Add(_page);
             _manager.AddUsedPages(_usedPages.AsSpan(), task);
             task.RegisterCallback(_usedLargePages, &ReleaseLargePages);
         }
@@ -134,7 +166,8 @@ namespace Voltium.Core.Memory
         }
 
         private static readonly Dictionary<ComputeDevice, PageManager> _pageManagers = new();
-        private class PageManager
+
+        private sealed class PageManager
         {
             private ComputeDevice _device;
 
@@ -158,7 +191,6 @@ namespace Voltium.Core.Memory
             }
 
             public Buffer CreateLargePage(nuint size) => CreatePage(size);
-
 
             private Buffer CreatePage(nuint size)
             {

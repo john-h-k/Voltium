@@ -90,7 +90,8 @@ namespace Voltium.Core.Memory
 
             Length = (uint)length;
             _cpuAddress = null;
-            _gpuAddress = resource.GpuAddress;
+
+            _gpuAddress = _resource.GetResourcePointer()->GetGPUVirtualAddress();
         }
 
         private void ThrowIfDead()
@@ -146,16 +147,9 @@ namespace Voltium.Core.Memory
         /// Writes the <typeparamref name="T"/> to the buffer
         /// </summary>
         /// <typeparam name="T">The type to write</typeparam>
-        public void WriteData<T>(ref T data, uint offset, bool leaveMapped = false) where T : unmanaged
+        public void WriteData<T>(ref T data, uint offset = 0, bool leaveMapped = false) where T : unmanaged
         {
-            Map();
-
             ((T*)_cpuAddress)[offset] = data;
-
-            if (!leaveMapped)
-            {
-                Unmap();
-            }
         }
 
         /// <summary>
@@ -164,16 +158,9 @@ namespace Voltium.Core.Memory
         /// <typeparam name="T">The type to write</typeparam>
         public void WriteConstantBufferData<T>(ref T data, uint offset, bool leaveMapped = false) where T : unmanaged
         {
-            Map();
-
             var alignedSize = (sizeof(T) + 255) & ~255;
 
             *(T*)((byte*)_cpuAddress + (alignedSize * offset)) = data;
-
-            if (!leaveMapped)
-            {
-                Unmap();
-            }
         }
 
         /// <summary>
@@ -182,30 +169,16 @@ namespace Voltium.Core.Memory
         /// <typeparam name="T">The type to write</typeparam>
         public void WriteDataByteOffset<T>(ref T data, uint offset, bool leaveMapped = false) where T : unmanaged
         {
-            Map();
-
             *(T*)((byte*)_cpuAddress + offset) = data;
-
-            if (!leaveMapped)
-            {
-                Unmap();
-            }
         }
 
         /// <summary>
         /// Writes the <typeparamref name="T"/> to the buffer
         /// </summary>
         /// <typeparam name="T">The type to write</typeparam>
-        public void WriteData<T>(ReadOnlySpan<T> data, bool leaveMapped = false) where T : unmanaged
+        public void WriteData<T>(ReadOnlySpan<T> data, uint offset = 0, bool leaveMapped = false) where T : unmanaged
         {
-            Map();
-
-            data.CopyTo(new Span<T>(_cpuAddress, (int)Length));
-
-            if (!leaveMapped)
-            {
-                Unmap();
-            }
+            data.CopyTo(new Span<T>((byte*)_cpuAddress + offset, (int)Length));
         }
 
         /// <inheritdoc/>
