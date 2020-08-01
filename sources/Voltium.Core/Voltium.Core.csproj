@@ -2,8 +2,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-      <TargetFramework>netcoreapp5.0</TargetFramework>
+      <TargetFramework>net5.0</TargetFramework>
       <LangVersion>preview</LangVersion>
+      <!--<OutputType>Exe</OutputType>-->
       <PackageLicenseExpression>AGPLV3</PackageLicenseExpression>
   </PropertyGroup>
 

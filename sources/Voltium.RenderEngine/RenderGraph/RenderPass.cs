@@ -41,7 +41,7 @@ namespace Voltium.RenderEngine
         /// </summary>
         /// <param name="context">The <see cref="ComputeContext"/> the pass records to</param>
         /// <param name="resolver">The <see cref="Resolver"/> the pass uses to resolve components and resources</param>
-        public abstract void Record(ref ComputeContext context, ref Resolver resolver);
+        public abstract void Record(ComputeContext context, ref Resolver resolver);
 
         /// <summary>
         /// The <see cref="ComputePipelineStateObject"/> that this pass expects at the start of
@@ -66,7 +66,7 @@ namespace Voltium.RenderEngine
         /// </summary>
         /// <param name="context">The <see cref="GraphicsContext"/> the pass records to</param>
         /// <param name="resolver">The <see cref="Resolver"/> the pass uses to resolve components and resources</param>
-        public abstract void Record(ref GraphicsContext context, ref Resolver resolver);
+        public abstract void Record(GraphicsContext context, ref Resolver resolver);
 
         /// <summary>
         /// The <see cref="PipelineStateObject"/> that this pass expects at the start of

@@ -9,7 +9,7 @@ namespace Voltium.Interactive
 {
     internal class Win32HelloWorldApp<TRenderer> : Application where TRenderer : Renderer, new()
     {
-        public override string Title => "Hello DirectX!";
+        public override string Name => "Hello DirectX!";
         private Renderer _renderer = new TRenderer();
 
         private GraphicsDevice _device = null!;
@@ -59,7 +59,7 @@ namespace Voltium.Interactive
             }
             using (var recorder = _device.BeginGraphicsContext(_renderer.GetInitialPso()))
             {
-                _renderer.Render(ref recorder.AsMutable(), out var render);
+                _renderer.Render(recorder, out var render);
                 if (render.Msaa.IsMultiSampled)
                 {
                     recorder.ResolveSubresource(render, _output.OutputBuffer);

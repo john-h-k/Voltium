@@ -6,17 +6,18 @@ using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
 using Voltium.Core;
 using Voltium.Core.Devices;
+using Voltium.RenderEngine;
 
 namespace Voltium.CubeGame
 {
     internal unsafe class Program
     {
-        private static int Main() => Win32Application.Run(new CubeApp());
+        private static int Main() => ApplicationRunner.RunWin32(new CubeApp());
     }
 
     internal sealed class CubeApp : Application
     {
-        public override string Title => nameof(CubeApp);
+        public override string Name => nameof(CubeApp);
 
 
         private WorldRenderer _renderer = null!;

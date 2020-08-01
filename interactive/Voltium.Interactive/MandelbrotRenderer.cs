@@ -63,7 +63,7 @@ namespace Voltium.Interactive
                 RootParameter.CreateConstants((uint)sizeof(MandelbrotConstants) / sizeof(uint), 0, 0, ShaderVisibility.Pixel),
             };
 
-            var rootSig = RootSignature.Create(device, @params, null);
+            var rootSig = _device.CreateRootSignature(@params, null);
             _device.PipelineManager.Reset();
 
             var flags = new ShaderCompileFlag[]
@@ -131,7 +131,7 @@ namespace Voltium.Interactive
         public override PipelineStateObject? GetInitialPso()
             => _pso;
 
-        public override void Render(ref GraphicsContext recorder, out Texture render)
+        public override void Render(GraphicsContext recorder, out Texture render)
         {
             recorder.ResourceTransition(_renderTarget, ResourceState.RenderTarget);
 

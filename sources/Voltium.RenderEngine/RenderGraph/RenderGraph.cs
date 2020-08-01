@@ -380,7 +380,7 @@ namespace Voltium.RenderEngine
                 using (var barrierCtx = _device.BeginGraphicsContext())
                 {
                     barrierCtx.ResourceBarrier(barriers);
-                    _contexts.Add(barrierCtx.AsMutable().AsGpuContext());
+                    _contexts.Add(barrierCtx);
                 }
 
                 var numContexts = _contexts.Count + layer.Passes.Count;
@@ -396,15 +396,15 @@ namespace Voltium.RenderEngine
                     {
                         using var ctx = _device.BeginComputeContext(compute.DefaultPipelineState);
 
-                        compute.Record(ref ctx.AsMutable(), ref _frame.Resolver);
-                        _contexts.Add(ctx.AsMutable().AsGpuContext());
+                        compute.Record(ctx, ref _frame.Resolver);
+                        _contexts.Add(ctx);
                     }
                     else /* must be true */ if (pass is GraphicsRenderPass graphics)
                     {
                         using var ctx = _device.BeginGraphicsContext(graphics.DefaultPipelineState);
 
-                        graphics.Record(ref ctx.AsMutable(), ref _frame.Resolver);
-                        _contexts.Add(ctx.AsMutable().AsGpuContext());
+                        graphics.Record(ctx, ref _frame.Resolver);
+                        _contexts.Add(ctx);
                     }
                     else
                     {

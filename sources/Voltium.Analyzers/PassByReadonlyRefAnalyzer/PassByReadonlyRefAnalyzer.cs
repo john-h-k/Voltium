@@ -79,13 +79,15 @@ namespace Voltium.Analyzers
                     throw new Exception("null param symbol. not sure what to do here to be honest. :(");
                 }
 
-                if (CanModifyMethod(semantics.GetDeclaredSymbol(context.Node)!) && resolver.AdvantageousToPassByRef(symbol))
+                var advantageousToPassByRef = resolver.AdvantageousToPassByRef(symbol);
+                var contextSymbol = semantics.GetDeclaredSymbol(context.Node)!;
+                if (CanModifyMethod(contextSymbol) && advantageousToPassByRef)
                 {
                     context.ReportDiagnostic(Diagnostic.Create(Rule, param.GetLocation()));
                 }
             }
 
-            static bool CanModifyMethod(ISymbol invocation) => invocation is IMethodSymbol method && method.Parameters.All(p => !p.HasExplicitDefaultValue) && !method.IsImplementationOfInterfaceMethod() && !method.IsOverride;
+            static bool CanModifyMethod(ISymbol invocation) => invocation is IMethodSymbol method && !method.IsImplementationOfInterfaceMethod() && !method.IsOverride;
         }
     }
 

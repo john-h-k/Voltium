@@ -119,6 +119,18 @@ namespace Voltium.Core.Pipeline
             }
 
             /// <summary>
+            /// Implicit conversion
+            /// </summary>
+            public static implicit operator FormatBuffer8(BackBufferFormat format)
+                => (DataFormat)format;
+
+            /// <summary>
+            /// Implicit conversion
+            /// </summary>
+            public static implicit operator FormatBuffer8(DataFormat format)
+                => new FormatBuffer8(format);
+
+            /// <summary>
             /// Creates a new <see cref="FormatBuffer8"/>
             /// </summary>
             // convenience overload

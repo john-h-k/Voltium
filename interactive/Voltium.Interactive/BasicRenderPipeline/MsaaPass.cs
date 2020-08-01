@@ -37,7 +37,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
             resolver.SetComponent(resources);
         }
 
-        public override void Record(ref GraphicsContext context, ref Resolver resolver)
+        public override void Record(GraphicsContext context, ref Resolver resolver)
         {
             using var _ = context.BeginEvent(Argb32.Red, "Msaa");
 

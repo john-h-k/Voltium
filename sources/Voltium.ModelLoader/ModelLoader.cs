@@ -105,17 +105,18 @@ namespace Voltium.ModelLoading
         public Material Material;
         public Matrix4x4 World;
 
-        public Mesh(TVertex[] vertices, uint[] indices, Material material = default, Matrix4x4 world = default)
+        public Mesh(TVertex[] vertices, uint[] indices, in Material material = default, in Matrix4x4 world = default)
         {
-            if (world == default)
-            {
-                world = Matrix4x4.Identity;
-            }
-
             Vertices = vertices;
             Indices = indices;
             Material = material;
             World = world;
+
+
+            if (World == default)
+            {
+                World = Matrix4x4.Identity;
+            }
         }
     }
 

@@ -139,14 +139,14 @@ namespace Voltium.Core.Devices
         /// <returns>A new <see cref="GraphicsContext"/></returns>
         public GraphicsContext BeginGraphicsContext(PipelineStateObject? pso = null, bool executeOnClose = false)
         {
-            var context = ContextPool.Rent(ExecutionContext.Graphics, pso, executeOnClose: executeOnClose);
+            var @params = ContextPool.Rent(ExecutionContext.Graphics, pso, executeOnClose: executeOnClose);
 
-            SetDefaultState(ref context, pso);
-
-            return new GraphicsContext(context);
+            var context = new GraphicsContext(@params);
+            SetDefaultState(context, pso);
+            return context;
         }
 
-        private void SetDefaultState(ref GpuContext context, PipelineStateObject? pso)
+        private void SetDefaultState(GpuContext context, PipelineStateObject? pso)
         {
             var rootSig = pso is null ? null : pso.GetRootSig();
             if (pso is ComputePipelineStateObject)

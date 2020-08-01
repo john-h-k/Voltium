@@ -24,7 +24,9 @@ namespace Voltium.Analyzers
         private const string ShaderIgnoreAttributeName = Namespace + "ShaderIgnoreAttribute";
 
         protected override bool Predicate(SourceGeneratorContext context, INamedTypeSymbol decl)
-            => decl.HasAttribute(ShaderInputAttributeName, context.Compilation);
+        {
+            return decl.HasAttribute(ShaderInputAttributeName, context.Compilation);
+        }
 
         protected override void GenerateFromSymbol(SourceGeneratorContext context, INamedTypeSymbol typeSymbol)
         {

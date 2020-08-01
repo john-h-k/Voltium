@@ -195,7 +195,7 @@ namespace Voltium.Interactive
         /// <summary>
         /// Load a OBJ file
         /// </summary>
-        private static Mesh<Vertex> LoadSingleModel(string filename, Material material = default)
+        private static Mesh<Vertex> LoadSingleModel(string filename, in Material material = default)
         {
             var model = _loader.Value!.Load(File.OpenRead(AssetsFolder + filename));
 

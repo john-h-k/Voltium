@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -12,7 +13,7 @@ namespace Voltium.Core
     /// <summary>
     /// Used for creation and execution of Win32 backed applications
     /// </summary>
-    public unsafe static class Win32Application
+    internal unsafe static class Win32ApplicationRunner
     {
         private static readonly delegate* stdcall<IntPtr, uint, nuint, nint, nint> WindowProcHandle =
             (delegate* stdcall<IntPtr, uint, nuint, nint, nint>)(delegate*<IntPtr, uint, nuint, nint, nint>)&WindowProc;
@@ -23,20 +24,13 @@ namespace Voltium.Core
 
         private static Size _screenData;
 
-        /// <summary>
-        /// Run a <see cref="Application"/> on Win32
-        /// </summary>
-        /// <param name="application">The <see cref="Application"/> to run</param>
-        /// <param name="width">The width, in pixels, of the screen</param>
-        /// <param name="height">The height, in pixels, of the screen</param>
-        /// <returns>The exit code of the app</returns>
-        public static int Run(Application application, uint width = 700, uint height = 700)
+        public static int Run(Application application, uint width, uint height)
         {
             var hInstance = GetModuleHandleW(null);
             _application = application;
 
-            fixed (char* name = "Voltium.Interactive")
-            fixed (char* windowsTitle = application.Title)
+            fixed (char* name = application.Name)
+            fixed (char* windowsTitle = application.WindowTitle)
             {
                 // Initialize the window class.
                 var windowClass = new WNDCLASSEXW
@@ -109,8 +103,20 @@ namespace Voltium.Core
             return (int)msg.wParam;
         }
 
+        private static double _lastUpdatedTitle = -1;
         private static void RunApp()
         {
+            // Update window title approx every second
+            if (_timer.TotalSeconds - _lastUpdatedTitle >= 1)
+            {
+                _lastUpdatedTitle = _timer.TotalSeconds;
+                fixed (char* pTitle = _application.WindowTitle)
+                {
+                    int result = SetWindowTextW(Hwnd, (ushort*)pTitle);
+                    Debug.Assert(result != 0 /* nonzero is success */);
+                }
+            }
+
             _timer.Tick(_application, (timer, app) =>
             {
                 app.Update(timer);

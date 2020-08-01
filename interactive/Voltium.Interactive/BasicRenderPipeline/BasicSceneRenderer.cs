@@ -133,7 +133,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
             InitializeConstants();
         }
 
-        [MemberNotNull(nameof(_tex), nameof(_texMsaa8x))]
+        //[MemberNotNull(nameof(_tex), nameof(_texMsaa8x))]
         public void CreatePipelines()
         {
             var rootParams = new[]
@@ -156,7 +156,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
                 )
             };
 
-            _rootSig = RootSignature.Create(_device, rootParams, samplers);
+            _rootSig = _device.CreateRootSignature(rootParams, samplers);
 
             var compilationFlags = new[]
             {
@@ -186,8 +186,8 @@ namespace Voltium.Interactive.BasicRenderPipeline
             _texMsaa8x = _device.PipelineManager.CreatePipelineStateObject<TexturedVertex>("Texture_MSAA8X", psoDesc);
         }
 
-        private GraphicsPipelineStateObject _tex;
-        private GraphicsPipelineStateObject _texMsaa8x;
+        private GraphicsPipelineStateObject _tex = null!;
+        private GraphicsPipelineStateObject _texMsaa8x = null!;
 
         public void InitializeConstants()
         {
@@ -270,7 +270,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
             _frameConstants.Projection = Matrix4x4.CreatePerspectiveFieldOfView(fovAngleY, settings.AspectRatio, 0.001f, 100f);
         }
 
-        public override void Record(ref GraphicsContext recorder, ref Resolver resolver)
+        public override void Record(GraphicsContext recorder, ref Resolver resolver)
         {
             WriteConstantBuffers();
 

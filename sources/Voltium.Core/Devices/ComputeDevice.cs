@@ -127,6 +127,38 @@ namespace Voltium.Core.Devices
             "Check CanMakeResidentAsync to determine if you can call MakeResidentAsync without it failing";
 
         /// <summary>
+        /// An empty <see cref="RootSignature"/>
+        /// </summary>
+        public RootSignature EmptyRootSignature { get; }
+
+        /// <summary>
+        /// Creates a new <see cref="RootSignature"/>
+        /// </summary>
+        /// <param name="rootParameter">The <see cref="RootParameter"/> in the signature</param>
+        /// <param name="staticSampler">The <see cref="StaticSampler"/> in the signature</param>
+        /// <returns>A new <see cref="RootSignature"/></returns>
+        public RootSignature CreateRootSignature(in RootParameter rootParameter, in StaticSampler staticSampler)
+            => CreateRootSignature(new[] { rootParameter }, new[] { staticSampler });
+
+        /// <summary>
+        /// Creates a new <see cref="RootSignature"/>
+        /// </summary>
+        /// <param name="rootParameters">The <see cref="RootParameter"/>s in the signature</param>
+        /// <param name="staticSampler">The <see cref="StaticSampler"/> in the signature</param>
+        /// <returns>A new <see cref="RootSignature"/></returns>
+        public RootSignature CreateRootSignature(ReadOnlyMemory<RootParameter> rootParameters, in StaticSampler staticSampler)
+            => CreateRootSignature(rootParameters, new[] { staticSampler });
+
+        /// <summary>
+        /// Creates a new <see cref="RootSignature"/>
+        /// </summary>
+        /// <param name="rootParameters">The <see cref="RootParameter"/>s in the signature</param>
+        /// <param name="staticSamplers">The <see cref="StaticSampler"/>s in the signature</param>
+        /// <returns>A new <see cref="RootSignature"/></returns>
+        public RootSignature CreateRootSignature(ReadOnlyMemory<RootParameter> rootParameters, ReadOnlyMemory<StaticSampler> staticSamplers = default)
+            => RootSignature.Create(this, rootParameters, staticSamplers);
+
+        /// <summary>
         /// Asynchronously makes <paramref name="evicted"/> resident on the device
         /// </summary>
         /// <typeparam name="T">The type of the evicted resource</typeparam>
@@ -371,6 +403,7 @@ namespace Voltium.Core.Devices
             ContextPool = new ContextPool(this);
             CopyQueue = new SynchronizedCommandQueue(this, ExecutionContext.Copy);
             ComputeQueue = new SynchronizedCommandQueue(this, ExecutionContext.Compute);
+            EmptyRootSignature = RootSignature.Create(this, ReadOnlyMemory<RootParameter>.Empty, ReadOnlyMemory<StaticSampler>.Empty);
         }
         internal unsafe ComPtr<ID3D12Fence> CreateFence()
         {
@@ -532,7 +565,7 @@ namespace Voltium.Core.Devices
         /// <returns>A new <see cref="UploadContext"/></returns>
         public UploadContext BeginUploadContext()
         {
-            var context = ContextPool.Rent(ExecutionContext.Graphics, null, false);
+            var context = ContextPool.Rent(ExecutionContext.Copy, null, false);
 
             return new UploadContext(context);
         }
@@ -542,18 +575,18 @@ namespace Voltium.Core.Devices
         /// </summary>
         public ComputeContext BeginComputeContext(ComputePipelineStateObject? pso = null, bool executeOnClose = false)
         {
-            var context = ContextPool.Rent(ExecutionContext.Compute, pso, executeOnClose: executeOnClose);
+            var @params = ContextPool.Rent(ExecutionContext.Compute, pso, executeOnClose: executeOnClose);
 
-            SetDefaultState(ref context, pso);
-
-            return new ComputeContext(context);
+            var context = new ComputeContext(@params);
+            SetDefaultState(context, pso);
+            return context;  
         }
 
         /// <summary>
         /// Submit a set of recorded commands to the list
         /// </summary>
         /// <param name="context">The commands to submit for execution</param>
-        public GpuTask Execute(ref GpuContext context)
+        public GpuTask Execute(GpuContext context)
         {
             ID3D12GraphicsCommandList* list = context.List;
 
@@ -565,7 +598,7 @@ namespace Voltium.Core.Devices
 
             var finish = queue.ExecuteCommandLists(1, (ID3D12CommandList**)&list);
 
-            ContextPool.Return(context, finish);
+            ContextPool.Return(context.Params, finish);
 
             return finish;
         }
@@ -612,14 +645,14 @@ namespace Voltium.Core.Devices
 
             for (var i = 0; i < contexts.Length; i++)
             {
-                ContextPool.Return(contexts[i], finish);
-                contexts[i]._list = default;
+                ContextPool.Return(contexts[i].Params, finish);
+                contexts[i].Params.List = default;
             }
 
             return finish;
         }
 
-        private unsafe void SetDefaultState(ref GpuContext context, ComputePipelineStateObject? pso)
+        private unsafe void SetDefaultState(GpuContext context, ComputePipelineStateObject? pso)
         {
             if (pso is not null)
             {
@@ -865,26 +898,26 @@ namespace Voltium.Core.Devices
 
         internal ComPtr<ID3D12Resource> CreateCommittedResource(InternalAllocDesc* desc)
         {
-            var heapProperties = GetHeapProperties(in *desc);
+            var heapProperties = GetHeapProperties(desc);
             var clearVal = desc->ClearValue.GetValueOrDefault();
 
             using ComPtr<ID3D12Resource> resource = default;
 
             Guard.ThrowIfFailed(DevicePointer->CreateCommittedResource(
-                 &heapProperties,
-                 D3D12_HEAP_FLAGS.D3D12_HEAP_FLAG_NONE,
-                 &desc->Desc,
-                 desc->InitialState,
-                 desc->ClearValue is null ? null : &clearVal,
-                 resource.Iid,
-                 ComPtr.GetVoidAddressOf(&resource)
+                    &heapProperties,
+                    D3D12_HEAP_FLAGS.D3D12_HEAP_FLAG_NONE,
+                    &desc->Desc,
+                    desc->InitialState,
+                    desc->ClearValue is null ? null : &clearVal,
+                    resource.Iid,
+                    ComPtr.GetVoidAddressOf(&resource)
             ));
 
             return resource.Move();
 
-            static D3D12_HEAP_PROPERTIES GetHeapProperties(in InternalAllocDesc desc)
+            static D3D12_HEAP_PROPERTIES GetHeapProperties(InternalAllocDesc* desc)
             {
-                return new D3D12_HEAP_PROPERTIES(desc.HeapType);
+                return new D3D12_HEAP_PROPERTIES(desc->HeapType);
             }
         }
 

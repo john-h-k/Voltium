@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -16,6 +17,33 @@ using SpinLock = Voltium.Common.Threading.SpinLockWrapped;
 
 namespace Voltium.Core.Pool
 {
+    internal struct ContextParams
+    {
+        public ComputeDevice Device;
+        public ComPtr<ID3D12GraphicsCommandList> List;
+        public ComPtr<ID3D12CommandAllocator> Allocator;
+        public PipelineStateObject? PipelineStateObject;
+        public ExecutionContext Context;
+        public bool ExecuteOnClose;
+
+        public ContextParams(
+            ComputeDevice device,
+            ComPtr<ID3D12GraphicsCommandList> list,
+            ComPtr<ID3D12CommandAllocator> allocator,
+            PipelineStateObject? pipelineStateObject,
+            ExecutionContext context,
+            bool executeOnClose
+        )
+        {
+            Device = device;
+            List = list;
+            Allocator = allocator;
+            PipelineStateObject = pipelineStateObject;
+            Context = context;
+            ExecuteOnClose = executeOnClose;
+        }
+    }
+
     internal unsafe sealed class ContextPool
     {
         private ComputeDevice _device;
@@ -44,7 +72,7 @@ namespace Voltium.Core.Pool
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        public GpuContext Rent(ExecutionContext context, PipelineStateObject? pso, bool executeOnClose)
+        public ContextParams Rent(ExecutionContext context, PipelineStateObject? pso, bool executeOnClose)
         {
             var allocators = GetAllocatorPoolsForContext(context);
             var lists = GetListPoolsForContext(context);
@@ -67,20 +95,20 @@ namespace Voltium.Core.Pool
                 list = CreateList(context, allocator.Allocator.Get(), pso is null ? null : pso.GetPso());
             }
 
-            return new GpuContext(_device, list, allocator.Allocator, context, executeOnClose);
+            return new ContextParams(_device, list, allocator.Allocator, pso, context, executeOnClose);
         }
 
         private static bool IsAllocatorFinished(ref CommandAllocator allocator) => allocator.Task.IsCompleted;
 
-        public void Return(in GpuContext gpuContext, in GpuTask contextFinish)
+        public void Return(in ContextParams gpuContext, in GpuTask contextFinish)
         {
-            var context = (ExecutionContext)gpuContext.List->GetType();
+            var context = gpuContext.Context;
 
             var allocators = GetAllocatorPoolsForContext(context);
             var lists = GetListPoolsForContext(context);
 
-            lists.Enqueue(gpuContext._list);
-            allocators.Enqueue(new CommandAllocator { Allocator = gpuContext._allocator, Task = contextFinish });
+            lists.Enqueue(gpuContext.List);
+            allocators.Enqueue(new CommandAllocator { Allocator = gpuContext.Allocator, Task = contextFinish });
         }
 
         private int _allocatorCount;

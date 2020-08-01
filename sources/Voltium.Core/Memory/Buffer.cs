@@ -6,68 +6,6 @@ using Voltium.Core.Memory;
 
 namespace Voltium.Core.Memory
 {
-
-    internal unsafe readonly struct ActionOrFnPtr
-    {
-        public readonly Action? Action;
-        public readonly delegate*<void> FnPtr;
-
-        public ActionOrFnPtr(Action? action)
-        {
-            Action = action;
-            FnPtr = null;
-        }
-
-        public ActionOrFnPtr(delegate*<void> fnPtr)
-        {
-            Action = null;
-            FnPtr = fnPtr;
-        }
-
-        public void Invoke()
-        {
-            if (Action is not null)
-            {
-                Action();
-            }
-            else
-            {
-                FnPtr();
-            }
-        }
-    }
-
-    internal unsafe readonly struct ActionOrFnPtr<T>
-    {
-        public readonly Action<T>? Action;
-        public readonly delegate*<T, void> FnPtr;
-
-        public ActionOrFnPtr(Action<T>? action)
-        {
-            Action = action;
-            FnPtr = null;
-        }
-
-        public ActionOrFnPtr(delegate*<T, void> fnPtr)
-        {
-            Action = null;
-            FnPtr = fnPtr;
-        }
-
-        public void Invoke(T t)
-        {
-            if (Action is not null)
-            {
-                Action(t);
-            }
-            else
-            {
-                FnPtr(t);
-            }
-        }
-    }
-
-
     /// <summary>
     /// Represents a single-dimension untyped buffer of GPU data
     /// </summary>
@@ -211,7 +149,11 @@ namespace Voltium.Core.Memory
 
         internal GpuResource Resource => _resource;
 
-        internal ID3D12Resource* GetResourcePointer() => _resource.GetResourcePointer();
+        /// <summary>
+        /// blah
+        /// </summary>
+        /// <returns></returns>
+        public ID3D12Resource* GetResourcePointer() => _resource.GetResourcePointer();
 
     }
 

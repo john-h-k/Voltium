@@ -15,11 +15,11 @@ namespace Voltium.Core
         /// <summary>
         /// Creates a new <see cref="RootSignature"/> from a <see cref="CompiledShader"/>
         /// </summary>
-        /// <param name="device">The <see cref="GraphicsDevice"/> used to create the root signature</param>
+        /// <param name="device">The <see cref="ComputeDevice"/> used to create the root signature</param>
         /// <param name="rootSignatureShader"></param>
         /// <param name="deserialize"></param>
         /// <returns>A new <see cref="RootSignature"/></returns>
-        public static RootSignature Create(GraphicsDevice device, CompiledShader rootSignatureShader, bool deserialize = false)
+        internal static RootSignature Create(ComputeDevice device, CompiledShader rootSignatureShader, bool deserialize = false)
         {
             fixed (byte* pSignature = rootSignatureShader)
             {
@@ -46,7 +46,7 @@ namespace Voltium.Core
         /// <param name="rootParameters">The <see cref="RootParameter"/>s in the signature</param>
         /// <param name="staticSampler">The <see cref="StaticSampler"/> in the signature</param>
         /// <returns>A new <see cref="RootSignature"/></returns>
-        public static RootSignature Create(GraphicsDevice device, ReadOnlyMemory<RootParameter> rootParameters, in StaticSampler staticSampler)
+        internal static RootSignature Create(ComputeDevice device, ReadOnlyMemory<RootParameter> rootParameters, in StaticSampler staticSampler)
             => Create(device, rootParameters, new[] { staticSampler });
 
         /// <summary>
@@ -56,7 +56,7 @@ namespace Voltium.Core
         /// <param name="rootParameters">The <see cref="RootParameter"/>s in the signature</param>
         /// <param name="staticSamplers">The <see cref="StaticSampler"/>s in the signature</param>
         /// <returns>A new <see cref="RootSignature"/></returns>
-        public static RootSignature Create(GraphicsDevice device, ReadOnlyMemory<RootParameter> rootParameters, ReadOnlyMemory<StaticSampler> staticSamplers)
+        internal static RootSignature Create(ComputeDevice device, ReadOnlyMemory<RootParameter> rootParameters, ReadOnlyMemory<StaticSampler> staticSamplers)
         {
             using var rootParams = RentedArray<D3D12_ROOT_PARAMETER>.Create(rootParameters.Length);
             using var samplers = RentedArray<D3D12_STATIC_SAMPLER_DESC>.Create(staticSamplers.Length);

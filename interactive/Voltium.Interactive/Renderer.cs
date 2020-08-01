@@ -11,7 +11,7 @@ namespace Voltium.Interactive
     {
         public abstract void Init(GraphicsDevice device, in Size screen);
 
-        public abstract void Render(ref GraphicsContext recorder, out Texture render);
+        public abstract void Render(GraphicsContext recorder, out Texture render);
 
         public abstract void Update(ApplicationTimer timer);
 

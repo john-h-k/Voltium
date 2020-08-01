@@ -7,6 +7,7 @@ using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Contexts;
 using Voltium.Core.Memory;
+using Voltium.Core.Pool;
 using Voltium.TextureLoading;
 using Buffer = Voltium.Core.Memory.Buffer;
 
@@ -15,16 +16,13 @@ namespace Voltium.Core
     /// <summary>
     /// Represents a context on which GPU commands can be recorded
     /// </summary>
-    public unsafe partial struct CopyContext : IDisposable
+    public unsafe partial class CopyContext : GpuContext
     {
-        private GpuContext _context;
 
-        internal CopyContext(in GpuContext context)
+        internal CopyContext(in ContextParams @params) : base(@params)
         {
-            _context = context;
-        }
 
-        internal ID3D12GraphicsCommandList* GetListPointer() => _context.List;
+        }
 
         //AtomicCopyBufferUINT
         //AtomicCopyBufferUINT64
@@ -61,8 +59,26 @@ namespace Voltium.Core
             destDesc.Type = D3D12_TEXTURE_COPY_TYPE.D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
             destDesc.Anonymous.SubresourceIndex = destSubresource;
 
-            _context.List->CopyTextureRegion(&destDesc, 0, 0, 0, &sourceDesc, null);
+            List->CopyTextureRegion(&destDesc, 0, 0, 0, &sourceDesc, null);
         }
+
+
+
+
+
+#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
+        public void CopyBufferRegion(in BufferRegion source, in BufferRegion dest)
+            => CopyBufferRegion(source.Buffer, source.Offset, dest.Buffer, dest.Offset, source.Length);
+
+        public void CopyBufferRegion(in Buffer source, in BufferRegion dest)
+            => CopyBufferRegion(source, 0, dest.Buffer, dest.Offset, source.Length);
+
+        public void CopyBufferRegion(in BufferRegion source, in Buffer dest)
+            => CopyBufferRegion(source.Buffer, source.Offset, dest, 0, source.Length);
+
+        public void CopyBufferRegion(in Buffer source, uint sourceOffset, in Buffer dest, uint destOffset, uint numBytes)
+            => List->CopyBufferRegion(dest.GetResourcePointer(), destOffset, source.GetResourcePointer(), sourceOffset, numBytes);
+#pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
 
         /// <summary>
         /// Copy a subresource
@@ -74,15 +90,15 @@ namespace Voltium.Core
         {
             ResourceTransition(source, ResourceState.CopySource, subresourceIndex);
             ResourceTransition(dest, ResourceState.CopyDestination, 0);
-            _context.Device.GetCopyableFootprint(source, subresourceIndex, 1, out var layout, out var row, out var numRow, out var size);
+            Device.GetCopyableFootprint(source, subresourceIndex, 1, out var layout, out var row, out var numRow, out var size);
 
             Debug.Assert(dest.Length >= size);
 
             var sourceDesc = new D3D12_TEXTURE_COPY_LOCATION(source.GetResourcePointer(), subresourceIndex);
             var destDesc = new D3D12_TEXTURE_COPY_LOCATION(dest.GetResourcePointer(), layout);
 
-            _context.FlushBarriers();
-            _context.List->CopyTextureRegion(&destDesc, 0, 0, 0, &sourceDesc, null);
+            FlushBarriers();
+            List->CopyTextureRegion(&destDesc, 0, 0, 0, &sourceDesc, null);
         }
 
         /// <summary>
@@ -93,8 +109,8 @@ namespace Voltium.Core
         /// <param name="data"></param>
         public void ReadbackSubresource(in Texture source, uint subresourceIndex, out Buffer data)
         {
-            _context.Device.GetCopyableFootprint(source, subresourceIndex, 1, out _, out _, out var rowSize, out var size);
-            data = _context.Device.Allocator.AllocateBuffer((long)size, MemoryAccess.CpuReadback, ResourceState.CopyDestination);
+            Device.GetCopyableFootprint(source, subresourceIndex, 1, out _, out _, out var rowSize, out var size);
+            data = Device.Allocator.AllocateBuffer((long)size, MemoryAccess.CpuReadback, ResourceState.CopyDestination);
 
             var alignedRowSizes = MathHelpers.AlignUp(rowSize, 256);
 
@@ -115,8 +131,8 @@ namespace Voltium.Core
             var destDesc = new D3D12_TEXTURE_COPY_LOCATION(data.GetResourcePointer(), layout);
             var sourceDesc = new D3D12_TEXTURE_COPY_LOCATION(source.GetResourcePointer(), subresourceIndex);
 
-            _context.FlushBarriers();
-            _context.List->CopyTextureRegion(&destDesc, 0, 0, 0, &sourceDesc, null);
+            FlushBarriers();
+            List->CopyTextureRegion(&destDesc, 0, 0, 0, &sourceDesc, null);
         }
 
         /// <summary>
@@ -130,7 +146,7 @@ namespace Voltium.Core
             //ResourceTransition(source, ResourceState.CopySource, subresourceIndex);
             //ResourceTransition(data, ResourceState.CopyDestination, 0);
 
-            _context.Device.GetCopyableFootprint(source, subresourceIndex, 1, out _, out _, out var rowSize, out var size);
+            Device.GetCopyableFootprint(source, subresourceIndex, 1, out _, out _, out var rowSize, out var size);
 
             var alignedRowSizes = MathHelpers.AlignUp(rowSize, 256);
 
@@ -151,8 +167,8 @@ namespace Voltium.Core
             var destDesc = new D3D12_TEXTURE_COPY_LOCATION(data.GetResourcePointer(), layout);
             var sourceDesc = new D3D12_TEXTURE_COPY_LOCATION(source.GetResourcePointer(), subresourceIndex);
 
-            _context.FlushBarriers();
-            _context.List->CopyTextureRegion(&destDesc, 0, 0, 0, &sourceDesc, null);
+            FlushBarriers();
+            List->CopyTextureRegion(&destDesc, 0, 0, 0, &sourceDesc, null);
         }
 
         /// <summary>
@@ -165,8 +181,8 @@ namespace Voltium.Core
             //ResourceTransition(source, ResourceState.CopySource, 0xFFFFFFFF);
             //ResourceTransition(dest, ResourceState.CopyDestination, 0xFFFFFFFF);
 
-            _context.FlushBarriers();
-            _context.List->CopyResource(dest.Resource.GetResourcePointer(), source.Resource.GetResourcePointer());
+            FlushBarriers();
+            List->CopyResource(dest.Resource.GetResourcePointer(), source.Resource.GetResourcePointer());
         }
 
         /// <summary>
@@ -179,8 +195,8 @@ namespace Voltium.Core
             //ResourceTransition(source, ResourceState.CopySource, 0xFFFFFFFF);
             //ResourceTransition(dest, ResourceState.CopyDestination, 0xFFFFFFFF);
 
-            _context.FlushBarriers();
-            _context.List->CopyResource(dest.Resource.GetResourcePointer(), source.Resource.GetResourcePointer());
+            FlushBarriers();
+            List->CopyResource(dest.Resource.GetResourcePointer(), source.Resource.GetResourcePointer());
         }
 
         /// <summary>
@@ -211,7 +227,7 @@ namespace Voltium.Core
         /// <param name="destination"></param>
         public void UploadBufferToPreexisting<T>(ReadOnlySpan<T> buffer, ResourceState state, in Buffer destination) where T : unmanaged
         {
-            var upload = _context.Device.Allocator.AllocateBuffer(buffer.Length * sizeof(T), MemoryAccess.CpuUpload, ResourceState.GenericRead);
+            var upload = Device.Allocator.AllocateBuffer(buffer.Length * sizeof(T), MemoryAccess.CpuUpload, ResourceState.GenericRead);
             upload.WriteData(buffer);
 
             CopyResource(upload, destination);
@@ -246,10 +262,10 @@ namespace Voltium.Core
         /// <param name="destination"></param>
         public void UploadBuffer<T>(ReadOnlySpan<T> buffer, ResourceState state, out Buffer destination) where T : unmanaged
         {
-            var upload = _context.Device.Allocator.AllocateBuffer(buffer.Length * sizeof(T), MemoryAccess.CpuUpload, ResourceState.GenericRead);
+            var upload = Device.Allocator.AllocateBuffer(buffer.Length * sizeof(T), MemoryAccess.CpuUpload, ResourceState.GenericRead);
             upload.WriteData(buffer);
 
-            destination = _context.Device.Allocator.AllocateBuffer(buffer.Length * sizeof(T), MemoryAccess.GpuOnly, ResourceState.CopyDestination);
+            destination = Device.Allocator.AllocateBuffer(buffer.Length * sizeof(T), MemoryAccess.GpuOnly, ResourceState.CopyDestination);
             CopyResource(upload, destination);
             ResourceTransition(destination, state);
         }
@@ -264,7 +280,7 @@ namespace Voltium.Core
         /// <param name="destination"></param>
         public void UploadTexture(ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, in TextureDesc tex, ResourceState state, out Texture destination)
         {
-            destination = _context.Device.Allocator.AllocateTexture(tex, ResourceState.CopyDestination);
+            destination = Device.Allocator.AllocateTexture(tex, ResourceState.CopyDestination);
             UploadTexture(texture, subresources, state, destination);
         }
 
@@ -277,7 +293,7 @@ namespace Voltium.Core
         /// <param name="destination"></param>
         public void UploadTexture(ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, ResourceState state, in Texture destination)
         {
-            var upload = _context.Device.Allocator.AllocateBuffer(
+            var upload = Device.Allocator.AllocateBuffer(
                 (long)Windows.GetRequiredIntermediateSize(destination.Resource.GetResourcePointer(), 0, (uint)subresources.Length),
                 MemoryAccess.CpuUpload,
                 ResourceState.GenericRead
@@ -293,9 +309,9 @@ namespace Voltium.Core
                     ((D3D12_SUBRESOURCE_DATA*)&pSubresources[i])->pData = pTextureData + pSubresources[i].DataOffset;
                 }
 
-                _context.FlushBarriers();
+                FlushBarriers();
                 _ = Windows.UpdateSubresources(
-                    _context.List,
+                    List,
                     destination.Resource.GetResourcePointer(),
                     upload.Resource.GetResourcePointer(),
                     0,
@@ -315,7 +331,7 @@ namespace Voltium.Core
         /// <param name="barrier">The barrier</param>
         public void ResourceBarrier(in ResourceBarrier barrier)
         {
-            _context.AddBarrier(barrier.Barrier);
+            AddBarrier(barrier.Barrier);
         }
 
         /// <summary>
@@ -324,7 +340,7 @@ namespace Voltium.Core
         /// <param name="barriers">The barriers</param>
         public void ResourceBarrier(ReadOnlySpan<ResourceBarrier> barriers)
         {
-            _context.AddBarriers(MemoryMarshal.Cast<ResourceBarrier, D3D12_RESOURCE_BARRIER>(barriers));
+            AddBarriers(MemoryMarshal.Cast<ResourceBarrier, D3D12_RESOURCE_BARRIER>(barriers));
         }
 
         /// <summary>
@@ -419,7 +435,7 @@ namespace Voltium.Core
 
             resource.State = transition;
 
-            _context.AddBarrier(barrier);
+            AddBarrier(barrier);
         }
 
         private void BeginResourceTransition(GpuResource resource, ResourceState transition, uint subresource)
@@ -448,7 +464,7 @@ namespace Voltium.Core
 
             resource.TransitionBegan = true;
 
-            _context.AddBarrier(barrier);
+            AddBarrier(barrier);
         }
 
         private void EndResourceTransition(GpuResource resource, ResourceState transition, uint subresource)
@@ -478,10 +494,7 @@ namespace Voltium.Core
             resource.State = transition;
             resource.TransitionBegan = false;
 
-            _context.AddBarrier(barrier);
+            AddBarrier(barrier);
         }
-
-        /// <inheritdoc/>
-        public void Dispose() => _context.Dispose();
     }
 }

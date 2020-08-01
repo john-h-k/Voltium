@@ -67,11 +67,11 @@ namespace Voltium.Interactive
             public Stream Open(string materialFilePath) => File.OpenRead(AssetsFolder + materialFilePath);
         }
 
-        private static readonly ObjLoaderFactory _factory = new();
+        private static readonly ObjLoaderFactory _factory = new ObjLoaderFactory();
         private static readonly IMaterialStreamProvider _assetsProvider = new AssetsProvider();
-        private static ThreadLocal<IObjLoader> _loader = new(() => { lock (_factory) { return _factory.Create(_assetsProvider); } });
+        private static ThreadLocal<IObjLoader> _loader = new ThreadLocal<IObjLoader>(() => { lock (_factory) { return _factory.Create(_assetsProvider); } });
 
-        public static Mesh<Vertex> LoadSingleModel(string filename, Material material = default)
+        public static Mesh<Vertex> LoadSingleModel(string filename, in Material material = default)
         {
             var model = _loader.Value!.Load(File.OpenRead(AssetsFolder + filename));
 

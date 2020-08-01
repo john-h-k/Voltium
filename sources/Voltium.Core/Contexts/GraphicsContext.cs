@@ -7,6 +7,7 @@ using Voltium.Common;
 using Voltium.Core.Contexts;
 using Voltium.Core.Memory;
 using Voltium.Core.Pipeline;
+using Voltium.Core.Pool;
 using Voltium.TextureLoading;
 using static TerraFX.Interop.D3D_PRIMITIVE_TOPOLOGY;
 using Buffer = Voltium.Core.Memory.Buffer;
@@ -16,16 +17,13 @@ namespace Voltium.Core
     /// <summary>
     /// Represents a context on which GPU commands can be recorded
     /// </summary>
-    public unsafe partial struct GraphicsContext : IDisposable
+    public unsafe partial class GraphicsContext : ComputeContext
     {
-        private GpuContext _context;
 
-        internal GraphicsContext(in GpuContext context)
+        internal GraphicsContext(in ContextParams @params) : base(@params)
         {
-            _context = context;
-        }
 
-        internal ID3D12GraphicsCommandList* GetListPointer() => _context.List;
+        }
 
         private static bool AreCopyable(GpuResource source, GpuResource destination)
         {
@@ -52,8 +50,8 @@ namespace Voltium.Core
 
         private void Discard(GpuResource resource)
         {
-            _context.FlushBarriers();
-            _context.List->DiscardResource(resource.GetResourcePointer(), null);
+            FlushBarriers();
+            List->DiscardResource(resource.GetResourcePointer(), null);
         }
 
         /// <summary>
@@ -62,7 +60,7 @@ namespace Voltium.Core
         /// <param name="pso">The <see cref="PipelineStateObject"/> to set</param>
         public void SetPipelineState(PipelineStateObject pso)
         {
-            _context.List->SetPipelineState(pso.GetPso());
+            List->SetPipelineState(pso.GetPso());
         }
 
         /// <summary>
@@ -72,7 +70,7 @@ namespace Voltium.Core
         /// <param name="height">The height, in pixels</param>
         public void SetViewportAndScissor(uint width, uint height)
         {
-            SetViewports(new Viewport(0, 0, width, height, 0, 1));
+            SetViewports(new Viewport(0, 0, width, height, 0, Windows.D3D12_MAX_DEPTH));
             SetScissorRectangles(new Rectangle(0, 0, (int)width, (int)height));
         }
 
@@ -89,7 +87,7 @@ namespace Voltium.Core
         /// <param name="value">The value of the blend factor</param>
         public void SetBlendFactor(Rgba128 value)
         {
-            _context.List->OMSetBlendFactor(&value.R);
+            List->OMSetBlendFactor(&value.R);
         }
 
         /// <summary>
@@ -98,7 +96,7 @@ namespace Voltium.Core
         /// <param name="value">The value of the stencil ref</param>
         public void SetStencilRef(uint value)
         {
-            _context.List->OMSetStencilRef(value);
+            List->OMSetStencilRef(value);
         }
 
         /// <summary>
@@ -117,7 +115,7 @@ namespace Voltium.Core
         /// <param name="offset">The offset in elements of <typeparamref name="T"/> to start the view at</param>
         public void SetBuffer<T>(uint paramIndex, in Buffer cbuffer, uint offset = 0) where T : unmanaged
         {
-            _context.List->SetGraphicsRootShaderResourceView(paramIndex, cbuffer.GpuAddress + (ulong)(sizeof(T) * offset));
+            List->SetGraphicsRootShaderResourceView(paramIndex, cbuffer.GpuAddress + (ulong)(sizeof(T) * offset));
         }
 
         /// <summary>
@@ -128,7 +126,7 @@ namespace Voltium.Core
         /// <param name="offset">The offset in bytes to start the view at</param>
         public void SetBufferByteOffset(uint paramIndex, in Buffer cbuffer, uint offset = 0)
         {
-            _context.List->SetGraphicsRootShaderResourceView(paramIndex, cbuffer.GpuAddress + offset);
+            List->SetGraphicsRootShaderResourceView(paramIndex, cbuffer.GpuAddress + offset);
         }
 
         /// <summary>
@@ -136,7 +134,7 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
-        public void SetConstantBuffer(uint paramIndex, in Buffer cbuffer)
+        public new void SetConstantBuffer(uint paramIndex, in Buffer cbuffer)
             => SetConstantBuffer<byte>(paramIndex, cbuffer, 0);
 
         /// <summary>
@@ -145,11 +143,11 @@ namespace Voltium.Core
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
         /// <param name="offset">The offset in elements of <typeparamref name="T"/> to start the view at</param>
-        public void SetConstantBuffer<T>(uint paramIndex, in Buffer cbuffer, uint offset = 0) where T : unmanaged
+        public new void SetConstantBuffer<T>(uint paramIndex, in Buffer cbuffer, uint offset = 0) where T : unmanaged
         {
             var alignedSize = (sizeof(T) + 255) & ~255;
 
-            _context.List->SetGraphicsRootConstantBufferView(paramIndex, cbuffer.GpuAddress + (ulong)(alignedSize * offset));
+            List->SetGraphicsRootConstantBufferView(paramIndex, cbuffer.GpuAddress + (ulong)(alignedSize * offset));
         }
 
         /// <summary>
@@ -158,9 +156,9 @@ namespace Voltium.Core
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
         /// <param name="offset">The offset in bytes to start the view at</param>
-        public void SetConstantBufferByteOffset(uint paramIndex, in Buffer cbuffer, uint offset = 0)
+        public new void SetConstantBufferByteOffset(uint paramIndex, in Buffer cbuffer, uint offset = 0)
         {
-            _context.List->SetGraphicsRootConstantBufferView(paramIndex, cbuffer.GpuAddress + offset);
+            List->SetGraphicsRootConstantBufferView(paramIndex, cbuffer.GpuAddress + offset);
         }
 
         /// <summary>
@@ -168,9 +166,9 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="handle">The <see cref="DescriptorHandle"/> containing the first view</param>
-        public void SetRootDescriptorTable(uint paramIndex, DescriptorHandle handle)
+        public new void SetRootDescriptorTable(uint paramIndex, DescriptorHandle handle)
         {
-            _context.List->SetGraphicsRootDescriptorTable(paramIndex, handle.GpuHandle);
+            List->SetGraphicsRootDescriptorTable(paramIndex, handle.GpuHandle);
         }
 
         /// <summary>
@@ -190,7 +188,7 @@ namespace Voltium.Core
                 );
             }
 
-            _context.List->SetGraphicsRoot32BitConstants(paramIndex, (uint)sizeof(T) / 4, &value, offset);
+            List->SetGraphicsRoot32BitConstants(paramIndex, (uint)sizeof(T) / 4, &value, offset);
         }
 
         /// <summary>
@@ -212,7 +210,7 @@ namespace Voltium.Core
 
             fixed (void* pValue = &value)
             {
-                _context.List->SetGraphicsRoot32BitConstants(paramIndex, (uint)sizeof(T) / 4, pValue, offset);
+                List->SetGraphicsRoot32BitConstants(paramIndex, (uint)sizeof(T) / 4, pValue, offset);
             }
         }
 
@@ -234,16 +232,16 @@ namespace Voltium.Core
                 );
             }
 
-            _context.List->SetGraphicsRoot32BitConstant(paramIndex, Unsafe.As<T, uint>(ref value), offset);
+            List->SetGraphicsRoot32BitConstant(paramIndex, Unsafe.As<T, uint>(ref value), offset);
         }
 
         /// <summary>
         /// Set the graphics root signature for the command list
         /// </summary>
         /// <param name="signature">The signature to set to</param>
-        public void SetRootSignature(RootSignature signature)
+        public new void SetRootSignature(RootSignature signature)
         {
-            _context.List->SetGraphicsRootSignature(signature.Value);
+            List->SetGraphicsRootSignature(signature.Value);
         }
 
 
@@ -339,8 +337,8 @@ namespace Voltium.Core
             }
 
             var depthStencil = depthStencilHandle.GetValueOrDefault();
-            _context.FlushBarriers();
-            _context.List->OMSetRenderTargets(
+            FlushBarriers();
+            List->OMSetRenderTargets(
                 (uint)renderTargets.Length,
                 pRenderTargets,
                 Windows.FALSE,
@@ -360,8 +358,8 @@ namespace Voltium.Core
             var dsv = depthStencilHandle.GetValueOrDefault().CpuHandle;
 
             var depthStencil = depthStencilHandle.GetValueOrDefault();
-            _context.FlushBarriers();
-            _context.List->OMSetRenderTargets(
+            FlushBarriers();
+            List->OMSetRenderTargets(
                 renderTargetHandle is null ? 0 : renderTargetCount,
                 renderTargetHandle is null ? null : &rtv,
                 Windows.TRUE,
@@ -376,7 +374,7 @@ namespace Voltium.Core
         /// <param name="topology">The <see cref="D3D_PRIMITIVE_TOPOLOGY"/> to use</param>
         public void SetTopology(Topology topology)
         {
-            _context.List->IASetPrimitiveTopology((D3D_PRIMITIVE_TOPOLOGY)topology);
+            List->IASetPrimitiveTopology((D3D_PRIMITIVE_TOPOLOGY)topology);
         }
 
         /// <summary>
@@ -386,7 +384,7 @@ namespace Voltium.Core
         public void SetControlPatchPointCount(byte count)
         {
             Guard.InRangeInclusive(1, 32, count);
-            _context.List->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_1_CONTROL_POINT_PATCHLIST + (count - 1));
+            List->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_1_CONTROL_POINT_PATCHLIST + (count - 1));
         }
 
         /// <summary>
@@ -397,7 +395,7 @@ namespace Voltium.Core
         /// <param name="rect">The rectangle representing the section to clear</param>
         public void ClearRenderTarget(DescriptorHandle rtv, Rgba128 color, Rectangle rect)
         {
-            _context.List->ClearRenderTargetView(rtv.CpuHandle, &color.R, 1, (RECT*)&rect);
+            List->ClearRenderTargetView(rtv.CpuHandle, &color.R, 1, (RECT*)&rect);
         }
 
         /// <summary>
@@ -422,12 +420,12 @@ namespace Voltium.Core
             fixed (Rectangle* pRt = renderTargetRects)
             fixed (Rectangle* pDs = depthRects)
             {
-                _context.FlushBarriers();
+                FlushBarriers();
 
-                _context.List->ClearRenderTargetView(rtv.CpuHandle, &color.R, (uint)renderTargetRects.Length, (RECT*)pRt);
+                List->ClearRenderTargetView(rtv.CpuHandle, &color.R, (uint)renderTargetRects.Length, (RECT*)pRt);
 
 
-                _context.List->ClearDepthStencilView(
+                List->ClearDepthStencilView(
                     dsv.CpuHandle,
                     D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_STENCIL,
                     depth, stencil,
@@ -447,8 +445,8 @@ namespace Voltium.Core
         {
             fixed (Rectangle* p = rect)
             {
-                _context.FlushBarriers();
-                _context.List->ClearRenderTargetView(rtv.CpuHandle, &color.R, (uint)rect.Length, (RECT*)p);
+                FlushBarriers();
+                List->ClearRenderTargetView(rtv.CpuHandle, &color.R, (uint)rect.Length, (RECT*)p);
             }
         }
 
@@ -462,8 +460,8 @@ namespace Voltium.Core
         {
             fixed (Rectangle* p = rect)
             {
-                _context.FlushBarriers();
-                _context.List->ClearDepthStencilView(dsv.CpuHandle, D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH, depth, 0, (uint)rect.Length, (RECT*)p);
+                FlushBarriers();
+                List->ClearDepthStencilView(dsv.CpuHandle, D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH, depth, 0, (uint)rect.Length, (RECT*)p);
             }
         }
 
@@ -477,8 +475,8 @@ namespace Voltium.Core
         {
             fixed (Rectangle* p = rect)
             {
-                _context.FlushBarriers();
-                _context.List->ClearDepthStencilView(dsv.CpuHandle, D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_STENCIL, 0, stencil, (uint)rect.Length, (RECT*)p);
+                FlushBarriers();
+                List->ClearDepthStencilView(dsv.CpuHandle, D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_STENCIL, 0, stencil, (uint)rect.Length, (RECT*)p);
             }
         }
 
@@ -493,8 +491,8 @@ namespace Voltium.Core
         {
             fixed (Rectangle* p = rect)
             {
-                _context.FlushBarriers();
-                _context.List->ClearDepthStencilView(dsv.CpuHandle, D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_STENCIL | D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH, depth, stencil, (uint)rect.Length, (RECT*)p);
+                FlushBarriers();
+                List->ClearDepthStencilView(dsv.CpuHandle, D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_STENCIL | D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH, depth, stencil, (uint)rect.Length, (RECT*)p);
             }
         }
 
@@ -506,7 +504,7 @@ namespace Voltium.Core
         {
             fixed (Viewport* pViewport = &viewport)
             {
-                _context.List->RSSetViewports(1, (D3D12_VIEWPORT*)pViewport);
+                List->RSSetViewports(1, (D3D12_VIEWPORT*)pViewport);
             }
         }
 
@@ -518,7 +516,7 @@ namespace Voltium.Core
         {
             fixed (Rectangle* pRects = rectangles)
             {
-                _context.List->RSSetScissorRects((uint)rectangles.Length, (RECT*)pRects);
+                List->RSSetScissorRects((uint)rectangles.Length, (RECT*)pRects);
             }
         }
 
@@ -528,7 +526,7 @@ namespace Voltium.Core
         /// <param name="rectangle">The rectangle to set</param>
         public void SetScissorRectangles(Rectangle rectangle)
         {
-            _context.List->RSSetScissorRects(1, (RECT*)&rectangle);
+            List->RSSetScissorRects(1, (RECT*)&rectangle);
         }
 
         /// <summary>
@@ -539,7 +537,7 @@ namespace Voltium.Core
         {
             fixed (Viewport* pViewports = viewports)
             {
-                _context.List->RSSetViewports((uint)viewports.Length, (D3D12_VIEWPORT*)pViewports);
+                List->RSSetViewports((uint)viewports.Length, (D3D12_VIEWPORT*)pViewports);
             }
         }
 
@@ -554,8 +552,8 @@ namespace Voltium.Core
         {
             var desc = CreateVertexBufferView<T>(vertexResource);
 
-            _context.FlushBarriers();
-            _context.List->IASetVertexBuffers(startSlot, 1, &desc);
+            FlushBarriers();
+            List->IASetVertexBuffers(startSlot, 1, &desc);
         }
 
         /// <summary>
@@ -575,8 +573,8 @@ namespace Voltium.Core
                 views[i] = CreateVertexBufferView<T>(vertexBuffers[i]);
             }
 
-            _context.FlushBarriers();
-            _context.List->IASetVertexBuffers(startSlot, (uint)vertexBuffers.Length, views);
+            FlushBarriers();
+            List->IASetVertexBuffers(startSlot, (uint)vertexBuffers.Length, views);
         }
 
         private static D3D12_VERTEX_BUFFER_VIEW CreateVertexBufferView<T>(in Buffer buffer)
@@ -599,7 +597,7 @@ namespace Voltium.Core
             where T : unmanaged
         {
             var desc = CreateIndexBufferView(indexResource);
-            _context.List->IASetIndexBuffer(&desc);
+            List->IASetIndexBuffer(&desc);
 
             static D3D12_INDEX_BUFFER_VIEW CreateIndexBufferView(in Buffer buffer)
             {
@@ -649,8 +647,8 @@ namespace Voltium.Core
             //ResourceTransition(source, ResourceState.ResolveSource, sourceSubresource);
             //ResourceTransition(dest, ResourceState.ResolveDestination, destSubresource);
 
-            _context.FlushBarriers();
-            _context.List->ResolveSubresource(dest.GetResourcePointer(), destSubresource, source.GetResourcePointer(), sourceSubresource, (DXGI_FORMAT)format);
+            FlushBarriers();
+            List->ResolveSubresource(dest.GetResourcePointer(), destSubresource, source.GetResourcePointer(), sourceSubresource, (DXGI_FORMAT)format);
         }
 
         /// <summary>
@@ -666,8 +664,8 @@ namespace Voltium.Core
             //ResourceTransition(source, ResourceState.ResolveSource, sourceSubresource);
             //ResourceTransition(dest, ResourceState.ResolveDestination, destSubresource);
 
-            _context.FlushBarriers();
-            _context.List->ResolveSubresource(dest.GetResourcePointer(), destSubresource, source.GetResourcePointer(), sourceSubresource, (DXGI_FORMAT)format);
+            FlushBarriers();
+            List->ResolveSubresource(dest.GetResourcePointer(), destSubresource, source.GetResourcePointer(), sourceSubresource, (DXGI_FORMAT)format);
         }
 
         /// <summary>
@@ -699,8 +697,8 @@ namespace Voltium.Core
         /// </summary>
         public void DrawInstanced(uint vertexCountPerInstance, uint instanceCount, uint startVertexLocation, uint startInstanceLocation)
         {
-            _context.FlushBarriers();
-            _context.List->DrawInstanced(
+            FlushBarriers();
+            List->DrawInstanced(
                 vertexCountPerInstance,
                 instanceCount,
                 startVertexLocation,
@@ -713,8 +711,8 @@ namespace Voltium.Core
         /// </summary>
         public void DrawIndexedInstanced(uint indexCountPerInstance, uint instanceCount, uint startIndexLocation, int baseVertexLocation, uint startInstanceLocation)
         {
-            _context.FlushBarriers();
-            _context.List->DrawIndexedInstanced(
+            FlushBarriers();
+            List->DrawIndexedInstanced(
                 indexCountPerInstance,
                 instanceCount,
                 startIndexLocation,
@@ -722,211 +720,6 @@ namespace Voltium.Core
                 startInstanceLocation
             );
         }
-
-        #region CopyContext Methods
-
-        /// <inheritdoc cref="CopyContext"/>
-        public void ResourceBarrier(in ResourceBarrier barrier)
-           => this.AsCopyContext().ResourceBarrier(barrier);
-
-        /// <inheritdoc cref="CopyContext"/>
-        public void ResourceBarrier(ReadOnlySpan<ResourceBarrier> barriers)
-           => this.AsCopyContext().ResourceBarrier(barriers);
-
-        /// <summary>
-        /// Copy a subresource
-        /// </summary>
-        /// <param name="source">The resource to copy from</param>
-        /// <param name="subresourceIndex">The index of the subresource to copy from</param>
-        /// <param name="data"></param>
-        public void ReadbackSubresource(in Texture source, uint subresourceIndex, out Buffer data)
-            => this.AsCopyContext().ReadbackSubresource(source, subresourceIndex, out data);
-
-        /// <summary>
-        /// Copy a subresource
-        /// </summary>
-        /// <param name="source">The resource to copy from</param>
-        /// <param name="subresourceIndex">The index of the subresource to copy from</param>
-        /// <param name="data"></param>
-        public void ReadbackSubresourceToPreexisting(in Texture source, uint subresourceIndex, in Buffer data)
-            => this.AsCopyContext().ReadbackSubresourceToPreexisting(source, subresourceIndex, data);
-
-        /// <summary>
-        /// Copy an entire resource
-        /// </summary>
-        /// <param name="source">The resource to copy from</param>
-        /// <param name="dest">The resource to copy to</param>
-        public void CopyResource(in Buffer source, in Buffer dest)
-            => this.AsCopyContext().CopyResource(source, dest);
-
-        /// <summary>
-        /// Copy an entire resource
-        /// </summary>
-        /// <param name="source">The resource to copy from</param>
-        /// <param name="dest">The resource to copy to</param>
-        public void CopyResource(in Texture source, in Texture dest)
-            => this.AsCopyContext().CopyResource(source, dest);
-
-
-        /// <summary>
-        /// Copy a subresource
-        /// </summary>
-        /// <param name="source">The resource to copy from</param>
-        /// <param name="dest">The resource to copy to</param>
-        /// <param name="sourceSubresource">The index of the subresource to copy from</param>
-        public void CopySubresource(in Texture source, in Buffer dest, uint sourceSubresource = 0)
-            => this.AsCopyContext().CopySubresource(source, dest, sourceSubresource);
-
-        /// <summary>
-        /// Copy a subresource
-        /// </summary>
-        /// <param name="source">The resource to copy from</param>
-        /// <param name="dest">The resource to copy to</param>
-        /// <param name="sourceSubresource">The index of the subresource to copy from</param>
-        /// <param name="destSubresource">The index of the subresource to copy to</param>
-        public void CopySubresource(in Texture source, in Texture dest, uint sourceSubresource, uint destSubresource)
-            => this.AsCopyContext().CopySubresource(source, dest, sourceSubresource, destSubresource);
-
-        /// <summary>
-        /// Uploads a buffer from the CPU to the GPU
-        /// </summary>
-        /// <param name="buffer"></param>
-        /// <param name="state"></param>
-        /// <param name="destination"></param>
-        public void UploadBufferToPreexisting<T>(T[] buffer, ResourceState state, in Buffer destination) where T : unmanaged
-            => UploadBufferToPreexisting((ReadOnlySpan<T>)buffer, state, destination);
-
-
-        /// <summary>
-        /// Uploads a buffer from the CPU to the GPU
-        /// </summary>
-        /// <param name="state"></param>
-        /// <param name="buffer"></param>
-        /// <param name="destination"></param>
-        public void UploadBufferToPreexisting<T>(Span<T> buffer, ResourceState state, in Buffer destination) where T : unmanaged
-            => UploadBufferToPreexisting((ReadOnlySpan<T>)buffer, state, destination);
-
-
-        /// <summary>
-        /// Uploads a buffer from the CPU to the GPU
-        /// </summary>
-        /// <param name="state"></param>
-        /// <param name="buffer"></param>
-        /// <param name="destination"></param>
-        public void UploadBufferToPreexisting<T>(ReadOnlySpan<T> buffer, ResourceState state, in Buffer destination) where T : unmanaged
-            => this.AsCopyContext().UploadBufferToPreexisting<T>(buffer, state, destination);
-
-        /// <summary>
-        /// Uploads a buffer from the CPU to the GPU
-        /// </summary>
-        /// <param name="state"></param>
-        /// <param name="buffer"></param>
-        /// <param name="destination"></param>
-        public void UploadBuffer<T>(T[] buffer, ResourceState state, out Buffer destination) where T : unmanaged
-            => UploadBuffer((ReadOnlySpan<T>)buffer, state, out destination);
-
-
-        /// <summary>
-        /// Uploads a buffer from the CPU to the GPU
-        /// </summary>
-        /// <param name="buffer"></param>
-        /// <param name="state"></param>
-        /// <param name="destination"></param>
-        public void UploadBuffer<T>(Span<T> buffer, ResourceState state, out Buffer destination) where T : unmanaged
-            => UploadBuffer((ReadOnlySpan<T>)buffer, state, out destination);
-
-
-        /// <summary>
-        /// Uploads a buffer from the CPU to the GPU
-        /// </summary>
-        /// <param name="state"></param>
-        /// <param name="buffer"></param>
-        /// <param name="destination"></param>
-        public void UploadBuffer<T>(ReadOnlySpan<T> buffer, ResourceState state, out Buffer destination) where T : unmanaged
-            => this.AsCopyContext().UploadBuffer<T>(buffer, state, out destination);
-
-        /// <summary>
-        /// Uploads a buffer from the CPU to the GPU
-        /// </summary>
-        /// <param name="texture"></param>
-        /// <param name="subresources"></param>
-        /// <param name="state"></param>
-        /// <param name="tex"></param>
-        /// <param name="destination"></param>
-        public void UploadTexture(ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, in TextureDesc tex, ResourceState state, out Texture destination)
-            => this.AsCopyContext().UploadTexture(texture, subresources, tex, state, out destination);
-
-        /// <summary>
-        /// Uploads a buffer from the CPU to the GPU
-        /// </summary>
-        /// <param name="texture"></param>
-        /// <param name="state"></param>
-        /// <param name="subresources"></param>
-        /// <param name="destination"></param>
-        public void UploadTexture(ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, ResourceState state, in Texture destination)
-            => this.AsCopyContext().UploadTexture(texture, subresources, state, destination);
-
-        /// <summary>
-        /// Mark a resource barrier on the command list
-        /// </summary>
-        /// <param name="resource">The resource to transition</param>
-        /// <param name="transition">The transition</param>
-        /// <param name="subresource">The subresource to transition</param>
-        public void ResourceTransition(in Buffer resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
-            => this.AsCopyContext().ResourceTransition(resource, transition, subresource);
-
-        /// <summary>
-        /// Mark a resource barrier on the command list
-        /// </summary>
-        /// <param name="resource">The resource to transition</param>
-        /// <param name="transition">The transition</param>
-        /// <param name="subresource">The subresource to transition</param>
-        public void ResourceTransition(in Texture resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
-            => this.AsCopyContext().ResourceTransition(resource, transition, subresource);
-
-
-
-        /// <summary>
-        /// Mark a resource barrier on the command list
-        /// </summary>
-        /// <param name="resource">The resource to transition</param>
-        /// <param name="transition">The transition</param>
-        /// <param name="subresource">The subresource to transition</param>
-        public void BeginResourceTransition(in Buffer resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
-            => this.AsCopyContext().BeginResourceTransition(resource, transition, subresource);
-
-        /// <summary>
-        /// Mark a resource barrier on the command list
-        /// </summary>
-        /// <param name="resource">The resource to transition</param>
-        /// <param name="transition">The transition</param>
-        /// <param name="subresource">The subresource to transition</param>
-        public void BeginResourceTransition(in Texture resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
-            => this.AsCopyContext().BeginResourceTransition(resource, transition, subresource);
-
-
-        /// <summary>
-        /// Mark a resource barrier on the command list
-        /// </summary>
-        /// <param name="resource">The resource to transition</param>
-        /// <param name="transition">The transition</param>
-        /// <param name="subresource">The subresource to transition</param>
-        public void EndResourceTransition(in Buffer resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
-            => this.AsCopyContext().EndResourceTransition(resource, transition, subresource);
-
-        /// <summary>
-        /// Mark a resource barrier on the command list
-        /// </summary>
-        /// <param name="resource">The resource to transition</param>
-        /// <param name="transition">The transition</param>
-        /// <param name="subresource">The subresource to transition</param>
-        public void EndResourceTransition(in Texture resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
-            => this.AsCopyContext().EndResourceTransition(resource, transition, subresource);
-
-        #endregion
-
-        /// <inheritdoc/>
-        public void Dispose() => _context.Dispose();
     }
 
     /// <summary>

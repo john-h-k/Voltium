@@ -117,17 +117,13 @@ namespace Voltium.Common
 
             private int _id;
 
-            private Block(int id) => _id = id;
+            private Block(int id, GCMemoryInfo i = default) => _id = id;
 
             internal static Block StartNew(string name, ProfilerBlockFlags flags)
             {
                 Unsafe.SkipInit(out BlockData data);
 
                 flags |= OverrideFlags;
-
-                data.Name = name;
-                data.Flags = flags;
-                data.StartTick = Stopwatch.GetTimestamp();
 
                 // this contrived pattern generates better asm when no flags are set (the most common case)
                 if (data.Flags.HasFlag(ProfilerBlockFlags.CaptureGCMemoryInfo))
@@ -146,6 +142,12 @@ namespace Voltium.Common
                 EnsureLocalBlocksNotNull();
 
                 _localBlocks.Add(data);
+
+                // Create the final
+                _localBlocks.GetRefUnsafe(_localBlocks.Count).StartTick = Stopwatch.GetTimestamp();
+
+                data.Name = name;
+                data.Flags = flags;
                 return new Block(_localBlocks.Count - 1);
             }
 

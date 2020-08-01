@@ -14,7 +14,7 @@ namespace Voltium.Interactive.RenderGraphSamples
 {
     internal class RenderGraphApplication : Application
     {
-        public override string Title => "Hello DirectX!";
+        public override string Name => "Hello DirectX!";
 
         private GraphicsDevice _device = null!;
         private MandelbrotRenderPass _renderer = null!;
@@ -51,8 +51,8 @@ namespace Voltium.Interactive.RenderGraphSamples
 
             _output = TextureOutput.Create(_device, desc, output);
 
-            _renderer = new(_device, data);
-            _outputPass = new(_output);
+            _renderer = new MandelbrotRenderPass(_device, data);
+            _outputPass = new TonemapPass(_output);
         }
 
         public override void Update(ApplicationTimer timer)

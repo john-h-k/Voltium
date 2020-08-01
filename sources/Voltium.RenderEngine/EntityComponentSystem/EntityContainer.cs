@@ -3,9 +3,12 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
+using System.Runtime.Intrinsics.Arm;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using TerraFX.Interop;
 using Voltium.Common;
 
 namespace Voltium.RenderEngine.EntityComponentSystem
@@ -46,6 +49,18 @@ namespace Voltium.RenderEngine.EntityComponentSystem
     internal static class ComponentPool<TComponent> where TComponent : struct
     {
         public static List<TaggedComponent<TComponent>> Components = new();
+    }
+
+    internal struct SparseSet<T>
+    {
+        public int[] Dense { get; private set; }
+        public T[] Sparse { get; private set; }
+
+        public ref T this[int index] => ref Sparse[Dense[index]];
+
+        public void Add(in T val)
+        {
+        }
     }
 
     internal struct TaggedComponent<TComponent> where TComponent : struct

@@ -90,7 +90,7 @@ namespace Voltium.Core.Memory
         public Buffer AllocateBuffer(
             in BufferDesc desc,
             MemoryAccess memoryKind,
-            ResourceState initialResourceState,
+            ResourceState initialResourceState = ResourceState.Common,
             AllocFlags allocFlags = AllocFlags.None
         )
             => AllocateBuffer(desc.Length, memoryKind, initialResourceState, desc.ResourceFlags, allocFlags);
@@ -143,7 +143,12 @@ namespace Voltium.Core.Memory
                 InitialState = (D3D12_RESOURCE_STATES)initialResourceState
             };
 
-            return new Buffer((ulong)length, Allocate(&resource));
+            var buffer = new Buffer((ulong)length, Allocate(&resource));
+            if (memoryKind == MemoryAccess.CpuUpload)
+            {
+                buffer.Map(); // we persisitently map upload buffers
+            }
+            return buffer;
         }
         /// <summary>
         /// Allocates a texture

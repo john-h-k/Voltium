@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using TerraFX.Interop;
 using Voltium.Core.Memory;
+using Voltium.Core.Pool;
 using Voltium.TextureLoading;
 using Buffer = Voltium.Core.Memory.Buffer;
 
@@ -16,20 +17,16 @@ namespace Voltium.Core.Contexts
     /// <summary>
     /// Represents a context on which GPU commands can be recorded
     /// </summary>
-    public unsafe struct UploadContext : IDisposable
+    public unsafe class UploadContext : CopyContext
     {
-        private GpuContext _context;
         private List<Buffer> _listBuffers;
         private DynamicAllocator _transientAllocator;
-        private int _numBuffers;
         private const int MaxNumNonListBuffers = 8;
 
-        internal UploadContext(in GpuContext context)
+        internal UploadContext(in ContextParams @params) : base(@params)
         {
-            _context = context;
             _listBuffers = new();
-            _numBuffers = 0;
-            _transientAllocator = new DynamicAllocator(_context.Device);
+            _transientAllocator = new DynamicAllocator(Device);
         }
 
         //private struct BufferBuffer
@@ -47,38 +44,6 @@ namespace Voltium.Core.Contexts
         //    public ref Buffer GetPinnableReference() => ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref Buffer0, 0));
         //    public ref Buffer this[int index] => ref Unsafe.Add(ref GetPinnableReference(), index);
         //}
-
-
-
-#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
-        public void CopyBufferRegion(in BufferRegion source, in BufferRegion dest)
-            => CopyBufferRegion(source.Buffer, source.Offset, dest.Buffer, dest.Offset, source.Length);
-
-        public void CopyBufferRegion(in Buffer source, in BufferRegion dest)
-            => CopyBufferRegion(source, 0, dest.Buffer, dest.Offset, source.Length);
-
-        public void CopyBufferRegion(in BufferRegion source, in Buffer dest)
-            => CopyBufferRegion(source.Buffer, source.Offset, dest, 0, source.Length);
-
-        public void CopyBufferRegion(in Buffer source, uint sourceOffset, in Buffer dest, uint destOffset, uint numBytes)
-            => _context.List->CopyBufferRegion(dest.GetResourcePointer(), destOffset, source.GetResourcePointer(), sourceOffset, numBytes);
-#pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
-
-        /// <summary>
-        /// Copy an entire resource
-        /// </summary>
-        /// <param name="source">The resource to copy from</param>
-        /// <param name="dest">The resource to copy to</param>
-        public void CopyResource(in Buffer source, in Buffer dest)
-            => _context.List->CopyResource(dest.GetResourcePointer(), source.GetResourcePointer());
-
-        /// <summary>
-        /// Copy an entire resource
-        /// </summary>
-        /// <param name="source">The resource to copy from</param>
-        /// <param name="dest">The resource to copy to</param>
-        public void CopyResource(in Texture source, in Texture dest)
-            => _context.List->CopyResource(dest.GetResourcePointer(), source.GetResourcePointer());
 
         /// <summary>
         /// Uploads a buffer from the CPU to the GPU
@@ -122,7 +87,7 @@ namespace Voltium.Core.Contexts
         /// <param name="destination"></param>
         public void UploadBuffer<T>(ReadOnlySpan<T> buffer, out Buffer destination) where T : unmanaged
         {
-            destination = _context.Device.Allocator.AllocateBuffer(buffer.Length * sizeof(T), MemoryAccess.GpuOnly, ResourceState.CopyDestination);
+            destination = Device.Allocator.AllocateBuffer(buffer.Length * sizeof(T), MemoryAccess.GpuOnly, ResourceState.CopyDestination);
 
             UploadBufferToPreexisting(buffer, destination);
         }
@@ -136,7 +101,7 @@ namespace Voltium.Core.Contexts
         /// <param name="destination"></param>
         public void UploadTexture(ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, in TextureDesc tex, out Texture destination)
         {
-            destination = _context.Device.Allocator.AllocateTexture(tex, ResourceState.CopyDestination);
+            destination = Device.Allocator.AllocateTexture(tex, ResourceState.CopyDestination);
             UploadTextureToPreexisting(texture, subresources, destination);
         }
 
@@ -175,9 +140,9 @@ namespace Voltium.Core.Contexts
                     ((D3D12_SUBRESOURCE_DATA*)&pSubresources[i])->pData = pTextureData + pSubresources[i].DataOffset;
                 }
 
-                _context.FlushBarriers();
+                FlushBarriers();
                 _ = Windows.UpdateSubresources(
-                    _context.List,
+                   List,
                     destination.GetResourcePointer(),
                     upload.Buffer.GetResourcePointer(),
                     upload.Offset,
@@ -197,12 +162,12 @@ namespace Voltium.Core.Contexts
         /// <summary>
         /// Submits the <see cref="UploadContext"/> to be executed
         /// </summary>
-        public void Dispose()
+        public override void Dispose()
         {
             // we execute list so we need to stop GpuContext.Dispose doing so
-            _context._executeOnClose = false;
-            _context.Dispose();
-            var task = _context.Device.Execute(ref _context);
+            Params.ExecuteOnClose = false;
+            base.Dispose();
+            var task = Device.Execute(this);
             _transientAllocator.Dispose(task);
 
             if (_listBuffers?.Count > 0)

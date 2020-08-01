@@ -23,7 +23,7 @@ namespace Voltium.Core.Devices
     /// </summary>
     public unsafe class TextureOutput
     {
-        private struct BackBufferBuffer5
+        private struct BackBufferBuffer8
         {
             public static readonly uint MaxBufferCount = 8;
 
@@ -51,13 +51,42 @@ namespace Voltium.Core.Devices
         //private IBufferWriter<byte>? _bufferWriter;
 
         private ComPtr<IDXGISwapChain3> _swapChain;
-        private BackBufferBuffer5 _backBuffers;
+        private BackBufferBuffer8 _backBuffers;
         private uint _backBufferIndex;
 
         /// <summary>
         /// The <see cref="OutputConfiguration"/> used 
         /// </summary>
         public OutputConfiguration Configuration => _desc;
+
+        /// <summary>
+        /// The current back buffer index
+        /// </summary>
+        public uint CurrentOutputBufferIndex => _backBufferIndex;
+
+        /// <summary>
+        /// Returns the backbuffer for a given index
+        /// </summary>
+        public Texture GetOutputBuffer(uint index)
+        {
+            if (index > OutputBufferCount)
+            {
+                ThrowHelper.ThrowArgumentOutOfRangeException(nameof(index));
+            }
+
+            return _backBuffers[index];
+        }
+
+
+        /// <summary>
+        /// The number of output buffers
+        /// </summary>
+        public uint OutputBufferCount => _desc.BackBufferCount;
+
+        /// <summary>
+        /// The current output buffer texture
+        /// </summary>
+        public Texture OutputBuffer => _backBuffers[_backBufferIndex];
 
         private TextureOutput(GraphicsDevice device, OutputConfiguration desc)
         {
@@ -80,6 +109,7 @@ namespace Voltium.Core.Devices
             _swapChain = swapChain3.Move();
 
             CreateTexturesFromBuffers();
+            _backBufferIndex = _swapChain.Get()->GetCurrentBackBufferIndex();
         }
 
         private void CreateTexturesFromBuffers()
@@ -90,7 +120,6 @@ namespace Voltium.Core.Devices
                 Guard.ThrowIfFailed(_swapChain.Get()->GetBuffer(i, buffer.Iid, ComPtr.GetVoidAddressOf(&buffer)));
                 DebugHelpers.SetName(buffer.Get(), $"BackBuffer #{i}");
 
-                _backBufferIndex = _swapChain.Get()->GetCurrentBackBufferIndex();
                 _backBuffers[i] = Texture.FromResource(_device, buffer.Move());
             }
         }
@@ -268,9 +297,9 @@ namespace Voltium.Core.Devices
 
         private static DXGI_SWAP_CHAIN_DESC1 CreateDesc(OutputConfiguration desc, Size outputArea)
         {
-            if (desc.BackBufferCount > BackBufferBuffer5.MaxBufferCount)
+            if (desc.BackBufferCount > BackBufferBuffer8.MaxBufferCount)
             {
-                ThrowHelper.ThrowArgumentException($"Cannot have more than {BackBufferBuffer5.MaxBufferCount} back buffers");
+                ThrowHelper.ThrowArgumentException($"Cannot have more than {BackBufferBuffer8.MaxBufferCount} back buffers");
             }
 
             return new DXGI_SWAP_CHAIN_DESC1
@@ -288,11 +317,6 @@ namespace Voltium.Core.Devices
                 SwapEffect = DXGI_SWAP_EFFECT.DXGI_SWAP_EFFECT_FLIP_DISCARD
             };
         }
-
-        /// <summary>
-        /// The current output buffer texture
-        /// </summary>
-        public Texture OutputBuffer => _backBuffers[_backBufferIndex];
 
 
         /// <summary>
@@ -357,7 +381,7 @@ namespace Voltium.Core.Devices
 
         internal void ResizeBuffers(Size newSize)
         {
-            for (var i = 0U; i < BackBufferBuffer5.MaxBufferCount; i++)
+            for (var i = 0U; i < BackBufferBuffer8.MaxBufferCount; i++)
             {
                 _backBuffers[i].Dispose();
             }

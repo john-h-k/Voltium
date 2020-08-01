@@ -7,10 +7,13 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using BenchmarkDotNet.Attributes;
+using BenchmarkDotNet.Running;
 using Voltium.Core;
 using Voltium.Core.Memory;
 using Voltium.Interactive.BasicRenderPipeline;
 using Voltium.Interactive.RenderGraphSamples;
+using Voltium.RenderEngine;
+using Voltium.Interactive.HelloTriangle;
 
 namespace Voltium.Interactive
 {
@@ -18,8 +21,8 @@ namespace Voltium.Interactive
     {
         private static int Main(string[] args)
         {
-            var application = new RenderPipeline();
-            return Win32Application.Run(application, 700, 700);
+            var application = new HelloTriangleApp();
+            return ApplicationRunner.RunWin32(application);
         }
     }
 }

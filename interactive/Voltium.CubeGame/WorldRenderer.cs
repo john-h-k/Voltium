@@ -7,14 +7,14 @@ using Voltium.RenderEngine.EntityComponentSystem;
 
 namespace Voltium.CubeGame
 {
-    public struct Renderable
+    internal struct Renderable
     {
 
     }
 
-    public sealed class WorldRenderer
+    internal sealed class WorldRenderer
     {
-        private EntityContainer _worldEntities;
+        private EntityContainer _worldEntities = new();
 
 
 

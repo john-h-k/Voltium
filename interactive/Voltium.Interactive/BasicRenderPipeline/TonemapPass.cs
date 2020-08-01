@@ -31,7 +31,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
             builder.MarkUsage(resources.SampledOutput, ResourceState.CopySource);
         }
 
-        public override void Record(ref GraphicsContext context, ref Resolver resolver)
+        public override void Record(GraphicsContext context, ref Resolver resolver)
         {
             using var _ = context.BeginEvent(Argb32.Green, "Tonemap");
 

@@ -180,7 +180,7 @@ namespace Voltium.Interactive
                 StaticSampler.OpaqueWhite
             );
 
-            _rootSig = RootSignature.Create(_device, rootParams, sampler);
+            _rootSig = _device.CreateRootSignature(rootParams, sampler);
 
             var compilationFlags = new[]
             {
@@ -278,7 +278,7 @@ namespace Voltium.Interactive
             return _msaa ? _msaaPso : _pso;
         }
 
-        public override void Render(ref GraphicsContext recorder, out Texture render)
+        public override void Render(GraphicsContext recorder, out Texture render)
         {
             recorder.SetViewportAndScissor(_outputResolution);
             recorder.ResourceTransition(_renderTarget, ResourceState.RenderTarget);

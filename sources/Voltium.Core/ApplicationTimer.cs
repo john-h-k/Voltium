@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Threading;
 using TerraFX.Interop;
 using Voltium.Common;
 
@@ -27,12 +28,12 @@ namespace Voltium.Core
         }
 
         /// <summary>
-        /// The number of ticks that have elapsed between the last call to <see cref="Tick"/> and the one prior to it
+        /// The number of ticks that have elapsed between the last call to <see cref="Tick(Action)"/> and the one prior to it
         /// </summary>
         public ulong ElapsedTicks => _elapsedTicks;
 
         /// <summary>
-        /// The number of seconds that have elapsed between the last call to <see cref="Tick"/> and the one prior to it
+        /// The number of seconds that have elapsed between the last call to <see cref="Tick(Action)"/> and the one prior to it
         /// </summary>
         public double ElapsedSeconds => TicksToSeconds(_elapsedTicks);
 
@@ -47,7 +48,7 @@ namespace Voltium.Core
         public double TotalSeconds => TicksToSeconds(_totalTicks);
 
         /// <summary>
-        /// The number of calls to <see cref="Tick"/> that have occurred
+        /// The number of calls to <see cref="Tick(Action)"/> that have occurred
         /// </summary>
         public uint FrameCount => _frameCount;
 
@@ -103,10 +104,18 @@ namespace Voltium.Core
 
         /// <summary>
         /// Ticks the timer, indicating a single frame has elapsed
-        /// </summary>
         /// in fixed timestep mode, or immediately, in variable timestep mode
+        /// </summary>
         public void Tick(Action update)
             => Tick(0, (_, _) => update());
+
+
+        /// <summary>
+        /// Ticks the timer, indicating a single frame has elapsed
+        /// in fixed timestep mode, or immediately, in variable timestep mode
+        /// </summary>
+        public void Tick(Action<ApplicationTimer> update)
+            => Tick(0, (timer, _) => update(timer));
 
         /// <summary>
         /// Ticks the timer, indicating a single frame has elapsed

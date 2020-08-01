@@ -15,7 +15,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
 {
     public sealed class RenderPipeline : Application
     {
-        public override string Title => "RenderPipeline";
+        public override string Name => "RenderPipeline";
 
         private GraphicsDevice _device = null!;
 

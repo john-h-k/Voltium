@@ -24,7 +24,7 @@ namespace Voltium.Interactive.RenderGraphSamples
             Output = OutputDesc.FromBackBuffer(OutputClass.Primary, _output);
         }
 
-        public override void Record(ref GraphicsContext context, ref Resolver resolver)
+        public override void Record(GraphicsContext context, ref Resolver resolver)
         {
             var resources = resolver.GetComponent<PipelineResources>();
 

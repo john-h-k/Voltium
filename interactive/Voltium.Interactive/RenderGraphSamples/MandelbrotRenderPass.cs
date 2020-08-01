@@ -47,7 +47,7 @@ namespace Voltium.Interactive.RenderGraphSamples
             resolver.CreateComponent(resources);
         }
 
-        public override void Record(ref GraphicsContext context, ref Resolver resolver)
+        public override void Record(GraphicsContext context, ref Resolver resolver)
         {
             var renderTarget = resolver.ResolveResource(resolver.GetComponent<PipelineResources>().SceneColor);
             var renderTargetView = _device.CreateRenderTargetView(renderTarget);
@@ -81,7 +81,7 @@ namespace Voltium.Interactive.RenderGraphSamples
                 RootParameter.CreateConstants((uint)sizeof(MandelbrotConstants) / sizeof(uint), 0, 0, ShaderVisibility.Pixel),
             };
 
-            var rootSig = RootSignature.Create(device, @params, null);
+            var rootSig = _device.CreateRootSignature(@params, null);
             _device.PipelineManager.Reset();
 
             var flags = new ShaderCompileFlag[]
