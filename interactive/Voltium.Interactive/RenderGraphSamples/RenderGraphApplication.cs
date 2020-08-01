@@ -49,7 +49,7 @@ namespace Voltium.Interactive.RenderGraphSamples
                 Msaa = MultisamplingDesc.None
             };
 
-            _output = Output2D.Create(_device, desc, output);
+            _output = Output2D.Create(desc, _device, output);
 
             _renderer = new MandelbrotRenderPass(_device, data);
             _outputPass = new TonemapPass(_output);

@@ -38,7 +38,7 @@ namespace Voltium.Interactive
                 SyncInterval = 0
             };
 
-            _output = Output2D.Create(_device, desc, output);
+            _output = Output2D.Create(desc, _device, output);
 
             _renderer.Init(_device, data);
         }

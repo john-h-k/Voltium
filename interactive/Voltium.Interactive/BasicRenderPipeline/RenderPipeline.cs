@@ -56,7 +56,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
                 SyncInterval = 0
             };
             
-            _output = Output2D.Create(_device, desc, output);
+            _output = Output2D.Create(desc, _device, output);
 
             _settings = new PipelineSettings
             {

@@ -46,13 +46,38 @@ namespace Voltium.Core.Devices
                 => ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref E0, 0));
         }
 
+        private struct DescriptorHandleBuffer8
+        {
+            public static readonly uint MaxBufferCount = 8;
+
+#pragma warning disable CS0649
+            public DescriptorHandle E0;
+            public DescriptorHandle E1;
+            public DescriptorHandle E2;
+            public DescriptorHandle E3;
+            public DescriptorHandle E4;
+            public DescriptorHandle E5;
+            public DescriptorHandle E6;
+            public DescriptorHandle E7;
+#pragma warning restore CS0649
+
+            public ref DescriptorHandle this[uint index]
+                => ref Unsafe.Add(ref GetPinnableReference(), (int)index);
+
+            public ref DescriptorHandle GetPinnableReference()
+                => ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref E0, 0));
+        }
+
         private OutputConfiguration _desc;
         private GraphicsDevice _device;
 
         //private IBufferWriter<byte>? _bufferWriter;
 
+        private DescriptorHeap _viewHeap;
+
         private ComPtr<IDXGISwapChain3> _swapChain;
         private BackBufferBuffer8 _backBuffers;
+        private DescriptorHandleBuffer8 _views;
         private uint _backBufferIndex;
 
         /// <summary>
@@ -84,12 +109,18 @@ namespace Voltium.Core.Devices
         /// <param name="newSize">The <see cref="Size"/> indicating the size to resize to</param>
         public void Resize(Size newSize)
         {
+            if (newSize == Dimensions)
+            {
+                return;
+            }
+
             _device.Idle();
             Dimensions = newSize;
             AspectRatio = Dimensions.AspectRatio();
 
             ResizeBuffers(newSize);
             CreateTexturesFromBuffers();
+            CreateViews();
         }
 
         /// <summary>
@@ -112,12 +143,21 @@ namespace Voltium.Core.Devices
         /// </summary>
         public Texture OutputBuffer => _backBuffers[_backBufferIndex];
 
+
+        /// <summary>
+        /// The current output buffer texture view
+        /// </summary>
+        public DescriptorHandle OutputBufferView => _views[_backBufferIndex];
+
         private Output2D(GraphicsDevice device, OutputConfiguration desc)
         {
             _device = device;
             _desc = desc;
 
             CreateTexturesFromBuffers();
+
+            // need to create views etc
+            throw new NotImplementedException();
         }
 
         private Output2D(GraphicsDevice device, ComPtr<IDXGISwapChain1> swapChain, OutputConfiguration desc)
@@ -138,6 +178,26 @@ namespace Voltium.Core.Devices
             _swapChain = swapChain3.Move();
 
             CreateTexturesFromBuffers();
+            CreateViews();
+        }
+
+        private void CreateViews()
+        {
+            // Create or reset the heap
+            if (!_viewHeap.Exists)
+            {
+                _viewHeap = DescriptorHeap.Create(_device, DescriptorHeapType.RenderTargetView, Configuration.BackBufferCount);
+            }
+            else
+            {
+                _viewHeap.ResetHeap();
+            }
+
+
+            for (var i = 0u; i < Configuration.BackBufferCount; i++)
+            {
+                _views[i] = _device.CreateRenderTargetView(_backBuffers[i], _viewHeap.GetNextHandle());
+            }
         }
 
         private void CreateTexturesFromBuffers()
@@ -157,12 +217,12 @@ namespace Voltium.Core.Devices
         /// <summary>
         /// Creates a new <see cref="Output2D"/> to a <see cref="IOutputOwner"/>
         /// </summary>
-        /// <param name="device">The <see cref="GraphicsDevice"/> that will output to this buffer</param>
         /// <param name="desc">The <see cref="OutputConfiguration"/> for this output</param>
+        /// <param name="device">The <see cref="GraphicsDevice"/> that will output to this buffer</param>
         /// <param name="window">The <see cref="IOutputOwner"/> that owns the window</param>
         /// <param name="outputArea">Optionally, the <see cref="Size"/> of the rendered output. By default, this will be the entire window</param>
         /// <returns>A new <see cref="Output2D"/></returns>
-        public static Output2D Create(GraphicsDevice device, OutputConfiguration desc, IOutputOwner window, Size outputArea = default)
+        public static Output2D Create(OutputConfiguration desc, GraphicsDevice device, IOutputOwner window, Size outputArea = default)
         {
             return window.Type switch
             {

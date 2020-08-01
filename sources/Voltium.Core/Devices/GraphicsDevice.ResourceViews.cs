@@ -28,9 +28,10 @@ namespace Voltium.Core.Devices
         /// Creates a render target view to a <see cref="Buffer"/>
         /// </summary>
         /// <param name="resource">The <see cref="Buffer"/> resource to create the view for</param>
-        public DescriptorHandle CreateRenderTargetView(in Buffer resource)
+        /// <param name="descriptor">The <see cref="DescriptorHandle"/> to create the view with, or <see langword="null"/> to use the device default heap</param>
+        public DescriptorHandle CreateRenderTargetView(in Buffer resource, DescriptorHandle? descriptor = null)
         {
-            var handle = _rtvs.GetNextHandle();
+            var handle = descriptor ?? _rtvs.GetNextHandle();
 
             DevicePointer->CreateRenderTargetView(resource.Resource.GetResourcePointer(), null, handle.CpuHandle);
 
@@ -42,9 +43,10 @@ namespace Voltium.Core.Devices
         /// </summary>
         /// <param name="resource">The <see cref="Buffer"/> resource to create the view for</param>
         /// <param name="desc">The <see cref="BufferRenderTargetViewDesc"/> describing the metadata used to create the view</param>
-        public DescriptorHandle CreateRenderTargetView(in Buffer resource, in BufferRenderTargetViewDesc desc)
+        /// <param name="descriptor">The <see cref="DescriptorHandle"/> to create the view with, or <see langword="null"/> to use the device default heap</param>
+        public DescriptorHandle CreateRenderTargetView(in Buffer resource, in BufferRenderTargetViewDesc desc, DescriptorHandle? descriptor = null)
         {
-            var handle = _rtvs.GetNextHandle();
+            var handle = descriptor ?? _rtvs.GetNextHandle();
 
             D3D12_RENDER_TARGET_VIEW_DESC rtvDesc;
             rtvDesc.Format = (DXGI_FORMAT)desc.Format;
@@ -61,9 +63,10 @@ namespace Voltium.Core.Devices
         /// Creates a render target view to a <see cref="Texture"/>
         /// </summary>
         /// <param name="resource">The <see cref="Texture"/> resource to create the view for</param>
-        public DescriptorHandle CreateRenderTargetView(in Texture resource)
+        /// <param name="descriptor">The <see cref="DescriptorHandle"/> to create the view with, or <see langword="null"/> to use the device default heap</param>
+        public DescriptorHandle CreateRenderTargetView(in Texture resource, DescriptorHandle? descriptor = null)
         {
-            var handle = _rtvs.GetNextHandle();
+            var handle = descriptor ?? _rtvs.GetNextHandle();
 
             DevicePointer->CreateRenderTargetView(resource.Resource.GetResourcePointer(), null, handle.CpuHandle);
 
@@ -75,7 +78,8 @@ namespace Voltium.Core.Devices
         /// </summary>
         /// <param name="resource">The <see cref="Texture"/> resource to create the view for</param>
         /// <param name="desc">The <see cref="TextureRenderTargetViewDesc"/> describing the metadata used to create the view</param>
-        public DescriptorHandle CreateRenderTargetView(in Texture resource, in TextureRenderTargetViewDesc desc)
+        /// <param name="descriptor">The <see cref="DescriptorHandle"/> to create the view with, or <see langword="null"/> to use the device default heap</param>
+        public DescriptorHandle CreateRenderTargetView(in Texture resource, in TextureRenderTargetViewDesc desc, DescriptorHandle? descriptor = null)
         {
             if (desc.IsMultiSampled)
             {
@@ -105,7 +109,7 @@ namespace Voltium.Core.Devices
 
             rtvDesc.Format = (DXGI_FORMAT)desc.Format;
 
-            var handle = _rtvs.GetNextHandle();
+            var handle = descriptor ?? _rtvs.GetNextHandle();
 
             DevicePointer->CreateRenderTargetView(resource.Resource.GetResourcePointer(), &rtvDesc, handle.CpuHandle);
 

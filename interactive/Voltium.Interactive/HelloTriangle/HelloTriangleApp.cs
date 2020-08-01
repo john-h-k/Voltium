@@ -21,7 +21,6 @@ namespace Voltium.Interactive.HelloTriangle
         private GraphicsDevice _device = null!;
         private Output2D _output = null!;
         private GraphicsPipelineStateObject _pso = null!;
-        private DescriptorHandle[] _rtvs = null!;
         private Buffer _vertices;
 
         public override string Name => nameof(HelloTriangleApp);
@@ -29,7 +28,7 @@ namespace Voltium.Interactive.HelloTriangle
         public unsafe override void Initialize(Size outputSize, IOutputOwner output)
         {
             _device = new GraphicsDevice(DeviceConfiguration.Default);
-            _output = Output2D.Create(_device, OutputConfiguration.Default, output);
+            _output = Output2D.Create(OutputConfiguration.Default, _device, output);
             OnResize(outputSize);
 
             ReadOnlySpan<HelloWorldVertex> vertices = stackalloc HelloWorldVertex[3]
@@ -52,24 +51,16 @@ namespace Voltium.Interactive.HelloTriangle
             _pso = _device.PipelineManager.CreatePipelineStateObject<HelloWorldVertex>("Draw", psoDesc);
         }
 
-        public override void OnResize(Size newOutputSize)
-        {
-            _output.Resize(newOutputSize);
-            _rtvs = new DescriptorHandle[_output.OutputBufferCount];
-            for (uint i = 0; i < _output.OutputBufferCount; i++)
-            {
-                _rtvs[i] = _device.CreateRenderTargetView(_output.GetOutputBuffer(i));
-            }
-        }
+        public override void OnResize(Size newOutputSize) => _output.Resize(newOutputSize); 
 
-        public override void Update(ApplicationTimer timer) { }
+        public override void Update(ApplicationTimer timer) { /* This app doesn't do any updating */ }
         public override void Render()
         {
             var context = _device.BeginGraphicsContext(_pso);
 
             context.SetViewportAndScissor(_output.Dimensions);
             context.ResourceTransition(_output.OutputBuffer, ResourceState.RenderTarget);
-            context.SetAndClearRenderTarget(_rtvs[_output.CurrentOutputBufferIndex], Rgba128.CornflowerBlue);
+            context.SetAndClearRenderTarget(_output.OutputBufferView, Rgba128.CornflowerBlue);
             context.SetTopology(Topology.TriangeList);
             context.SetVertexBuffers<HelloWorldVertex>(_vertices);
             context.Draw(3);
