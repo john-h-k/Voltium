@@ -19,7 +19,7 @@ namespace Voltium.Interactive.RenderGraphSamples
         private GraphicsDevice _device = null!;
         private MandelbrotRenderPass _renderer = null!;
         private TonemapPass _outputPass = null!;
-        private TextureOutput _output = null!;
+        private Output2D _output = null!;
         private PipelineSettings _settings;
 
         public override unsafe void Initialize(Size data, IOutputOwner output)
@@ -49,7 +49,7 @@ namespace Voltium.Interactive.RenderGraphSamples
                 Msaa = MultisamplingDesc.None
             };
 
-            _output = TextureOutput.Create(_device, desc, output);
+            _output = Output2D.Create(_device, desc, output);
 
             _renderer = new MandelbrotRenderPass(_device, data);
             _outputPass = new TonemapPass(_output);

@@ -436,14 +436,14 @@ namespace Voltium.Core.Devices
 
                 Guard.ThrowIfFailed(D3D12CreateDevice(
                     // null device triggers D3D12 to select a default device
-                    usedAdapter.UnderlyingAdapter,
+                    usedAdapter.GetAdapterPointer(),
                     (D3D_FEATURE_LEVEL)level,
                     p.Iid,
                     ComPtr.GetVoidAddressOf(&p)
                 ));
                 Device = p.Move();
 
-                LogHelper.LogInformation($"New D3D12 device created from adapter: \n{adapter}");
+                LogHelper.LogInformation($"New D3D12 device created from adapter: \n{usedAdapter}");
             }
 
             this.SetName("Primary Device");

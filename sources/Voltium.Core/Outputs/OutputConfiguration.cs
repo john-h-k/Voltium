@@ -1,7 +1,7 @@
 namespace Voltium.Core.Devices
 {
     /// <summary>
-    /// Describes a <see cref="TextureOutput"/>
+    /// Describes a <see cref="Output2D"/>
     /// </summary>
     public struct OutputConfiguration
     {

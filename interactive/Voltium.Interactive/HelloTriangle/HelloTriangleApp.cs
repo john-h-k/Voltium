@@ -1,14 +1,9 @@
 using System;
-using System.Collections.Generic;
 using System.Drawing;
-using System.Linq;
 using System.Numerics;
-using System.Text;
-using System.Threading.Tasks;
 using Voltium.Core;
 using Voltium.Core.Devices;
 using Voltium.Core.Devices.Shaders;
-using Voltium.Core.Memory;
 using Voltium.Core.Pipeline;
 using Buffer = Voltium.Core.Memory.Buffer;
 
@@ -24,56 +19,55 @@ namespace Voltium.Interactive.HelloTriangle
     public sealed class HelloTriangleApp : Application
     {
         private GraphicsDevice _device = null!;
-        private TextureOutput _output = null!;
+        private Output2D _output = null!;
         private GraphicsPipelineStateObject _pso = null!;
-        private Buffer _vertices;
         private DescriptorHandle[] _rtvs = null!;
-        private Size _viewSize;
+        private Buffer _vertices;
 
         public override string Name => nameof(HelloTriangleApp);
 
-        public override void Initialize(Size outputSize, IOutputOwner output)
+        public unsafe override void Initialize(Size outputSize, IOutputOwner output)
         {
             _device = new GraphicsDevice(DeviceConfiguration.Default);
-            _output = TextureOutput.Create(_device, OutputConfiguration.Default, output);
-            _viewSize = outputSize;
-
-            _rtvs = new DescriptorHandle[_output.OutputBufferCount];
-            for (uint i = 0; i < _output.OutputBufferCount; i++)
-            {
-                _rtvs[i] = _device.CreateRenderTargetView(_output.GetOutputBuffer(i));
-            }
+            _output = Output2D.Create(_device, OutputConfiguration.Default, output);
+            OnResize(outputSize);
 
             ReadOnlySpan<HelloWorldVertex> vertices = stackalloc HelloWorldVertex[3]
             {
-                new HelloWorldVertex { Position = new Vector3(+0.0f, +0.25f, +0.0f) * 0.5f, Color = (Vector4)Rgba128.Red },
-                new HelloWorldVertex { Position = new Vector3(-0.25f, -0.25f, +0.0f) * 0.5f, Color = (Vector4)Rgba128.Green },
-                new HelloWorldVertex { Position = new Vector3(+0.25f, -0.25f, +0.0f) * 0.5f, Color = (Vector4)Rgba128.Blue },
+                new HelloWorldVertex { Position = new Vector3(+0.0f, +0.25f, +0.0f), Color = (Vector4)Rgba128.Red },
+                new HelloWorldVertex { Position = new Vector3(-0.25f, -0.25f, +0.0f), Color = (Vector4)Rgba128.Green },
+                new HelloWorldVertex { Position = new Vector3(+0.25f, -0.25f, +0.0f), Color = (Vector4)Rgba128.Blue },
             };
 
-            _vertices = _device.Allocator.AllocateBuffer(BufferDesc.Create<HelloWorldVertex>(vertices.Length), MemoryAccess.CpuUpload);
-            _vertices.WriteData(vertices);
+            _vertices = _device.Allocator.AllocateBuffer(vertices);
 
             var psoDesc = new GraphicsPipelineDesc
             {
-                RootSignature = _device.EmptyRootSignature,
                 RenderTargetFormats = _output.Configuration.BackBufferFormat,
+                Topology = TopologyClass.Triangle,
                 VertexShader = ShaderManager.CompileShader("HelloTriangle/Shader.hlsl", ShaderType.Vertex, entrypoint: "VertexMain"),
-                PixelShader = ShaderManager.CompileShader("HelloTriangle/Shader.hlsl", ShaderType.Pixel, entrypoint: "PixelMain"),
-                Topology = TopologyClass.Triangle
+                PixelShader = ShaderManager.CompileShader("HelloTriangle/Shader.hlsl", ShaderType.Pixel, entrypoint: "PixelMain")
             };
 
             _pso = _device.PipelineManager.CreatePipelineStateObject<HelloWorldVertex>("Draw", psoDesc);
         }
 
-        public override void OnResize(Size newOutputSize) { }
+        public override void OnResize(Size newOutputSize)
+        {
+            _output.Resize(newOutputSize);
+            _rtvs = new DescriptorHandle[_output.OutputBufferCount];
+            for (uint i = 0; i < _output.OutputBufferCount; i++)
+            {
+                _rtvs[i] = _device.CreateRenderTargetView(_output.GetOutputBuffer(i));
+            }
+        }
 
         public override void Update(ApplicationTimer timer) { }
         public override void Render()
         {
             var context = _device.BeginGraphicsContext(_pso);
 
-            context.SetViewportAndScissor(_viewSize);
+            context.SetViewportAndScissor(_output.Dimensions);
             context.ResourceTransition(_output.OutputBuffer, ResourceState.RenderTarget);
             context.SetAndClearRenderTarget(_rtvs[_output.CurrentOutputBufferIndex], Rgba128.CornflowerBlue);
             context.SetTopology(Topology.TriangeList);
@@ -89,7 +83,7 @@ namespace Voltium.Interactive.HelloTriangle
         }
 
         public override void Dispose()
-        {
+         {
             _pso.Dispose();
             _vertices.Dispose();
             _output.Dispose();

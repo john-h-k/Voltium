@@ -19,16 +19,24 @@ namespace Voltium.Analyzers
         {
             var template = @"
 using System;
+using System.CodeDom.Compiler;
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
 using Voltium.Core;
 using Voltium.Core.Devices.Shaders;
 
 namespace {0}
 {{
+    [GeneratedCode(""IAInputDescGenerator"", ""1.0.0.0"")]
+    [CompilerGenerated]
     partial struct {1} : IBindableShaderType
     {{
-        ReadOnlyMemory<ShaderInput> IBindableShaderType.GetShaderInputs() => Elements.AsMemory();
-        private static readonly ImmutableArray<ShaderInput> Elements = ImmutableArray.Create({2});
+        ReadOnlyMemory<ShaderInput> IBindableShaderType.GetShaderInputs() => ShaderInputs.AsMemory();
+
+        /// <summary>
+        /// The <see cref=""ShaderInput""/> for this type. This field is generated
+        /// </summary>
+        public static readonly ImmutableArray<ShaderInput> ShaderInputs = ImmutableArray.Create({2});
     }}
 }}
 ";
