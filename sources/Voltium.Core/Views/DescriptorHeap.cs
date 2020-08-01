@@ -14,6 +14,11 @@ namespace Voltium.Core
     {
         private ComPtr<ID3D12DescriptorHeap> _heap;
 
+        /// <summary>
+        /// Whether this <see cref="DescriptorHeap"/> has been created
+        /// </summary>
+        public bool Exists => _heap.Exists;
+
         internal ID3D12DescriptorHeap* GetHeap() => _heap.Get();
 
         /// <summary>
