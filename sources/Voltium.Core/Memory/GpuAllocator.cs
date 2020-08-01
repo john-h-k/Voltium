@@ -9,6 +9,7 @@ using Voltium.Core.Devices;
 using Voltium.Core.Memory;
 using Buffer = Voltium.Core.Memory.Buffer;
 using System.Linq;
+using Voltium.Extensions;
 
 namespace Voltium.Core.Memory
 {
@@ -77,6 +78,23 @@ namespace Voltium.Core.Memory
                 _texture = new();
                 _rtOrDs = new();
             }
+        }
+
+        /// <summary>
+        /// Allocates a <see cref="MemoryAccess.CpuUpload"/> buffer and copy initial data to it
+        /// </summary>
+        /// <typeparam name="T">The type of the elements of <paramref name="data"/></typeparam>
+        /// <param name="data">The data to copy to the buffer</param>
+        /// <param name="allocFlags">Any additional allocation flags</param>
+        /// <returns>A new <see cref="Buffer"/> with <paramref name="data"/> copied to it</returns>
+        public Buffer AllocateBuffer<T>(
+            ReadOnlySpan<T> data,
+            AllocFlags allocFlags = AllocFlags.None
+        ) where T : unmanaged
+        {
+            var buff = AllocateBuffer(data.ByteLength(), MemoryAccess.CpuUpload, allocFlags: allocFlags);
+            buff.WriteData(data);
+            return buff;
         }
 
         /// <summary>

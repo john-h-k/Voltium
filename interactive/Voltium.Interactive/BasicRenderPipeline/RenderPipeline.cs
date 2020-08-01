@@ -23,7 +23,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
         private MsaaPass _msaaPass = null!;
         private TonemapPass _outputPass = null!;
 
-        private TextureOutput _output = null!;
+        private Output2D _output = null!;
         private PipelineSettings _settings;
 
         public override unsafe void Initialize(Size data, IOutputOwner output)
@@ -56,14 +56,13 @@ namespace Voltium.Interactive.BasicRenderPipeline
                 SyncInterval = 0
             };
             
-            _output = TextureOutput.Create(_device, desc, output);
+            _output = Output2D.Create(_device, desc, output);
 
-            var resolution = _output.GetDimensions2D();
             _settings = new PipelineSettings
             {
                 Msaa = MultisamplingDesc.None,
-                Resolution = resolution,
-                AspectRatio = resolution.Width / (float)resolution.Height
+                Resolution = _output.Dimensions,
+                AspectRatio = _output.AspectRatio
             };
 
 

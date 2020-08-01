@@ -545,7 +545,7 @@ namespace Voltium.Core
         /// Set the vertex buffers
         /// </summary>
         /// <param name="vertexResource">The vertex buffer to set</param>
-        /// <param name="startSlot">The slot on the device array to start setting vertex buffers to</param>
+        /// <param name="startSlot">The slot on the device array to set the vertex buffer to</param>
         /// <typeparam name="T">The type of the vertex in <see cref="Buffer"/></typeparam>
         public void SetVertexBuffers<T>(in Buffer vertexResource, uint startSlot = 0)
             where T : unmanaged
@@ -560,7 +560,7 @@ namespace Voltium.Core
         /// Set the vertex buffers
         /// </summary>
         /// <param name="vertexBuffers">The vertex buffers to set</param>
-        /// <param name="startSlot">The slot on the device array to start setting vertex buffers to</param>
+        /// <param name="startSlot">The slot on the device array to start setting the vertex buffers to</param>
         /// <typeparam name="T">The type of the vertex in <see cref="Buffer"/></typeparam>
         public void SetVertexBuffers<T>(ReadOnlySpan<Buffer> vertexBuffers, uint startSlot = 0)
             where T : unmanaged

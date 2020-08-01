@@ -13,7 +13,7 @@ namespace Voltium.Interactive
         private Renderer _renderer = new TRenderer();
 
         private GraphicsDevice _device = null!;
-        private TextureOutput _output = null!;
+        private Output2D _output = null!;
         private bool _isPaused = false;
 
         public override unsafe void Initialize(Size data, IOutputOwner output)
@@ -38,7 +38,7 @@ namespace Voltium.Interactive
                 SyncInterval = 0
             };
 
-            _output = TextureOutput.Create(_device, desc, output);
+            _output = Output2D.Create(_device, desc, output);
 
             _renderer.Init(_device, data);
         }

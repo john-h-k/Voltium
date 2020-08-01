@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Common.Strings;
@@ -97,7 +98,7 @@ namespace Voltium.Core.Devices
         /// <param name="graphicsDesc">The descriptor for the pipeline state</param>
         public GraphicsPipelineStateObject CreatePipelineStateObject(string name, in GraphicsPipelineDesc graphicsDesc)
         {
-            TranslateGraphicsPipelineDescriptionWithoutShadersOrShaderInputLayoutElements(graphicsDesc, out D3D12_GRAPHICS_PIPELINE_STATE_DESC desc);
+            TranslateGraphicsPipelineDescriptionWithoutShadersOrShaderInputLayoutElements(_device, ref Unsafe.AsRef(in graphicsDesc), out D3D12_GRAPHICS_PIPELINE_STATE_DESC desc);
 
             // TODO use pinned pool
             using var buff = RentedArray<D3D12_INPUT_ELEMENT_DESC>.Create(graphicsDesc.Inputs.Length);
@@ -234,7 +235,7 @@ namespace Voltium.Core.Devices
                 return _legacyGraphicsMap[(name, graphicsDesc)];
             }
 
-            TranslateGraphicsPipelineDescriptionWithoutShadersOrShaderInputLayoutElements(graphicsDesc, out D3D12_GRAPHICS_PIPELINE_STATE_DESC desc);
+            TranslateGraphicsPipelineDescriptionWithoutShadersOrShaderInputLayoutElements(_device, ref Unsafe.AsRef(in graphicsDesc), out D3D12_GRAPHICS_PIPELINE_STATE_DESC desc);
 
             // TODO use pinned pool
             using var buff = RentedArray<D3D12_INPUT_ELEMENT_DESC>.Create(graphicsDesc.Inputs.Length);

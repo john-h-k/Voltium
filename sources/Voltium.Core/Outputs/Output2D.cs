@@ -11,6 +11,7 @@ using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Infrastructure;
 using Voltium.Core.Devices;
+using Voltium.Extensions;
 using Voltium.Core.Memory;
 using static TerraFX.Interop.Windows;
 using Rectangle = System.Drawing.Rectangle;
@@ -21,7 +22,7 @@ namespace Voltium.Core.Devices
     /// <summary>
     /// An output that displays graphics to the user
     /// </summary>
-    public unsafe class TextureOutput
+    public unsafe class Output2D
     {
         private struct BackBufferBuffer8
         {
@@ -77,6 +78,29 @@ namespace Voltium.Core.Devices
             return _backBuffers[index];
         }
 
+        /// <summary>
+        /// Resize the render resources
+        /// </summary>
+        /// <param name="newSize">The <see cref="Size"/> indicating the size to resize to</param>
+        public void Resize(Size newSize)
+        {
+            _device.Idle();
+            Dimensions = newSize;
+            AspectRatio = Dimensions.AspectRatio();
+
+            ResizeBuffers(newSize);
+            CreateTexturesFromBuffers();
+        }
+
+        /// <summary>
+        /// The <see cref="Size"/> of the output
+        /// </summary>
+        public Size Dimensions { get; private set; }
+
+        /// <summary>
+        /// The aspect ratio of the output
+        /// </summary>
+        public float AspectRatio { get; private set; }
 
         /// <summary>
         /// The number of output buffers
@@ -88,7 +112,7 @@ namespace Voltium.Core.Devices
         /// </summary>
         public Texture OutputBuffer => _backBuffers[_backBufferIndex];
 
-        private TextureOutput(GraphicsDevice device, OutputConfiguration desc)
+        private Output2D(GraphicsDevice device, OutputConfiguration desc)
         {
             _device = device;
             _desc = desc;
@@ -96,7 +120,7 @@ namespace Voltium.Core.Devices
             CreateTexturesFromBuffers();
         }
 
-        private TextureOutput(GraphicsDevice device, ComPtr<IDXGISwapChain1> swapChain, OutputConfiguration desc)
+        private Output2D(GraphicsDevice device, ComPtr<IDXGISwapChain1> swapChain, OutputConfiguration desc)
         {
             _device = device;
 
@@ -105,11 +129,15 @@ namespace Voltium.Core.Devices
                 ThrowHelper.ThrowPlatformNotSupportedException("Couldn't create IDXGISwapChain3, which is required");
             }
 
+            DXGI_SWAP_CHAIN_DESC1 swapChainDesc;
+            Guard.ThrowIfFailed(swapChain3.Get()->GetDesc1(&swapChainDesc));
+            Dimensions = new Size((int)swapChainDesc.Width, (int)swapChainDesc.Height);
+            AspectRatio = Dimensions.AspectRatio();
+
             _desc = desc;
             _swapChain = swapChain3.Move();
 
             CreateTexturesFromBuffers();
-            _backBufferIndex = _swapChain.Get()->GetCurrentBackBufferIndex();
         }
 
         private void CreateTexturesFromBuffers()
@@ -122,17 +150,19 @@ namespace Voltium.Core.Devices
 
                 _backBuffers[i] = Texture.FromResource(_device, buffer.Move());
             }
+
+            _backBufferIndex = _swapChain.Get()->GetCurrentBackBufferIndex();
         }
 
         /// <summary>
-        /// Creates a new <see cref="TextureOutput"/> to a <see cref="IOutputOwner"/>
+        /// Creates a new <see cref="Output2D"/> to a <see cref="IOutputOwner"/>
         /// </summary>
         /// <param name="device">The <see cref="GraphicsDevice"/> that will output to this buffer</param>
         /// <param name="desc">The <see cref="OutputConfiguration"/> for this output</param>
         /// <param name="window">The <see cref="IOutputOwner"/> that owns the window</param>
         /// <param name="outputArea">Optionally, the <see cref="Size"/> of the rendered output. By default, this will be the entire window</param>
-        /// <returns>A new <see cref="TextureOutput"/></returns>
-        public static TextureOutput Create(GraphicsDevice device, OutputConfiguration desc, IOutputOwner window, Size outputArea = default)
+        /// <returns>A new <see cref="Output2D"/></returns>
+        public static Output2D Create(GraphicsDevice device, OutputConfiguration desc, IOutputOwner window, Size outputArea = default)
         {
             return window.Type switch
             {
@@ -143,25 +173,25 @@ namespace Voltium.Core.Devices
         }
 
         /// <summary>
-        /// Creates a new <see cref="TextureOutput"/> to a Win32 Window backed by a HWND
+        /// Creates a new <see cref="Output2D"/> to a Win32 Window backed by a HWND
         /// </summary>u
         /// <param name="device">The <see cref="GraphicsDevice"/> that will output to this buffer</param>
         /// <param name="desc">The <see cref="OutputConfiguration"/> for this output</param>
         /// <param name="window">The <see cref="IHwndOwner"/> that owns the window</param>
         /// <param name="outputArea">Optionally, the <see cref="Size"/> of the rendered output. By default, this will be the entire window</param>
-        /// <returns>A new <see cref="TextureOutput"/></returns>
-        public static TextureOutput CreateForWin32(GraphicsDevice device, OutputConfiguration desc, IHwndOwner window, Size outputArea = default)
+        /// <returns>A new <see cref="Output2D"/></returns>
+        public static Output2D CreateForWin32(GraphicsDevice device, OutputConfiguration desc, IHwndOwner window, Size outputArea = default)
             => CreateForWin32(device, desc, window.GetHwnd(), outputArea);
 
         /// <summary>
-        /// Creates a new <see cref="TextureOutput"/> to a Win32 Window backed by a HWND
+        /// Creates a new <see cref="Output2D"/> to a Win32 Window backed by a HWND
         /// </summary>
         /// <param name="device">The <see cref="GraphicsDevice"/> that will output to this buffer</param>
         /// <param name="desc">The <see cref="OutputConfiguration"/> for this output</param>
         /// <param name="window">The HWND for the window to bind to</param>
         /// <param name="outputArea">Optionally, the <see cref="Size"/> of the rendered output. By default, this will be the entire window</param>
-        /// <returns>A new <see cref="TextureOutput"/></returns>
-        public static TextureOutput CreateForWin32(GraphicsDevice device, OutputConfiguration desc, IntPtr window, Size outputArea = default)
+        /// <returns>A new <see cref="Output2D"/></returns>
+        public static Output2D CreateForWin32(GraphicsDevice device, OutputConfiguration desc, IntPtr window, Size outputArea = default)
         {
             var swapChainDesc = CreateDesc(desc, outputArea);
 
@@ -178,32 +208,32 @@ namespace Voltium.Core.Devices
                 ComPtr.GetAddressOf(&swapChain)
             ));
 
-            var output = new TextureOutput(device, swapChain.Move(), desc);
+            var output = new Output2D(device, swapChain.Move(), desc);
 
             return output;
         }
 
 
         /// <summary>
-        /// Creates a new <see cref="TextureOutput"/> to a WinRT ICoreWindow
+        /// Creates a new <see cref="Output2D"/> to a WinRT ICoreWindow
         /// </summary>
         /// <param name="device">The <see cref="GraphicsDevice"/> that will output to this buffer</param>
         /// <param name="desc">The <see cref="OutputConfiguration"/> for this output</param>
         /// <param name="window">The <see cref="ICoreWindowsOwner"/> that owns the window</param>
         /// <param name="outputArea">Optionally, the <see cref="Size"/> of the rendered output. By default, this will be the entire window</param>
-        /// <returns>A new <see cref="TextureOutput"/></returns>
-        public static TextureOutput CreateForWinRT(GraphicsDevice device, OutputConfiguration desc, ICoreWindowsOwner window, Size outputArea = default)
+        /// <returns>A new <see cref="Output2D"/></returns>
+        public static Output2D CreateForWinRT(GraphicsDevice device, OutputConfiguration desc, ICoreWindowsOwner window, Size outputArea = default)
             => CreateForWinRT(device, desc, window.GetIUnknownForWindow(), outputArea);
 
         /// <summary>
-        /// Creates a new <see cref="TextureOutput"/> to a WinRT ICoreWindow
+        /// Creates a new <see cref="Output2D"/> to a WinRT ICoreWindow
         /// </summary>
         /// <param name="device">The <see cref="GraphicsDevice"/> that will output to this buffer</param>
         /// <param name="desc">The <see cref="OutputConfiguration"/> for this output</param>
         /// <param name="window">The IUnknown* for the window to bind to</param>
         /// <param name="outputArea">Optionally, the <see cref="Size"/> of the rendered output. By default, this will be the entire window</param>
-        /// <returns>A new <see cref="TextureOutput"/></returns>
-        public static TextureOutput CreateForWinRT(GraphicsDevice device, OutputConfiguration desc, void* window, Size outputArea = default)
+        /// <returns>A new <see cref="Output2D"/></returns>
+        public static Output2D CreateForWinRT(GraphicsDevice device, OutputConfiguration desc, void* window, Size outputArea = default)
         {
             var swapChainDesc = CreateDesc(desc, outputArea);
 
@@ -220,21 +250,21 @@ namespace Voltium.Core.Devices
             ));
 
 
-            var output = new TextureOutput(device, swapChain.Move(), desc);
+            var output = new Output2D(device, swapChain.Move(), desc);
 
             return output;
         }
 
 
         /// <summary>
-        /// Creates a new <see cref="TextureOutput"/> to a WinRT ISwapChainPanelNative
+        /// Creates a new <see cref="Output2D"/> to a WinRT ISwapChainPanelNative
         /// </summary>
         /// <param name="device">The <see cref="GraphicsDevice"/> that will output to this buffer</param>
         /// <param name="desc">The <see cref="OutputConfiguration"/> for this output</param>
         /// <param name="swapChainPanelNative">The IUnknown* for the ISwapChainPanelNative to bind to</param>
         /// <param name="outputArea">The <see cref="Size"/> of the rendered output</param>
-        /// <returns>A new <see cref="TextureOutput"/></returns>
-        public static TextureOutput CreateForSwapChainPanel(GraphicsDevice device, OutputConfiguration desc, void* swapChainPanelNative, Size outputArea)
+        /// <returns>A new <see cref="Output2D"/></returns>
+        public static Output2D CreateForSwapChainPanel(GraphicsDevice device, OutputConfiguration desc, void* swapChainPanelNative, Size outputArea)
         {
             var swapChainDesc = CreateDesc(desc, outputArea);
 
@@ -251,21 +281,9 @@ namespace Voltium.Core.Devices
 
             Guard.ThrowIfFailed(((ISwapChainPanelNative*)swapChainPanelNative)->SetSwapChain((IDXGISwapChain*)swapChain.Get()));
 
-            var output = new TextureOutput(device, swapChain.Move(), desc);
+            var output = new Output2D(device, swapChain.Move(), desc);
 
             return output;
-        }
-
-        /// <summary>
-        /// Resize the render resources
-        /// </summary>
-        /// <param name="newSize">The <see cref="Size"/> indicating the size to resize to</param>
-        public void Resize(Size newSize)
-        {
-            _device.Idle();
-
-            ResizeBuffers(newSize);
-            CreateTexturesFromBuffers();
         }
 
         private static ComPtr<IDXGIFactory2> CreateFactory(GraphicsDevice device)
@@ -274,7 +292,7 @@ namespace Voltium.Core.Devices
 
             // Try get the factory from the device if possible. Won't work if the device is a IDXCoreAdapter tho, then we fallback to manual creation
             int hr;
-            if (device.Adapter.UnderlyingAdapter is not null && ComPtr.TryQueryInterface(device.Adapter.UnderlyingAdapter, out IDXGIAdapter* dxgiAdapter))
+            if (device.Adapter.GetAdapterPointer() is not null && ComPtr.TryQueryInterface(device.Adapter.GetAdapterPointer(), out IDXGIAdapter* dxgiAdapter))
             {
                 hr = dxgiAdapter->GetParent(factory.Iid, ComPtr.GetVoidAddressOf(&factory));
                 _ = dxgiAdapter->Release();
@@ -316,58 +334,6 @@ namespace Voltium.Core.Devices
                 Stereo =  FALSE, // stereoscopic rendering, 2 images, e.g VR or 3D holo
                 SwapEffect = DXGI_SWAP_EFFECT.DXGI_SWAP_EFFECT_FLIP_DISCARD
             };
-        }
-
-
-        /// <summary>
-        /// Retrieves the dimensions of the output texture
-        /// </summary>
-        public Size GetDimensions2D()
-        {
-            if (_swapChain.Exists)
-            {
-                DXGI_SWAP_CHAIN_DESC1 desc;
-                Guard.ThrowIfFailed(_swapChain.Get()->GetDesc1(&desc));
-                if (desc.Stereo == TRUE)
-                {
-                    ThrowHelper.ThrowNotSupportedException("Output does not use a 2D swap chain outpu");
-                }
-
-                return new Size((int)desc.Width, (int)desc.Height);
-            }
-            else
-            {
-                ThrowHelper.ThrowNotSupportedException("Output does not use a 2D swap chain outpu");
-                return default;
-            }
-        }
-
-        /// <summary>
-        /// Retrieves the dimensions of the output texture
-        /// </summary>
-        /// <param name="dimension">The <see cref="TextureDimension"/> of the output. This is always <see cref="TextureDimension.Tex2D"/> if this output has a swap chain</param>
-        /// <param name="width">The width of the output, in pixels</param>
-        /// <param name="height">If <paramref name="dimension"/> is <see cref="TextureDimension.Tex2D"/> or <see cref="TextureDimension.Tex3D"/>, the height of the output, in pixels</param>
-        /// <param name="depthOrArraySize">If <paramref name="dimension"/> is <see cref="TextureDimension.Tex1D"/> or <see cref="TextureDimension.Tex2D"/>, the number of textures in the texture array of the output.
-        /// Else, the depth of the output texture</param>
-        public void GetDimensions(out TextureDimension dimension, out uint width, out uint? height, out uint? depthOrArraySize)
-        {
-            if (_swapChain.Exists)
-            {
-                DXGI_SWAP_CHAIN_DESC1 desc;
-                Guard.ThrowIfFailed(_swapChain.Get()->GetDesc1(&desc));
-                dimension = TextureDimension.Tex2D;
-                width = desc.Width;
-                height = desc.Height;
-                depthOrArraySize = desc.Stereo == TRUE ? 2U : 1;
-
-                return;
-            }
-            else
-            {
-                ThrowHelper.ThrowNotImplementedException();
-                throw null;
-            }
         }
 
         /// <summary>

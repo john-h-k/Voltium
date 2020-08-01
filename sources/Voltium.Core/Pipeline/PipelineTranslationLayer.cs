@@ -60,15 +60,16 @@ namespace Voltium.Core.Devices
             outDesc.HS = new D3D12_SHADER_BYTECODE(Unsafe.AsPointer(ref MemoryMarshal.GetReference(inDesc.HullShader.ShaderData.Span)), (uint)inDesc.HullShader.Length);
         }
 
-        public unsafe static void TranslateGraphicsPipelineDescriptionWithoutShadersOrShaderInputLayoutElements(in GraphicsPipelineDesc inDesc, out D3D12_GRAPHICS_PIPELINE_STATE_DESC outDesc)
+        public unsafe static void TranslateGraphicsPipelineDescriptionWithoutShadersOrShaderInputLayoutElements(ComputeDevice device, ref GraphicsPipelineDesc inDesc, out D3D12_GRAPHICS_PIPELINE_STATE_DESC outDesc)
         {
-            var blend = inDesc.Blend ?? BlendDesc.Default;
-            var rasterizer = inDesc.Rasterizer ?? RasterizerDesc.Default;
-            var depthStencil = inDesc.DepthStencil ?? DepthStencilDesc.Default;
+            inDesc.RootSignature ??= device.EmptyRootSignature;
+            inDesc.Blend ??= BlendDesc.Default;
+            inDesc.Rasterizer ??= RasterizerDesc.Default;
+            inDesc.DepthStencil ??= DepthStencilDesc.Default;
 
-            TranslateBlendState(blend, out D3D12_BLEND_DESC blendDesc);
-            TranslateRasterizerState(rasterizer, out D3D12_RASTERIZER_DESC rasterizerDesc);
-            TranslateDepthStencilState(depthStencil, out D3D12_DEPTH_STENCIL_DESC depthStencilDesc);
+            TranslateBlendState(inDesc.Blend.Value, out D3D12_BLEND_DESC blendDesc);
+            TranslateRasterizerState(inDesc.Rasterizer.Value, out D3D12_RASTERIZER_DESC rasterizerDesc);
+            TranslateDepthStencilState(inDesc.DepthStencil.Value, out D3D12_DEPTH_STENCIL_DESC depthStencilDesc);
 
             var msaa = inDesc.Msaa ?? MultisamplingDesc.None;
 
@@ -103,7 +104,7 @@ namespace Voltium.Core.Devices
 
             outDesc = new D3D12_GRAPHICS_PIPELINE_STATE_DESC
             {
-                pRootSignature = inDesc.RootSignature is null ? null : inDesc.RootSignature.Value,
+                pRootSignature = inDesc.RootSignature.Value,
                 DSVFormat = (DXGI_FORMAT)inDesc.DepthStencilFormat,
                 BlendState = blendDesc,
                 RasterizerState = rasterizerDesc,
@@ -117,7 +118,6 @@ namespace Voltium.Core.Devices
             };
 
             Unsafe.As<D3D12_GRAPHICS_PIPELINE_STATE_DESC._RTVFormats_e__FixedBuffer, FormatBuffer8>(ref outDesc.RTVFormats) = inDesc.RenderTargetFormats;
-
         }
 
         public static void TranslateDepthStencilState(in DepthStencilDesc desc, out D3D12_DEPTH_STENCIL_DESC depthStencilDesc)

@@ -13,7 +13,7 @@ namespace Voltium.Core.Infrastructure
         /// <summary>
         /// The value of the <see cref="IDXGIAdapter1"/>
         /// </summary>
-        internal unsafe IUnknown* UnderlyingAdapter => _adapter.Get();
+        internal unsafe IUnknown* GetAdapterPointer() => _adapter.Get();
 
         private ComPtr<IUnknown> _adapter;
 

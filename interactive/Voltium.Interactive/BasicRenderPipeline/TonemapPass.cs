@@ -17,9 +17,9 @@ namespace Voltium.Interactive.BasicRenderPipeline
     {
         public override OutputDesc Output { get; }
 
-        private TextureOutput _output;
+        private Output2D _output;
 
-        public TonemapPass(TextureOutput output)
+        public TonemapPass(Output2D output)
         {
             _output = output;
             Output = OutputDesc.FromBackBuffer(OutputClass.Primary, _output);
