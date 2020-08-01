@@ -5,52 +5,46 @@ using Voltium.Common;
 using Voltium.Core.Configuration.Graphics;
 using Voltium.Core.Devices;
 
-namespace Voltium.Core.GpuResources
+namespace Voltium.Core.Memory
 {
     /// <summary>
     /// Represents a GPU resource
     /// </summary>
-    internal unsafe class GpuResource : CriticalFinalizerObject, IDisposable, IInternalD3D12Object
+    internal unsafe sealed class GpuResource : IDisposable, IInternalD3D12Object, IEvictable
     {
-        ID3D12Object* IInternalD3D12Object.GetPointer() => (ID3D12Object*)UnderlyingResource;
+        ID3D12Object* IInternalD3D12Object.GetPointer() => (ID3D12Object*)GetResourcePointer();
+        ID3D12Pageable* IEvictable.GetPageable() => (ID3D12Pageable*)GetResourcePointer();
+        bool IEvictable.IsBlittableToPointer => false; // we are a class
+
         internal ID3D12Object* GetPointer() => ((IInternalD3D12Object)this).GetPointer();
 
         internal GpuResource(
-            ComputeDevice device,
             ComPtr<ID3D12Resource> resource,
-            InternalAllocDesc desc,
-            GpuAllocator? allocator = null,
-            AllocatorHeap heap = default,
+            in InternalAllocDesc desc,
+            GpuAllocator? allocator,
+            int heapIndex = -1 /* no relevant heap block */,
             HeapBlock block = default
         )
         {
-            _device = device;
             _value = resource.Move();
             State = (ResourceState)desc.InitialState;
             ResourceFormat = (DataFormat)desc.Desc.Format;
-            Heap = heap;
+            HeapIndex = heapIndex;
+            Flags = desc.Desc.Flags;
             Block = block;
             _allocator = allocator;
-
-            if (desc.Desc.Dimension == D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_BUFFER
-                && !desc.Desc.Flags.HasFlag(D3D12_RESOURCE_FLAGS.D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE))
-            {
-                GpuAddress = UnderlyingResource->GetGPUVirtualAddress();
-            }
         }
 
         private GpuResource() { }
 
         // this is a hack. TODO make it right
         internal static GpuResource FromBackBuffer(
-            ComputeDevice device,
             ComPtr<ID3D12Resource> resource
         )
         {
             var desc = resource.Get()->GetDesc();
             return new GpuResource
             {
-                _device = device,
                 _value = resource.Move(),
                 ResourceFormat = (DataFormat)desc.Format,
                 State = (ResourceState)D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_COMMON
@@ -60,38 +54,27 @@ namespace Voltium.Core.GpuResources
         /// <summary>
         /// The format of the buffer, if typed, else <see cref="DataFormat.Unknown"/>
         /// </summary>
-        public DataFormat ResourceFormat { get; private set; }
+        public DataFormat ResourceFormat;
 
-        /// <summary>
-        /// The underlying value of the resource
-        /// </summary>
-        public ID3D12Resource* UnderlyingResource => _value.Get();
+        public unsafe ID3D12Resource* GetResourcePointer() => _value.Get();
 
-        /// <summary>
         /// The current state of the resource
-        /// </summary>
-        public ResourceState State { get; internal set; }
+        public ResourceState State;
+
+        /// Whether a resource transition was began on this resource, making it temporarily inaccessible
+        public bool TransitionBegan;
 
         private ComPtr<ID3D12Resource> _value;
+        public D3D12_RESOURCE_FLAGS Flags;
 
-        /// <summary>
-        /// The GPU address of the underlying resource
-        /// </summary>
-        public ulong GpuAddress { get; private set; }
-
-        /// <summary>
-        /// The CPU address of the underlying resource. This may be null if the resource
-        /// is unmapped or not CPU accessible
-        /// </summary>
-        public unsafe void* CpuAddress { get; private set; }
+        // Null if the resource is unmapped or not CPU accessible (default heap)
+        public unsafe void* CpuAddress;
 
 
         private ComputeDevice _device = null!;
 
-        internal ComputeDevice Device => _device;
-
         private GpuAllocator? _allocator;
-        public AllocatorHeap Heap;
+        public int HeapIndex;
         public HeapBlock Block;
 
         /// <summary>
@@ -102,7 +85,7 @@ namespace Voltium.Core.GpuResources
         {
             // Apparently the range for map and unmap are for debugging purposes and yield no perf benefit. Maybe we could still support em
             void* pData;
-            Guard.ThrowIfFailed(UnderlyingResource->Map(subresource, null, &pData));
+            Guard.ThrowIfFailed(GetResourcePointer()->Map(subresource, null, &pData));
             return pData;
         }
 
@@ -113,13 +96,13 @@ namespace Voltium.Core.GpuResources
         public unsafe void Unmap(uint subresource)
         {
             // Apparently the range for map and unmap are for debugging purposes and yield no perf benefit. Maybe we could still support em
-            UnderlyingResource->Unmap(subresource, null);
+            GetResourcePointer()->Unmap(subresource, null);
         }
 
         /// <inheritdoc cref="IDisposable"/>
         public void Dispose()
         {
-            if (_allocator is object)
+            if (_allocator is not null)
             {
                 _allocator.Return(this);
             }
@@ -127,16 +110,19 @@ namespace Voltium.Core.GpuResources
             {
                 _value.Dispose();
             }
+#if TRACE_DISPOSABLES || DEBUG
             GC.SuppressFinalize(this);
+#endif
         }
 
 
-#if TRACE_DISPOSABLES || !DEBUG
+#if TRACE_DISPOSABLES || DEBUG
         /// <summary>
         /// go fuck yourself roslyn why the fucking fuckeroni do finalizers need xml comments fucking fuck off fucking twatty compiler
         /// </summary>
         ~GpuResource()
         {
+            var name = DebugHelpers.GetName(this);
             Guard.MarkDisposableFinalizerEntered();
         }
 #endif

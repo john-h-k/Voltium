@@ -1,4 +1,4 @@
-using Buffer = Voltium.Core.Memory.GpuResources.Buffer;
+using Buffer = Voltium.Core.Memory.Buffer;
 
 namespace Voltium.RenderEngine
 {

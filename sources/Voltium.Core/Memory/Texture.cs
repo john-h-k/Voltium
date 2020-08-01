@@ -4,9 +4,9 @@ using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Configuration.Graphics;
 using Voltium.Core.Devices;
-using Voltium.Core.GpuResources;
+using Voltium.Core.Memory;
 
-namespace Voltium.Core.Memory.GpuResources
+namespace Voltium.Core.Memory
 {
     /// <summary>
     /// The kind of a texture
@@ -35,6 +35,7 @@ namespace Voltium.Core.Memory.GpuResources
     public unsafe struct Texture : IInternalD3D12Object, IDisposable
     {
         ID3D12Object* IInternalD3D12Object.GetPointer() => _resource.GetPointer();
+        private GpuResource _resource;
 
         /// <summary>
         /// The format ofrmat format 
@@ -99,7 +100,7 @@ namespace Voltium.Core.Memory.GpuResources
         internal static Texture FromResource(ComputeDevice device, ComPtr<ID3D12Resource> buffer)
         {
             var resDesc = buffer.Get()->GetDesc();
-            var res = new GpuResource(device, buffer.Move(), new InternalAllocDesc { Desc = resDesc, InitialState = D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_COMMON });
+            var res = new GpuResource(buffer.Move(), new InternalAllocDesc { Desc = resDesc, InitialState = D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_COMMON }, null, -1);
 
             var texDesc = new TextureDesc
             {
@@ -115,13 +116,8 @@ namespace Voltium.Core.Memory.GpuResources
 
         internal GpuResource Resource => _resource;
 
-        /// <summary>
-        /// Do not use
-        /// </summary>
-        /// <returns></returns>
-        public ID3D12Resource* GetResourcePointer() => _resource.UnderlyingResource;
+        internal ID3D12Resource* GetResourcePointer() => _resource.GetResourcePointer();
 
-        private GpuResource _resource;
 
         /// <inheritdoc/>
         public void Dispose() => _resource?.Dispose();

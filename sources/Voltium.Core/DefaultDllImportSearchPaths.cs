@@ -1,8 +1,7 @@
 using System.Runtime.InteropServices;
 using TerraFX.Interop;
 
-[assembly: DefaultDllImportSearchPaths(
-    DllImportSearchPath.UseDllDirectoryForDependencies )]
+[assembly: DefaultDllImportSearchPaths(DllImportSearchPath.UseDllDirectoryForDependencies)]
 
 internal class DllResolver
 {

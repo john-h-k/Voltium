@@ -1,6 +1,6 @@
 namespace Voltium.Common.Pix
 {
-    internal static unsafe class EventTypeInferer
+    internal unsafe static class EventTypeInferer
     {
         public static PIXEventType BeginEvent(uint length, bool hasContext)
         {
@@ -45,18 +45,18 @@ namespace Voltium.Common.Pix
         public static PIXEventType GpuBeginOnContext(bool varargs)
         {
 #if PIX_XBOX
-            return !varargs ? PIXEventType.BeginEventOnContextNoArgs : PIXEventType.BeginEventOnContextVarArgs;
+            return varargs ? PIXEventType.BeginEventOnContextVarArgs : PIXEventType.BeginEventOnContextNoArgs;
 #else
-            return !varargs ? PIXEventType.BeginEventNoArgs : PIXEventType.BeginEventVarArgs;
+            return varargs ? PIXEventType.BeginEventVarArgs : PIXEventType.BeginEventNoArgs;
 #endif
         }
 
         public static PIXEventType GpuSetMarkerOnContext(bool varargs)
         {
 #if PIX_XBOX
-            return !varargs ? PIXEventType.SetMarkerOnContextNoArgs : PIXEventType.SetMarkerOnContextVarArgs;
+            return varargs ? PIXEventType.SetMarkerOnContextVarArgs : PIXEventType.SetMarkerOnContextNoArgs;
 #else
-            return !varargs ? PIXEventType.SetMarkerNoArgs : PIXEventType.SetMarkerVarArgs;
+            return varargs ? PIXEventType.SetMarkerVarArgs : PIXEventType.SetMarkerNoArgs;
 #endif
         }
     }

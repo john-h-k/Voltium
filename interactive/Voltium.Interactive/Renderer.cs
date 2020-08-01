@@ -1,17 +1,17 @@
 using System;
 using System.Drawing;
 using Voltium.Core;
-using Voltium.Core.Managers;
-using Voltium.Core.Memory.GpuResources;
+using Voltium.Core.Devices;
+using Voltium.Core.Memory;
 using Voltium.Core.Pipeline;
 
 namespace Voltium.Interactive
 {
     public abstract unsafe class Renderer : IDisposable
     {
-        public abstract void Init(GraphicsDevice device, GraphicalConfiguration config, in Size screen);
+        public abstract void Init(GraphicsDevice device, in Size screen);
 
-        public abstract void Render(ref GraphicsContext recorder, out Texture render);
+        public abstract void Render(GraphicsContext recorder, out Texture render);
 
         public abstract void Update(ApplicationTimer timer);
 

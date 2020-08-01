@@ -20,63 +20,63 @@ namespace Voltium.Core.Infrastructure
         /// <summary>
         /// A string that contains the adapter description. On feature level 9 graphics hardware, GetDesc1 returns “Software Adapter” for the description string.
         /// </summary>
-        public readonly string Description;
+        public string Description { get; }
 
         /// <summary>
         /// The PCI ID of the hardware vendor. On feature level 9 graphics hardware, GetDesc1 returns zeros for the PCI ID of the hardware vendor.
         /// </summary>
-        public readonly AdapterVendor VendorId;
+        public AdapterVendor VendorId { get; }
 
         /// <summary>
         /// The PCI ID of the hardware device. On feature level 9 graphics hardware, GetDesc1 returns zeros for the PCI ID of the hardware device.
         /// </summary>
-        public readonly uint DeviceId;
+        public uint DeviceId { get; }
 
         /// <summary>
         /// The PCI ID of the sub system. On feature level 9 graphics hardware, GetDesc1 returns zeros for the PCI ID of the sub system.
         /// </summary>
-        public readonly uint SubSysId;
+        public uint SubSysId { get; }
 
         /// <summary>
         /// The PCI ID of the revision number of the adapter. On feature level 9 graphics hardware, GetDesc1 returns zeros for the PCI ID of the revision number of the adapter.
         /// </summary>
-        public readonly uint Revision;
+        public uint Revision { get; }
 
         /// <summary>
         /// The size, in bytes, of the video memory for the adapter, and not accessible by the CPU
         /// </summary>
-        public readonly ulong DedicatedVideoMemory;
+        public ulong DedicatedVideoMemory { get; }
 
         /// <summary>
         /// The size, in bytes, of the system memory dedicated to the adapter, and not accessible by the CPU
         /// </summary>
-        public readonly ulong DedicatedSystemMemory;
+        public ulong DedicatedSystemMemory { get; }
 
         /// <summary>
         /// The size, in bytes, of the maximum amount of shared system memory the adapter can use
         /// </summary>
-        public readonly ulong SharedSystemMemory;
+        public ulong SharedSystemMemory { get; }
 
         /// <summary>
         /// A locally-unique identifier for the adapter
         /// </summary>
-        public readonly ulong AdapterLuid;
+        public ulong AdapterLuid { get; }
 
         /// <summary>
         /// The driver version for the adapter
         /// </summary>
-        public readonly ulong DriverVersion;
+        public ulong DriverVersion { get; }
 
         /// <summary>
         ///  <code>true</code> if this adapter is implemented in software, else <code>false</code>
         /// </summary>
-        public readonly bool IsSoftware;
+        public bool IsSoftware { get; }
 
         /// <summary>
         /// The <see cref="DeviceType"/> for this adapter, specifying whether it is a <see cref="DeviceType.ComputeOnly"/> device or a general purpose
         /// <see cref="DeviceType.GraphicsAndCompute"/> device
         /// </summary>
-        public readonly DeviceType Type;
+        public DeviceType Type { get; }
 
         /// <summary>
         /// Create a new instance of <see cref="Adapter"/>

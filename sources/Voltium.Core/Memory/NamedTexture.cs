@@ -1,4 +1,4 @@
-namespace Voltium.Core.GpuResources.OldStyle
+namespace Voltium.Core.Memory.OldStyle
 {
     ///// <summary>
     ///// Represents a texture with a name

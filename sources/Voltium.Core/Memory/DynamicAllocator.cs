@@ -1,204 +1,239 @@
-namespace Voltium.Core.Memory.GpuResources
+using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using TerraFX.Interop;
+using Voltium.Common;
+using Voltium.Common.Debugging;
+using Voltium.Core.Devices;
+
+using SpinLock = Voltium.Common.Threading.SpinLockWrapped;
+
+namespace Voltium.Core.Memory
 {
-    ///// <summary>
-    ///// An allocator used for short-lived per-frame GPU buffer allocations.
-    ///// This does not support textures, resource aliasing, or multi-frame resources
-    ///// </summary>
-    //public unsafe class DynamicAllocator
-    //{
-    //    private const nuint ConstantBufferAlignment = 256;
+    /// <summary>
+    /// Represents a subset of a <see cref="Buffer"/>
+    /// </summary>
+    public unsafe struct BufferRegion
+    {
+        internal Buffer Buffer;
+        internal uint Offset;
+        internal uint Length;
 
-    //    private GraphicsDevice _device;
-    //    private Page _page;
-    //    private nuint _offset;
-    //    private PageManager _manager;
-    //    private List<Page> _usedPages = new();
-    //    private List<Page> _usedLargePages = new();
+        /// <summary>
+        /// Writes the <typeparamref name="T"/> to the buffer
+        /// </summary>
+        /// <typeparam name="T">The type to write</typeparam>
+        public void WriteData<T>(ref T data, uint offset) where T : unmanaged
+            => Buffer.WriteData(ref data, Offset + offset);
 
-    //    /// <summary>
-    //    /// Create a new <see cref="DynamicAllocator"/>
-    //    /// </summary>
-    //    /// <param name="device">The underlying <see cref="GraphicsDevice"/> to allocate from</param>
-    //    public DynamicAllocator(GraphicsDevice device)
-    //    {
-    //        _device = device;
-    //        if (!_pageManagers.TryGetValue(device, out var manager))
-    //        {
-    //            lock (_pageManagers)
-    //            {
-    //                manager = new PageManager(device);
-    //                _pageManagers[device] = manager;
-    //            }
-    //        }
+        /// <summary>
+        /// Writes the <typeparamref name="T"/> to the buffer
+        /// </summary>
+        /// <typeparam name="T">The type to write</typeparam>
+        public void WriteConstantBufferData<T>(ref T data, uint offset) where T : unmanaged
+            => Buffer.WriteConstantBufferData(ref data, Offset + offset);
 
-    //        _manager = manager;
-    //        _page = _manager.GetPage();
-    //    }
+        /// <summary>
+        /// Writes the <typeparamref name="T"/> to the buffer
+        /// </summary>
+        /// <typeparam name="T">The type to write</typeparam>
+        public void WriteDataByteOffset<T>(ref T data, uint offset) where T : unmanaged
+            => Buffer.WriteDataByteOffset(ref data, Offset + offset);
+        /// <summary>
+        /// Writes the <typeparamref name="T"/> to the buffer
+        /// </summary>
+        /// <typeparam name="T">The type to write</typeparam>
+        public void WriteData<T>(ReadOnlySpan<T> data, uint offset = 0) where T : unmanaged
+            => Buffer.WriteData(data, Offset + offset);
 
-    //    /// <summary>
-    //    /// Allocates a buffer
-    //    /// </summary>
-    //    /// <param name="size">The size, in bytes, of the buffer</param>
-    //    /// <param name="alignment">The alignment required by the buffer</param>
-    //    /// <returns>A new <see cref="Buffer"/></returns>
-    //    public Buffer AllocateBuffer(int size, nuint alignment = ConstantBufferAlignment)
-    //        => AllocateBuffer((nuint)size, alignment);
+        /// <summary>
+        /// The <see cref="Span{T}"/> encompassing the data of this <see cref="BufferRegion"/>
+        /// </summary>
+        public Span<byte> Data => new Span<byte>((byte*)Buffer.CpuAddress + Offset, (int)Length);
+
+        internal ulong GpuAddress => Buffer.GpuAddress + Offset;
+    }
+
+    /// <summary>
+    /// An allocator used for short-lived per-frame GPU upload buffer allocations.
+    /// This does not support textures, resource aliasing, or multi-frame resources
+    /// </summary>
+    public unsafe struct DynamicAllocator
+    {
+        private const nuint ConstantBufferAlignment = 256;
+
+        private Buffer _page;
+        private nuint _offset;
+        private PageManager _manager;
+        private List<Buffer> _usedPages;
+        private List<Buffer> _usedLargePages;
+
+        /// <summary>
+        /// Create a new <see cref="DynamicAllocator"/>
+        /// </summary>
+        /// <param name="device">The underlying <see cref="GraphicsDevice"/> to allocate from</param>
+        public DynamicAllocator(ComputeDevice device)
+        {
+            if (!_pageManagers.TryGetValue(device, out var manager))
+            {
+                lock (_pageManagers)
+                {
+                    manager = new PageManager(device);
+                    _ = GCHandle.Alloc(manager);
+                    _pageManagers[device] = manager;
+                }
+            }
+
+            _manager = manager;
+            _page = _manager.GetPage();
+            _offset = 0;
+            _usedPages = new();
+            _usedLargePages = new();
+        }
+
+        /// <summary>
+        /// Allocates a buffer
+        /// </summary>
+        /// <param name="size">The size, in bytes, of the buffer</param>
+        /// <param name="alignment">The alignment required by the buffer</param>
+        /// <returns>A new <see cref="Buffer"/></returns>
+        public BufferRegion AllocateBuffer(int size, nuint alignment = ConstantBufferAlignment)
+            => AllocateBuffer((uint)size, alignment);
 
 
-    //    /// <summary>
-    //    /// Allocates a buffer
-    //    /// </summary>
-    //    /// <param name="size">The size, in bytes, of the buffer</param>
-    //    /// <param name="alignment">The alignment required by the buffer</param>
-    //    /// <returns>A new <see cref="Buffer"/></returns>
-    //    public Buffer AllocateBuffer(nuint size, nuint alignment = ConstantBufferAlignment)
-    //    {
-    //        Page page;
-    //        nuint offset;
-    //        if (size > _page.Size)
-    //        {
-    //            page = _manager.CreateLargePage(size, alignment);
-    //            offset = 0;
-    //        }
-    //        else
-    //        {
-    //            offset = MathHelpers.AlignUp(_offset, alignment);
-    //            if (offset + size > _page.Size)
-    //            {
-    //                _usedPages.Add(_page);
-    //                _page = _manager.GetPage();
-    //            }
+        /// <summary>
+        /// Allocates a buffer
+        /// </summary>
+        /// <param name="size">The size, in bytes, of the buffer</param>
+        /// <param name="alignment">The alignment required by the buffer</param>
+        /// <returns>A new <see cref="Buffer"/></returns>
+        public BufferRegion AllocateBuffer(uint size, nuint alignment = ConstantBufferAlignment)
+        {
+            if (size > int.MaxValue)
+            {
+                // because span is int length
+                ThrowHelper.ThrowArgumentException("Cannot have larger than 2GB buffers with dynamic allocator");
+            }
 
-    //            page = _page;
-    //            _offset += size + (offset - _offset);
-    //        }
+            Buffer page;
+            nuint offset;
+            if (size > _page.Length)
+            {
+                page = _manager.CreateLargePage(size);
+                _usedLargePages.Add(page);
+                offset = 0;
+            }
+            else
+            {
+                offset = MathHelpers.AlignUp(_offset, alignment);
+                if (offset + size > _page.Length)
+                {
+                    _usedPages.Add(_page);
+                    _page = _manager.GetPage();
+                }
 
-    //        var resDesc = new GpuResourceDesc(GpuResourceFormat.Buffer(size), MemoryAccess.CpuUpload, ResourceState.GenericRead);
-    //        var res = new GpuResource(page.Resource.Copy(), resDesc, default, size, offset, null);
-    //        var buff = new Buffer(res);
-    //        buff.MapAs<byte>();
-    //        return buff;
-    //    }
+                page = _page;
+                _offset += size + (offset - _offset);
+            }
 
-    //    /// <summary>
-    //    /// Causes the allocator to mark all used pages as deallocated when <paramref see="marker"/> is reached
-    //    /// </summary>
-    //    /// <param name="reached"></param>
-    //    /// <param name="marker">The <see cref="FenceMarker"/> indicating when the resources can safely be deallocated</param>
-    //    public void MoveToNextFrame(FenceMarker reached, FenceMarker marker)
-    //    {
-    //        _manager.AddUsedPages(_usedPages, marker);
-    //        _manager.AddUsedLargePages(_usedLargePages, marker);
-    //        _usedPages.Clear();
-    //        _usedLargePages.Clear();
+            return new BufferRegion { Buffer = page, Offset = (uint)offset, Length = size };
+        }
 
-    //        _manager.MoveToNextFrame(reached);
-    //    }
+        /// <summary>
+        /// Disposes the allocator and indicates it can be disposed at a certain point
+        /// </summary>
+        /// <param name="task">The <see cref="GpuTask"/> to indicate when this intsance can dispose its memory</param>
+        public void Dispose(in GpuTask task)
+        {
+            _usedPages.Add(_page);
+            _manager.AddUsedPages(_usedPages.AsSpan(), task);
+            task.RegisterCallback(_usedLargePages, &ReleaseLargePages);
+        }
 
-    //    private struct Page
-    //    {
-    //        public ComPtr<ID3D12Resource> Resource;
-    //        public void* CpuPointer;
-    //        public ulong GpuPointer;
-    //        public nuint Size;
-    //    }
+        private static void ReleaseLargePages(List<Buffer> largePages)
+        {
+            foreach (var page in largePages)
+            {
+                page.Dispose();
+            }
+        }
 
-    //    private struct InUsePage
-    //    {
-    //        public Page Page;
-    //        public FenceMarker Free;
-    //    }
 
-    //    private static readonly Dictionary<GraphicsDevice, PageManager> _pageManagers = new();
-    //    private class PageManager
-    //    {
-    //        private GraphicsDevice _device;
+        private struct InUsePage
+        {
+            public Buffer Page;
+            public GpuTask Free;
+        }
 
-    //        public PageManager(GraphicsDevice device)
-    //        {
-    //            _device = device;
-    //        }
+        private static readonly Dictionary<ComputeDevice, PageManager> _pageManagers = new();
 
-    //        private LockedQueue<InUsePage, SpinLock> _usedPages = new(new SpinLock(EnvVars.IsDebug));
-    //        private LockedQueue<InUsePage, SpinLock> _usedLargePages = new(new SpinLock(EnvVars.IsDebug));
-    //        private LockedQueue<Page, SpinLock> _availablePages = new(new SpinLock(EnvVars.IsDebug));
+        private sealed class PageManager
+        {
+            private ComputeDevice _device;
 
-    //        public const nuint PageSize = 4 * 1024 * 1024; // 4mb
-    //        public const nuint PageAlignment = 4 * 1024; // 4kb
+            public PageManager(ComputeDevice device)
+            {
+                _device = device;
+            }
 
-    //        public Page GetPage()
-    //        {
-    //            if (_availablePages.TryDequeue(out var page))
-    //            {
-    //                return page;
-    //            }
+            private LockedQueue<InUsePage, SpinLock> _pages = new(new SpinLock(EnvVars.IsDebug));
 
-    //            return CreatePage(PageSize, PageAlignment);
-    //        }
+            public const nuint PageSize = 4 * 1024 * 1024; // 4mb
 
-    //        public Page CreateLargePage(nuint size, nuint alignment) => CreatePage(size, alignment);
+            public Buffer GetPage()
+            {
+                if (_pages.TryPeek(out var page) && page.Free.IsCompleted)
+                {
+                    return _pages.Dequeue().Page;
+                }
 
-    //        private const uint BufferAlignment = 65536;
-    //        private Page CreatePage(nuint size, nuint alignment)
-    //        {
-    //            var heap = new D3D12_HEAP_PROPERTIES(D3D12_HEAP_TYPE.D3D12_HEAP_TYPE_UPLOAD);
-    //            var desc = D3D12_RESOURCE_DESC.Buffer(PageSize, alignment: Math.Max(alignment, BufferAlignment));
+                return CreatePage(PageSize);
+            }
 
-    //            using ComPtr<ID3D12Resource> page = default;
-    //            Guard.ThrowIfFailed(_device.Device->CreateCommittedResource(
-    //                &heap,
-    //                D3D12_HEAP_FLAGS.D3D12_HEAP_FLAG_NONE,
-    //                &desc,
-    //                D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_GENERIC_READ,
-    //                null,
-    //                page.Guid,
-    //                ComPtr.GetVoidAddressOf(&page)
-    //            ));
+            public Buffer CreateLargePage(nuint size) => CreatePage(size);
 
-    //            void* cpuPointer;
-    //            Guard.ThrowIfFailed(page.Get()->Map(0, null, &cpuPointer));
-    //            ulong gpuPointer = page.Get()->GetGPUVirtualAddress();
+            private Buffer CreatePage(nuint size)
+            {
+                var desc = new InternalAllocDesc
+                {
+                    Desc = new D3D12_RESOURCE_DESC
+                    {
+                        Width = size,
+                        Height = 1,
+                        DepthOrArraySize = 1,
+                        Dimension = D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_BUFFER,
+                        Flags = D3D12_RESOURCE_FLAGS.D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE,
+                        MipLevels = 1,
 
-    //            return new Page { Resource = page.Move(), CpuPointer = cpuPointer, GpuPointer = gpuPointer, Size = size };
-    //        }
+                        // required values for a buffer
+                        SampleDesc = new DXGI_SAMPLE_DESC(1, 0),
+                        Layout = D3D12_TEXTURE_LAYOUT.D3D12_TEXTURE_LAYOUT_ROW_MAJOR,
+                        Alignment = 0
+                    },
+                    HeapType = D3D12_HEAP_TYPE.D3D12_HEAP_TYPE_UPLOAD,
+                    InitialState = D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_GENERIC_READ
+                };
 
-    //        public void MoveToNextFrame(FenceMarker marker)
-    //        {
-    //            while (_usedPages.TryPeek(out var page) && marker >= page.Free)
-    //            {
-    //                _availablePages.Enqueue(_usedPages.Dequeue().Page);
-    //            }
-    //            while (_usedLargePages.TryPeek(out var page) && marker >= page.Free)
-    //            {
-    //                _usedPages.Dequeue().Page.Resource.Dispose();
-    //            }
-    //        }
+                using ComPtr<ID3D12Resource> page = _device.CreateCommittedResource(&desc);
 
-    //        public void AddUsedPage(Page page, FenceMarker fence)
-    //        {
-    //            _usedPages.Enqueue(new InUsePage { Page = page, Free = fence });
-    //        }
+                var buff = new Buffer(size, new GpuResource(page.Move(), desc, null));
+                // we persistently map upload resources
+                buff.Map();
+                return buff;
+            }
 
-    //        public void AddUsedLargePages<T>(T pages, FenceMarker fence) where T : IEnumerable<Page>
-    //        {
-    //            foreach (var page in pages)
-    //            {
-    //                AddUsedLargePage(page, fence);
-    //            }
-    //        }
+            public void AddUsedPage(in Buffer page, in GpuTask fence)
+            {
+                _pages.Enqueue(new InUsePage { Page = page, Free = fence });
+            }
 
-    //        public void AddUsedLargePage(Page page, FenceMarker fence)
-    //        {
-    //            _usedLargePages.Enqueue(new InUsePage { Page = page, Free = fence });
-    //        }
-
-    //        public void AddUsedPages<T>(T pages, FenceMarker fence) where T : IEnumerable<Page>
-    //        {
-    //            foreach (var page in pages)
-    //            {
-    //                AddUsedPage(page, fence);
-    //            }
-    //        }
-    //    }
-    //}
+            public void AddUsedPages(ReadOnlySpan<Buffer> pages, in GpuTask fence)
+            {
+                foreach (var page in pages)
+                {
+                    AddUsedPage(page, fence);
+                }
+            }
+        }
+    }
 }

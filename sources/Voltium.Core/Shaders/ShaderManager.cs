@@ -1,14 +1,18 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using TerraFX.Interop;
+using Voltium.Allocators;
 using Voltium.Common;
-using Voltium.Core.Managers.Shaders;
+using Voltium.Core.Devices.Shaders;
+using ZLogger;
+using static TerraFX.Interop.Windows;
 
-namespace Voltium.Core.Managers
+namespace Voltium.Core.Devices
 {
     /// <summary>
     /// A class used for management, compilation, and storing of shaders
@@ -55,13 +59,14 @@ namespace Voltium.Core.Managers
         /// <param name="data">The bytes containing the shader data</param>
         /// <param name="type">The type of the shader</param>
         /// <returns>A new <see cref="CompiledShader"/></returns>
-        public static CompiledShader ReadCompiledShader(ReadOnlyMemory<byte> data, ShaderType type)
+        public static CompiledShader ReadCompiledShader(Memory<byte> data, ShaderType type)
         {
-            return new CompiledShader(data, type);
+            return new CompiledShader(new NopMemoryOwner<byte>(data), type);
         }
 
         private static ComPtr<IDxcCompiler3> Compiler;
-        private static IncludeHandler DefaultIncludeHandler;
+        private static DxcIncludeHandler DefaultDxcIncludeHandler;
+        private static LegacyFxcIncludeHandler DefaultFxcIncludeHandler;
         private static ComPtr<IDxcUtils> Utils;
 
         static unsafe ShaderManager()
@@ -69,16 +74,19 @@ namespace Voltium.Core.Managers
             ComPtr<IDxcCompiler3> compiler = default;
             ComPtr<IDxcUtils> utils = default;
 
-            Guid clsid = Windows.CLSID_DxcCompiler;
-            Guard.ThrowIfFailed(Windows.DxcCreateInstance(&clsid, compiler.Iid, ComPtr.GetVoidAddressOf(&compiler)));
-            clsid = Windows.CLSID_DxcUtils;
-            Guard.ThrowIfFailed(Windows.DxcCreateInstance(&clsid, utils.Iid, ComPtr.GetVoidAddressOf(&utils)));
+            Guid clsid = CLSID_DxcCompiler;
+            Guard.ThrowIfFailed(DxcCreateInstance(&clsid, compiler.Iid, ComPtr.GetVoidAddressOf(&compiler)));
+            clsid = CLSID_DxcUtils;
+            Guard.ThrowIfFailed(DxcCreateInstance(&clsid, utils.Iid, ComPtr.GetVoidAddressOf(&utils)));
 
             Compiler = compiler.Move();
             Utils = utils.Move();
 
-            DefaultIncludeHandler = new IncludeHandler();
-            DefaultIncludeHandler.Init(Utils.Copy());
+            DefaultDxcIncludeHandler = new DxcIncludeHandler();
+            DefaultDxcIncludeHandler.Init(Utils.Copy());
+
+            DefaultFxcIncludeHandler = new LegacyFxcIncludeHandler();
+            DefaultFxcIncludeHandler.Init();
         }
 
         internal const uint DXC_CP_UTF8 = 65001;
@@ -89,30 +97,27 @@ namespace Voltium.Core.Managers
         /// Compiles a new <see cref="CompiledShader"/> from a file
         /// </summary>
         /// <param name="filename">The filename containing the shader</param>
-        /// <param name="target">The <see cref="DxcCompileTarget"/> the shader targets</param>
-        /// <param name="flags">An array of <see cref="DxcCompileFlags.Flag"/> to pass to the compiler</param>
+        /// <param name="target">The <see cref="ShaderModel"/> the shader targets</param>
+        /// <param name="flags">An array of <see cref="ShaderCompileFlag"/> to pass to the compiler</param>
         /// <param name="entrypoint">The entrypoint to the shader, if it is not a <see cref="ShaderType.Library"/>,
         /// or 'main' by default</param>
         /// <param name="encoding">The <see cref="OutputEncoding"/> for any textual output</param>
         /// <returns>A new <see cref="CompiledShader"/></returns>
         public static CompiledShader CompileShader(
             string filename,
-            DxcCompileTarget target,
-            DxcCompileFlags.Flag[] flags = null!,
+            ShaderModel target,
+            ShaderCompileFlag[] flags = null!,
             ReadOnlySpan<char> entrypoint = default,
             OutputEncoding encoding = OutputEncoding.Utf16
         )
-        {
-
-            return CompileShader(filename, File.OpenText(filename), target, flags, entrypoint, encoding, new FileInfo(filename).DirectoryName!);
-        }
+            => CompileShader(filename, File.OpenText(filename), target, flags, entrypoint, encoding, new FileInfo(filename).DirectoryName!);
 
         /// <summary>
         /// Compiles a new <see cref="CompiledShader"/> from a file
         /// </summary>
         /// <param name="filename">The filename containing the shader</param>
         /// <param name="type">The <see cref="ShaderType"/> of the shader</param>
-        /// <param name="flags">An array of <see cref="DxcCompileFlags.Flag"/> to pass to the compiler</param>
+        /// <param name="flags">An array of <see cref="ShaderCompileFlag"/> to pass to the compiler</param>
         /// <param name="entrypoint">The entrypoint to the shader, if it is not a <see cref="ShaderType.Library"/>,
         /// or 'main' by default</param>
         /// <param name="encoding">The <see cref="OutputEncoding"/> for any textual output</param>
@@ -120,11 +125,11 @@ namespace Voltium.Core.Managers
         public static CompiledShader CompileShader(
             string filename,
             ShaderType type,
-            DxcCompileFlags.Flag[] flags = null!,
+            ShaderCompileFlag[] flags = null!,
             ReadOnlySpan<char> entrypoint = default,
             OutputEncoding encoding = OutputEncoding.Utf16
         )
-            => CompileShader(filename, DxcCompileTarget.LatestVersion(type), flags, entrypoint, encoding);
+            => CompileShader(filename, ShaderModel.LatestVersion(type), flags, entrypoint, encoding);
 
         /// <summary>
         /// Compiles a new <see cref="CompiledShader"/> from a name and a <see cref="Stream"/>
@@ -132,7 +137,7 @@ namespace Voltium.Core.Managers
         /// <param name="name">The name of the shader, for metadata</param>
         /// <param name="stream">The <see cref="StreamReader"/> containing the shader text</param>
         /// <param name="type">The <see cref="ShaderType"/> of the shader</param>
-        /// <param name="flags">An array of <see cref="DxcCompileFlags.Flag"/> to pass to the compiler</param>
+        /// <param name="flags">An array of <see cref="ShaderCompileFlag"/> to pass to the compiler</param>
         /// <param name="entrypoint">The entrypoint to the shader, if it is not a <see cref="ShaderType.Library"/>,
         /// or 'main' by default</param>
         /// <param name="encoding">The <see cref="OutputEncoding"/> for any textual output</param>
@@ -142,20 +147,20 @@ namespace Voltium.Core.Managers
             ReadOnlySpan<char> name,
             StreamReader stream,
             ShaderType type,
-            DxcCompileFlags.Flag[] flags = null!,
+            ShaderCompileFlag[] flags = null!,
             ReadOnlySpan<char> entrypoint = default,
             OutputEncoding encoding = OutputEncoding.Utf16,
             string shaderDir = ""
         )
-            => CompileShader(name, stream, DxcCompileTarget.LatestVersion(type), flags, entrypoint, encoding, shaderDir);
+            => CompileShader(name, stream, ShaderModel.LatestVersion(type), flags, entrypoint, encoding, shaderDir);
 
         /// <summary>
         /// Compiles a new <see cref="CompiledShader"/> from a name and a <see cref="Stream"/>
         /// </summary>
         /// <param name="name">The name of the shader, for metadata</param>
         /// <param name="stream">The <see cref="StreamReader"/> containing the shader text</param>
-        /// <param name="target">The <see cref="DxcCompileTarget"/> the shader targets</param>
-        /// <param name="flags">An array of <see cref="DxcCompileFlags.Flag"/> to pass to the compiler</param>
+        /// <param name="target">The <see cref="ShaderModel"/> the shader targets</param>
+        /// <param name="flags">An array of <see cref="ShaderCompileFlag"/> to pass to the compiler</param>
         /// <param name="entrypoint">The entrypoint to the shader, if it is not a <see cref="ShaderType.Library"/>,
         /// or 'main' by default</param>
         /// <param name="encoding">The <see cref="OutputEncoding"/> for any textual output</param>
@@ -164,8 +169,8 @@ namespace Voltium.Core.Managers
         public static CompiledShader CompileShader(
             ReadOnlySpan<char> name,
             StreamReader stream,
-            DxcCompileTarget target,
-            DxcCompileFlags.Flag[] flags = null!,
+            ShaderModel target,
+            ShaderCompileFlag[] flags = null!,
             ReadOnlySpan<char> entrypoint = default,
             OutputEncoding encoding = OutputEncoding.Utf16,
             string shaderDir = ""
@@ -191,7 +196,7 @@ namespace Voltium.Core.Managers
         /// <param name="name">The name of the shader, for metadata</param>
         /// <param name="shaderText">The <see cref="ReadOnlySpan{T}"/> containing the shader text</param>
         /// <param name="type">The <see cref="ShaderType"/> of the shader</param>
-        /// <param name="flags">An array of <see cref="DxcCompileFlags.Flag"/> to pass to the compiler</param>
+        /// <param name="flags">An array of <see cref="ShaderCompileFlag"/> to pass to the compiler</param>
         /// <param name="entrypoint">The entrypoint to the shader, if it is not a <see cref="ShaderType.Library"/>,
         /// or 'main' by default</param>
         /// <param name="encoding">The <see cref="OutputEncoding"/> for any textual output</param>
@@ -201,7 +206,7 @@ namespace Voltium.Core.Managers
             ReadOnlySpan<char> name,
             ReadOnlySpan<char> shaderText,
             ShaderType type,
-            DxcCompileFlags.Flag[] flags = null!,
+            ShaderCompileFlag[] flags = null!,
             ReadOnlySpan<char> entrypoint = default,
             OutputEncoding encoding = OutputEncoding.Utf16,
             string shaderDir = ""
@@ -213,8 +218,8 @@ namespace Voltium.Core.Managers
         /// </summary>
         /// <param name="name">The name of the shader, for metadata</param>
         /// <param name="shaderText">The <see cref="ReadOnlySpan{T}"/> containing the shader text</param>
-        /// <param name="target">The <see cref="DxcCompileTarget"/> the shader targets</param>
-        /// <param name="flags">An array of <see cref="DxcCompileFlags.Flag"/> to pass to the compiler</param>
+        /// <param name="target">The <see cref="ShaderModel"/> the shader targets</param>
+        /// <param name="flags">An array of <see cref="ShaderCompileFlag"/> to pass to the compiler</param>
         /// <param name="entrypoint">The entrypoint to the shader, if it is not a <see cref="ShaderType.Library"/>,
         /// or 'main' by default</param>
         /// <param name="encoding">The <see cref="OutputEncoding"/> for any textual output</param>
@@ -223,8 +228,8 @@ namespace Voltium.Core.Managers
         public unsafe static CompiledShader CompileShader(
             ReadOnlySpan<char> name,
             ReadOnlySpan<char> shaderText,
-            DxcCompileTarget target,
-            DxcCompileFlags.Flag[] flags = null!,
+            ShaderModel target,
+            ShaderCompileFlag[] flags = null!,
             ReadOnlySpan<char> entrypoint = default,
             OutputEncoding encoding = OutputEncoding.Utf16,
             string shaderDir = ""
@@ -235,7 +240,16 @@ namespace Voltium.Core.Managers
                 ThrowHelper.ThrowArgumentException("Shader libraries cannot have an entrypoint");
             }
 
-            flags ??= Array.Empty<DxcCompileFlags.Flag>();
+            DefaultDxcIncludeHandler.ShaderDirectory = shaderDir;
+            DefaultFxcIncludeHandler.ShaderDirectory = shaderDir;
+
+            if (!target.IsDxil)
+            {
+                // Legacy FXC pipeline
+                return FxcCompile(name, shaderText, target, flags, entrypoint, encoding, shaderDir);
+            }
+
+            flags ??= Array.Empty<ShaderCompileFlag>();
 
             // ok i am irrationally scared of the marshaller so for some reason i marshalled this by hand
             // we need to pass a 'wchar**' to 'IDxcCompiler3', where it is an array of strings, and each string
@@ -268,8 +282,7 @@ namespace Voltium.Core.Managers
             // 4 for target + encoding (as each are flag + arg), and 2 extra for entrypoint if present
             flagPointerLength += (entrypoint.IsEmpty ? 4 : 6) * sizeof(nuint);
 
-            // rent as short term usage TODO: POH pool
-            using var rentedFlagBuff = RentedArray<byte>.Create(flagPointerLength + flagLength + prefixLength);
+            using var rentedFlagBuff = RentedArray<byte>.Create(flagPointerLength + flagLength + prefixLength, PinnedArrayPool<byte>.Default);
 
             // can't have Span<ushort*>
             var flagPointerBuff = MemoryMarshal.Cast<byte, nuint>(rentedFlagBuff.Value.AsSpan());
@@ -292,7 +305,7 @@ namespace Voltium.Core.Managers
 
                 flagBuff = flagBuff.Slice(3);
 
-                var targetPrefix = DxcCompileTarget.ShaderNameMap[target.Type].AsSpan();
+                var targetPrefix = ShaderModel.ShaderNameMap[target.Type].AsSpan();
                 targetPrefix.CopyTo(flagBuff);
                 flagBuff[targetPrefix.Length] = '_';
 
@@ -390,16 +403,15 @@ namespace Voltium.Core.Managers
                 flagBuff = flagBuff.Slice(len);
             }
 
+            byte* ppFlags = (byte*)Unsafe.AsPointer(ref rentedFlagBuff.GetPinnableReference());
+
             fixed (char* pText = shaderText)
-            fixed (byte* ppFlags = rentedFlagBuff.Value)
-            fixed (IDxcIncludeHandler* pInclude = DefaultIncludeHandler)
+            fixed (IDxcIncludeHandler* pInclude = DefaultDxcIncludeHandler)
             {
                 DxcBuffer text;
                 text.Ptr = pText;
                 text.Size = (nuint)(shaderText.Length * sizeof(char));
                 text.Encoding = DXC_CP_UTF16;
-
-                DefaultIncludeHandler.SetShaderDirContext(shaderDir);
 
                 using ComPtr<IDxcResult> compileResult = default;
                 Guard.ThrowIfFailed(Compiler.Get()->Compile(
@@ -414,7 +426,7 @@ namespace Voltium.Core.Managers
                 int statusHr;
                 Guard.ThrowIfFailed(compileResult.Get()->GetStatus(&statusHr));
 
-                if (Windows.FAILED(statusHr))
+                if (FAILED(statusHr))
                 {
                     var result = TryGetOutput(compileResult.Get(), DXC_OUT_KIND.DXC_OUT_ERRORS, out var errors, out var errorName);
                     Debug.Assert(result);
@@ -446,8 +458,186 @@ namespace Voltium.Core.Managers
                 Guard.ThrowIfFailed(compileResult.Get()->GetResult(ComPtr.GetAddressOf(&pBlob)));
                 var shaderBytes = FromBlob(pBlob.Get());
 
-                return new CompiledShader(shaderBytes.ToArray(), target.Type);
+                return new CompiledShader(new DxcBlobMemoryManager(pBlob.Move()), target.Type);
             }
+        }
+
+        private static unsafe CompiledShader FxcCompile(ReadOnlySpan<char> name, ReadOnlySpan<char> shaderText, ShaderModel target, ShaderCompileFlag[] flags, ReadOnlySpan<char> entrypoint, OutputEncoding encoding, string shaderDir)
+        {
+            // far less optimised because only a very small subset of DX12 drivers support DXBC (compiled with FXC) but not DXIL (compiled with DXC)
+            // fuck you john tur
+
+            int Count(int len) => Encoding.ASCII.GetMaxByteCount(len);
+
+            if (entrypoint.IsEmpty)
+            {
+                // DXC assumes 'main' entrypoint, FXC doens't seem to
+                entrypoint = "main";
+            }
+
+            var targetStr = target.ToString();
+
+            // + 1 for null char
+            var textLen = Count(shaderText.Length) + 1;
+            var nameLen = Count(name.Length) + 1;
+            var entrypointLen = Count(entrypoint.Length) + 1;
+            var targetLen = Count(targetStr.Length) + 1;
+
+            using var strBuff = RentedArray<byte>.Create(textLen + targetLen + nameLen + entrypointLen);
+
+            int nameOffset = Encoding.ASCII.GetBytes(shaderText, strBuff.Value);
+            strBuff.Value[nameOffset++] = 0;
+
+            int targetOffset = nameOffset + Encoding.ASCII.GetBytes(name, strBuff.Value.AsSpan(nameOffset));
+            strBuff.Value[targetOffset++] = 0;
+
+            int entrypointOffset = targetOffset + Encoding.ASCII.GetBytes(targetStr, strBuff.Value.AsSpan(targetOffset));
+            strBuff.Value[entrypointOffset++] = 0;
+
+            int endOffset = entrypointOffset + Encoding.ASCII.GetBytes(entrypoint, strBuff.Value.AsSpan(entrypointOffset));
+            strBuff.Value[endOffset++] = 0;
+
+            var fxcFlags = GetFxcFlags(flags, out var macros);
+
+            using ComPtr<ID3DBlob> pCode = default;
+            using ComPtr<ID3DBlob> pError = default;
+
+            fixed (byte* pSrcData = strBuff.Value)
+            fixed (D3D_SHADER_MACRO* pDefines = macros)
+            fixed (ID3DInclude* pInclude = DefaultFxcIncludeHandler)
+            {
+                int hr = D3DCompile2(
+                    pSrcData,
+                    (uint)shaderText.Length,
+                    (sbyte*)(pSrcData + nameOffset),
+                    pDefines,
+                    pInclude,
+                    (sbyte*)(pSrcData + entrypointOffset),
+                    (sbyte*)(pSrcData + targetOffset),
+                    Flags1: fxcFlags,
+                    Flags2: 0, // effects flags, unused
+                    SecondaryDataFlags: 0,
+                    pSecondaryData: null,
+                    SecondaryDataSize: 0,
+                    ComPtr.GetAddressOf(&pCode),
+                    ComPtr.GetAddressOf(&pError)
+                );
+
+                if (FAILED(hr))
+                {
+                    var data = new ShaderCompilationData
+                    {
+                        Filename = name,
+                        Errors = AsString(pError.Get())
+                    };
+                    throw new ShaderCompilationException(data);
+                }
+
+                return new CompiledShader(new D3DBlobMemoryManager(pCode.Move()), target.Type);
+            }
+        }
+
+        private static readonly Dictionary<ShaderCompileFlag, uint> FxcFlagMap = new()
+        {
+            [ShaderCompileFlag.EnableDebugInformation] = D3DCOMPILE_DEBUG,
+            [ShaderCompileFlag.DisableValidation] = D3DCOMPILE_SKIP_VALIDATION,
+            [ShaderCompileFlag.DisableOptimizations] = D3DCOMPILE_SKIP_OPTIMIZATION,
+            [ShaderCompileFlag.PackMatricesInRowMajorOrder] = D3DCOMPILE_PACK_MATRIX_ROW_MAJOR,
+            [ShaderCompileFlag.PackMatricesInColumnMajorOrder] = D3DCOMPILE_PACK_MATRIX_COLUMN_MAJOR,
+            [ShaderCompileFlag.AvoidFlowControlConstructs] = D3DCOMPILE_AVOID_FLOW_CONTROL,
+            [ShaderCompileFlag.PreferFlowControlConstructs] = D3DCOMPILE_PREFER_FLOW_CONTROL,
+            [ShaderCompileFlag.OptimizationLevel0] = D3DCOMPILE_OPTIMIZATION_LEVEL0,
+            [ShaderCompileFlag.OptimizationLevel1] = D3DCOMPILE_OPTIMIZATION_LEVEL1,
+            [ShaderCompileFlag.OptimizationLevel2] = D3DCOMPILE_OPTIMIZATION_LEVEL2,
+            [ShaderCompileFlag.OptimizationLevel3] = D3DCOMPILE_OPTIMIZATION_LEVEL3,
+            [ShaderCompileFlag.TreatWarningsAsErrors] = D3DCOMPILE_WARNINGS_ARE_ERRORS,
+            [ShaderCompileFlag.ResMayAlias] = D3DCOMPILE_RESOURCES_MAY_ALIAS,
+            [ShaderCompileFlag.AllResourcesBound] = D3DCOMPILE_ALL_RESOURCES_BOUND
+        };
+
+        private static unsafe uint GetFxcFlags(ShaderCompileFlag[] flags, out Span<D3D_SHADER_MACRO> macros)
+        {
+            // 40k loc yay
+
+            uint fxc = 0;
+
+            int numMacros = 0;
+            int macrosSize = 0;
+
+            foreach (var flag in flags)
+            {
+                if (flag.IsMacro)
+                {
+                    numMacros++;
+                    // no value macros are turned into the value '1' because FXC doesn't seem to support them
+                    macrosSize += Encoding.ASCII.GetMaxByteCount(Math.Max(1, flag.Value.Length - 3 /* 3 is size of the prefix -D\0 */));
+                    continue;
+                }
+                if (FxcFlagMap.TryGetValue(flag, out var fxcFlag))
+                {
+                    fxc |= fxcFlag;
+                }
+                else
+                {
+                    LogHelper.LogInformation(
+                        $"DXC Flag '{flag}' skipped. This is not an error but may result in different behaviour when using legacy FXC pipeline"
+                    );
+                }
+            }
+
+            // we need a dummy macro at the end to signify no-more macros
+            // and we defined a macro FXC=1 to indicate compiling with FXC
+            numMacros += 2;
+            macrosSize += /* FXC */ 3 + /* 1 */ 1;
+
+            var macroStructSize = numMacros * sizeof(D3D_SHADER_MACRO);
+            var macroBytes = GC.AllocateUninitializedArray<byte>(macroStructSize + /* null chars*/ (numMacros * 2) + macrosSize, pinned: true);
+
+            var macroStructs = MemoryMarshal.Cast<byte, D3D_SHADER_MACRO>(macroBytes);
+            var macroData = macroBytes.AsSpan(macroStructSize);
+
+            foreach (var flag in flags)
+            {
+                if (!flag.TryDeconstructMacro(out var name, out var value))
+                {
+                    continue;
+                }
+
+                Encoding.ASCII.GetBytes(name, macroData);
+                macroData[name.Length] = 0;
+                sbyte* pName = (sbyte*)Unsafe.AsPointer(ref macroData[0]);
+
+                macroData = macroData.Slice(name.Length + 1);
+
+                if (value.IsEmpty)
+                {
+                    value = "1";
+                }
+
+                Encoding.ASCII.GetBytes(value, macroData);
+                macroData[value.Length] = 0;
+                sbyte* pValue = (sbyte*)Unsafe.AsPointer(ref macroData[0]);
+
+                macroData = macroData.Slice(value.Length + 1);
+
+                macroStructs[0] = new D3D_SHADER_MACRO { Name = pName, Definition = pValue };
+                macroStructs = macroStructs.Slice(1);
+            }
+
+            macroData[0] = (byte)'F';
+            macroData[1] = (byte)'X';
+            macroData[2] = (byte)'C';
+            macroData[3] = 0;
+            macroData[4] = (byte)'1';
+            macroData[5] = 0;
+
+            sbyte* pFxcMacro = (sbyte*)Unsafe.AsPointer(ref macroData[0]);
+
+            macros = MemoryMarshal.Cast<byte, D3D_SHADER_MACRO>(macroBytes).Slice(0, numMacros);
+            macros[^2] = new D3D_SHADER_MACRO { Name = pFxcMacro, Definition = pFxcMacro + 4 }; // FXC=1
+            macros[^1] = default; // end
+
+            return fxc;
         }
 
         private static unsafe void HandlePdb(IDxcBlob* pdb, IDxcBlobUtf16* pdbName)
@@ -455,6 +645,10 @@ namespace Voltium.Core.Managers
             using var file = File.OpenWrite(FromBlob(pdbName).ToString());
             file.Write(FromBlob(pdb));
         }
+
+
+        private static unsafe ReadOnlySpan<char> AsString(ID3DBlob* blob)
+            => blob == null ? null : new string((sbyte*)blob->GetBufferPointer(), 0, (int)blob->GetBufferSize());
 
         private static unsafe ReadOnlySpan<char> AsString(IDxcBlobUtf16* utf16)
             => utf16 == null ? null : new ReadOnlySpan<char>(utf16->GetStringPointer(), (int)utf16->GetStringLength());

@@ -8,6 +8,9 @@
 #define LOG_LEVEL_NONE
 #endif
 
+using System;
+using System.Diagnostics;
+using System.IO;
 using Microsoft.Extensions.Logging;
 using ZLogger;
 
@@ -42,11 +45,36 @@ namespace Voltium.Common
             }
         }
 
-        public static readonly ILogger Logger = LoggerFactory.Create(builder =>
+        private const string LogSymbol = "DEBUG";
+
+        private static readonly ILogger Logger = LoggerFactory.Create(builder =>
         {
             _ = builder.ClearProviders()
                        .SetMinimumLevel(MinimumLogLevel)
-                       .AddZLoggerConsole(options => options.EnableStructuredLogging = true);
+                       .AddZLoggerConsole(options => options.EnableStructuredLogging = false);
         }).CreateLogger("GlobalLogger");
+
+        private static TextWriter Out => Console.Out;
+
+        [Conditional(LogSymbol)]
+        public static void Log(LogLevel level, string message) => Out.WriteLine(message);
+
+        [Conditional(LogSymbol)]
+        public static void LogTrace(string message) => Out.WriteLine(message);
+
+        [Conditional(LogSymbol)]
+        public static void LogDebug(string message) => Out.WriteLine(message);
+
+        [Conditional(LogSymbol)]
+        public static void LogInformation(string message) => Out.WriteLine(message);
+
+        [Conditional(LogSymbol)]
+        public static void LogWarning(string message) => Out.WriteLine(message);
+
+        [Conditional(LogSymbol)]
+        public static void LogCritical(string message) => Out.WriteLine(message);
+
+        [Conditional(LogSymbol)]
+        public static void LogError(string message) => Out.WriteLine(message);
     }
 }

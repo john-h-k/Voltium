@@ -4,7 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using TerraFX.Interop;
 using Voltium.Common;
-using Voltium.Core.GpuResources;
+using Voltium.Core.Memory;
 using Voltium.TextureLoading.DDS;
 using static TerraFX.Interop.D3D12_RESOURCE_DIMENSION;
 
@@ -13,7 +13,7 @@ namespace Voltium.TextureLoading
     /// <summary>
     /// The type used for loading of texture files
     /// </summary>
-    public static unsafe partial class TextureLoader
+    public unsafe  static partial class TextureLoader
     {
         /// <summary>
         /// Create a texture from a file
@@ -72,7 +72,8 @@ namespace Voltium.TextureLoading
             }
 
             var data = new byte[streamSize];
-            stream.Read(data);
+            var read = stream.Read(data);
+
             return CreateTexture(
                 data,
                 type,

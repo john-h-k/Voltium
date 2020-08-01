@@ -4,7 +4,7 @@
 PixelFrag main(
     float3 position : POSITION,
     float3 normal : NORMAL,
-    float3 tangent : TANGENT,
+    //float3 tangent : TANGENT,
     float2 texC : TEXCOORD
 )
 {
@@ -17,7 +17,7 @@ PixelFrag main(
 
     result.Normal = mul(normal, (float3x3) Object.World);
 
-    result.Tangent = mul(tangent, (float3x3) Object.World);
+    //result.Tangent = mul(tangent, (float3x3) Object.World);
 
     result.TexC = mul(float4(texC, 0, 1), Object.Tex).xy;
 

@@ -47,8 +47,11 @@ namespace Voltium.Common.Pix
             [Conditional("VERIFY")]
             private static void VerifyCom(void* p, Guid iid)
             {
-                void* _;
-                Debug.Assert(Windows.SUCCEEDED(((IUnknown*)p)->QueryInterface(&iid, &_)));
+#if DEBUG
+                IUnknown* _;
+                Debug.Assert(Windows.SUCCEEDED(((IUnknown*)p)->QueryInterface(&iid, (void**)&_)));
+                _->Release();
+#endif
             }
 
             [Conditional("DEBUG")]

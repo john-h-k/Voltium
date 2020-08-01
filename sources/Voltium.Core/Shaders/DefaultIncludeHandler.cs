@@ -1,103 +1,124 @@
 using System;
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Text;
 using TerraFX.Interop;
+using Voltium.Annotations;
 using Voltium.Common;
 using static TerraFX.Interop.Windows;
 
-namespace Voltium.Core.Managers
+namespace Voltium.Core.Devices
 {
-    // LayoutKind.Sequential is ignored when the type contains references
-    // This type is safe because we pin it during its time in native code,
-    // and the native code never accesses the references
-    // but we must make it explicit layout so it works
-    [StructLayout(LayoutKind.Explicit)]
-    internal unsafe struct IncludeHandler : IDisposable
+    [NativeComType(implements: typeof(ID3DInclude))]
+    internal unsafe partial struct LegacyFxcIncludeHandler
     {
-        [FieldOffset(0)]
-        private void** _pVtbl;
-        [FieldOffset(8)]
-        public string AppDirContext;
-        [FieldOffset(16)]
-        public string ShaderDirContext;
-        [FieldOffset(24)]
-        private ComPtr<IDxcUtils> _utils;
+        private IncludeHandler _handler;
 
-        private static readonly IntPtr Heap;
-        private static void** Vtbl;
-
-        static IncludeHandler()
+        [NativeComMethod]
+        public int Close(void* data)
         {
-            Heap = GetProcessHeap();
-            Vtbl = (void**)HeapAlloc(Heap, 0, (uint)sizeof(nuint) * 4);
+            Helpers.Free(data);
 
-            // these should be stdcall in the future
+            return S_OK;
+        }
 
-            // Native vtable layout
-            // - QueryInterface
-            // - AddRef
-            // - Release
-            // - LoadSource
+        [NativeComMethod]
+        public int Open(
+                D3D_INCLUDE_TYPE includeType,
+                sbyte* pFileName,
+                void* pParentData,
+                void** ppData,
+                uint* pBytes
+            )
+        {
+            int hr = _handler.LoadSource(new string(pFileName), out byte[] text);
 
-            Vtbl[0] = (delegate*<IDxcIncludeHandler*, Guid*, void**, int>)&_QueryInterface;
-            Vtbl[1] = (delegate*<IDxcIncludeHandler*, uint>)&_AddRef;
-            Vtbl[2] = (delegate*<IDxcIncludeHandler*, uint>)&_Release;
-            Vtbl[3] = (delegate*<IDxcIncludeHandler*, ushort*, IDxcBlob**, int>)&_LoadSource;
+            if (SUCCEEDED(hr))
+            {
+                void* block = Helpers.Alloc(text.Length);
+                text.AsSpan().CopyTo(new Span<byte>(block, text.Length));
+
+                *ppData = block;
+                *pBytes = (uint)text.Length;
+            }
+
+            return hr;
+        }
+
+        public string AppDirectory
+        {
+            get => _handler.AppDirectory;
+            set => _handler.AppDirectory = value;
+        }
+
+        public string ShaderDirectory
+        {
+            get => _handler.ShaderDirectory;
+            set => _handler.ShaderDirectory = value;
+        }
+    }
+
+    [NativeComType(implements: typeof(IDxcIncludeHandler))]
+    internal unsafe partial struct DxcIncludeHandler : IDisposable
+    {
+        private ComPtr<IDxcUtils> _utils;
+        private IncludeHandler _handler;
+
+        public string AppDirectory
+        {
+            get => _handler.AppDirectory;
+            set => _handler.AppDirectory = value;
+        }
+
+        public string ShaderDirectory
+        {
+            get => _handler.ShaderDirectory;
+            set => _handler.ShaderDirectory = value;
         }
 
         public void Init(ComPtr<IDxcUtils> utils)
         {
-            _pVtbl = Vtbl;
+            Init();
 
-            AppDirContext = Directory.GetCurrentDirectory();
+            AppDirectory = Directory.GetCurrentDirectory();
             _utils = utils.Move();
         }
 
-        public void SetShaderDirContext(string dir) => ShaderDirContext = dir;
-
-        [UnmanagedCallersOnly]
-        private static int _LoadSource(IDxcIncludeHandler* pThis, ushort* pFilename, IDxcBlob** ppIncludeSource)
-            => AsThis(pThis).LoadSource(pFilename, ppIncludeSource);
-
-        public int LoadSource(ushort* pFilename, IDxcBlob** ppIncludeSource)
+        [NativeComMethod]
+        public int QueryInterface(Guid* riid, void** ppvObject)
         {
-            if (pFilename == null || ppIncludeSource == null)
-            {
-                return E_POINTER;
-            }
-
-            try
-            {
-                var filename = new string((char*)pFilename);
-                var shaderLocalPath = Path.Combine(ShaderDirContext, filename);
-                var appLocalPath = Path.Combine(AppDirContext, filename);
-
-                FileInfo file;
-                if (File.Exists(shaderLocalPath))
-                {
-                    file = new FileInfo(shaderLocalPath);
-                }
-                else if (File.Exists(appLocalPath))
-                {
-                    file = new FileInfo(appLocalPath);
-                }
-                else
-                {
-                    return E_FAIL;
-                }
-
-                var includeText = File.ReadAllText(file.FullName);
-                IDxcBlob* blob = CreateBlob(includeText).Get();
-
-                *ppIncludeSource = blob;
-                return S_OK;
-            }
-            catch
-            {
-                return E_FAIL;
-            }
+            return E_NOINTERFACE;
         }
+
+        [NativeComMethod]
+        public uint AddRef()
+        {
+            return default;
+        }
+
+        [NativeComMethod]
+        public uint Release()
+        {
+            return default;
+        }
+
+        [NativeComMethod]
+        private int LoadSource(ushort* pFilename, IDxcBlob** ppIncludeSource)
+        {
+            var filename = new string((char*)pFilename);
+            var hr = _handler.LoadSource(filename, out string text);
+
+            if (SUCCEEDED(hr))
+            {
+                *ppIncludeSource = CreateBlob(text).Get();
+            }
+
+            return hr;
+        }
+
 
         private ComPtr<IDxcBlob> CreateBlob(ReadOnlySpan<char> data)
         {
@@ -109,46 +130,115 @@ namespace Voltium.Core.Managers
             return ComPtr.UpCast<IDxcBlobEncoding, IDxcBlob>(encoding.Move());
         }
 
-        private static ref IncludeHandler AsThis(IDxcIncludeHandler* pThis) => ref Unsafe.As<IDxcIncludeHandler, IncludeHandler>(ref *pThis);
+        private static ref DxcIncludeHandler AsThis(IDxcIncludeHandler* pThis) => ref Unsafe.As<IDxcIncludeHandler, DxcIncludeHandler>(ref *pThis);
 
-        [UnmanagedCallersOnly]
-        private static uint _AddRef(IDxcIncludeHandler* pThis)
-            => AsThis(pThis).AddRef();
-
-        public uint AddRef()
-        {
-            return default;
-        }
-
-        [UnmanagedCallersOnly]
-        private static int _QueryInterface(IDxcIncludeHandler* pThis, Guid* riid, void** ppvObject)
-            => AsThis(pThis).QueryInterface(riid, ppvObject);
-
-        public int QueryInterface(Guid* riid, void** ppvObject)
-        {
-            ThrowHelper.ThrowNotSupportedException();
-            return default;
-        }
-
-        [UnmanagedCallersOnly]
-        public static uint _Release(IDxcIncludeHandler* pThis)
-            => AsThis(pThis).Release();
-
-        public uint Release()
-        {
-            return default;
-        }
 
         public void Dispose()
         {
             _utils.Dispose();
-            Marshal.FreeHGlobal((IntPtr)Vtbl);
+        }
+    }
+    internal unsafe struct IncludeHandler
+    {
+        public string ShaderDirectory { get; set; }
+        public string AppDirectory { get; set; }
+
+        private string? _lastDirectory;
+
+        public int LoadSource(string filename, out string text)
+        {
+            text = null!;
+
+            if (filename == null || Helpers.IsNullOut(out text))
+            {
+                return E_POINTER;
+            }
+
+            try
+            {
+                if (!TryGetFile(filename, out var file))
+                {
+                    return HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND);
+                }
+
+                text = File.ReadAllText(file.FullName);
+
+                return S_OK;
+            }
+            catch (Exception e)
+            {
+                return e is FileNotFoundException ? HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND) : E_FAIL;
+            }
+        }
+
+        public int LoadSource(string filename, out byte[] text)
+        {
+            text = null!;
+
+            if (filename == null || Helpers.IsNullOut(out text))
+            {
+                return E_POINTER;
+            }
+
+            try
+            {
+                if (!TryGetFile(filename, out var file))
+                {
+                    return HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND);
+                }
+
+                text = File.ReadAllBytes(file.FullName);
+
+                return S_OK;
+            }
+            catch (Exception e)
+            {
+                return e is FileNotFoundException ? HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND) : E_FAIL;
+            }
+        }
+
+
+        private bool TryGetFile(string filename, [NotNullWhen(true)] out FileInfo? file)
+        {
+            var shaderLocalPath = Path.Combine(ShaderDirectory, filename);
+            var appLocalPath = Path.Combine(AppDirectory, filename);
+
+            if (File.Exists(shaderLocalPath))
+            {
+                file = new FileInfo(shaderLocalPath);
+            }
+            else if (File.Exists(appLocalPath))
+            {
+                file = new FileInfo(appLocalPath);
+            }
+            else if (_lastDirectory is not null && Path.Combine(_lastDirectory, filename) is var lastPath && File.Exists(lastPath))
+            {
+                file = new FileInfo(lastPath);
+            }
+            else
+            {
+                file = default;
+                return false;
+            }
+
+            _lastDirectory = file.DirectoryName;
+
+            return true;
+        }
+
+        internal int LoadSource(ushort* pFilename, IDxcBlob** ppIncludeSource)
+        {
+            throw new NotImplementedException();
         }
     }
 
-    internal static unsafe class DefaultIncludeHandlerExtensions
-    {
-        public static ref IDxcIncludeHandler GetPinnableReference(ref this IncludeHandler handler)
-            => ref Unsafe.As<IncludeHandler, IDxcIncludeHandler>(ref handler);
-    }
+    //internal unsafe static class IncludeHandlerExtensions
+    //{
+    //    public static ref IDxcIncludeHandler GetPinnableReference(ref this DxcIncludeHandler handler)
+    //        => ref Unsafe.As<nuint, IDxcIncludeHandler>(ref Unsafe.AsRef(handler.Vtbl));
+
+
+    //    public static ref ID3DInclude GetPinnableReference(ref this LegacyFxcIncludeHandler handler)
+    //        => ref Unsafe.As<nuint, ID3DInclude>(ref Unsafe.AsRef(handler.Vtbl));
+    //}
 }

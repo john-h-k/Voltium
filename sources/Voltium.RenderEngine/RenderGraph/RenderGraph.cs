@@ -1,260 +1,421 @@
-#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using Microsoft.Toolkit.HighPerformance.Extensions;
+using Voltium.Common;
+using Voltium.Core;
+using Voltium.Core.Contexts;
+using Voltium.Core.Devices;
+using Voltium.Core.Memory;
+using Buffer = Voltium.Core.Memory.Buffer;
 
-namespace Voltium.Core
+namespace Voltium.RenderEngine
 {
-    //public unsafe class RenderGraph
-    //{
-    //    private List<ResourceData> _resources = new(8);
-    //    private List<RenderPassBuilder> _passes = new(4);
-    //    private TexHandle _backBuffer = new TexHandle(0xFFFFFFFF);
+    /// <summary>
+    /// A graph used to schedule and execute frames
+    /// </summary>
+    public unsafe sealed class RenderGraph
+    {
+        private GraphicsDevice _device;
 
-    //    public void AddPass<T>(T val) where T : RenderPass
-    //    {
-    //        var pass = CreatePassBuilder();
-    //        val.Register(ref pass);
-    //    }
+        private struct FrameData
+        {
+            public List<RenderPassBuilder> RenderPasses;
 
-    //    public void SetPresentPass<T>(T val) where T : PresentPass
-    //    {
-    //        var pass = CreatePassBuilder();
-    //        val.Register(ref pass, _backBuffer);
-    //    }
+            public GraphLayer[]? RenderLayers;
 
-    //    private RenderPassBuilder CreatePassBuilder()
-    //    {
-    //        var pass = new RenderPassBuilder((uint)_passes.Count, this);
-    //        _passes.Add(pass);
-    //        return pass;
-    //    }
+            public List<int> OutputPassIndices;
 
-    //    internal TexHandle RegisterTexture(ResourceData data)
-    //    {
-    //        Debug.Assert(data.Dimension is not null);
-    //        _resources.Add(data);
-    //        return new TexHandle((uint)_resources.Count - 1);
-    //    }
+            public OutputDesc? PrimaryOutput;
 
-    //    internal BufferHandle RegisterBuffer<T>(ResourceData data)
-    //    {
-    //        Debug.Assert(data.Dimension is null);
-    //        _resources.Add(data);
-    //        return new BufferHandle((uint)_resources.Count - 1);
-    //    }
+            public List<int> InputPassIndices;
+            public List<TrackedResource> Resources;
+            public int MaxDepth;
+            public Resolver Resolver;
+        }
 
-    //    internal ResourceData GetResource(TexHandle handle) => _resources[(int)handle.Index];
-    //    internal void SetResource(TexHandle handle, ResourceData value) => _resources[(int)handle.Index] = value;
-    //}
+        private struct GpuTaskBuffer8
+        {
+            public GpuTask E0;
+            public GpuTask E1;
+            public GpuTask E2;
+            public GpuTask E3;
+            public GpuTask E4;
+            public GpuTask E5;
+            public GpuTask E6;
+            public GpuTask E7;
 
-    //public struct ComponentResolver
-    //{
-    //    public RenderComponents Components { get; private set; }
-    //    public Texture Resolve(TexHandle handle) => throw new NotImplementedException();
-    //    public Buffer Resolve<T>(BufferHandle handle) where T : unmanaged => throw new NotImplementedException();
-    //}
+            public ref GpuTask this[uint index] => ref Unsafe.Add(ref GetPinnableReference(), (int)index);
+            public ref GpuTask GetPinnableReference() => ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref E0, 0));
+        }
 
-    //public readonly struct TexHandle
-    //{
-    //    // index into the graph's list of resources
-    //    internal readonly uint Index;
+        private uint _maxFrameLatency;
+        private uint _frameIndex;
+        private GpuTaskBuffer8 _frames;
 
-    //    internal TexHandle(uint index)
-    //    {
-    //        Index = index;
-    //    }
-    //}
+        private FrameData _frame;
 
-    //public readonly struct BufferHandle
-    //{
-    //    // index into the graph's list of resources
-    //    internal readonly uint Index;
+        private FrameData _lastFrame;
 
-    //    internal BufferHandle(uint index)
-    //    {
-    //        Index = index;
-    //    }
-    //}
+        
 
-    //internal struct ResourceData
-    //{
-    //    internal double? SwapChainMultiplier;
-    //    internal TextureDimension? Dimension; // null == buffer
-    //    internal nuint Width, Height, Depth;
-    //    internal ResourceState InitialState;
-    //    internal ResourceFlags Flags;
+        private Dictionary<TextureDesc, (Texture Texture, ResourceState LastKnownState)> _cachedTextures = new();
 
-    //    internal uint CreationPass;
-    //    internal List<(uint PassIndex, ResourceReadFlags Flags)>? ReadPasses;
-    //    internal List<(uint PassIndex, ResourceWriteFlags Flags)>? WritePasses;
-    //}
+        private static bool EnablePooling => true;
 
-    //public struct RenderPassBuilder
-    //{
-    //    private uint _passIndex;
-    //    public RenderComponents Components { get; }
-    //    private RenderGraph _graph;
+        /// <summary>
+        /// Creates a new <see cref="RenderGraph"/>
+        /// </summary>
+        /// <param name="device">The <see cref="GraphicsDevice"/> used for rendering</param>
+        /// <param name="maxFrameLatency">The maximum number of frames that can be enqueued to the </param>
+        public RenderGraph(GraphicsDevice device, uint maxFrameLatency)
+        {
+            _device = device;
+            _maxFrameLatency = maxFrameLatency;
 
-    //    internal RenderPassBuilder(uint passIndex, RenderGraph graph)
-    //    {
-    //        _passIndex = passIndex;
-    //        _graph = graph;
-    //        Components = RenderComponents.Create();
-    //    }
+            if (maxFrameLatency > 8)
+            {
+                ThrowHelper.ThrowArgumentOutOfRangeException(nameof(maxFrameLatency), "8 is the maximum allowed maxFrameLatency");
+            }
 
-    //    public TexHandle CreateRenderTarget()
-    //    {
-    //        var res = new ResourceData
-    //        {
-    //            SwapChainMultiplier = 1,
-    //            Flags = ResourceFlags.AllowRenderTarget,
-    //            Dimension = TextureDimension.Tex2D
-    //        };
+            // we don't actually have last frame so elide pointless copy
+            MoveToNextGraphFrame(GpuTask.Completed, preserveLastFrame: false);
+        }
 
-    //        return RegisterGraphTexture(res);
-    //    }
+        // convience methods
 
-    //    public TexHandle CreateDepthStencil(bool shaderVisible)
-    //    {
-    //        var res = new ResourceData
-    //        {
-    //            SwapChainMultiplier = 1,
-    //            Flags = ResourceFlags.AllowDepthStencil | (shaderVisible ? 0 : ResourceFlags.DenyShaderResource),
-    //            CreationPass = _passIndex,
-    //            Dimension = TextureDimension.Tex2D
-    //        };
+        /// <summary>
+        /// Creates a new component and adds it to the graph
+        /// </summary>
+        /// <typeparam name="T0">The type of the component</typeparam>
+        /// <param name="component0">The value of the component</param>
+        public void CreateComponent<T0>(T0 component0)
+            => _frame.Resolver.CreateComponent(component0);
 
-    //        return RegisterGraphTexture(res);
-    //    }
+        /// <summary>
+        /// Creates new components and adds them to the graph
+        /// </summary>
+        public void CreateComponents<T0, T1>(T0 component0, T1 component1)
+        {
+            _frame.Resolver.CreateComponent(component0);
+            _frame.Resolver.CreateComponent(component1);
+        }
 
-    //    public BufferHandle<TVertex> CreateVertexBuffer<TVertex>(nuint size) where TVertex : unmanaged
-    //    {
-    //        var res = new ResourceData { Width = size };
+        /// <summary>
+        /// Creates new components and adds them to the graph
+        /// </summary>
+        public void CreateComponents<T0, T1, T2>(T0 component0, T1 component1, T2 component2)
+        {
+            _frame.Resolver.CreateComponent(component0);
+            _frame.Resolver.CreateComponent(component1);
+            _frame.Resolver.CreateComponent(component2);
+        }
 
-    //        return RegisterGraphBuffer<TVertex>(res);
-    //    }
+        /// <summary>
+        /// Creates new components and adds them to the graph
+        /// </summary>
+        public void CreateComponents<T0, T1, T2, T3>(T0 component0, T1 component1, T2 component2, T3 component3)
+        {
+            _frame.Resolver.CreateComponent(component0);
+            _frame.Resolver.CreateComponent(component1);
+            _frame.Resolver.CreateComponent(component2);
+            _frame.Resolver.CreateComponent(component3);
+        }
 
-    //    private TexHandle RegisterGraphTexture(ResourceData res)
-    //    {
-    //        res.CreationPass = _passIndex;
-    //        return _graph.RegisterTexture(res);
-    //    }
+        /// <summary>
+        /// Registers a pass into the graph, and calls the <see cref="RenderPass.Register(ref RenderPassBuilder, ref Resolver)"/> 
+        /// method immediately to register all dependencies
+        /// </summary>
+        /// <typeparam name="T">The type of the pass</typeparam>
+        /// <param name="pass">The pass</param>
+        public void AddPass<T>(T pass) where T : RenderPass
+        {
+            var passIndex = _frame.RenderPasses.Count;
+            var builder = new RenderPassBuilder(this, passIndex, pass);
 
-    //    private BufferHandle<T> RegisterGraphBuffer<T>(ResourceData res)
-    //    {
-    //        res.CreationPass = _passIndex;
-    //        return _graph.RegisterBuffer<T>(res);
-    //    }
+            pass.Register(ref builder, ref _frame.Resolver);
 
-    //    public void Write(TexHandle tex, ResourceWriteFlags flags)
-    //    {
-    //        var res = _graph.GetResource(tex);
+            // anything with no dependencies is a top level input node implicity
+            if ((builder.FrameDependencies?.Count ?? 0) == 0)
+            {
+                // the index _renderPasses.Add results in
+                _frame.InputPassIndices.Add(passIndex);
+            }
 
-    //        res.WritePasses ??= new();
+            if (builder.Depth > _frame.MaxDepth)
+            {
+                _frame.MaxDepth = builder.Depth;
+            }
 
-    //        res.WritePasses.Add((_passIndex, flags));
-    //    }
+            // outputs are explicit
+            if (pass.Output.Type != OutputClass.None)
+            {
+                if (pass.Output.Type == OutputClass.Primary)
+                {
+                    // can only have one primary output, but many secondaries
+                    if (_frame.PrimaryOutput is not null)
+                    {
+                        ThrowHelper.ThrowInvalidOperationException("Cannot register a primary output pass as one has already been registered");
+                    }
+                    _frame.PrimaryOutput = pass.Output;
+                }
+                // the index _renderPasses.Add results in
+                _frame.OutputPassIndices.Add(passIndex);
+            }
 
-    //    public void Read(TexHandle tex, ResourceReadFlags flags)
-    //    {
-    //        var res = _graph.GetResource(tex);
+            _frame.RenderPasses.Add(builder);
+        }
 
-    //        res.ReadPasses ??= new();
+        /// <summary>
+        /// Executes the graph
+        /// </summary>
+        public void ExecuteGraph()
+        {
+            // false during the register passes
+            _frame.Resolver.CanResolveResources = true;
+            Schedule();
+            AllocateResources();
+            BuildBarriers();
+            var task = RecordAndExecuteLayers();
 
-    //        res.ReadPasses.Add((_passIndex, flags));
-    //    }
-    //}
+            // TODO make better
+            DeallocateResources();
 
-    //// The valid combinations of these flags is quite finicky so we expose them as bools
+            MoveToNextGraphFrame(task, preserveLastFrame: true);
+        }
 
+        private void MoveToNextGraphFrame(GpuTask task, bool preserveLastFrame)
+        {
+            // won't block if frame is completed
+            _frames[_frameIndex].Block();
+            _frames[_frameIndex] = task;
 
-    //public enum ResourceWriteFlags : uint
-    //{
-    //    /// <summary>
-    //    /// The resource is being used as an unordered access resource. This state is read/write
-    //    /// </summary>
-    //    UnorderedAccess = D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+            if (_frameIndex == 0)
+            {
+                _device.ResetRenderTargetViewHeap();
+                _device.ResetDepthStencilViewHeap();
+            }
+            _frameIndex = (_frameIndex + 1) % _maxFrameLatency;
 
-    //    /// <summary>
-    //    /// The resource is being used as a render target. This state is write-only
-    //    /// </summary>
-    //    RenderTarget = D3D12_RESOURCE_STATE_RENDER_TARGET,
+            if (preserveLastFrame)
+            {
+                _lastFrame = _frame;
+                _lastFrame.Resources = null!;
+            }
 
-    //    /// <summary>
-    //    /// The resource is being written to as a depth buffer, e.g when <see cref="DepthStencilDesc.EnableDepthTesting"/> is <see langword="true"/>.
-    //    /// </summary>
-    //    DepthWrite = D3D12_RESOURCE_STATE_DEPTH_WRITE,
+            _frame.Resolver = new Resolver(this);
+            _frame.RenderPasses = new();
+            _frame.RenderLayers = null;
+            _frame.OutputPassIndices = new();
+            _frame.Resources = new();
+            _frame.InputPassIndices = new();
+            _frame.PrimaryOutput = null;
+            _frame.MaxDepth = default;
+        }
 
-    //    /// <summary>
-    //    /// The resource is being used as a stream-out destination. This is a write-only state
-    //    /// </summary>
-    //    StreamOut = D3D12_RESOURCE_STATE_STREAM_OUT,
+        private void DeallocateResources()
+        {
+            foreach (ref var resource in _frame.Resources.AsSpan())
+            {
+                if (EnablePooling && ShouldTryPoolResource(ref resource))
+                {
+                    _cachedTextures[resource.Desc.TextureDesc] = (resource.Desc.Texture, resource.CurrentTrackedState);
+                }
+                else
+                {
+                    resource.Dispose();
+                }
+            }
+        }
 
-    //    /// <summary>
-    //    /// The resource is being used as the destination of a GPU copy operation
-    //    /// </summary>
-    //    CopyDestination = D3D12_RESOURCE_STATE_COPY_DEST,
+        private bool ShouldTryPoolResource(ref TrackedResource resource)
+            => resource.Desc.Type == ResourceType.Texture && (resource.Desc.TextureDesc.ResourceFlags & (ResourceFlags.AllowDepthStencil | ResourceFlags.AllowRenderTarget)) != 0;
 
-    //    /// <summary>
-    //    /// The resource is being used as the destination of a MSAA resolve operation
-    //    /// </summary>
-    //    ResolveDestination = D3D12_RESOURCE_STATE_RESOLVE_DEST
-    //}
-    //public enum ResourceReadFlags : uint
-    //{
-    //    /// <summary>
-    //    /// The resource is being used as a vertex buffer. This state is read-only
-    //    /// </summary>
-    //    VertexBuffer = D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
+        private void Schedule()
+        {
+            _frame.RenderLayers = new GraphLayer[_frame.MaxDepth + 1];
 
-    //    /// <summary>
-    //    /// The resource is being used as a constant buffer. This state is read-only
-    //    /// </summary>
-    //    ConstantBuffer = D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
+            int i = 0;
+            foreach (ref var pass in _frame.RenderPasses.AsSpan())
+            {
+                ref GraphLayer layer = ref _frame.RenderLayers[pass.Depth];
 
-    //    /// <summary>
-    //    /// The resource is being used as a vertex or constant buffer. This state is read-only
-    //    /// </summary>
-    //    VertexOrConstantBuffer = D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
+                layer.Passes ??= new();
 
-    //    /// <summary>
-    //    /// The resource is being used as an index buffer. This state is read-only
-    //    /// </summary>
-    //    IndexBuffer = D3D12_RESOURCE_STATE_INDEX_BUFFER,
+                layer.Passes.Add(i++);
+            }
+        }
 
-    //    /// <summary>
-    //    /// The resource is being read from as a depth buffer/
-    //    /// This state is read-only and cannot be combined with
-    //    /// </summary>
-    //    DepthRead = D3D12_RESOURCE_STATE_DEPTH_READ,
+        internal ResourceHandle AddResource(ResourceDesc desc, int callerPassIndex)
+        {
+            var resource = new TrackedResource
+            {
+                Desc = desc,
+                LastReadPassIndices = new(),
+                LastWritePassIndex = callerPassIndex
+            };
 
-    //    /// <summary>
-    //    /// The resource is being used by a shader other than <see cref="ShaderType.Pixel"/>
-    //    /// </summary>
-    //    NonPixelShaderResource = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+            _frame.Resources.Add(resource);
+            return new ResourceHandle((uint)_frame.Resources.Count);
+        }
 
-    //    /// <summary>
-    //    /// The resource is being used by a <see cref="ShaderType.Pixel"/> shader
-    //    /// </summary>
-    //    PixelShaderResource = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+        internal ref TrackedResource GetResource(ResourceHandle handle)
+        {
+            if (handle.IsInvalid)
+            {
+                ThrowHelper.ThrowInvalidOperationException("Resource was not created");
+            }
+            return ref ListExtensions.GetRef(_frame.Resources, (int)handle.Index - 1);
+        }
 
-    //    /// <summary>
-    //    /// The resource is being used as an indirect argument. This is a read-only state
-    //    /// </summary>
-    //    IndirectArgument = D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT,
+        internal ref RenderPassBuilder GetRenderPass(int index) => ref ListExtensions.GetRef(_frame.RenderPasses, index);
 
-    //    /// <summary>
-    //    /// The resource is being used as the source of a GPU copy operation
-    //    /// </summary>
-    //    CopySource = D3D12_RESOURCE_STATE_COPY_SOURCE,
+        private struct GraphLayer
+        {
+            /// <summary> The barriers executed before this layer is executed </summary>
+            public List<ResourceBarrier> Barriers;
 
-    //    /// <summary>
-    //    /// The resource can be read as several other <see cref="ResourceState"/>s. This is the starting
-    //    /// state for a <see cref="GpuMemoryKind.CpuUpload"/> resource
-    //    /// </summary>
-    //    GenericRead = D3D12_RESOURCE_STATE_GENERIC_READ,
+            /// <summary> The indices in the GpuContext array that can be executed in any order </summary>
+            public List<int> Passes;
+        }
 
-    //    /// <summary>
-    //    /// The resource is being used as the source of a MSAA resolve operation
-    //    /// </summary>
-    //    ResolveSource = D3D12_RESOURCE_STATE_RESOLVE_SOURCE
-    //}
+        private void AllocateResources()
+        {
+            foreach (ref var resource in _frame.Resources.AsSpan())
+            {
+                // handle relative sizes
+                if (resource.Desc.OutputRelativeSize is double relative)
+                {
+                    if (_frame.PrimaryOutput is not OutputDesc primary)
+                    {
+                        ThrowHelper.ThrowInvalidOperationException("Cannot use a primary output relative resource as no primary output was registered");
+                        return;
+                    }
+;
+                    if (resource.Desc.Type == ResourceType.Buffer)
+                    {
+                        resource.Desc.BufferDesc.Length = (long)(primary.BufferLength * relative);
+                    }
+                    else
+                    {
+                        switch (resource.Desc.TextureDesc.Dimension)
+                        {
+                            case TextureDimension.Tex3D:
+                                resource.Desc.TextureDesc.DepthOrArraySize = (ushort)(primary.TextureDepthOrArraySize * relative);
+                                goto case TextureDimension.Tex2D;
+
+                            case TextureDimension.Tex2D:
+                                resource.Desc.TextureDesc.Height = (uint)(primary.TextureHeight * relative);
+                                goto case TextureDimension.Tex1D;
+
+                            case TextureDimension.Tex1D:
+                                resource.Desc.TextureDesc.Width = (ulong)(primary.TextureWidth * relative);
+                                break;
+                        }
+
+                        // make sure no 0 height/depth
+                        resource.Desc.TextureDesc.DepthOrArraySize = Math.Max((ushort)1U, resource.Desc.TextureDesc.DepthOrArraySize);
+                        resource.Desc.TextureDesc.Height = Math.Max(1U, resource.Desc.TextureDesc.Height);
+                    }
+                }
+
+                if (EnablePooling && resource.Desc.Type == ResourceType.Texture && _cachedTextures.Remove(resource.Desc.TextureDesc, out var pair))
+                {
+                    (resource.Desc.Texture, resource.CurrentTrackedState) = pair;
+
+                    if (resource.CurrentTrackedState != resource.Desc.InitialState)
+                    {
+                        _frame.RenderLayers![0].Barriers ??= new();
+                        _frame.RenderLayers![0].Barriers.Add(resource.CreateTransition(resource.Desc.InitialState, ResourceBarrierOptions.Full));
+                    }
+                }
+                else
+                {
+                    resource.AllocateFrom(_device.Allocator);
+                    resource.CurrentTrackedState = resource.Desc.InitialState;
+                }
+
+                resource.SetName();
+            }
+        }
+
+        private void BuildBarriers()
+        {
+            foreach (ref var layer in _frame.RenderLayers.AsSpan())
+            {
+                foreach (var passIndex in layer.Passes.AsSpan())
+                {
+                    ref var pass = ref GetRenderPass(passIndex);
+
+                    foreach (ref var transition in pass.Transitions.AsSpan())
+                    {
+                        ref var resource = ref GetResource(transition.Resource);
+
+                        layer.Barriers ??= new();
+
+                        layer.Barriers.Add(resource.CreateTransition(transition.State, ResourceBarrierOptions.Full));
+
+                        if (transition.State.HasUnorderedAccess())
+                        {
+                            layer.Barriers.Add(resource.CreateUav(ResourceBarrierOptions.Full));
+                        }
+                    }
+                }
+            }
+        }
+
+        private List<GpuContext> _contexts = new();
+        private GpuTask RecordAndExecuteLayers()
+        {
+            foreach (ref var layer in _frame.RenderLayers.AsSpan())
+            {
+                // TODO multithread
+
+                var barriers = layer.Barriers.AsROSpan();
+
+                using (var barrierCtx = _device.BeginGraphicsContext())
+                {
+                    barrierCtx.ResourceBarrier(barriers);
+                    _contexts.Add(barrierCtx);
+                }
+
+                var numContexts = _contexts.Count + layer.Passes.Count;
+                if (_contexts.Capacity < numContexts)
+                {
+                    _contexts.Capacity = numContexts;
+                }
+                foreach (var passIndex in layer.Passes)
+                {
+                    ref var pass = ref GetRenderPass(passIndex).Pass;
+
+                    if (pass is ComputeRenderPass compute)
+                    {
+                        using var ctx = _device.BeginComputeContext(compute.DefaultPipelineState);
+
+                        compute.Record(ctx, ref _frame.Resolver);
+                        _contexts.Add(ctx);
+                    }
+                    else /* must be true */ if (pass is GraphicsRenderPass graphics)
+                    {
+                        using var ctx = _device.BeginGraphicsContext(graphics.DefaultPipelineState);
+
+                        graphics.Record(ctx, ref _frame.Resolver);
+                        _contexts.Add(ctx);
+                    }
+                    else
+                    {
+                        ThrowHelper.ThrowArgumentException("what the fuck have you done");
+                    }
+                }
+            }
+
+            var task = _device.Execute(_contexts.AsSpan());
+            _contexts.Clear();
+            return task;
+        }
+    }
 }

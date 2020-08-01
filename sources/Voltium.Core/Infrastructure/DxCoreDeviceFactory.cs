@@ -134,7 +134,7 @@ namespace Voltium.Core.Infrastructure
                 if (!adapter.Get()->IsPropertySupported(property))
                 {
                     val = default;
-                    LogHelper.Logger.ZLogInformation("DXCoreProperty '{0}' not supported by adapter", property);
+                    LogHelper.LogInformation($"DXCoreProperty '{property}' not supported by adapter");
                 }
 
                 T data;

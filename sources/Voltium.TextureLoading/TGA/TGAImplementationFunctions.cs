@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core;
-using Voltium.Core.GpuResources;
+using Voltium.Core.Memory;
 using static TerraFX.Interop.DXGI_FORMAT;
 
 // life savers:
@@ -14,7 +14,7 @@ using static TerraFX.Interop.DXGI_FORMAT;
 
 namespace Voltium.TextureLoading.TGA
 {
-    internal static unsafe class TGAImplementationFunctions
+    internal unsafe static class TGAImplementationFunctions
     {
         public static LoadedTexture CreateTgaTexture(
             ReadOnlyMemory<byte> tgaData,

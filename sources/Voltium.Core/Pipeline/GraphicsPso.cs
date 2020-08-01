@@ -6,7 +6,7 @@ namespace Voltium.Core.Pipeline
     /// <summary>
     /// A <see cref="PipelineStateObject"/> for a grpahics pipeline
     /// </summary>
-    public unsafe sealed class GraphicsPso : PipelineStateObject
+    public unsafe sealed class GraphicsPipelineStateObject : PipelineStateObject
     {
         /// <summary>
         /// The <see cref="GraphicsPipelineDesc"/> for this pipeline
@@ -15,7 +15,7 @@ namespace Voltium.Core.Pipeline
 
         internal override unsafe ID3D12RootSignature* GetRootSig()
             => Desc.RootSignature.Value;
-        internal GraphicsPso(ComPtr<ID3D12PipelineState> pso, in GraphicsPipelineDesc desc) : base(pso)
+        internal GraphicsPipelineStateObject(ComPtr<ID3D12PipelineState> pso, in GraphicsPipelineDesc desc) : base(pso)
         {
             Desc = desc;
         }

@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Voltium.Common.Debugging;
 
-namespace Voltium.Core.Managers
+namespace Voltium.Core.Devices
 {
     /// <summary>
     /// Describes the debugging state used by the engine
@@ -121,8 +121,8 @@ namespace Voltium.Core.Managers
         /// </summary>
         public static DeviceRemovedMetadataConfig Default { get; } = new DeviceRemovedMetadataConfig
         {
-            PageFaultMetadata = EnvVars.IsDebug,
-            AutoBreadcrumbMetadata = EnvVars.IsDebug,
+            PageFaultMetadata = false,
+            AutoBreadcrumbMetadata = false,
             WindowsErrorReporting = false
         };
 

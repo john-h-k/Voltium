@@ -9,13 +9,13 @@ using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 
 using Voltium.Core;
-using Voltium.Core.GpuResources;
-using Voltium.Core.Managers;
-using Voltium.Core.Managers.Shaders;
-using Voltium.Core.Memory.GpuResources;
+using Voltium.Core.Memory;
+using Voltium.Core.Devices;
+using Voltium.Core.Devices.Shaders;
 using Voltium.Core.Pipeline;
+using Buffer = Voltium.Core.Memory.Buffer;
+
 using static Voltium.Core.Pipeline.GraphicsPipelineDesc;
-using Buffer = Voltium.Core.Memory.GpuResources.Buffer;
 
 #if DOUBLE
 using FP = System.Double;
@@ -48,15 +48,13 @@ namespace Voltium.Interactive
 
         private uint SsaaFactor { get; set; } = 8;
 
-        public override void Init(GraphicsDevice device, GraphicalConfiguration config, in Size screen)
+        public override void Init(GraphicsDevice device, in Size screen)
         {
             _device = device;
 
-            //var colors = ;
-
             using (var copy = device.BeginCopyContext())
             {
-                copy.UploadBuffer(device.Allocator, GetColors(), ResourceState.PixelShaderResource, out _colors);
+                copy.UploadBuffer(GetColors(), ResourceState.PixelShaderResource, out _colors);
             }
 
             var @params = new RootParameter[]
@@ -65,13 +63,14 @@ namespace Voltium.Interactive
                 RootParameter.CreateConstants((uint)sizeof(MandelbrotConstants) / sizeof(uint), 0, 0, ShaderVisibility.Pixel),
             };
 
-            var rootSig = RootSignature.Create(device, @params, null);
-            PipelineManager.Reset();
+            var rootSig = _device.CreateRootSignature(@params, null);
+            _device.PipelineManager.Reset();
 
-            var flags = new DxcCompileFlags.Flag[]
+            var flags = new ShaderCompileFlag[]
             {
+                ShaderCompileFlag.OptimizationLevel3,
 #if DOUBLE
-                DxcCompileFlags.DefineMacro("DOUBLE")
+                ShaderCompileFlag.DefineMacro("DOUBLE")
 #endif
             };
 
@@ -80,12 +79,12 @@ namespace Voltium.Interactive
                 RootSignature = rootSig,
                 Topology = TopologyClass.Triangle,
                 DepthStencil = DepthStencilDesc.DisableDepthStencil,
-                RenderTargetFormats = new FormatBuffer8(_renderTarget.Format),
-                VertexShader = ShaderManager.CompileShader("Shaders/Mandelbrot/EntireScreenCopyVS.hlsl", DxcCompileTarget.Vs_5_0, flags),
-                PixelShader = ShaderManager.CompileShader("Shaders/Mandelbrot/Mandelbrot.hlsl", DxcCompileTarget.Ps_5_0, flags)
+                RenderTargetFormats = new FormatBuffer8(DataFormat.R16G16B16A16Single),
+                VertexShader = ShaderManager.CompileShader("Shaders/Mandelbrot/EntireScreenCopyVS.hlsl", ShaderType.Vertex, flags),
+                PixelShader = ShaderManager.CompileShader("Shaders/Mandelbrot/Mandelbrot.hlsl", ShaderType.Pixel, flags)
             };
 
-            _pso = PipelineManager.CreatePso(device, "Mandelbrot", psoDesc);
+            _pso = _device.PipelineManager.CreatePipelineStateObject("Mandelbrot", psoDesc);
 
             _constants = new MandelbrotConstants
             {
@@ -114,15 +113,11 @@ namespace Voltium.Interactive
         public override void Resize(Size newScreenData)
         {
             _outputResolution = newScreenData;
-            const int width = 16384 / 4, height = 16384 / 4;
-            _outputResolution = new Size(width, height);
-            //uint width = (uint)newScreenData.Width, height = (uint)newScreenData.Height;
-            _image = new Bitmap(_outputResolution.Width, _outputResolution.Height);
+            uint width = (uint)newScreenData.Width, height = (uint)newScreenData.Height;
+            _outputResolution = new Size((int)width, (int)height);
             _renderTarget.Dispose();
-            _output.Dispose();
 
-            _output = _device.Allocator.AllocateBuffer(width * height * 10, MemoryAccess.CpuReadback, ResourceState.CopyDestination);
-            var target = TextureDesc.CreateRenderTargetDesc(DataFormat.R8G8B8A8UnsignedNormalized, height, width, Rgba128.Black);
+            var target = TextureDesc.CreateRenderTargetDesc(DataFormat.R16G16B16A16Single, height, width, Rgba128.Black);
 
             _renderTarget = _device.Allocator.AllocateTexture(target, ResourceState.RenderTarget);
             _renderTargetView = _device.CreateRenderTargetView(_renderTarget);
@@ -131,57 +126,45 @@ namespace Voltium.Interactive
             _constants.ColorCount = 256 * 4 * 10;
         }
 
-        private GraphicsPso _pso = null!;
+        private GraphicsPipelineStateObject _pso = null!;
 
         public override PipelineStateObject? GetInitialPso()
             => _pso;
 
-        private Buffer _output;
-        public override void Render(ref GraphicsContext recorder, out Texture render)
+        public override void Render(GraphicsContext recorder, out Texture render)
         {
             recorder.ResourceTransition(_renderTarget, ResourceState.RenderTarget);
 
             recorder.SetViewportAndScissor(_outputResolution);
             recorder.SetRenderTargets(_renderTargetView);
+            //recorder.ClearRenderTarget(_renderTargetView, Rgba128.CornflowerBlue);
+            recorder.Discard(_renderTarget);
             recorder.SetTopology(Topology.TriangeList);
             recorder.SetBuffer(0, _colors);
             recorder.SetRoot32BitConstants(1, _constants);
             recorder.Draw(3);
 
-            //recorder.CopyResource(_renderTarget, _device.BackBuffer);
-            recorder.ReadbackSubresource(_device.Allocator, _renderTarget, 0, _output);
-
             render = _renderTarget;
-
-            //recorder.ResourceTransition(_device.BackBuffer, ResourceState.Present);
         }
 
         private GifWriter _writer = new GifWriter("output.gif", 16, 0);
-        private Bitmap _image = null!;
-        private int _frameIndex = 0;
+        private Image _image = new Bitmap(700, 700);
 
         private Task _save = Task.CompletedTask;
         public override void Update(ApplicationTimer timer)
         {
-            _frameIndex++;
-            if (_output.Data.IsEmpty)
-            {
-                Console.WriteLine("bad");
-                return;
-            }
-
             _constants.Scale *= (FP)(0.9); // (FP)(1 - timer.ElapsedSeconds);
 
-            var footprint = _device.GetSubresourceFootprint(_renderTarget, 0);
+            //var footprint = _device.GetSubresourceFootprint(_renderTarget, 0);
 
-            _save.Wait();
+            //_save.Wait();
 
-            var bits = _image.LockBits(new System.Drawing.Rectangle(0, 0, _outputResolution.Width, _outputResolution.Height), ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
-            var bitSpan = new Span<byte>((byte*)bits.Scan0, bits.Height * bits.Stride);
-            _device.ReadbackIntermediateBuffer(footprint, _output, bitSpan);
-            _image.UnlockBits(bits);
+            //var bits = _image.LockBits(new Rectangle(0, 0, _outputResolution.Width, _outputResolution.Height), ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
+            //var bitSpan = new Span<byte>((byte*)bits.Scan0, bits.Height * bits.Stride);
+            //_device.ReadbackIntermediateBuffer(footprint, _output, bitSpan);
+            //_image.UnlockBits(bits);
 
-            _save = Task.Run(() => _image.Save($"imgs/img{_frameIndex:D5}.bmp", ImageFormat.Bmp));
+            //_save = Task.Run(() => _image.Save($"imgs/img{_frameIndex:D5}.bmp", ImageFormat.Bmp));
 
             //_writer.WriteFrame(_image);
         }
@@ -200,7 +183,6 @@ namespace Voltium.Interactive
         public override void Dispose()
         {
             _writer.Dispose();
-            _renderTarget.Dispose();
             _renderTarget.Dispose();
             _colors.Dispose();
         }

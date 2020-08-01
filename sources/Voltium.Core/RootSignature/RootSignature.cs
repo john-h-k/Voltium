@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using TerraFX.Interop;
 using Voltium.Common;
-using Voltium.Core.Managers;
+using Voltium.Core.Devices;
 
 namespace Voltium.Core
 {
@@ -15,11 +15,11 @@ namespace Voltium.Core
         /// <summary>
         /// Creates a new <see cref="RootSignature"/> from a <see cref="CompiledShader"/>
         /// </summary>
-        /// <param name="device">The <see cref="GraphicsDevice"/> used to create the root signature</param>
+        /// <param name="device">The <see cref="ComputeDevice"/> used to create the root signature</param>
         /// <param name="rootSignatureShader"></param>
         /// <param name="deserialize"></param>
         /// <returns>A new <see cref="RootSignature"/></returns>
-        public static RootSignature Create(GraphicsDevice device, CompiledShader rootSignatureShader, bool deserialize = false)
+        internal static RootSignature Create(ComputeDevice device, CompiledShader rootSignatureShader, bool deserialize = false)
         {
             fixed (byte* pSignature = rootSignatureShader)
             {
@@ -44,9 +44,19 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="device">The <see cref="GraphicsDevice"/> used to create the root signature</param>
         /// <param name="rootParameters">The <see cref="RootParameter"/>s in the signature</param>
+        /// <param name="staticSampler">The <see cref="StaticSampler"/> in the signature</param>
+        /// <returns>A new <see cref="RootSignature"/></returns>
+        internal static RootSignature Create(ComputeDevice device, ReadOnlyMemory<RootParameter> rootParameters, in StaticSampler staticSampler)
+            => Create(device, rootParameters, new[] { staticSampler });
+
+        /// <summary>
+        /// Creates a new <see cref="RootSignature"/>
+        /// </summary>
+        /// <param name="device">The <see cref="GraphicsDevice"/> used to create the root signature</param>
+        /// <param name="rootParameters">The <see cref="RootParameter"/>s in the signature</param>
         /// <param name="staticSamplers">The <see cref="StaticSampler"/>s in the signature</param>
         /// <returns>A new <see cref="RootSignature"/></returns>
-        public static RootSignature Create(GraphicsDevice device, ReadOnlyMemory<RootParameter> rootParameters, ReadOnlyMemory<StaticSampler> staticSamplers)
+        internal static RootSignature Create(ComputeDevice device, ReadOnlyMemory<RootParameter> rootParameters, ReadOnlyMemory<StaticSampler> staticSamplers)
         {
             using var rootParams = RentedArray<D3D12_ROOT_PARAMETER>.Create(rootParameters.Length);
             using var samplers = RentedArray<D3D12_STATIC_SAMPLER_DESC>.Create(staticSamplers.Length);
@@ -208,6 +218,10 @@ namespace Voltium.Core
         /// The <see cref="StaticSampler"/>s for this root signature
         /// </summary>
         public readonly ReadOnlyMemory<StaticSampler> StaticSamplers;
+
+        ///// <inheritdoc cref="IEquatable{T}.Equals(T)"/>
+        //public bool Equals(RootSignature? other)
+        //    => other is not null && _value == other._value && StaticSamplers.Span.SequenceEqual(other.StaticSamplers.Span) && Parameters.Span.SequenceEqual(other.Parameters.Span);
 
         // TODO root sig flags (when exposed)
 

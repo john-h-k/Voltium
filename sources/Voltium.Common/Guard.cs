@@ -106,28 +106,29 @@ namespace Voltium.Common
         [DebuggerNonUserCode]
         [MethodImpl(MethodTypes.Validates)]
         public static void ThrowIfFailed(
-            int hr
+            int hr,
+            [CallerArgumentExpression("hr")] string? expression = null
 #if DEBUG || EXTENDED_ERROR_INFORMATION
             ,
-            [CallerArgumentExpression("hr")] string? expression = null,
             [CallerFilePath] string? filepath = default,
             [CallerMemberName] string? memberName = default,
             [CallerLineNumber] int lineNumber = default
 #endif
         )
         {
-            if (FAILED(hr))
+            // invert branch so JIT assumes the HR is S_OK
+            if (SUCCEEDED(hr))
             {
-                ThrowForHr(hr
+                return;
+            }
+
+            ThrowForHr(hr
 #if DEBUG || EXTENDED_ERROR_INFORMATION
                     ,
-                    expression, filepath, memberName, lineNumber
+                expression, filepath, memberName, lineNumber
 #endif
                     );
-            }
         }
-
-        public static event Action OnExternalError = () => { };
 
         [DebuggerNonUserCode]
         [DebuggerStepThrough]
@@ -148,7 +149,7 @@ namespace Voltium.Common
 
 #if DEBUG || EXTENDED_ERROR_INFORMATION
             var additionalInfo = FormatExtendedErrorInformation(
-                $". " + extraInfo is null ? "" : $"Additional info '{extraInfo}",
+                nativeMessage + (extraInfo is null ? "" : $"Additional info '{extraInfo}"),
                 expression,
                 memberName,
                 lineNumber,
@@ -162,8 +163,6 @@ namespace Voltium.Common
                 hr,
                 additionalInfo
             );
-
-            OnExternalError.Invoke();
 
             Exception ex = hr switch
             {
@@ -309,12 +308,11 @@ namespace Voltium.Common
             [CallerLineNumber] int lineNumber = default
         )
         {
-            LogHelper.Logger.ZLogError(
-                "OBJECT NOT DISPOSED ERROR\nFile: {0}\nMember: {1}\nLine: {2}\n",
-                filepath!, memberName!, lineNumber
+#if !DISPOSABLES_ALLOW_FINALIZE
+            LogHelper.LogError(
+                $"OBJECT NOT DISPOSED ERROR\nFile: {filepath}\nMember: {memberName}\nLine: {lineNumber}\n"
             );
 
-#if !DISPOSABLES_ALLOW_FINALIZE
             Debug.Fail("OBJECT NOT DISPOSED ERROR - see logs");
 #endif
         }

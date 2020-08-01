@@ -12,7 +12,8 @@ namespace Voltium.Analyzers
     internal sealed class VariadicGenericGenerator : PredicatedGenerator<MethodDeclarationSyntax>
     {
         private const string AttributeName = "Voltium.Common.VariadicGenericAttribute";
-        protected override void Generate(SourceGeneratorContext context, ISymbol symbol)
+        private const string TargetExpressionName = "InsertExpressionHere";
+        protected override void Generate(SourceGeneratorContext context, ISymbol symbol, MethodDeclarationSyntax syntax)
         {
             Debug.Assert(symbol is IMethodSymbol);
 
@@ -25,73 +26,45 @@ namespace Voltium.Analyzers
             StringBuilder builder = new();
             for (var i = minArgs; i <= maxArgs; i++)
             {
-                WriteMethod(builder, context, (IMethodSymbol)symbol, template, i);
+                WriteMethod(builder, context, (IMethodSymbol)symbol, syntax, template, i);
                 builder.AppendLine();
             }
         }
 
-        private void WriteMethod(StringBuilder builder, SourceGeneratorContext context, IMethodSymbol symbol, string template, int argCount)
+        private void WriteMethod(StringBuilder builder, SourceGeneratorContext context, IMethodSymbol symbol, MethodDeclarationSyntax syntax, string template, int argCount)
         {
-            builder.Append(symbol.DeclaredAccessibility.ToString());
-            if (symbol.IsAsync)
+            var targetAttribute = context.Compilation.GetTypeByMetadataName(AttributeName);
+            var targetSymbol = targetAttribute!.GetMembers(TargetExpressionName).First();
+
+            var semantics = context.Compilation.GetSemanticModel(syntax.SyntaxTree);
+
+            WriteMethodDecl(builder, context, symbol, syntax, argCount);
+            var body = syntax.Body;
+
+            if (body is null)
             {
-                builder.Append("async ");
-            }
-            else
-            {
-                builder.Append("unsafe ");
-            }
-            if (symbol.IsAbstract)
-            {
-                builder.Append("abstract ");
-            }
-            if (symbol.IsOverride)
-            {
-                builder.Append("override ");
-            }
-            if (symbol.IsReadOnly)
-            {
-                builder.Append("readonly ");
-            }
-            if (symbol.IsStatic)
-            {
-                builder.Append("static ");
-            }
-            if (symbol.IsVirtual)
-            {
-                builder.Append("virtual ");
-            }
-            if (symbol.IsSealed)
-            {
-                builder.Append("sealed ");
+                return; // abstract method
             }
 
-            builder.Append(symbol.ReturnType.ToDisplayString()).Append(' ');
-            builder.Append(symbol.Name).Append(' ');
-            builder.Append('<');
-
-            for (var i = 0; i > argCount; i++)
+            int targetStatementIndex = 0;
+            foreach (var statement in body.Statements)
             {
-                builder.Append('T').Append(i).Append(i == argCount - 1 ? "" : ", ");
+                if (statement is ExpressionStatementSyntax expr && expr.Expression is  InvocationExpressionSyntax invoke
+                    && invoke.Expression is IdentifierNameSyntax target && SymbolEqualityComparer.Default.Equals(semantics.GetDeclaredSymbol(target), targetSymbol))
+                {
+                    break;
+                }
+                targetStatementIndex++;
             }
 
-            builder.Append('>');
-            builder.Append('(');
-
-            foreach (var param in symbol.Parameters)
-            {
-                builder.Append(param.ToDisplayString());
-                builder.Append(", ");
-            }
-            for (var i = 0; i > argCount; i++)
-            {
-                builder.Append('T').Append(i).Append(" t").Append(i).Append(i == argCount - 1 ? "" : ", ");
-            }
-
-            builder.Append(')');
-
-
+            var stripTarget = body.Statements.RemoveAt(targetStatementIndex);
         }
+
+        private void WriteMethodDecl(StringBuilder builder, SourceGeneratorContext context, IMethodSymbol symbol, MethodDeclarationSyntax syntax, int argCount)
+        {
+            builder.AppendLine(symbol.ToDisplayString());
+        }
+
         private const string PartialTemplate = @"
 namespace {0}
 {{

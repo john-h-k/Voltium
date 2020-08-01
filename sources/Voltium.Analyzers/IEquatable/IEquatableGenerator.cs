@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
@@ -9,13 +10,14 @@ namespace Voltium.Analyzers.IEquatable
     [Generator]
     internal sealed class IEquatableGenerator : PredicatedTypeGenerator
     {
-        protected override void Generate(SourceGeneratorContext context, INamedTypeSymbol symbol)
+        // BUG: does not work with nested types
+        protected override void GenerateFromSymbol(SourceGeneratorContext context, INamedTypeSymbol symbol)
         {
             var equalsCandidates = symbol.GetMembers(nameof(Equals))
                                         .Where(member => member is IMethodSymbol method
                                                         && SymbolEqualityComparer.Default.Equals(method.ReturnType, context.Compilation.GetSpecialType(SpecialType.System_Boolean))
                                                         && method.Parameters.Length == 1
-                                                        && SymbolEqualityComparer.Default.Equals(method.Parameters[0], symbol));
+                                                        && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, symbol));
 
             var ghcCandidates = symbol.GetMembers(nameof(GetHashCode))
                                         .Where(member => member is IMethodSymbol method
@@ -24,11 +26,6 @@ namespace Voltium.Analyzers.IEquatable
 
             var builder = new StringBuilder();
 
-            if (equalsCandidates.Count() == 0)
-            {
-                var compString = GenerateComparisonOfAllFields(context, symbol);
-                builder.AppendLine(string.Format(symbol.IsValueType ? ValueTypeStandardEqualsTemplate : RefTypeStandardEqualsTemplate, symbol.Name, compString));
-            }
 
             if (ghcCandidates.Count() == 0)
             {
@@ -36,9 +33,31 @@ namespace Voltium.Analyzers.IEquatable
                 builder.AppendLine(string.Format(GetHashCodeTemplate, ghcString));
             }
 
-            builder.AppendLine(string.Format(symbol.IsValueType ? ValueTypeEqualsTemplate : RefTypeEqualsTemplate, symbol.Name));
 
-            builder.AppendLine(string.Format(EquatableTemplate, symbol.Name));
+            string passByRefModifier = string.Empty;
+            if (symbol.IsValueType)
+            {
+                var shouldPassByRef = new TypeSizeResolver(context.Compilation).AdvantageousToPassByRef(symbol);
+
+                passByRefModifier = shouldPassByRef ? "in " : "";
+                builder.AppendLine(string.Format(ValueTypeEqualsTemplate, passByRefModifier, symbol.Name));
+                if (equalsCandidates.Count() == 0)
+                {
+                    var compString = GenerateComparisonOfAllFields(context, symbol);
+                    builder.AppendLine(string.Format(ValueTypeStandardEqualsTemplate, symbol.Name, compString));
+                }
+            }
+            else
+            {
+                builder.AppendLine(string.Format(RefTypeEqualsTemplate, symbol.Name));
+                if (equalsCandidates.Count() == 0)
+                {
+                    var compString = GenerateComparisonOfAllFields(context, symbol);
+                    builder.AppendLine(string.Format(RefTypeStandardEqualsTemplate, symbol.Name, compString));
+                }
+            }
+
+            builder.AppendLine(string.Format(EquatableTemplate, passByRefModifier, symbol.Name));
 
             var source = string.Format(TypeTemplate, symbol.ContainingNamespace, symbol.IsValueType ? "struct" : "class", symbol.Name, builder.ToString());
 
@@ -49,7 +68,7 @@ namespace Voltium.Analyzers.IEquatable
         {
             var comparisons = new List<string>();
 
-            foreach (var field in symbol.GetMembers().Where(member => member.Kind == SymbolKind.Field && !member.IsStatic).Select(field => (IFieldSymbol)field))
+            foreach (var field in symbol.GetMembers().OfType<IFieldSymbol>().Where(field => !field.IsStatic && field.CanBeReferencedByName))
             {
                 comparisons.Add(field.Name);
             }
@@ -102,8 +121,13 @@ namespace Voltium.Analyzers.IEquatable
         public bool Equals({0}? other) => other is object && {1};";
 
         private const string ValueTypeEqualsTemplate = @"
-        /// <inheritdoc cref=""operator ==({0}, {0})"" />
-        public static bool Equals({0} left, {0} right) => left.Equals(right);";
+        /// <summary>
+        /// Compares if two <see cref=""{1}""/> objects are equal
+        /// </summary>
+        /// <param name=""left"" > One of the <see cref=""{1}"" />s to compare</param>
+        /// <param name=""right"">One of the <see cref=""{1}"" />s to compare</param>
+        /// <returns><see langword=""true"" /> if both sides are equal, else <see langword=""false"" /></returns>
+        public static bool Equals({0}{1} left, {0}{1} right) => left.Equals(right);";
 
         private const string RefTypeEqualsTemplate = @"
         public static bool Equals({0}? left, {0}? right)
@@ -113,24 +137,17 @@ namespace Voltium.Analyzers.IEquatable
         public override int GetHashCode() => {0};";
 
         private const string EquatableTemplate = @"/// <inheritdoc />
-        public override bool Equals(object? obj) => obj is Rgba128 other && Equals(other);
+        public override bool Equals(object? obj) => obj is {1} other && Equals(other);
+
+        /// <inheritdoc cref=""Equals({1})""/>
+        public static bool operator ==({0}{1} left, {0}{1} right) => Equals(left, right);
 
         /// <summary>
-        /// Compares if two <see cref=""{0}""/> objects are equal
+        /// Compares if two <see cref=""{1}""/> objects are not equal
         /// </summary>
-        /// <param name=""left"" > One of the <see cref=""{0}"" />s to compare</param>
-        /// <param name=""right"">One of the <see cref=""{0}"" />s to compare</param>
-        /// <returns><see langword=""true"" /> if both sides are equal, else <see langword=""false"" /></returns>
-        public static bool operator ==({0} left, {0} right) => Equals(left, right);
-
-
-
-        /// <summary>
-        /// Compares if two <see cref=""{0}""/> objects are not equal
-        /// </summary>
-        /// <param name=""left"">One of the <see cref=""{0}""/>s to compare</param>
-        /// <param name=""right"">One of the <see cref=""{0}""/>s to compare</param>
+        /// <param name=""left"">One of the <see cref=""{1}""/>s to compare</param>
+        /// <param name=""right"">One of the <see cref=""{1}""/>s to compare</param>
         /// <returns><see langword=""true""/> if both sides are not equal, else <see langword=""false"" /></returns>
-        public static bool operator !=({0} left, {0} right) => !(left == right);";
+        public static bool operator !=({0}{1} left, {0}{1} right) => !(left == right);";
     }
 }

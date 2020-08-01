@@ -64,7 +64,7 @@ namespace Voltium.Analyzers.HLSLType
         }
 
 #pragma warning disable RS2008 // Enable analyzer release tracking
-        private static DiagnosticDescriptor ContainsClassesOrInterfaces => new DiagnosticDescriptor("HLSL 69", "HLSL classes and interfaces not supported", "HLSL classes and interfaces are deprecated in DX12", "HLSL", DiagnosticSeverity.Error, true);
+        private DiagnosticDescriptor ContainsClassesOrInterfaces => new DiagnosticDescriptor("HLSL 69", "HLSL classes and interfaces not supported", "HLSL static classes and interfaces are deprecated in DX12", "HLSL", DiagnosticSeverity.Error, true);
 #pragma warning restore RS2008 // Enable analyzer release tracking
 
         private static bool IsShader(AdditionalText? file)

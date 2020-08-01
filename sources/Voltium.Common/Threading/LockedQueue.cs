@@ -10,116 +10,68 @@ namespace Voltium.Common
         public LockedQueue(TLock @lock, int capacity = 0)
         {
             Guard.Positive(capacity);
-            UnderlyingQueue = new Queue<T>(capacity);
+            _underlyingQueue = new Queue<T>(capacity);
             _lock = @lock;
         }
 
-        private Queue<T> UnderlyingQueue;
+        private Queue<T> _underlyingQueue;
         private TLock _lock;
 
-        public Queue<T> GetUnderlyingQueue() => UnderlyingQueue;
+        public Queue<T> GetUnderlyingQueue() => _underlyingQueue;
 
         IEnumerator<T> IEnumerable<T>.GetEnumerator() => GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
+        public int Count => _underlyingQueue.Count;
+
+        public ScopedIValueLockEntry<TLock> Lock() => _lock.EnterScoped();
+
         public Queue<T>.Enumerator GetEnumerator()
         {
-            var taken = false;
-            _lock.Enter(ref taken);
-
-            try
-            {
-                return UnderlyingQueue.GetEnumerator();
-            }
-            finally
-            {
-                ExitIf(taken);
-            }
-        }
-
-        private void ExitIf(bool taken)
-        {
-            if (taken)
-            {
-                _lock.Exit();
-            }
+            using var _ = _lock.EnterScoped();
+            return _underlyingQueue.GetEnumerator();
         }
 
         public void Enqueue(T value)
         {
-            var taken = false;
-            _lock.Enter(ref taken);
-
-            try
-            {
-                UnderlyingQueue.Enqueue(value);
-            }
-            finally
-            {
-                ExitIf(taken);
-            }
+            using var _ = _lock.EnterScoped();
+            _underlyingQueue.Enqueue(value);
         }
 
         public T Dequeue()
         {
-            var taken = false;
-            _lock.Enter(ref taken);
-
-            try
-            {
-                return UnderlyingQueue.Dequeue();
-            }
-            finally
-            {
-                ExitIf(taken);
-            }
+            using var _ = _lock.EnterScoped();
+            return _underlyingQueue.Dequeue();
         }
 
         public T Peek()
         {
-            var taken = false;
-            _lock.Enter(ref taken);
-
-            try
-            {
-                return UnderlyingQueue.Peek();
-            }
-            finally
-            {
-                ExitIf(taken);
-            }
+            using var _ = _lock.EnterScoped();
+            return _underlyingQueue.Peek();
         }
 
         public bool TryPeek([MaybeNullWhen(false)] out T value)
         {
-            var taken = false;
-            _lock.Enter(ref taken);
-
-            try
-            {
-
-                return UnderlyingQueue.TryPeek(out value);
-            }
-            finally
-            {
-                ExitIf(taken);
-            }
+            using var _ = _lock.EnterScoped();
+            return _underlyingQueue.TryPeek(out value);
         }
 
         public bool TryDequeue([MaybeNullWhen(false)] out T value)
         {
-            var taken = false;
-            _lock.Enter(ref taken);
+            using var _ = _lock.EnterScoped();
+            return _underlyingQueue.TryDequeue(out value);
+        }
+        public unsafe bool TryDequeue([MaybeNullWhen(false)] out T value, delegate* <ref T, bool> predicate)
+        {
+            using var _ = _lock.EnterScoped();
+            
+            return _underlyingQueue.TryPeek(out value) && predicate(ref value) && _underlyingQueue.Dequeue() is var _;
+        }
 
-            try
-            {
-
-                return UnderlyingQueue.TryDequeue(out value);
-            }
-            finally
-            {
-                ExitIf(taken);
-            }
+        public void Clear()
+        {
+            using var _ = _lock.EnterScoped();
+            _underlyingQueue.Clear();
         }
     }
 }

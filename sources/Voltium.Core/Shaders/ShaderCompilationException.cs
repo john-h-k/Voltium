@@ -1,7 +1,7 @@
 using System;
 using System.Runtime.Serialization;
 
-namespace Voltium.Core.Managers.Shaders
+namespace Voltium.Core.Devices.Shaders
 {
     /// <summary>
     /// The exception thrown when shader compilation fails
@@ -15,12 +15,12 @@ namespace Voltium.Core.Managers.Shaders
 
 
         /// <inheritdoc/>
-        internal ShaderCompilationException(ShaderCompilationData message) : base(message.ToString())
+        internal ShaderCompilationException(in ShaderCompilationData message) : base(message.ToString())
         {
         }
 
         /// <inheritdoc/>
-        internal ShaderCompilationException(ShaderCompilationData message, Exception? innerException) : base(message.ToString(), innerException)
+        internal ShaderCompilationException(in ShaderCompilationData message, Exception? innerException) : base(message.ToString(), innerException)
         {
         }
 

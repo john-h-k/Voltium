@@ -3,7 +3,7 @@ using System.Threading;
 
 namespace Voltium.RenderEngine.Jobs
 {
-    internal static unsafe class LockedThreadPool
+    internal unsafe static class LockedThreadPool
     {
         private static NativeThread[] _perCoreThread;
         private static NativeThread[] _ioThreads;

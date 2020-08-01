@@ -1,6 +1,6 @@
 using System;
 
-namespace Voltium.Core.Managers.Shaders
+namespace Voltium.Core.Devices.Shaders
 {
     /// <summary>
     /// Indicates that a type represents a type used in a shader

@@ -1,5 +1,7 @@
 using System;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Threading;
 using TerraFX.Interop;
 using Voltium.Common;
 
@@ -12,6 +14,7 @@ namespace Voltium.Core
     {
         private ApplicationTimer()
         {
+            _lastTime = Stopwatch.GetTimestamp();
         }
 
         /// <summary>
@@ -21,22 +24,16 @@ namespace Voltium.Core
         {
             var timer = new ApplicationTimer();
 
-            timer._qpcFrequency = QueryPerformanceFrequency();
-
-            timer._qpcLastTime = QueryPerformanceCounter();
-
-            timer._qpcMaxDelta = (ulong)(timer._qpcFrequency.QuadPart / 10);
-
             return timer;
         }
 
         /// <summary>
-        /// The number of ticks that have elapsed between the last call to <see cref="Tick"/> and the one prior to it
+        /// The number of ticks that have elapsed between the last call to <see cref="Tick(Action)"/> and the one prior to it
         /// </summary>
         public ulong ElapsedTicks => _elapsedTicks;
 
         /// <summary>
-        /// The number of seconds that have elapsed between the last call to <see cref="Tick"/> and the one prior to it
+        /// The number of seconds that have elapsed between the last call to <see cref="Tick(Action)"/> and the one prior to it
         /// </summary>
         public double ElapsedSeconds => TicksToSeconds(_elapsedTicks);
 
@@ -51,7 +48,7 @@ namespace Voltium.Core
         public double TotalSeconds => TicksToSeconds(_totalTicks);
 
         /// <summary>
-        /// The number of calls to <see cref="Tick"/> that have occurred
+        /// The number of calls to <see cref="Tick(Action)"/> that have occurred
         /// </summary>
         public uint FrameCount => _frameCount;
 
@@ -96,7 +93,7 @@ namespace Voltium.Core
         /// </summary>
         public void ResetElapsedTime()
         {
-            _qpcLastTime = QueryPerformanceCounter();
+            _lastTime = Stopwatch.GetTimestamp();
 
             _leftOverTicks = 0;
             _framesPerSecond = 0;
@@ -104,26 +101,42 @@ namespace Voltium.Core
             _qpcSecondCounter = 0;
         }
 
+
+        /// <summary>
+        /// Ticks the timer, indicating a single frame has elapsed
+        /// in fixed timestep mode, or immediately, in variable timestep mode
+        /// </summary>
+        public void Tick(Action update)
+            => Tick(0, (_, _) => update());
+
+
+        /// <summary>
+        /// Ticks the timer, indicating a single frame has elapsed
+        /// in fixed timestep mode, or immediately, in variable timestep mode
+        /// </summary>
+        public void Tick(Action<ApplicationTimer> update)
+            => Tick(0, (timer, _) => update(timer));
+
         /// <summary>
         /// Ticks the timer, indicating a single frame has elapsed
         /// </summary>
         /// in fixed timestep mode, or immediately, in variable timestep mode
-        public void Tick(Action update)
+        public void Tick<T>(T val, Action<ApplicationTimer, T> update)
         {
-            var currentTime = QueryPerformanceCounter();
+            var currentTime = Stopwatch.GetTimestamp();
 
-            var timeDelta = (ulong)(currentTime.QuadPart - _qpcLastTime.QuadPart);
+            var timeDelta = (ulong)(currentTime - _lastTime);
 
-            _qpcLastTime = currentTime;
+            _lastTime = currentTime;
             _qpcSecondCounter += timeDelta;
 
-            if (timeDelta > _qpcMaxDelta)
+            if (timeDelta > MaxDelta)
             {
-                timeDelta = _qpcMaxDelta;
+                timeDelta = MaxDelta;
             }
 
             timeDelta *= TicksPerSecond;
-            timeDelta /= (ulong)_qpcFrequency.QuadPart;
+            timeDelta /= (ulong)Frequency;
 
             uint lastFrameCount = _frameCount;
 
@@ -142,7 +155,7 @@ namespace Voltium.Core
                     _totalTicks += TargetElapsedTicks;
                     _leftOverTicks -= TargetElapsedTicks;
                     _frameCount++;
-                    update();
+                    update(this, val);
                 }
             }
             else
@@ -152,7 +165,7 @@ namespace Voltium.Core
                 _leftOverTicks = 0;
                 _frameCount++;
 
-                update();
+                update(this, val);
             }
 
             if (_frameCount != lastFrameCount)
@@ -160,41 +173,20 @@ namespace Voltium.Core
                 _framesThisSecond++;
             }
 
-            if (_qpcSecondCounter >= (ulong)_qpcFrequency.QuadPart)
+            if (_qpcSecondCounter >= (ulong)Frequency)
             {
                 _framesPerSecond = _framesThisSecond;
                 _framesThisSecond = 0;
-                _qpcSecondCounter %= (ulong)_qpcFrequency.QuadPart;
+                _qpcSecondCounter %= (ulong)Frequency;
             }
-        }
-
-        private static unsafe LARGE_INTEGER QueryPerformanceCounter()
-        {
-            LARGE_INTEGER counter;
-            if (Windows.QueryPerformanceCounter(&counter) == Windows.TRUE)
-            {
-                return counter;
-            }
-            ThrowHelper.ThrowExternalException(Marshal.GetLastWin32Error());
-            return default;
-        }
-
-        private static unsafe LARGE_INTEGER QueryPerformanceFrequency()
-        {
-            LARGE_INTEGER frequency;
-            if (Windows.QueryPerformanceFrequency(&frequency) == Windows.TRUE)
-            {
-                return frequency;
-            }
-            ThrowHelper.ThrowExternalException(Marshal.GetLastWin32Error());
-            return default;
         }
 
         private const ulong TicksPerSecond = 10000000;
 
-        private LARGE_INTEGER _qpcFrequency;
-        private LARGE_INTEGER _qpcLastTime;
-        private ulong _qpcMaxDelta;
+        private static readonly long Frequency = Stopwatch.Frequency;
+        private static readonly ulong MaxDelta = (ulong)(Stopwatch.Frequency / 10);
+
+        private long _lastTime;
 
         private ulong _elapsedTicks;
         private ulong _totalTicks;

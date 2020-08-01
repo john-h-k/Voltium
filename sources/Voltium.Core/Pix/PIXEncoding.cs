@@ -6,7 +6,7 @@ using Voltium.Core;
 
 namespace Voltium.Common.Pix
 {
-    internal static unsafe class PIXEncoding
+    internal unsafe static class PIXEncoding
     {
         public static readonly bool IsXbox =
 #if PIX_XBOX
@@ -88,8 +88,8 @@ namespace Voltium.Common.Pix
         private static bool IsStringType<T>()
         {
             return typeof(T) == typeof(string)
-                   || typeof(T) == typeof(ReadOnlySpan<char>)
-                   || typeof(T) == typeof(Span<char>)
+                   || typeof(T) == typeof(ReadOnlySpan<char>) /* not yet a thing */
+                   || typeof(T) == typeof(Span<char>) /* not yet a thing */
                    || typeof(T) == typeof(ReadOnlyMemory<char>)
                    || typeof(T) == typeof(Memory<char>);
         }
@@ -490,7 +490,7 @@ namespace Voltium.Common.Pix
             => WriteContext(ref destination, limit, context.GetListPointer());
         public static void WriteContext(ref ulong* destination, ulong* limit, in ComputeContext context)
             => WriteContext(ref destination, limit, context.GetListPointer());
-        public static void WriteContext(ref ulong* destination, ulong* limit, in GraphicsContext context)
+        public static void WriteContext(ref ulong* destination, ulong* limit, GraphicsContext context)
             => WriteContext(ref destination, limit, context.GetListPointer());
 
         public static void WriteContext(ref ulong* destination, ulong* limit, void* context)

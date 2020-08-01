@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
 using System.Text;
@@ -17,14 +18,17 @@ namespace Voltium.Analyzers
         protected override void OnExecute(SourceGeneratorContext context)
             => InitBasicTypes(context.Compilation);
 
-        private const string ShaderInputAttributeName = "Voltium.Core.Managers.Shaders.ShaderInputAttribute";
-        private const string InputLayoutAttributeName = "Voltium.Core.Managers.Shaders.InputLayoutAttribute";
-        private const string ShaderIgnoreAttributeName = "Voltium.Core.Managers.Shaders.ShaderIgnoreAttribute";
+        private const string Namespace = "Voltium.Core.Devices.Shaders.";
+        private const string ShaderInputAttributeName = Namespace + "ShaderInputAttribute";
+        private const string InputLayoutAttributeName = Namespace + "InputLayoutAttribute";
+        private const string ShaderIgnoreAttributeName = Namespace + "ShaderIgnoreAttribute";
 
         protected override bool Predicate(SourceGeneratorContext context, INamedTypeSymbol decl)
-            => decl.HasAttribute(ShaderInputAttributeName, context.Compilation);
+        {
+            return decl.HasAttribute(ShaderInputAttributeName, context.Compilation);
+        }
 
-        protected override void Generate(SourceGeneratorContext context, INamedTypeSymbol typeSymbol)
+        protected override void GenerateFromSymbol(SourceGeneratorContext context, INamedTypeSymbol typeSymbol)
         {
             var builder = new IAInputDescBuilder();
 

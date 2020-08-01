@@ -1,6 +1,5 @@
 using System;
 using Voltium.Core.Devices;
-using Voltium.Core.Managers;
 
 namespace Voltium.Core.Infrastructure
 {

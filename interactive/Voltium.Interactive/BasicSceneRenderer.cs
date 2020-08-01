@@ -5,16 +5,14 @@ using System.Runtime.InteropServices;
 using Voltium.Common;
 using Voltium.Core;
 using Voltium.Core.Configuration.Graphics;
-using Voltium.Core.GpuResources;
-using Voltium.Core.Managers;
-using Voltium.Core.Managers.Shaders;
-using Voltium.Core.Memory.GpuResources;
+using Voltium.Core.Memory;
+using Voltium.Core.Devices;
+using Voltium.Core.Devices.Shaders;
 using Voltium.Core.Pipeline;
 using Voltium.ModelLoading;
 using Voltium.TextureLoading;
 using Voltium.Common.Pix;
-using Buffer = Voltium.Core.Memory.GpuResources.Buffer;
-using Voltium.Core.Devices;
+using Buffer = Voltium.Core.Memory.Buffer;
 
 namespace Voltium.Interactive
 {
@@ -64,7 +62,6 @@ namespace Voltium.Interactive
         private GraphicsDevice _device = null!;
         private DescriptorHandle _texHandle;
         private DescriptorHandle _normalHandle;
-        private GraphicalConfiguration _config = null!;
         private Size _outputResolution;
 
         private RootSignature _rootSig = null!;
@@ -88,18 +85,17 @@ namespace Voltium.Interactive
 
         private bool _msaa = false;
 
-        public override void Init(GraphicsDevice device, GraphicalConfiguration config, in Size screen)
+        public override void Init(GraphicsDevice device, in Size screen)
         {
-            PipelineManager.Reset();
+            _device.PipelineManager.Reset();
 
             _device = device;
-            _config = config;
             _allocator = _device.Allocator;
             _outputResolution = screen;
 
             _maxMsaaDesc = _device.HighestSupportedMsaa();
 
-            _texturedObjects = ModelLoader.LoadGl("Assets/Gltf/Handgun_Tangent.gltf");
+            _texturedObjects = ModelLoader.LoadGl_Old("Assets/Gltf/Handgun_Tangent.gltf");
             var texture = TextureLoader.CreateTexture("Assets/Textures/handgun_c.dds");
             var normals = TextureLoader.CreateTexture("Assets/Textures/handgun_n.dds");
 
@@ -111,17 +107,17 @@ namespace Voltium.Interactive
             {
                 for (var i = 0; i < _texturedObjects.Length; i++)
                 {
-                    list.UploadBuffer(_allocator, _texturedObjects[i].Vertices, ResourceState.VertexBuffer, out _vertexBuffer[i]);
+                    list.UploadBuffer(_texturedObjects[i].Vertices, ResourceState.VertexBuffer, out _vertexBuffer[i]);
                     _vertexBuffer[i].SetName("VertexBuffer");
 
-                    list.UploadBuffer(_allocator, _texturedObjects[i].Indices, ResourceState.IndexBuffer, out _indexBuffer[i]);
+                    list.UploadBuffer(_texturedObjects[i].Indices, ResourceState.IndexBuffer, out _indexBuffer[i]);
                     _indexBuffer[i].SetName("IndexBuffer");
                 }
 
-                list.UploadTexture(_allocator, texture.Data.Span, texture.SubresourceData.Span, texture.Desc, ResourceState.PixelShaderResource, out _texture);
+                list.UploadTexture(texture.Data.Span, texture.SubresourceData.Span, texture.Desc, ResourceState.PixelShaderResource, out _texture);
                 _texture.SetName("Gun texture");
 
-                list.UploadTexture(_allocator, normals.Data.Span, normals.SubresourceData.Span, normals.Desc, ResourceState.PixelShaderResource, out _normals);
+                list.UploadTexture(normals.Data.Span, normals.SubresourceData.Span, normals.Desc, ResourceState.PixelShaderResource, out _normals);
                 _normals.SetName("Gun normals");
             }
 
@@ -175,25 +171,22 @@ namespace Voltium.Interactive
                 RootParameter.CreateDescriptorTable(DescriptorRangeType.ShaderResourceView, 0, 2, 0)
             };
 
-            var samplers = new[]
-            {
-                new StaticSampler(
-                    TextureAddressMode.Clamp,
-                    SamplerFilterType.Anistropic,
-                    shaderRegister: 0,
-                    registerSpace: 0,
-                    ShaderVisibility.All,
-                    StaticSampler.OpaqueWhite
-                )
-            };
+            var sampler = new StaticSampler(
+                TextureAddressMode.Clamp,
+                SamplerFilterType.Anistropic,
+                shaderRegister: 0,
+                registerSpace: 0,
+                ShaderVisibility.All,
+                StaticSampler.OpaqueWhite
+            );
 
-            _rootSig = RootSignature.Create(_device, rootParams, samplers);
+            _rootSig = _device.CreateRootSignature(rootParams, sampler);
 
             var compilationFlags = new[]
             {
-                DxcCompileFlags.PackMatricesInRowMajorOrder,
-                DxcCompileFlags.AllResourcesBound
-                //DxcCompileFlags.DefineMacro("NORMALS")
+                ShaderCompileFlag.PackMatricesInRowMajorOrder,
+                ShaderCompileFlag.AllResourcesBound
+                //ShaderCompileFlag.DefineMacro("NORMALS")
             };
 
             var vertexShader = ShaderManager.CompileShader("Shaders/SimpleTexture/TextureVertexShader.hlsl", ShaderType.Vertex, compilationFlags);
@@ -209,10 +202,10 @@ namespace Voltium.Interactive
                 Topology = TopologyClass.Triangle
             };
 
-            PipelineManager.CreatePso<TexturedVertex>(_device, "Texture", psoDesc);
+            _pso = _device.PipelineManager.CreatePipelineStateObject<TexturedVertex>("Texture", psoDesc);
 
             psoDesc.Msaa = MultisamplingDesc.X8;
-            PipelineManager.CreatePso<TexturedVertex>(_device, "TextureMSAA", psoDesc);
+            _msaaPso = _device.PipelineManager.CreatePipelineStateObject<TexturedVertex>("TextureMSAA", psoDesc);
         }
 
         public void InitializeConstants()
@@ -282,10 +275,10 @@ namespace Voltium.Interactive
 
         public override PipelineStateObject GetInitialPso()
         {
-            return _msaa ? PipelineManager.RetrievePso("TextureMSAA") : PipelineManager.RetrievePso("Texture");
+            return _msaa ? _msaaPso : _pso;
         }
 
-        public override void Render(ref GraphicsContext recorder, out Texture render)
+        public override void Render(GraphicsContext recorder, out Texture render)
         {
             recorder.SetViewportAndScissor(_outputResolution);
             recorder.ResourceTransition(_renderTarget, ResourceState.RenderTarget);
@@ -298,7 +291,7 @@ namespace Voltium.Interactive
 
             recorder.SetTopology(Topology.TriangeList);
 
-            using (recorder.BeginScopedEvent(Argb32.AliceBlue, "Render Objects"))
+            using (recorder.BeginEvent(Argb32.AliceBlue, "Render Objects"))
             {
                 for (var i = 0u; i < _texturedObjects.Length; i++)
                 {
@@ -341,6 +334,8 @@ namespace Voltium.Interactive
         }
 
         private float[,] _hueMatrix = new float[3, 3];
+        private GraphicsPipelineStateObject _msaaPso = null!;
+        private GraphicsPipelineStateObject _pso = null!;
 
         private Rgba128 ChangeHue(Rgba128 color)
         {

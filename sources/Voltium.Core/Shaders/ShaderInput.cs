@@ -1,4 +1,4 @@
-namespace Voltium.Core.Managers.Shaders
+namespace Voltium.Core.Devices.Shaders
 {
     /// <summary>
     /// Represents an input element for a shader

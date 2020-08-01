@@ -1,49 +1,48 @@
 using System;
 using System.Runtime.InteropServices;
 using System.Threading;
+using Microsoft.Toolkit.HighPerformance;
 
 namespace Voltium.Common.Threading
 {
     internal unsafe ref struct ScopedIValueLockEntry
     {
-        private Span<SpinLock> _lockDummyRef;
-        public ref SpinLock Lock => ref MemoryMarshal.GetReference(_lockDummyRef);
+        public Ref<SpinLock> Lock;
         private bool _taken;
 
         public ScopedIValueLockEntry(ref SpinLock pLock)
         {
-            _lockDummyRef = MemoryMarshal.CreateSpan(ref pLock, 1);
+            Lock = new Ref<SpinLock>(ref pLock);
             _taken = false;
-            Lock.Enter(ref _taken);
+            Lock.Value.Enter(ref _taken);
         }
 
         public void Dispose()
         {
             if (_taken)
             {
-                Lock.Exit();
+                Lock.Value.Exit();
             }
         }
     }
 
-    internal unsafe ref struct ScopedIValueLockEntry<TLock> where TLock : unmanaged, IValueLock
+    internal unsafe ref struct ScopedIValueLockEntry<TLock> where TLock : struct, IValueLock
     {
-        private Span<TLock> _lockDummyRef;
-        public ref TLock Lock => ref MemoryMarshal.GetReference(_lockDummyRef);
+        public Ref<TLock> Lock;
         private bool _taken;
 
         public ScopedIValueLockEntry(ref TLock pLock)
         {
-            _lockDummyRef = MemoryMarshal.CreateSpan(ref pLock, 1);
+            Lock = new Ref<TLock>(ref pLock);
             _taken = false;
-            Lock.Enter(ref _taken);
+            Lock.Value.Enter(ref _taken);
         }
 
         public void Dispose()
         {
             if (_taken)
             {
-                Lock.Exit();
+                Lock.Value.Exit();
             }
         }
     }
@@ -56,7 +55,7 @@ namespace Voltium.Common.Threading
             return new ScopedIValueLockEntry(ref @lock);
         }
 
-        public static ScopedIValueLockEntry<TLock> EnterScoped<TLock>(ref this TLock @lock) where TLock : unmanaged, IValueLock
+        public static ScopedIValueLockEntry<TLock> EnterScoped<TLock>(ref this TLock @lock) where TLock : struct, IValueLock
         {
             return new ScopedIValueLockEntry<TLock>(ref @lock);
         }

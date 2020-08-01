@@ -9,7 +9,7 @@ namespace Voltium.TextureLoading.DDS
 {
     internal readonly unsafe ref struct DDSFileMetadata
     {
-        public static DDSFileMetadata FromMemory(ReadOnlyMemory<byte> ddsData)
+        public static DDSFileMetadata FromMemory(in ReadOnlyMemory<byte> ddsData)
         {
             Debug.Assert(!ddsData.IsEmpty);
             ReadOnlySpan<byte> span = ddsData.Span;
@@ -38,7 +38,7 @@ namespace Voltium.TextureLoading.DDS
 
             int offset = sizeof(uint) + sizeof(DDSHeader) + (hasDxt10Header ? sizeof(DDSHeaderDxt10) : 0);
 
-            return new DDSFileMetadata(ref header, ddsData.Slice(offset));
+            return new DDSFileMetadata(ref header, ddsData /*.Slice(offset)*/);
         }
 
         private DDSFileMetadata(ref DDSHeader ddsHeader, ReadOnlyMemory<byte> bitData)

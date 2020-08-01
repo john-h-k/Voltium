@@ -1,4 +1,4 @@
-namespace Voltium.Core.Managers
+namespace Voltium.Core.Devices
 {
     ///// <summary>
     ///// The type in charge of managing per-frame resources

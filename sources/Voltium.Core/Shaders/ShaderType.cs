@@ -1,4 +1,4 @@
-namespace Voltium.Core.Managers
+namespace Voltium.Core.Devices
 {
     /// <summary>
     /// Indicates the type of a <see cref="CompiledShader"/>
@@ -38,12 +38,17 @@ namespace Voltium.Core.Managers
         /// <summary>
         /// A set of shaders that can have any and all types
         /// </summary>
-        Library
+        Library,
+
+        /// <summary>
+        /// An unspecified shader type
+        /// </summary>
+        Unspecified
     }
 
     internal static class ShaderTypeExtensions
     {
         public static bool IsValid(this ShaderType type)
-            => type >= ShaderType.Vertex && type <= ShaderType.Library;
+            => type >= ShaderType.Vertex && type <= ShaderType.Unspecified;
     }
 }

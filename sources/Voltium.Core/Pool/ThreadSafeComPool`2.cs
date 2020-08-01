@@ -25,8 +25,9 @@ namespace Voltium.Core.Pool
 
             using (_poolLock.EnterScoped())
             {
-                if (_pool.TryDequeue(out var ptr))
+                if (_pool.TryPeek(out var ptr) && CanRent(ref ptr, state))
                 {
+                    _ = _pool.Dequeue();
                     result = ptr.Move();
                 }
                 else
@@ -52,6 +53,7 @@ namespace Voltium.Core.Pool
         protected abstract ComPtr<T> Create(TRentState state);
         protected abstract void ManageRent(ref ComPtr<T> value, TRentState state);
         protected abstract void ManageReturn(ref ComPtr<T> value);
+        protected virtual bool CanRent(ref ComPtr<T> value, TRentState state) => true;
 
         protected virtual void InternalDispose()
         {

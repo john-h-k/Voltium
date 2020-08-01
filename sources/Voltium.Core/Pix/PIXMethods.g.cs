@@ -9,7 +9,7 @@ namespace Voltium.Common.Pix
     // the public API. supports 0->16 additional format values, generic'd to avoid boxing
 
 #pragma warning disable
-    public static unsafe partial class PIXMethods
+    public unsafe static partial class PIXMethods
     {
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
@@ -1389,7 +1389,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent(
-            this in CopyContext context,
+            in CopyContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString
         )
@@ -1413,7 +1413,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0>(
-            this in CopyContext context,
+            in CopyContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0
@@ -1440,7 +1440,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1>(
-            this in CopyContext context,
+            in CopyContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -1469,7 +1469,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2>(
-            this in CopyContext context,
+            in CopyContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -1500,7 +1500,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3>(
-            this in CopyContext context,
+            in CopyContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -1533,7 +1533,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3, T4>(
-            this in CopyContext context,
+            in CopyContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -1568,7 +1568,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3, T4, T5>(
-            this in CopyContext context,
+            in CopyContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -1605,7 +1605,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3, T4, T5, T6>(
-            this in CopyContext context,
+            in CopyContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -1644,7 +1644,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7>(
-            this in CopyContext context,
+            in CopyContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -1685,7 +1685,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8>(
-            this in CopyContext context,
+            in CopyContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -1728,7 +1728,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9>(
-            this in CopyContext context,
+            in CopyContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -1773,7 +1773,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>(
-            this in CopyContext context,
+            in CopyContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -1820,7 +1820,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>(
-            this in CopyContext context,
+            in CopyContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -1869,7 +1869,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>(
-            this in CopyContext context,
+            in CopyContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -1920,7 +1920,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>(
-            this in CopyContext context,
+            in CopyContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -1973,7 +1973,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14>(
-            this in CopyContext context,
+            in CopyContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -2028,7 +2028,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15>(
-            this in CopyContext context,
+            in CopyContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -2085,7 +2085,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent(
-            this ComputeContext context,
+            ComputeContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString
         )
@@ -2109,7 +2109,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0>(
-            this in ComputeContext context,
+            in ComputeContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0
@@ -2136,7 +2136,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1>(
-            this in ComputeContext context,
+            in ComputeContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -2165,7 +2165,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2>(
-            this in ComputeContext context,
+            in ComputeContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -2196,7 +2196,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3>(
-            this in ComputeContext context,
+            in ComputeContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -2229,7 +2229,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3, T4>(
-            this in ComputeContext context,
+            in ComputeContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -2264,7 +2264,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3, T4, T5>(
-            this in ComputeContext context,
+            in ComputeContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -2301,7 +2301,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3, T4, T5, T6>(
-            this in ComputeContext context,
+            in ComputeContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -2340,7 +2340,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7>(
-            this in ComputeContext context,
+            in ComputeContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -2381,7 +2381,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8>(
-            this in ComputeContext context,
+            in ComputeContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -2424,7 +2424,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9>(
-            this in ComputeContext context,
+            in ComputeContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -2469,7 +2469,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>(
-            this in ComputeContext context,
+            in ComputeContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -2516,7 +2516,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>(
-            this in ComputeContext context,
+            in ComputeContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -2565,7 +2565,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>(
-            this in ComputeContext context,
+            in ComputeContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -2616,7 +2616,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>(
-            this in ComputeContext context,
+            in ComputeContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -2669,7 +2669,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14>(
-            this in ComputeContext context,
+            in ComputeContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -2724,7 +2724,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15>(
-            this in ComputeContext context,
+            in ComputeContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -2781,7 +2781,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent(
-            this in GraphicsContext context,
+            GraphicsContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString
         )
@@ -2805,7 +2805,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0>(
-            this in GraphicsContext context,
+            GraphicsContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0
@@ -2832,7 +2832,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1>(
-            this in GraphicsContext context,
+            GraphicsContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -2861,7 +2861,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2>(
-            this in GraphicsContext context,
+            GraphicsContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -2892,7 +2892,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3>(
-            this in GraphicsContext context,
+            GraphicsContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -2925,7 +2925,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3, T4>(
-            this in GraphicsContext context,
+            GraphicsContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -2960,7 +2960,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3, T4, T5>(
-            this in GraphicsContext context,
+            GraphicsContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -2997,7 +2997,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3, T4, T5, T6>(
-            this in GraphicsContext context,
+            GraphicsContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -3036,7 +3036,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7>(
-            this in GraphicsContext context,
+            GraphicsContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -3077,7 +3077,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8>(
-            this in GraphicsContext context,
+            GraphicsContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -3120,7 +3120,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9>(
-            this in GraphicsContext context,
+            GraphicsContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -3165,7 +3165,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>(
-            this in GraphicsContext context,
+            GraphicsContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -3212,7 +3212,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>(
-            this in GraphicsContext context,
+            GraphicsContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -3261,7 +3261,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>(
-            this in GraphicsContext context,
+            GraphicsContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -3312,7 +3312,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>(
-            this in GraphicsContext context,
+            GraphicsContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -3365,7 +3365,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14>(
-            this in GraphicsContext context,
+            GraphicsContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -3420,7 +3420,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15>(
-            this in GraphicsContext context,
+            GraphicsContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -5584,7 +5584,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void EndEvent(
-            this in CopyContext context
+            in CopyContext context
         )
         {
             var thread = PIXEvents.RetrieveTimeData(out ulong time);
@@ -5604,7 +5604,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void EndEvent(
-            this in ComputeContext context
+            in ComputeContext context
         )
         {
             var thread = PIXEvents.RetrieveTimeData(out ulong time);
@@ -5623,7 +5623,7 @@ namespace Voltium.Common.Pix
         [Conditional("DEBUG")]
         [Conditional("USE_PIX")]
         public static void EndEvent(
-            this in GraphicsContext context
+            GraphicsContext context
         )
         {
             var thread = PIXEvents.RetrieveTimeData(out ulong time);

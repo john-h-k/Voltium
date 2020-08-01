@@ -1,8 +1,8 @@
 using System;
 using Voltium.Common;
 using Voltium.Core.Configuration.Graphics;
-using Voltium.Core.Managers;
-using Voltium.Core.Managers.Shaders;
+using Voltium.Core.Devices;
+using Voltium.Core.Devices.Shaders;
 
 namespace Voltium.Core.Pipeline
 {
@@ -116,6 +116,43 @@ namespace Voltium.Core.Pipeline
                 this[5] = e5;
                 this[6] = e6;
                 this[7] = e7;
+            }
+
+            /// <summary>
+            /// Implicit conversion
+            /// </summary>
+            public static implicit operator FormatBuffer8(BackBufferFormat format)
+                => (DataFormat)format;
+
+            /// <summary>
+            /// Implicit conversion
+            /// </summary>
+            public static implicit operator FormatBuffer8(DataFormat format)
+                => new FormatBuffer8(format);
+
+            /// <summary>
+            /// Creates a new <see cref="FormatBuffer8"/>
+            /// </summary>
+            // convenience overload
+            public FormatBuffer8(
+                BackBufferFormat e0, // prevent ambigous ctor
+                BackBufferFormat e1 = 0,
+                BackBufferFormat e2 = 0,
+                BackBufferFormat e3 = 0,
+                BackBufferFormat e4 = 0,
+                BackBufferFormat e5 = 0,
+                BackBufferFormat e6 = 0,
+                BackBufferFormat e7 = 0
+            )
+            {
+                this[0] = (DataFormat)e0;
+                this[1] = (DataFormat)e1;
+                this[2] = (DataFormat)e2;
+                this[3] = (DataFormat)e3;
+                this[4] = (DataFormat)e4;
+                this[5] = (DataFormat)e5;
+                this[6] = (DataFormat)e6;
+                this[7] = (DataFormat)e7;
             }
 
             /// <summary>

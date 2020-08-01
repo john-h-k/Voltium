@@ -1,5 +1,3 @@
-using TerraFX.Interop;
-using Voltium.Core.Managers.Shaders;
 using static TerraFX.Interop.DXGI_FORMAT;
 
 namespace Voltium.Core
@@ -470,21 +468,5 @@ namespace Voltium.Core
         /// </summary>
 
         OPAQUE_420 = DXGI_FORMAT_420_OPAQUE, // not supported but gotta have 420  😎
-    }
-
-    /// <summary>
-    /// Defines what class of input data a given <see cref="ShaderInput"/> is
-    /// </summary>
-    public enum InputClass
-    {
-        /// <summary>
-        /// The data is per-vertex
-        /// </summary>
-        PerVertex = D3D12_INPUT_CLASSIFICATION.D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-
-        /// <summary>
-        /// The data is per-instance
-        /// </summary>
-        PerInstance = D3D12_INPUT_CLASSIFICATION.D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA
     }
 }

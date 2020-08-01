@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Runtime.InteropServices;
 using Voltium.Common;
@@ -6,7 +6,7 @@ using Voltium.TextureLoading.TGA;
 
 namespace Voltium.TextureLoading
 {
-    public static unsafe partial class TextureLoader
+    public unsafe  static partial class TextureLoader
     {
         /// <summary>
         /// Create a TGA texture from a file

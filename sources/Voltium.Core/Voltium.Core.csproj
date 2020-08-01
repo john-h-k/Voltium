@@ -2,21 +2,24 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-      <TargetFramework>netcoreapp5.0</TargetFramework>
+      <TargetFramework>net5.0</TargetFramework>
       <LangVersion>preview</LangVersion>
+      <!--<OutputType>Exe</OutputType>-->
       <PackageLicenseExpression>AGPLV3</PackageLicenseExpression>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <CheckForOverflowUnderflow>false</CheckForOverflowUnderflow>
+    <NoWarn>1701;1702;</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
-    <!--PrivateAssets="All"-->
-    <ProjectReference Include="..\Voltium.Common\Voltium.Common.csproj" />
+    <None Include="Text\FontPixelShader.hlsl" />
   </ItemGroup>
 
   <ItemGroup>
+    <!--PrivateAssets="All"-->
     <ProjectReference Include="..\Voltium.Analyzers\Voltium.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\Voltium.Common\Voltium.Common.csproj" />
   </ItemGroup>
 </Project>

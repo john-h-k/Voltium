@@ -1,9 +1,12 @@
+using Voltium.Common;
+
 namespace Voltium.Core.Configuration.Graphics
 {
     /// <summary>
     /// Describes the multi-sample anti-aliasing configuration
     /// </summary>
-    public readonly struct MultisamplingDesc
+    [GenerateEquality]
+    public readonly partial struct MultisamplingDesc
     {
         /// <summary>
         /// No multi-sampling. This is the default
@@ -26,7 +29,7 @@ namespace Voltium.Core.Configuration.Graphics
         public static MultisamplingDesc X8 => new MultisamplingDesc(8, 0);
 
         /// <summary>
-        /// Determines whether this <see cref="MultisamplingDesc"/> means the resource is multisampled
+        /// Determines whether this <see cref="MultisamplingDesc"/> means the resource is multisampled or singlesampled
         /// </summary>
         public bool IsMultiSampled => SampleCount > 1;
 

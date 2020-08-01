@@ -20,7 +20,7 @@ namespace Voltium.TextureLoading
 
         // Same format as D3D12_SUBRESOURCE_DATA, just with diff first member
         //
-        // void* pData
+        // void* pData (here is it nuint DataOffset)
         // nuint RowPitch
         // nuint SlicePitch
         //

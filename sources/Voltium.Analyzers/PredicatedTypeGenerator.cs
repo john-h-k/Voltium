@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Diagnostics;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -10,7 +11,6 @@ namespace Voltium.Analyzers
         {
             // if you wanna debug this method, uncomment this
             // ugly but works. blame roslyn devs not me
-            //Debugger.Launch();
 
             var receiver = (SyntaxTypeReceiver<TypeDeclarationSyntax>)context.SyntaxReceiver!;
 
@@ -18,6 +18,7 @@ namespace Voltium.Analyzers
             var comp = context.Compilation;
 
             OnExecute(context);
+
 
             // this handles partial types, which have multiple type declaration nodes
             var visited = new HashSet<string>();
@@ -31,7 +32,8 @@ namespace Voltium.Analyzers
                     continue;
                 }
 
-                Generate(context, type);
+                GenerateFromSyntax(context, node, tree);
+                GenerateFromSymbol(context, type);
                 visited.Add(type.Name);
             }
         }
@@ -40,7 +42,9 @@ namespace Voltium.Analyzers
 
         protected abstract bool Predicate(SourceGeneratorContext context, INamedTypeSymbol decl);
 
-        protected abstract void Generate(SourceGeneratorContext context, INamedTypeSymbol symbol);
+
+        protected virtual void GenerateFromSyntax(SourceGeneratorContext context, TypeDeclarationSyntax syntax, SyntaxTree tree) { }
+        protected virtual void GenerateFromSymbol(SourceGeneratorContext context, INamedTypeSymbol symbol) {  }
 
         public void Initialize(InitializationContext context)
             => context.RegisterForSyntaxNotifications(() => new SyntaxTypeReceiver<TypeDeclarationSyntax>());
@@ -54,7 +58,7 @@ namespace Voltium.Analyzers
             // ugly but works. blame roslyn devs not me
             //Debugger.Launch();
 
-            var receiver = (SyntaxTypeReceiver<MethodDeclarationSyntax>)context.SyntaxReceiver!;
+            var receiver = (SyntaxTypeReceiver<T>)context.SyntaxReceiver!;
 
             var nodes = receiver.SyntaxNodes;
 
@@ -74,7 +78,7 @@ namespace Voltium.Analyzers
                     continue;
                 }
 
-                Generate(context, symbol);
+                Generate(context, symbol, node);
                 visited.Add(symbol);
             }
         }
@@ -83,7 +87,7 @@ namespace Voltium.Analyzers
 
         protected abstract bool Predicate(SourceGeneratorContext context, ISymbol decl);
 
-        protected abstract void Generate(SourceGeneratorContext context, ISymbol symbol);
+        protected abstract void Generate(SourceGeneratorContext context, ISymbol symbol, T syntax);
 
         public void Initialize(InitializationContext context)
             => context.RegisterForSyntaxNotifications(() => new SyntaxTypeReceiver<T>());

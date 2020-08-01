@@ -1,6 +1,6 @@
 using System;
 using Voltium.Common;
-using Voltium.Core.GpuResources;
+using Voltium.Core.Memory;
 
 namespace Voltium.TextureLoading
 {

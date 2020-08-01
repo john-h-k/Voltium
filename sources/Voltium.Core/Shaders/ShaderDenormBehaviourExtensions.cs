@@ -145,7 +145,7 @@
 
 // generated from root/scripts/gen_dxc_flags.py then fixed up by hand
 
-namespace Voltium.Core.Managers
+namespace Voltium.Core.Devices
 {
     internal static class ShaderDenormBehaviourExtensions
     {

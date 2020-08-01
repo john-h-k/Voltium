@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 
 namespace Voltium.Core.Infrastructure
 {
@@ -9,6 +10,9 @@ namespace Voltium.Core.Infrastructure
     /// </summary>
     public unsafe abstract class DeviceFactory : IEnumerable<Adapter>, IDisposable
     {
+        // DXGI only supported on windows
+        private static bool IsNonWindowsOs => !RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+
         /// <summary>
         /// Creates a new <see cref="DeviceFactory"/>
         /// </summary>
@@ -20,14 +24,12 @@ namespace Voltium.Core.Infrastructure
         /// </summary>
         /// <returns>A new <see cref="DeviceFactory"/></returns>
         public static DeviceFactory Create(DeviceEnumerationLayer layer)
-        {
-            return layer switch
+            => layer switch
             {
                 DeviceEnumerationLayer.Dxgi => new DxgiDeviceFactory(),
                 DeviceEnumerationLayer.DxCore => new DxCoreDeviceFactory(),
                 _ => throw new ArgumentException("Invalid DeviceEnumerationLayer", nameof(layer))
             };
-        }
 
         /// <summary>
         /// Creates a new <see cref="DeviceFactory"/> to enumerate a specific <see cref="DeviceType"/>
@@ -79,7 +81,7 @@ namespace Voltium.Core.Infrastructure
             {
                 Current.Dispose();
 
-                bool result = _base.TryGetAdapterByIndex(_index, out var current);
+                bool result = _base.TryGetAdapterByIndex(_index++, out var current);
                 Current = current;
                 return result;
             }

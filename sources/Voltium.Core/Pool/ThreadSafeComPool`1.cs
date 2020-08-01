@@ -58,6 +58,8 @@ namespace Voltium.Core.Pool
         protected abstract void ManageRent(ref ComPtr<T> value);
         protected abstract void ManageReturn(ref ComPtr<T> value);
 
+        protected virtual bool CanRent(ref ComPtr<T> value) => true;
+
         protected virtual void InternalDispose()
         {
             for (var i = 0; i < _pool.Count; i++)

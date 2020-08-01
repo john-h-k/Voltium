@@ -145,7 +145,7 @@
 
 // generated from root/scripts/gen_dxc_flags.py then fixed up by hand
 
-namespace Voltium.Core.Managers
+namespace Voltium.Core.Devices
 {
     /// <summary>
     /// Indicates the behaviour denormal floating point numbers should exhibit in a shader

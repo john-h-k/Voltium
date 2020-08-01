@@ -2,11 +2,10 @@ using System;
 using System.Diagnostics;
 using TerraFX.Interop;
 using Voltium.Common;
-using Voltium.Core.GpuResources;
+using Voltium.Core.Memory;
 
-namespace Voltium.Core.Memory.GpuResources
+namespace Voltium.Core.Memory
 {
-
     /// <summary>
     /// Represents a single-dimension untyped buffer of GPU data
     /// </summary>
@@ -16,6 +15,7 @@ namespace Voltium.Core.Memory.GpuResources
 
         private GpuResource _resource;
         private void* _cpuAddress;
+        private ulong _gpuAddress;
 
         /// <summary>
         /// The size, in bytes, of the buffer
@@ -28,7 +28,16 @@ namespace Voltium.Core.Memory.GpuResources
 
             Length = (uint)length;
             _cpuAddress = null;
-            GpuAddress = resource.GpuAddress;
+
+            _gpuAddress = _resource.GetResourcePointer()->GetGPUVirtualAddress();
+        }
+
+        private void ThrowIfDead()
+        {
+            if (_resource is null)
+            {
+                ThrowHelper.ThrowObjectDisposedException("buffer");
+            }
         }
 
         /// <summary>
@@ -48,16 +57,36 @@ namespace Voltium.Core.Memory.GpuResources
         }
 
         /// <summary>
+        /// Maps the resource
+        /// </summary>
+        public void Map()
+        {
+            if (_cpuAddress != null)
+            {
+                return;
+            }
+            _cpuAddress = _resource.Map(0);
+        }
+
+        /// <summary>
+        /// Unmaps the resource
+        /// </summary>
+        public void Unmap()
+        {
+            if (_cpuAddress == null)
+            {
+                return;
+            }
+            _resource.Unmap(0);
+            _cpuAddress = null;
+        }
+
+        /// <summary>
         /// Writes the <typeparamref name="T"/> to the buffer
         /// </summary>
         /// <typeparam name="T">The type to write</typeparam>
-        public void WriteData<T>(ref T data, uint offset) where T : unmanaged
+        public void WriteData<T>(ref T data, uint offset = 0, bool leaveMapped = false) where T : unmanaged
         {
-            if (_cpuAddress is null)
-            {
-                _cpuAddress = _resource.Map(0);
-            }
-
             ((T*)_cpuAddress)[offset] = data;
         }
 
@@ -65,13 +94,8 @@ namespace Voltium.Core.Memory.GpuResources
         /// Writes the <typeparamref name="T"/> to the buffer
         /// </summary>
         /// <typeparam name="T">The type to write</typeparam>
-        public void WriteConstantBufferData<T>(ref T data, uint offset) where T : unmanaged
+        public void WriteConstantBufferData<T>(ref T data, uint offset, bool leaveMapped = false) where T : unmanaged
         {
-            if (_cpuAddress is null)
-            {
-                _cpuAddress = _resource.Map(0);
-            }
-
             var alignedSize = (sizeof(T) + 255) & ~255;
 
             *(T*)((byte*)_cpuAddress + (alignedSize * offset)) = data;
@@ -81,13 +105,8 @@ namespace Voltium.Core.Memory.GpuResources
         /// Writes the <typeparamref name="T"/> to the buffer
         /// </summary>
         /// <typeparam name="T">The type to write</typeparam>
-        public void WriteDataByteOffset<T>(ref T data, uint offset) where T : unmanaged
+        public void WriteDataByteOffset<T>(ref T data, uint offset, bool leaveMapped = false) where T : unmanaged
         {
-            if (_cpuAddress is null)
-            {
-                _cpuAddress = _resource.Map(0);
-            }
-
             *(T*)((byte*)_cpuAddress + offset) = data;
         }
 
@@ -95,34 +114,55 @@ namespace Voltium.Core.Memory.GpuResources
         /// Writes the <typeparamref name="T"/> to the buffer
         /// </summary>
         /// <typeparam name="T">The type to write</typeparam>
-        public void WriteData<T>(ReadOnlySpan<T> data) where T : unmanaged
+        public void WriteData<T>(ReadOnlySpan<T> data, uint offset = 0, bool leaveMapped = false) where T : unmanaged
         {
-            if (_cpuAddress is null)
-            {
-                _cpuAddress = _resource.Map(0);
-            }
-
-            data.CopyTo(new Span<T>(_cpuAddress, (int)Length));
+            data.CopyTo(new Span<T>((byte*)_cpuAddress + offset, (int)Length));
         }
 
         /// <inheritdoc/>
-        public void Dispose() => _resource?.Dispose();
+        public void Dispose()
+        {
+            _resource?.Dispose();
+            _resource = null!;
+            _cpuAddress = null;
+            _gpuAddress = 0;
+        }
 
         // required for binding directly without desc heap
-        internal ulong GpuAddress;
+        internal ulong GpuAddress
+        {
+            get
+            {
+                ThrowIfDead();
+                return _gpuAddress;
+            }
+        }
+
+        internal void* CpuAddress
+        {
+            get
+            {
+                ThrowIfDead();
+                return _cpuAddress;
+            }
+        }
 
         internal GpuResource Resource => _resource;
 
-        internal ID3D12Resource* GetResourcePointer() => _resource.UnderlyingResource;
+        /// <summary>
+        /// blah
+        /// </summary>
+        /// <returns></returns>
+        public ID3D12Resource* GetResourcePointer() => _resource.GetResourcePointer();
 
     }
 
-    //public static unsafe class BufferExtensions
+    //public unsafe static class BufferExtensions
     //{
-    //public static void CopyTo<T>(this Span<T> src, Buffer<T> dest) where T : unmanaged
+    //public static void CopyTo<T>(this Span<T> src, in Buffer<T> dest) where T : unmanaged
     //    => CopyTo((ReadOnlySpan<T>)src, dest);
 
-    //public static void CopyTo<T>(this ReadOnlySpan<T> src, Buffer<T> dest) where T : unmanaged
+    //public static void CopyTo<T>(this ReadOnlySpan<T> src, in Buffer<T> dest) where T : unmanaged
     //{
     //    if (dest.Kind != BufferKind.Constant && dest.GetElementSize() == sizeof(T))
     //    {

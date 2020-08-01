@@ -1,8 +1,8 @@
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-
 namespace Voltium.Analyzers
 {
     internal sealed class IAInputDescBuilder
@@ -19,22 +19,22 @@ namespace Voltium.Analyzers
         {
             var template = @"
 using System;
+using System.Collections.Immutable;
 using Voltium.Core;
-using Voltium.Core.Managers.Shaders;
+using Voltium.Core.Devices.Shaders;
 
 namespace {0}
 {{
-    partial struct {1} : Voltium.Core.Managers.Shaders.IBindableShaderType
+    partial struct {1} : IBindableShaderType
     {{
-        ReadOnlyMemory<ShaderInput> IBindableShaderType.GetShaderInputs() => Elements;
-        private static readonly ReadOnlyMemory<ShaderInput> Elements = new ShaderInput[] {{{2}}};
+        ReadOnlyMemory<ShaderInput> IBindableShaderType.GetShaderInputs() => Elements.AsMemory();
+        private static readonly ImmutableArray<ShaderInput> Elements = ImmutableArray.Create({2});
     }}
 }}
 ";
             var str = string.Format(template, type.ContainingNamespace, type.Name, FormatElements());
 
             _elements.Clear();
-
 
             return str;
         }
@@ -45,9 +45,10 @@ namespace {0}
 
             foreach (var desc in _elements)
             {
-                builder.Append("new ShaderInput(");
+                builder.Append($"new ShaderInput(");
 
-                string? name = null, type = null;
+                string? name = null;
+                string? type = null;
 
                 if (desc.Attr is not null)
                 {
@@ -84,12 +85,11 @@ namespace {0}
                                 break;
                         }
                     }
-
                     builder.Append($"name: {name?.ToUpper() ?? desc.Name}, type: {type ?? desc.Type}");
                 }
                 else
                 {
-                    builder.Append($@"""{desc.Name.ToUpper()}"", {desc.Type}");
+                    builder.Append($@"name: ""{desc.Name.ToUpper()}"", type: {desc.Type}");
                 }
 
                 builder.Append("), ");
@@ -97,6 +97,8 @@ namespace {0}
                 // ctor is
                 // - public ShaderInput(string name, DataFormat type, uint offset = 0xFFFFFFFF, uint nameIndex = 0, uint channel = 0, InputClass inputClass = InputClass.PerVertex)
             }
+
+            builder.Length -= 2; // trim off ending comma
 
             return builder.ToString();
         }

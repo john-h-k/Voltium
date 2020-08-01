@@ -8,7 +8,7 @@ using Voltium.Common;
 
 namespace Voltium.Common.Pix
 {
-    internal static unsafe class NativeMethods
+    internal unsafe static class NativeMethods
     {
         /*
          *
@@ -125,6 +125,7 @@ namespace Voltium.Common.Pix
 
         public static PIXEventsThreadInfo* PIXGetThreadInfo()
         {
+            Debug.Assert(sizeof(nuint) == 8);
             var info = _PIXGetThreadInfo();
             Debug.Assert(info != null, "uh oh");
             return info;

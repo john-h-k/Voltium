@@ -5,7 +5,7 @@ using TerraFX.Interop;
 
 namespace Voltium.Common.Debugging
 {
-    internal static unsafe class LifetimeHelpers
+    internal unsafe static class LifetimeHelpers
     {
         private const string DoNotUseWithoutDebugger = "Should not use this without a debugger";
 
