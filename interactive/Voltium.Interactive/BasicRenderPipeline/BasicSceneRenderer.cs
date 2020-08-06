@@ -58,7 +58,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
         private Buffer[] _vertexBuffer = null!;
         private Buffer[] _indexBuffer = null!;
         private Texture _texture;
-        private Mesh<TexturedVertex>[] _texturedObjects = null!;
+        private RenderObject<TexturedVertex>[] _texturedObjects = null!;
         private GraphicsDevice _device = null!;
         private DescriptorHandle _texHandle;
 
@@ -87,8 +87,8 @@ namespace Voltium.Interactive.BasicRenderPipeline
             _texturedObjects = ModelLoader.LoadGl_Old("Assets/Gltf/Handgun_NoTangent.gltf");
             //_texturedObjects = new[] { GeometryGenerator.CreateCube(0.5f) };
 
-            var texture = TextureLoader.CreateTexture("Assets/Textures/handgun_c.dds");
-            var normals = TextureLoader.CreateTexture("Assets/Textures/handgun_n.dds");
+            var texture = TextureLoader.LoadTextureDesc("Assets/Textures/handgun_c.dds");
+            var normals = TextureLoader.LoadTextureDesc("Assets/Textures/handgun_n.dds");
 
             _vertexBuffer = new Buffer[_texturedObjects.Length];
             _indexBuffer = new Buffer[_texturedObjects.Length];
@@ -97,18 +97,16 @@ namespace Voltium.Interactive.BasicRenderPipeline
             {
                 for (var i = 0; i < _texturedObjects.Length; i++)
                 {
-                    list.UploadBuffer(_texturedObjects[i].Vertices, out _vertexBuffer[i]);
+                    _vertexBuffer[i] = list.UploadBuffer(_texturedObjects[i].Vertices);
                     _vertexBuffer[i].SetName("VertexBuffer");
 
-                    list.UploadBuffer(_texturedObjects[i].Indices, out _indexBuffer[i]);
+                    _indexBuffer[i] = list.UploadBuffer(_texturedObjects[i].Indices);
                     _indexBuffer[i].SetName("IndexBuffer");
                 }
 
-                list.UploadTexture(texture.Data.Span, texture.SubresourceData.Span, texture.Desc, out _texture);
+                _texture = list.UploadTexture(texture);
                 _texture.SetName("Gun texture");
             }
-
-
 
             //list.UploadTexture(normals.Data.Span, normals.SubresourceData.Span, normals.Desc, ResourceState.PixelShaderResource, out _normals);
             //_normals.SetName("Gun normals");
@@ -118,22 +116,19 @@ namespace Voltium.Interactive.BasicRenderPipeline
             _objectConstants = new ObjectConstants[_texturedObjects.Length];
 
             _obj = _device.Allocator.AllocateBuffer(MathHelpers.AlignUp(sizeof(ObjectConstants), 256) * _texturedObjects.Length, MemoryAccess.CpuUpload);
-            _obj.Map();
             _obj.SetName("ObjectConstants buffer");
 
             _frame = _device.Allocator.AllocateBuffer(sizeof(FrameConstants), MemoryAccess.CpuUpload);
-            _frame.Map();
             _frame.SetName("FrameConstants buffer");
 
             _light = _device.Allocator.AllocateBuffer(sizeof(LightConstants), MemoryAccess.CpuUpload);
-            _light.Map();
             _light.SetName("LightConstants buffer");
 
             CreatePipelines();
             InitializeConstants();
         }
 
-        //[MemberNotNull(nameof(_tex), nameof(_texMsaa8x))]
+        [MemberNotNull(nameof(_tex), nameof(_texMsaa8x))]
         public void CreatePipelines()
         {
             var rootParams = new[]

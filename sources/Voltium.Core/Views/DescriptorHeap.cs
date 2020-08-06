@@ -22,6 +22,11 @@ namespace Voltium.Core
         internal ID3D12DescriptorHeap* GetHeap() => _heap.Get();
 
         /// <summary>
+        /// Whether this heap is visible to shaders
+        /// </summary>
+        public bool IsShaderVisible => _firstHandle.GpuHandle.ptr != 0;
+
+        /// <summary>
         /// The type of the descriptor heap
         /// </summary>
         public DescriptorHeapType Type { get; private set; }

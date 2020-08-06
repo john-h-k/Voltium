@@ -40,6 +40,9 @@
     <None Include="Assets\cube.obj" />
     <None Include="Assets\logo.mtl" />
     <None Include="Assets\logo.obj" />
+    <None Include="ImageBlur\ImageBlur.hlsl">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include="HelloTriangle\Shader.hlsl">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

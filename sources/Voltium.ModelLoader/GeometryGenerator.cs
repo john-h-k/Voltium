@@ -25,8 +25,8 @@ namespace Voltium.Interactive
         /// Create a cube with a given radius
         /// </summary>
         /// <param name="radius">The radius of the cube</param>
-        /// <returns>A new <see cref="Mesh{TVertex}"/></returns>
-        public static Mesh<Vertex> CreateCube(float radius)
+        /// <returns>A new <see cref="RenderObject{TVertex}"/></returns>
+        public static RenderObject<Vertex> CreateCube(float radius)
         {
             var cubeVertices = new Vertex[24]
             {
@@ -67,7 +67,7 @@ namespace Voltium.Interactive
                 new Vertex(+radius, -radius, +radius, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f)
             };
 
-            return new Mesh<Vertex>(cubeVertices, CubeIndices);
+            return new RenderObject<Vertex>(cubeVertices, CubeIndices);
         }
 
         /// <summary>
@@ -77,7 +77,7 @@ namespace Voltium.Interactive
         /// <param name="sliceCount"></param>
         /// <param name="stackCount"></param>
         /// <returns></returns>
-        public static Mesh<Vertex> CreateSphere(float radius, uint sliceCount, uint stackCount)
+        public static RenderObject<Vertex> CreateSphere(float radius, uint sliceCount, uint stackCount)
         {
             var meshData = new ArrayBuilder<Vertex>();
 
@@ -178,7 +178,7 @@ namespace Voltium.Interactive
                 indices.Add(baseIndex + i + 1);
             }
 
-            return new Mesh<Vertex>(meshData.MoveTo(), indices.MoveTo());
+            return new RenderObject<Vertex>(meshData.MoveTo(), indices.MoveTo());
         }
 
         private const string AssetsFolder = "Assets/";
@@ -195,7 +195,7 @@ namespace Voltium.Interactive
         /// <summary>
         /// Load a OBJ file
         /// </summary>
-        private static Mesh<Vertex> LoadSingleModel(string filename, in Material material = default)
+        private static RenderObject<Vertex> LoadSingleModel(string filename, in Material material = default)
         {
             var model = _loader.Value!.Load(File.OpenRead(AssetsFolder + filename));
 
@@ -231,7 +231,7 @@ namespace Voltium.Interactive
                 }
             }
 
-            return new Mesh<Vertex>(vertices, indices, material);
+            return new RenderObject<Vertex>(vertices, indices, material);
         }
 
         private static Vector3 ToVector3(ObjVertex vertex) => new Vector3(vertex.X, vertex.Y, vertex.Z);

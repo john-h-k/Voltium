@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using Voltium.Common;
 using Voltium.Core;
 using Voltium.Core.Configuration.Graphics;
 using Voltium.Core.Devices;
@@ -28,17 +29,12 @@ namespace Voltium.Interactive.BasicRenderPipeline
 
         public override unsafe void Initialize(Size data, IOutputOwner output)
         {
-            var debug = new DebugLayerConfiguration();
-            debug.BreakpointLogLevel = LogLevel.Error;
+            DeviceCreationSettings.EnableDebugLayer();
 
             var config = new DeviceConfiguration
             {
                 RequiredFeatureLevel = FeatureLevel.GraphicsLevel11_0,
-#if DEBUG
-                DebugLayerConfiguration = debug
-#else
                 DebugLayerConfiguration = null
-#endif
             };
 
             using var factory = DeviceFactory.Create();

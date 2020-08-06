@@ -55,15 +55,6 @@ namespace Voltium.Core
         }
 
         /// <summary>
-        /// Sets the current pipeline state
-        /// </summary>
-        /// <param name="pso">The <see cref="PipelineStateObject"/> to set</param>
-        public void SetPipelineState(PipelineStateObject pso)
-        {
-            List->SetPipelineState(pso.GetPso());
-        }
-
-        /// <summary>
         /// Sets the viewport and scissor rectangle
         /// </summary>
         /// <param name="width">The width, in pixels</param>
@@ -100,20 +91,20 @@ namespace Voltium.Core
         }
 
         /// <summary>
-        /// Sets a directly-bound constant buffer view descriptor to the graphics pipeline
+        /// Sets a directly-bound shader resource buffer view descriptor to the graphics pipeline
         /// </summary>
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
-        public void SetBuffer(uint paramIndex, in Buffer cbuffer)
+        public new void SetBuffer(uint paramIndex, in Buffer cbuffer)
             => SetBuffer<byte>(paramIndex, cbuffer, 0);
 
         /// <summary>
-        /// Sets a directly-bound constant buffer view descriptor to the graphics pipeline
+        /// Sets a directly-bound shader resource buffer view descriptor to the graphics pipeline
         /// </summary>
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
         /// <param name="offset">The offset in elements of <typeparamref name="T"/> to start the view at</param>
-        public void SetBuffer<T>(uint paramIndex, in Buffer cbuffer, uint offset = 0) where T : unmanaged
+        public new void SetBuffer<T>(uint paramIndex, in Buffer cbuffer, uint offset = 0) where T : unmanaged
         {
             List->SetGraphicsRootShaderResourceView(paramIndex, cbuffer.GpuAddress + (ulong)(sizeof(T) * offset));
         }
@@ -124,7 +115,7 @@ namespace Voltium.Core
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
         /// <param name="offset">The offset in bytes to start the view at</param>
-        public void SetBufferByteOffset(uint paramIndex, in Buffer cbuffer, uint offset = 0)
+        public new void SetBufferByteOffset(uint paramIndex, in Buffer cbuffer, uint offset = 0)
         {
             List->SetGraphicsRootShaderResourceView(paramIndex, cbuffer.GpuAddress + offset);
         }
@@ -178,7 +169,7 @@ namespace Voltium.Core
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which these constants represents</param>
         /// <param name="value">The 32 bit values to set</param>
         /// <param name="offset">The offset, in 32 bit offsets, to bind this at</param>
-        public void SetRoot32BitConstants<T>(uint paramIndex, T value, uint offset = 0) where T : unmanaged
+        public new void SetRoot32BitConstants<T>(uint paramIndex, T value, uint offset = 0) where T : unmanaged
         {
             if (sizeof(T) % 4 != 0)
             {
@@ -198,7 +189,7 @@ namespace Voltium.Core
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which these constants represents</param>
         /// <param name="value">The 32 bit values to set</param>
         /// <param name="offset">The offset, in 32 bit offsets, to bind this at</param>
-        public void SetRoot32BitConstants<T>(uint paramIndex, ref T value, uint offset = 0) where T : unmanaged
+        public new void SetRoot32BitConstants<T>(uint paramIndex, ref T value, uint offset = 0) where T : unmanaged
         {
             if (sizeof(T) % 4 != 0)
             {
@@ -222,7 +213,7 @@ namespace Voltium.Core
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which these constants represents</param>
         /// <param name="value">The 32 bit value to set</param>
         /// <param name="offset">The offset, in 32 bit offsets, to bind this at</param>
-        public void SetRoot32BitConstant<T>(uint paramIndex, T value, uint offset = 0) where T : unmanaged
+        public new void SetRoot32BitConstant<T>(uint paramIndex, T value, uint offset = 0) where T : unmanaged
         {
             if (sizeof(T) != 4)
             {

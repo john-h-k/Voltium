@@ -69,6 +69,12 @@ namespace Voltium.Core.Pool
         public ContextPool(ComputeDevice device)
         {
             _device = device;
+
+            // Check list support
+            var ctx = Rent(ExecutionContext.Graphics, null, false);
+            SupportedList = CheckListSupport(ctx.List);
+            ctx.List.Get()->Close();
+            Return(ctx, GpuTask.Completed);
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -96,6 +102,22 @@ namespace Voltium.Core.Pool
             }
 
             return new ContextParams(_device, list, allocator.Allocator, pso, context, executeOnClose);
+        }
+
+        internal SupportedGraphicsCommandList SupportedList { get; }
+
+        private SupportedGraphicsCommandList CheckListSupport(ComPtr<ID3D12GraphicsCommandList> list)
+        {
+            return list switch
+            {
+                _ when list.HasInterface<ID3D12GraphicsCommandList6>() => SupportedGraphicsCommandList.GraphicsCommandList6,
+                _ when list.HasInterface<ID3D12GraphicsCommandList5>() => SupportedGraphicsCommandList.GraphicsCommandList5,
+                _ when list.HasInterface<ID3D12GraphicsCommandList4>() => SupportedGraphicsCommandList.GraphicsCommandList4,
+                _ when list.HasInterface<ID3D12GraphicsCommandList3>() => SupportedGraphicsCommandList.GraphicsCommandList3,
+                _ when list.HasInterface<ID3D12GraphicsCommandList2>() => SupportedGraphicsCommandList.GraphicsCommandList2,
+                _ when list.HasInterface<ID3D12GraphicsCommandList1>() => SupportedGraphicsCommandList.GraphicsCommandList1,
+                _ => SupportedGraphicsCommandList.GraphicsCommandList
+            };
         }
 
         private static bool IsAllocatorFinished(ref CommandAllocator allocator) => allocator.Task.IsCompleted;

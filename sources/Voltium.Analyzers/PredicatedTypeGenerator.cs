@@ -56,7 +56,6 @@ namespace Voltium.Analyzers
         {
             // if you wanna debug this method, uncomment this
             // ugly but works. blame roslyn devs not me
-            //Debugger.Launch();
 
             var receiver = (SyntaxTypeReceiver<T>)context.SyntaxReceiver!;
 

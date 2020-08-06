@@ -14,7 +14,7 @@ namespace Voltium.Core.Pipeline
         public readonly ComputePipelineDesc Desc;
 
         internal override unsafe ID3D12RootSignature* GetRootSig()
-            => Desc.ShaderSignature.Value;
+            => Desc.RootSignature.Value;
 
         internal ComputePipelineStateObject(ComPtr<ID3D12PipelineState> pso, in ComputePipelineDesc desc) : base(pso)
         {

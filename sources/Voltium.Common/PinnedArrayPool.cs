@@ -1,3 +1,5 @@
+#define TRACE_MEMORY
+
 using System;
 using System.Buffers;
 using System.Collections.Generic;
@@ -10,12 +12,15 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Voltium.Common.Tracing;
 
 namespace Voltium.Allocators
 {
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
     public sealed partial class /* TlsOverPerCoreLockedStacks */ PinnedArrayPool<T> : ArrayPool<T>
     {
+        private ArrayPoolTracer<T> _tracer;
+
         public static PinnedArrayPool<T> Default { get; } = new();
 
         // TODO https://github.com/dotnet/coreclr/pull/7747: "Investigate optimizing ArrayPool heuristics"
@@ -62,6 +67,8 @@ namespace Voltium.Allocators
                 sizes[i] = Utilities.GetMaxSizeForBucket(i);
             }
             _bucketArraySizes = sizes;
+
+            _tracer = ArrayPoolTracer<T>.Create(this);
         }
 
         /// <summary>Allocate a new PerCoreLockedStacks and try to store it into the <see cref="_buckets"/> array.</summary>
@@ -106,6 +113,8 @@ namespace Voltium.Allocators
                     if (buffer != null)
                     {
                         tlsBuckets[bucketIndex] = null;
+
+                        _tracer.MarkRented(buffer);
                         return buffer;
                     }
                 }
@@ -117,12 +126,14 @@ namespace Voltium.Allocators
                     buffer = b.TryPop();
                     if (buffer != null)
                     {
+                        _tracer.MarkRented(buffer);
                         return buffer;
                     }
                 }
 
                 // No buffer available.  Allocate a new buffer with a size corresponding to the appropriate bucket.
                 buffer = GC.AllocateUninitializedArray<T>(_bucketArraySizes[bucketIndex], pinned: true);
+                _tracer.MarkNewBuffer(buffer, false);
             }
             else
             {
@@ -168,7 +179,10 @@ namespace Voltium.Allocators
                 if (tlsBuckets == null)
                 {
                     t_tlsBuckets = tlsBuckets = new T[NumBuckets][];
+
                     tlsBuckets[bucketIndex] = array;
+                    _tracer.MarkReturned(array);
+
                     if (s_trimBuffers)
                     {
                         Debug.Assert(s_allTlsBuckets != null, "Should be non-null iff s_trimBuffers is true");
@@ -183,6 +197,7 @@ namespace Voltium.Allocators
                 {
                     T[]? prev = tlsBuckets[bucketIndex];
                     tlsBuckets[bucketIndex] = array;
+                    _tracer.MarkReturned(array);
 
                     if (prev != null)
                     {
@@ -190,6 +205,10 @@ namespace Voltium.Allocators
                         stackBucket.TryPush(prev);
                     }
                 }
+            }
+            else
+            {
+                _tracer.MarkBufferRetired(array);
             }
         }
 

@@ -13,14 +13,14 @@ namespace Voltium.Core.Pipeline
         /// </summary>
         public ComputePipelineDesc(RootSignature shaderSignature, CompiledShader computeShader)
         {
-            ShaderSignature = shaderSignature;
+            RootSignature = shaderSignature;
             ComputeShader = computeShader;
         }
 
         /// <summary>
         /// The root signature for the pipeline
         /// </summary>
-        public RootSignature ShaderSignature { get; set; }
+        public RootSignature RootSignature { get; set; }
 
         /// <summary>
         /// The compute shader for the pipeline

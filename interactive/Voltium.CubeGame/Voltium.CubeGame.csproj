@@ -6,6 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\sources\Voltium.ModelLoader\Voltium.ModelLoading.csproj" />
     <ProjectReference Include="..\..\sources\Voltium.RenderEngine\Voltium.RenderEngine.csproj" />
   </ItemGroup>
 

@@ -59,7 +59,7 @@ namespace Voltium.Core.Memory
         /// Creates a new allocator
         /// </summary>
         /// <param name="device">The <see cref="ID3D12Device"/> to allocate on</param>
-        internal GpuAllocator(GraphicsDevice device)
+        internal GpuAllocator(ComputeDevice device)
         {
             Debug.Assert(device is not null);
             _device = device;

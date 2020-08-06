@@ -19,6 +19,13 @@ namespace Voltium.Core.Memory
         internal uint Offset;
         internal uint Length;
 
+        internal ID3D12Resource* GetResourcePointer() => Buffer.GetResourcePointer();
+
+        // internal because it allows use-after-free
+        internal Buffer.ScopedMap MapScoped() => Buffer.MapScoped();
+        internal void Map() => Buffer.Map();
+        internal void Unmap() => Buffer.Unmap();
+
         /// <summary>
         /// Writes the <typeparamref name="T"/> to the buffer
         /// </summary>
@@ -39,6 +46,7 @@ namespace Voltium.Core.Memory
         /// <typeparam name="T">The type to write</typeparam>
         public void WriteDataByteOffset<T>(ref T data, uint offset) where T : unmanaged
             => Buffer.WriteDataByteOffset(ref data, Offset + offset);
+
         /// <summary>
         /// Writes the <typeparamref name="T"/> to the buffer
         /// </summary>
@@ -67,24 +75,27 @@ namespace Voltium.Core.Memory
         private PageManager _manager;
         private List<Buffer> _usedPages;
         private List<Buffer> _usedLargePages;
+        private MemoryAccess _access;
 
         /// <summary>
         /// Create a new <see cref="DynamicAllocator"/>
         /// </summary>
         /// <param name="device">The underlying <see cref="GraphicsDevice"/> to allocate from</param>
-        public DynamicAllocator(ComputeDevice device)
+        /// <param name="access">The <see cref="MemoryAccess"/> for this <see cref="DynamicAllocator"/></param>
+        public DynamicAllocator(ComputeDevice device, MemoryAccess access)
         {
-            if (!_pageManagers.TryGetValue(device, out var manager))
+            if (!_pageManagers.TryGetValue((device, access), out var manager))
             {
                 lock (_pageManagers)
                 {
-                    manager = new PageManager(device);
+                    manager = new PageManager(device, access);
                     _ = GCHandle.Alloc(manager);
-                    _pageManagers[device] = manager;
+                    _pageManagers[(device, access)] = manager;
                 }
             }
 
             _manager = manager;
+            _access = access;
             _page = _manager.GetPage();
             _offset = 0;
             _usedPages = new();
@@ -147,7 +158,15 @@ namespace Voltium.Core.Memory
         {
             _usedPages.Add(_page);
             _manager.AddUsedPages(_usedPages.AsSpan(), task);
-            task.RegisterCallback(_usedLargePages, &ReleaseLargePages);
+
+            if (task.IsCompleted)
+            {
+                ReleaseLargePages(_usedLargePages);
+            }
+            else
+            {
+                task.RegisterCallback(_usedLargePages, &ReleaseLargePages);
+            }
         }
 
         private static void ReleaseLargePages(List<Buffer> largePages)
@@ -165,15 +184,17 @@ namespace Voltium.Core.Memory
             public GpuTask Free;
         }
 
-        private static readonly Dictionary<ComputeDevice, PageManager> _pageManagers = new();
+        private static readonly Dictionary<(ComputeDevice, MemoryAccess Access), PageManager> _pageManagers = new();
 
         private sealed class PageManager
         {
             private ComputeDevice _device;
+            private MemoryAccess _access;
 
-            public PageManager(ComputeDevice device)
+            public PageManager(ComputeDevice device, MemoryAccess access)
             {
                 _device = device;
+                _access = access;
             }
 
             private LockedQueue<InUsePage, SpinLock> _pages = new(new SpinLock(EnvVars.IsDebug));
@@ -210,15 +231,19 @@ namespace Voltium.Core.Memory
                         Layout = D3D12_TEXTURE_LAYOUT.D3D12_TEXTURE_LAYOUT_ROW_MAJOR,
                         Alignment = 0
                     },
-                    HeapType = D3D12_HEAP_TYPE.D3D12_HEAP_TYPE_UPLOAD,
-                    InitialState = D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_GENERIC_READ
+                    HeapType = (D3D12_HEAP_TYPE)_access,
+                    InitialState = _access == MemoryAccess.CpuUpload ? D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_GENERIC_READ : D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_COPY_DEST,
                 };
 
                 using ComPtr<ID3D12Resource> page = _device.CreateCommittedResource(&desc);
 
                 var buff = new Buffer(size, new GpuResource(page.Move(), desc, null));
-                // we persistently map upload resources
-                buff.Map();
+
+                if (_access == MemoryAccess.CpuUpload)
+                {
+                    // we persistently map upload resources
+                    buff.Map();
+                }
                 return buff;
             }
 

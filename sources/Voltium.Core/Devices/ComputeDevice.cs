@@ -2,43 +2,47 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
-using TerraFX.Interop;
-using Voltium.Common;
-using Voltium.Core.Memory;
-using Voltium.Core.Infrastructure;
-using Voltium.Core.Devices;
-using Voltium.Core.Pipeline;
-using ZLogger;
-using Voltium.Core.Devices.Shaders;
-using Voltium.Core.Pool;
-
-using static TerraFX.Interop.Windows;
-using static TerraFX.Interop.D3D12_FEATURE;
-
-using Buffer = Voltium.Core.Memory.Buffer;
-using Voltium.Allocators;
 using System.Threading;
-using System.Diagnostics;
+using TerraFX.Interop;
+using Voltium.Allocators;
+using Voltium.Common;
 using Voltium.Core.Contexts;
+using Voltium.Core.Devices.Shaders;
+using Voltium.Core.Infrastructure;
+using Voltium.Core.Memory;
+using Voltium.Core.MetaCommands;
+using Voltium.Core.Pipeline;
+using Voltium.Core.Pool;
+using static TerraFX.Interop.D3D12_FEATURE;
+using static TerraFX.Interop.Windows;
+using Buffer = Voltium.Core.Memory.Buffer;
 
 namespace Voltium.Core.Devices
 {
+    internal struct TextureLayout
+    {
+        public D3D12_PLACED_SUBRESOURCE_FOOTPRINT[] Layouts;
+        public uint[] NumRows;
+        public ulong[] RowSizes;
+        public ulong TotalSize;
+    }
+
     /// <summary>
-    /// 
+    /// Describes the layout of a CPU-side subresource
     /// </summary>
-    public struct TextureFootprint
+    public struct SubresourceLayout
     {
         /// <summary>
-        /// 
+        /// The size of the rows, in bytes
         /// </summary>
         public ulong RowSize;
+
         /// <summary>
-        /// 
+        /// The number of rows
         /// </summary>
         public uint NumRows;
     }
+    internal enum SupportedGraphicsCommandList { Unknown, GraphicsCommandList, GraphicsCommandList1, GraphicsCommandList2, GraphicsCommandList3, GraphicsCommandList4, GraphicsCommandList5, GraphicsCommandList6 }
 
     /// <summary>
     /// 
@@ -62,14 +66,16 @@ namespace Voltium.Core.Devices
         private protected DebugLayer? Debug;
         private protected ContextPool ContextPool;
 
-        private protected SynchronizedCommandQueue CopyQueue;
-        private protected SynchronizedCommandQueue ComputeQueue;
+        private protected CommandQueue CopyQueue;
+        private protected CommandQueue ComputeQueue;
 
-        private protected SynchronizedCommandQueue GraphicsQueue;
+        private protected CommandQueue GraphicsQueue;
 
         private protected ulong CpuFrequency;
 
-        private ref SynchronizedCommandQueue GetQueueForContext(ExecutionContext context)
+        private protected SupportedGraphicsCommandList SupportedList;
+
+        private ref CommandQueue GetQueueForContext(ExecutionContext context)
         {
             switch (context)
             {
@@ -81,16 +87,13 @@ namespace Voltium.Core.Devices
                     return ref GraphicsQueue;
             }
 
-            return ref Helpers.NullRef<SynchronizedCommandQueue>();
+            return ref Helpers.NullRef<CommandQueue>();
         }
 
         /// <summary>
         /// The <see cref="Adapter"/> this device uses
         /// </summary>
         public Adapter Adapter { get; private set; }
-
-        internal enum SupportedGraphicsCommandList { Unknown, GraphicsCommandList, GraphicsCommandList1, GraphicsCommandList2, GraphicsCommandList3, GraphicsCommandList4, GraphicsCommandList5 }
-        private SupportedGraphicsCommandList SupportedList;
 
         internal ID3D12Device* DevicePointer => Device.Get();
         internal TDevice* DevicePointerAs<TDevice>() where TDevice : unmanaged => Device.AsBase<TDevice>().Get();
@@ -125,6 +128,37 @@ namespace Voltium.Core.Devices
 
         private const string Error_CantMakeResidentAsync = "Cannot MakeResidentAsync on a system that does not support ID3D12Device3.\n" +
             "Check CanMakeResidentAsync to determine if you can call MakeResidentAsync without it failing";
+
+        private MetaCommandDesc[]? EnumMetaCommands()
+        {
+            if (DeviceLevel < SupportedDevice.Device5)
+            {
+                ThrowHelper.ThrowPlatformNotSupportedException("Current OS does not support ID3D12Device5, which is required for meta commands");
+            }
+
+            int numMetaCommands;
+            Guard.ThrowIfFailed(DevicePointerAs<ID3D12Device5>()->EnumerateMetaCommands((uint*)&numMetaCommands, null));
+
+            var meta = RentedArray<D3D12_META_COMMAND_DESC>.Create(numMetaCommands);
+
+            Guard.ThrowIfFailed(DevicePointerAs<ID3D12Device5>()->EnumerateMetaCommands((uint*)&numMetaCommands, Helpers.AddressOf(meta.Value)));
+
+            var descs = new MetaCommandDesc[numMetaCommands];
+
+            for (int i = 0; i < numMetaCommands; i++)
+            {
+                descs[i] = new MetaCommandDesc(meta.Value[i].Id, new string((char*)meta.Value[i].Name));
+            }
+
+            return descs;
+        }
+
+        private Lazy<MetaCommandDesc[]?>? _metaCommandDescs;
+
+        /// <summary>
+        /// The device meta commands, if <see cref="DeviceCreationSettings.EnableMetaCommands"/> was called before device creation
+        /// </summary>
+        public ReadOnlyMemory<MetaCommandDesc> MetaCommands => _metaCommandDescs?.Value;
 
         /// <summary>
         /// An empty <see cref="RootSignature"/>
@@ -343,8 +377,6 @@ namespace Voltium.Core.Devices
             return factory.Current;
         }
 
-        private static readonly object StateLock = new object();
-
         internal ComPtr<ID3D12RootSignature> CreateRootSignature(uint nodeMask, void* pSignature, uint signatureLength)
         {
             using ComPtr<ID3D12RootSignature> rootSig = default;
@@ -366,26 +398,14 @@ namespace Voltium.Core.Devices
         /// <param name="config">The <see cref="DeviceConfiguration"/> to create the device with</param>
         public ComputeDevice(DeviceConfiguration config, in Adapter? adapter)
         {
-            Debug = new DebugLayer(config.DebugLayerConfiguration);
+            CreateNewDevice(adapter, config.RequiredFeatureLevel);
 
+            if (!Device.Exists)
             {
-                // Prevent another device creation messing with our settings
-                lock (StateLock)
-                {
-                    Debug.SetGlobalStateForConfig();
-
-                    CreateNewDevice(adapter, config.RequiredFeatureLevel);
-
-                    Debug.ResetGlobalState();
-                }
-
-                if (!Device.Exists)
-                {
-                    ThrowHelper.ThrowPlatformNotSupportedException($"FATAL: Creation of ID3D12Device with feature level '{config.RequiredFeatureLevel}' failed");
-                }
-
-                Debug.SetDeviceStateForConfig(this);
+                ThrowHelper.ThrowPlatformNotSupportedException($"FATAL: Creation of ID3D12Device with feature level '{config.RequiredFeatureLevel}' failed");
             }
+            Debug = new DebugLayer(this, config.DebugLayerConfiguration);
+
 
             ulong frequency;
             var res = QueryPerformanceFrequency((LARGE_INTEGER*) /* <- can we do that? */ &frequency);
@@ -401,10 +421,19 @@ namespace Voltium.Core.Devices
 
             QueryFeaturesOnCreation();
             ContextPool = new ContextPool(this);
-            CopyQueue = new SynchronizedCommandQueue(this, ExecutionContext.Copy);
-            ComputeQueue = new SynchronizedCommandQueue(this, ExecutionContext.Compute);
+            CopyQueue = new CommandQueue(this, ExecutionContext.Copy);
+            ComputeQueue = new CommandQueue(this, ExecutionContext.Compute);
+            Allocator = new GpuAllocator(this);
+            PipelineManager = new PipelineManager(this);
             EmptyRootSignature = RootSignature.Create(this, ReadOnlyMemory<RootParameter>.Empty, ReadOnlyMemory<StaticSampler>.Empty);
+            CreateDescriptorHeaps();
+
+            if (DeviceCreationSettings.AreMetaCommandsEnabled)
+            {
+                _metaCommandDescs = new Lazy<MetaCommandDesc[]?>(EnumMetaCommands);
+            }
         }
+
         internal unsafe ComPtr<ID3D12Fence> CreateFence()
         {
             ComPtr<ID3D12Fence> fence = default;
@@ -520,35 +549,31 @@ namespace Voltium.Core.Devices
         /// </summary>
         public struct ScopedCapture : IDisposable
         {
-            private DebugLayer? _layer;
-
-            internal ScopedCapture(DebugLayer? layer)
-            {
-                _layer = layer;
-                layer?.BeginCapture();
-            }
-
             /// <summary>
             /// Ends the capture
             /// </summary>
-            public void Dispose() => _layer?.EndCapture();
+            public void Dispose() => DeviceCreationSettings.EndCapture();
         }
 
         /// <summary>
         /// Begins a scoped PIX capture that ends when the <see cref="ScopedCapture"/> is disposed
         /// </summary>
         /// <returns>A new <see cref="ScopedCapture"/></returns>
-        public ScopedCapture BeginScopedCapture() => new ScopedCapture(Debug);
+        public ScopedCapture BeginScopedCapture()
+        {
+            DeviceCreationSettings.BeginCapture();
+            return new ScopedCapture();
+        }
 
         /// <summary>
         /// Begins a PIX capture
         /// </summary>
-        public void BeginCapture() => Debug?.BeginCapture();
+        public void BeginCapture() => DeviceCreationSettings.BeginCapture();
 
         /// <summary>
         /// Ends a PIX capture
         /// </summary>
-        public void EndCapture() => Debug?.EndCapture();
+        public void EndCapture() => DeviceCreationSettings.EndCapture();
 
         /// <summary>
         /// Returns a <see cref="CopyContext"/> used for recording copy commands
@@ -570,6 +595,17 @@ namespace Voltium.Core.Devices
             return new UploadContext(context);
         }
 
+
+        /// <summary>
+        /// Returns a <see cref="ReadbackContext"/> used for recording readback commands
+        /// </summary>
+        /// <returns>A new <see cref="ReadbackContext"/></returns>
+        public ReadbackContext BeginReadbackContext()
+        {
+            var context = ContextPool.Rent(ExecutionContext.Copy, null, false);
+
+            return new ReadbackContext(context);
+        }
         /// <summary>
         /// Returns a <see cref="ComputeContext"/> used for recording compute commands
         /// </summary>
@@ -579,7 +615,7 @@ namespace Voltium.Core.Devices
 
             var context = new ComputeContext(@params);
             SetDefaultState(context, pso);
-            return context;  
+            return context;
         }
 
         /// <summary>
@@ -704,7 +740,7 @@ namespace Voltium.Core.Devices
         /// <param name="tex"></param>
         /// <param name="intermediate"></param>
         /// <param name="data"></param>
-        public void ReadbackIntermediateBuffe(in TextureFootprint tex, in Buffer intermediate, Span<byte> data)
+        public void ReadbackIntermediateBuffer(SubresourceLayout tex, in Buffer intermediate, Span<byte> data)
         {
             var offset = data;
             var mapped = intermediate.Data;
@@ -719,6 +755,23 @@ namespace Voltium.Core.Devices
             }
             mapped.Slice(0, (int)tex.RowSize).CopyTo(offset);
         }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public SubresourceLayout GetSubresourceLayout(in Texture tex, uint subresourceIndex)
+        {
+            GetCopyableFootprint(tex, subresourceIndex, 1, out _, out var numRows, out var rowSizes, out _);
+
+            return new SubresourceLayout { NumRows = numRows, RowSize = rowSizes };
+        }
+
+        /// <summary>
+        /// Returns the size, in bytes, necessary to readback a <see cref="SubresourceLayout"/>
+        /// </summary>
+        /// <param name="tex">The <see cref="SubresourceLayout"/> to be read back</param>
+        /// <returns>The size, in bytes, necessary to readback <paramref name="tex"/></returns>
+        public ulong GetReadbackSize(SubresourceLayout tex) => tex.NumRows * tex.RowSize;
 
         /// <summary>
         /// Queries the GPU and timestamp
@@ -756,9 +809,9 @@ namespace Voltium.Core.Devices
         /// <param name="tex"></param>
         /// <param name="subresourceIndex"></param>
         /// <returns></returns>
-        public TextureFootprint GetSubresourceFootprin(in Texture tex, uint subresourceIndex)
+        public SubresourceLayout GetSubresourceFootprin(in Texture tex, uint subresourceIndex)
         {
-            TextureFootprint result;
+            SubresourceLayout result;
             GetCopyableFootprint(tex, subresourceIndex, 1, out _, out result.NumRows, out result.RowSize, out _);
             return result;
         }
@@ -788,31 +841,41 @@ namespace Voltium.Core.Devices
             }
         }
 
+        internal TextureLayout GetCopyableFootprints(
+            in Texture tex,
+            uint firstSubresource,
+            uint numSubresources
+        )
+        {
+            TextureLayout layout;
+            GetCopyableFootprints(tex, firstSubresource, numSubresources, out layout.Layouts, out layout.NumRows, out layout.RowSizes, out layout.TotalSize);
+            return layout;
+        }
+
         internal void GetCopyableFootprints(
             in Texture tex,
             uint firstSubresource,
             uint numSubresources,
-            out Span<D3D12_PLACED_SUBRESOURCE_FOOTPRINT> layouts,
-            out Span<uint> numRows,
-            out Span<ulong> rowSizesInBytes,
+            out D3D12_PLACED_SUBRESOURCE_FOOTPRINT[] layouts,
+            out uint[] numRows,
+            out ulong[] rowSizesInBytes,
             out ulong requiredSize
         )
         {
             var desc = tex.GetResourcePointer()->GetDesc();
 
-            var subresources = GC.AllocateUninitializedArray<byte>((sizeof(D3D12_PLACED_SUBRESOURCE_FOOTPRINT) + sizeof(uint) + sizeof(ulong)) * (int)numSubresources, pinned: true);
+            layouts = new D3D12_PLACED_SUBRESOURCE_FOOTPRINT[numSubresources];
+            numRows = new uint[numSubresources];
+            rowSizesInBytes = new ulong[numSubresources];
 
-            var pLayouts = (D3D12_PLACED_SUBRESOURCE_FOOTPRINT*)Unsafe.AsPointer(ref MemoryMarshal.GetArrayDataReference(subresources));
-            ulong* pRowSizesInBytes = (ulong*)(pLayouts + numSubresources);
-            uint* pNumRows = (uint*)(pRowSizesInBytes + numSubresources);
-
-            ulong size;
-            DevicePointer->GetCopyableFootprints(&desc, 0, numSubresources, 0, pLayouts, pNumRows, pRowSizesInBytes, &size);
-            requiredSize = size;
-
-            layouts = new Span<D3D12_PLACED_SUBRESOURCE_FOOTPRINT>(pLayouts, (int)numSubresources);
-            rowSizesInBytes = new Span<ulong>(pRowSizesInBytes, (int)numSubresources);
-            numRows = new Span<uint>(pNumRows, (int)numSubresources);
+            fixed (D3D12_PLACED_SUBRESOURCE_FOOTPRINT* pLayouts = layouts)
+            fixed (uint* pNumRows = numRows)
+            fixed (ulong* pRowSizesInBytes = rowSizesInBytes)
+            {
+                ulong size;
+                DevicePointer->GetCopyableFootprints(&desc, 0, numSubresources, 0, pLayouts, pNumRows, pRowSizesInBytes, &size);
+                requiredSize = size;
+            }
         }
 
         /// <summary>

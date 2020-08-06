@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Contexts;
+using Voltium.Core.Devices;
 using Voltium.Core.Memory;
 using Voltium.Core.Pool;
 using Voltium.TextureLoading;
@@ -35,6 +36,25 @@ namespace Voltium.Core
         //ResourceBarrier
         //SetProtectedResourceSession
         //WriteBufferImmediate
+
+        /// <summary>
+        /// Transitions a <see cref="Texture"/> for use on a different <see cref="ExecutionContext"/>
+        /// </summary>
+        /// <param name="tex">The <see cref="Texture"/> to transition</param>
+        /// <param name="subresource">The subresource to transition, by default, all subresources</param>
+        public void TransitionForCrossContextAccess(in Texture tex, uint subresource = uint.MaxValue)
+        {
+            ResourceTransition(tex, ResourceState.Common, subresource);
+        }
+
+        /// <summary>
+        /// Transitions a <see cref="Buffer"/> for use on a different <see cref="ExecutionContext"/>
+        /// </summary>
+        /// <param name="tex">The <see cref="Buffer"/> to transition</param>
+        public void TransitionForCrossContextAccess(in Buffer tex)
+        {
+            ResourceTransition(tex, ResourceState.Common);
+        }
 
         /// <summary>
         /// Copy a subresource
@@ -106,30 +126,17 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="source">The resource to copy from</param>
         /// <param name="subresourceIndex">The index of the subresource to copy from</param>
-        /// <param name="data"></param>
-        public void ReadbackSubresource(in Texture source, uint subresourceIndex, out Buffer data)
+        /// <param name="dest"></param>
+        /// <param name="layout"></param>
+        public void ReadbackSubresource(in Texture source, uint subresourceIndex, out Buffer dest, out SubresourceLayout layout)
         {
-            Device.GetCopyableFootprint(source, subresourceIndex, 1, out _, out _, out var rowSize, out var size);
-            data = Device.Allocator.AllocateBuffer((long)size, MemoryAccess.CpuReadback, ResourceState.CopyDestination);
+            Device.GetCopyableFootprint(source, subresourceIndex, 1, out var d3d12Layout, out var numRows, out var rowSize, out var size);
+            dest = Device.Allocator.AllocateBuffer((long)size, MemoryAccess.CpuReadback, ResourceState.CopyDestination);
 
-            var alignedRowSizes = MathHelpers.AlignUp(rowSize, 256);
-
-
-            var layout = new D3D12_PLACED_SUBRESOURCE_FOOTPRINT
-            {
-                Offset = 0,
-                Footprint = new D3D12_SUBRESOURCE_FOOTPRINT
-                {
-                    Depth = source.DepthOrArraySize,
-                    Height = source.Height,
-                    Width = (uint)source.Width,
-                    Format = (DXGI_FORMAT)source.Format,
-                    RowPitch = (uint)alignedRowSizes
-                }
-            };
-
-            var destDesc = new D3D12_TEXTURE_COPY_LOCATION(data.GetResourcePointer(), layout);
             var sourceDesc = new D3D12_TEXTURE_COPY_LOCATION(source.GetResourcePointer(), subresourceIndex);
+            var destDesc = new D3D12_TEXTURE_COPY_LOCATION(dest.GetResourcePointer(), d3d12Layout);
+
+            layout = new SubresourceLayout { NumRows = numRows, RowSize = rowSize };
 
             FlushBarriers();
             List->CopyTextureRegion(&destDesc, 0, 0, 0, &sourceDesc, null);
@@ -197,131 +204,6 @@ namespace Voltium.Core
 
             FlushBarriers();
             List->CopyResource(dest.Resource.GetResourcePointer(), source.Resource.GetResourcePointer());
-        }
-
-        /// <summary>
-        /// Uploads a buffer from the CPU to the GPU
-        /// </summary>
-        /// <param name="buffer"></param>
-        /// <param name="state"></param>
-        /// <param name="destination"></param>
-        public void UploadBufferToPreexisting<T>(T[] buffer, ResourceState state, in Buffer destination) where T : unmanaged
-            => UploadBufferToPreexisting((ReadOnlySpan<T>)buffer, state, destination);
-
-
-        /// <summary>
-        /// Uploads a buffer from the CPU to the GPU
-        /// </summary>
-        /// <param name="buffer"></param>
-        /// <param name="state"></param>
-        /// <param name="destination"></param>
-        public void UploadBufferToPreexisting<T>(Span<T> buffer, ResourceState state, in Buffer destination) where T : unmanaged
-            => UploadBufferToPreexisting((ReadOnlySpan<T>)buffer, state, destination);
-
-
-        /// <summary>
-        /// Uploads a buffer from the CPU to the GPU
-        /// </summary>
-        /// <param name="buffer"></param>
-        /// <param name="state"></param>
-        /// <param name="destination"></param>
-        public void UploadBufferToPreexisting<T>(ReadOnlySpan<T> buffer, ResourceState state, in Buffer destination) where T : unmanaged
-        {
-            var upload = Device.Allocator.AllocateBuffer(buffer.Length * sizeof(T), MemoryAccess.CpuUpload, ResourceState.GenericRead);
-            upload.WriteData(buffer);
-
-            CopyResource(upload, destination);
-            ResourceTransition(destination, state);
-        }
-
-        /// <summary>
-        /// Uploads a buffer from the CPU to the GPU
-        /// </summary>
-        /// <param name="buffer"></param>
-        /// <param name="state"></param>
-        /// <param name="destination"></param>
-        public void UploadBuffer<T>(T[] buffer, ResourceState state, out Buffer destination) where T : unmanaged
-            => UploadBuffer((ReadOnlySpan<T>)buffer, state, out destination);
-
-
-        /// <summary>
-        /// Uploads a buffer from the CPU to the GPU
-        /// </summary>
-        /// <param name="buffer"></param>
-        /// <param name="state"></param>
-        /// <param name="destination"></param>
-        public void UploadBuffer<T>(Span<T> buffer, ResourceState state, out Buffer destination) where T : unmanaged
-            => UploadBuffer((ReadOnlySpan<T>)buffer, state, out destination);
-
-
-        /// <summary>
-        /// Uploads a buffer from the CPU to the GPU
-        /// </summary>
-        /// <param name="buffer"></param>
-        /// <param name="state"></param>
-        /// <param name="destination"></param>
-        public void UploadBuffer<T>(ReadOnlySpan<T> buffer, ResourceState state, out Buffer destination) where T : unmanaged
-        {
-            var upload = Device.Allocator.AllocateBuffer(buffer.Length * sizeof(T), MemoryAccess.CpuUpload, ResourceState.GenericRead);
-            upload.WriteData(buffer);
-
-            destination = Device.Allocator.AllocateBuffer(buffer.Length * sizeof(T), MemoryAccess.GpuOnly, ResourceState.CopyDestination);
-            CopyResource(upload, destination);
-            ResourceTransition(destination, state);
-        }
-
-        /// <summary>
-        /// Uploads a buffer from the CPU to the GPU
-        /// </summary>
-        /// <param name="texture"></param>
-        /// <param name="subresources"></param>
-        /// <param name="tex"></param>
-        /// <param name="state"></param>
-        /// <param name="destination"></param>
-        public void UploadTexture(ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, in TextureDesc tex, ResourceState state, out Texture destination)
-        {
-            destination = Device.Allocator.AllocateTexture(tex, ResourceState.CopyDestination);
-            UploadTexture(texture, subresources, state, destination);
-        }
-
-        /// <summary>
-        /// Uploads a buffer from the CPU to the GPU
-        /// </summary>
-        /// <param name="texture"></param>
-        /// <param name="subresources"></param>
-        /// <param name="state"></param>
-        /// <param name="destination"></param>
-        public void UploadTexture(ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, ResourceState state, in Texture destination)
-        {
-            var upload = Device.Allocator.AllocateBuffer(
-                (long)Windows.GetRequiredIntermediateSize(destination.Resource.GetResourcePointer(), 0, (uint)subresources.Length),
-                MemoryAccess.CpuUpload,
-                ResourceState.GenericRead
-            );
-
-            fixed (byte* pTextureData = texture)
-            fixed (SubresourceData* pSubresources = subresources)
-            {
-                // D3D12_SUBRESOURCE_DATA and SubresourceData are blittable, just SubresourceData contains an offset past the pointer rather than the pointer
-                // Fix that here
-                for (var i = 0; i < subresources.Length; i++)
-                {
-                    ((D3D12_SUBRESOURCE_DATA*)&pSubresources[i])->pData = pTextureData + pSubresources[i].DataOffset;
-                }
-
-                FlushBarriers();
-                _ = Windows.UpdateSubresources(
-                    List,
-                    destination.Resource.GetResourcePointer(),
-                    upload.Resource.GetResourcePointer(),
-                    0,
-                    0,
-                    (uint)subresources.Length,
-                    (D3D12_SUBRESOURCE_DATA*)pSubresources
-                );
-
-                ResourceTransition(destination, state);
-            }
         }
 
 

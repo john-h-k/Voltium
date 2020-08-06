@@ -40,7 +40,6 @@ namespace Voltium.Analyzers
 
         public override void Initialize(AnalysisContext context)
         {
-            //Debugger.Launch();
             context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.Analyze | GeneratedCodeAnalysisFlags.ReportDiagnostics);
             context.EnableConcurrentExecution();
 
@@ -121,8 +120,8 @@ namespace Voltium.Analyzers
                 [comp.GetSpecialType(SpecialType.System_Single)] = new TypeSizeInfo(size: 4),
                 [comp.GetSpecialType(SpecialType.System_Double)] = new TypeSizeInfo(size: 8),
 
-                [comp.GetSpecialType(SpecialType.System_IntPtr)] = TypeSizeResolver.ReferenceTypeInfo,
-                [comp.GetSpecialType(SpecialType.System_UIntPtr)] = TypeSizeResolver.ReferenceTypeInfo,
+                [comp.GetSpecialType(SpecialType.System_IntPtr)] = ReferenceTypeInfo,
+                [comp.GetSpecialType(SpecialType.System_UIntPtr)] = ReferenceTypeInfo,
 
                 [comp.GetSpecialType(SpecialType.System_Decimal)] = new TypeSizeInfo(size: 16, alignment: 4),
             };
@@ -164,8 +163,8 @@ namespace Voltium.Analyzers
             var layout = type.GetAttributes().Where(attr => SymbolEqualityComparer.Default.Equals(attr.AttributeClass, _structLayoutAttribute)).FirstOrDefault();
             if (layout is not null)
             {
-                explicitSize = layout.NamedArguments.Where(kvp => kvp.Key == "Size").First().Value.Value as int? ?? 0;
-                explicitAlignment = layout.NamedArguments.Where(kvp => kvp.Key == "Pack").First().Value.Value as int? ?? 0;
+                explicitSize = layout.NamedArguments.Where(kvp => kvp.Key == "Size").FirstOrDefault().Value.Value as int? ?? 0;
+                explicitAlignment = layout.NamedArguments.Where(kvp => kvp.Key == "Pack").FirstOrDefault().Value.Value as int? ?? 0;
             }
 
 

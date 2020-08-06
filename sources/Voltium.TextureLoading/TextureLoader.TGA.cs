@@ -14,7 +14,7 @@ namespace Voltium.TextureLoading
         /// <param name="fileName">The file to create from</param>
         /// <param name="loaderFlags">The flags used by the loader</param>
         /// <returns>A descriptor struct of the texture</returns>
-        public static LoadedTexture CreateTgaTexture(
+        public static FormatTexture CreateTgaTexture(
             string fileName,
             LoaderFlags loaderFlags = LoaderFlags.None
         )
@@ -37,7 +37,7 @@ namespace Voltium.TextureLoading
         /// <param name="stream">The stream to create from</param>
         /// <param name="loaderFlags">The flags used by the loader</param>
         /// <returns>A descriptor struct of the texture</returns>
-        public static LoadedTexture CreateTgaTexture(
+        public static FormatTexture CreateTgaTexture(
             Stream stream,
             LoaderFlags loaderFlags = LoaderFlags.None
         )
@@ -67,7 +67,7 @@ namespace Voltium.TextureLoading
         /// <param name="tgaData">The memory where the TGA data is stored </param>
         /// <param name="loaderFlags">The flags used by the loader</param>
         /// <returns>A descriptor struct of the texture</returns>
-        public static LoadedTexture CreateTgaTexture(
+        public static FormatTexture CreateTgaTexture(
             Memory<byte> tgaData,
             LoaderFlags loaderFlags = LoaderFlags.None
         )

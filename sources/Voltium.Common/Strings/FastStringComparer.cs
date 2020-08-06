@@ -5,12 +5,12 @@ namespace Voltium.Common.Strings
 {
     internal sealed class FastStringComparer : IEqualityComparer<string>
     {
-        public bool Equals([AllowNull] string x, [AllowNull] string y)
+        public bool Equals(string? x, string? y)
         {
             return string.Equals(x, y);
         }
 
-        public int GetHashCode([DisallowNull] string obj)
+        public int GetHashCode(string obj)
         {
             return StringHelper.FastHash(obj);
         }

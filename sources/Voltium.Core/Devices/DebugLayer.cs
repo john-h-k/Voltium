@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using TerraFX.Interop;
 using Voltium.Common.Debugging;
 using Voltium.Core.Devices;
+using static TerraFX.Interop.Windows;
 using ZLogger;
 
 namespace Voltium.Common
@@ -24,115 +25,167 @@ namespace Voltium.Common
 
     // This also nicely alows
 
-    internal unsafe class DebugLayer
+    /// <summary>
+    /// Defines the settings for Device-Removed Extended Data (DRED)
+    /// </summary>
+    [Flags]
+    public enum DredSettings
     {
-        private ComPtr<ID3D12InfoQueue> _d3d12InfoQueue;
-        private ComPtr<IDXGIInfoQueue> _dxgiInfoQueue;
-        private ComPtr<IDXGIDebug1> _dxgiDebugLayer;
-        private ComPtr<ID3D12DebugDevice> _d3d12DebugDevice;
-        private ComPtr<IDXGraphicsAnalysis> _frameCapture;
+        /// <summary>
+        /// None. DRED is disabled
+        /// </summary>
+        None = 0,
 
-        // [Me]          > why is the inheritance tree of the debug layer types so confusing??!
-        // [DirectX dev] > Because someone made a mistake
-        //
-        // Ignore Debug1/2, just have 0 and 3 (which are base/derived)
+        /// <summary>
+        /// Auto-breadcrumb metadata to track execution progress is enabled
+        /// </summary>
+        AutoBreadcrumbs = 1,
 
-        private ComPtr<ID3D12Debug> _d3d12DebugLayer;
-        private SupportedDebugLayer _supportedLayer;
-        private enum SupportedDebugLayer { Debug, Debug3 };
+        /// <summary>
+        /// Allocation metadata to track page faults is enabled
+        /// </summary>
+        PageFaultMetadata = 2,
 
-        private Guid _dxgiProducerId = Windows.DXGI_DEBUG_DXGI;
-        private ComputeDevice _device = null!;
-        private DebugLayerConfiguration _config = null!;
+        /// <summary>
+        /// Watson dump is enabled via Windows Error Reporting (WER)
+        /// </summary>
+        WatsonDumpEnablement = 4,
 
-        public bool IsActive { get; }
+        /// <summary>
+        /// All DRED settings are enabled
+        /// </summary>
+        All = AutoBreadcrumbs | PageFaultMetadata | WatsonDumpEnablement
+    }
 
-        public DebugLayerConfiguration Config => _config;
+    /// <summary>
+    /// Defines global settings for creation of a <see cref="ComputeDevice"/> or <see cref="GraphicsDevice"/>
+    /// </summary>
+    public unsafe static class DeviceCreationSettings
+    {
+        internal static bool HasDeviceBeenCreated = false;
 
-        public DebugLayer(DebugLayerConfiguration? config)
+        private static void ThrowIfDeviceCreated()
         {
-            IsActive = config is not null;
-            _config = config!;
-        }
-
-        // Some aspects require D3D12 or DXGI global state. Horrible i know
-        public void SetGlobalStateForConfig()
-        {
-            if (!IsActive)
+            if (HasDeviceBeenCreated)
             {
-                return;
-            }
-
-            {
-                using ComPtr<IDXGraphicsAnalysis> analysis = default;
-                int hr = Windows.DXGIGetDebugInterface1(0, analysis.Iid, ComPtr.GetVoidAddressOf(&analysis));
-                if (Windows.SUCCEEDED(hr))
-                {
-                    LogHelper.LogInformation("PIX debugger is attached");
-                }
-
-                // E_NOINTERFACE occurs when PIX isn't attached, which is fine. Else something has gone wrong and it is worth failing
-                if (hr != Windows.E_NOINTERFACE)
-                {
-                    Guard.ThrowIfFailed(hr, "Windows.D3D12GetDebugInterface(analysis.Iid, ComPtr.GetVoidAddressOf(&analysis));");
-                }
-
-                _frameCapture = analysis.Move();
-            }
-
-            if (_config.Validation.GraphicsLayerValidation)
-            {
-                {
-                    using ComPtr<ID3D12Debug> debug = default;
-                    Guard.ThrowIfFailed(Windows.D3D12GetDebugInterface(debug.Iid, ComPtr.GetVoidAddressOf(&debug)));
-                    _d3d12DebugLayer = debug.Move();
-                }
-
-
-                _d3d12DebugLayer.Get()->EnableDebugLayer();
-                _supportedLayer = _d3d12DebugLayer.HasInterface<ID3D12Debug3>() ? SupportedDebugLayer.Debug3 : SupportedDebugLayer.Debug;
-            }
-
-            if (_config.Validation.GpuBasedValidation)
-            {
-                if (_supportedLayer == SupportedDebugLayer.Debug3)
-                {
-                    _d3d12DebugLayer.AsBase<ID3D12Debug3>().Get()->SetEnableGPUBasedValidation(Windows.TRUE);
-                }
-                else
-                {
-                    ThrowHelper.ThrowPlatformNotSupportedException("GPU based validation is not supported on this system");
-                }
-            }
-
-            if (_config.DeviceRemovedMetadata.RequiresDredSupport)
-            {
-                using ComPtr<ID3D12DeviceRemovedExtendedDataSettings> dredSettings = default;
-                int hr = Windows.D3D12GetDebugInterface(dredSettings.Iid, ComPtr.GetVoidAddressOf(&dredSettings));
-
-                if (hr == Windows.E_NOINTERFACE)
-                {
-                    ThrowHelper.ThrowPlatformNotSupportedException("GPU based device removed metadata is not supported on this system");
-                }
-
-                Guard.ThrowIfFailed(hr, " Windows.D3D12GetDebugInterface(dredSettings.Guid, ComPtr.GetVoidAddressOf(&dredSettings));");
-
-                if (_config.DeviceRemovedMetadata.AutoBreadcrumbMetadata)
-                {
-                    dredSettings.Get()->SetAutoBreadcrumbsEnablement(D3D12_DRED_ENABLEMENT.D3D12_DRED_ENABLEMENT_FORCED_ON);
-                }
-                if (_config.DeviceRemovedMetadata.PageFaultMetadata)
-                {
-                    dredSettings.Get()->SetPageFaultEnablement(D3D12_DRED_ENABLEMENT.D3D12_DRED_ENABLEMENT_FORCED_ON);
-                }
-                if (_config.DeviceRemovedMetadata.WindowsErrorReporting)
-                {
-                    dredSettings.Get()->SetWatsonDumpEnablement(D3D12_DRED_ENABLEMENT.D3D12_DRED_ENABLEMENT_FORCED_ON);
-                }
+                ThrowHelper.ThrowInvalidOperationException("Cannot change DeviceCreationSettings after a device has been created");
             }
         }
 
-        public void BeginCapture()
+
+
+        internal static bool AreMetaCommandsEnabled { get; private set; } = false;
+        internal static bool AreExperimentalShaderModelsEnabled { get; private set; } = false;
+
+        private static ComPtr<IDXGIDebug1> _dxgiDebugLayer = GetDxgiDebug();
+        private static ComPtr<IDXGraphicsAnalysis> _frameCapture = GetPixIfAttached();
+        private static ComPtr<ID3D12Debug> _debug = GetDebug(out _supportedLayer);
+        private static ComPtr<ID3D12DeviceRemovedExtendedDataSettings> _dred = GetDred();
+        private static SupportedDebugLayer _supportedLayer;
+        private enum SupportedDebugLayer { Unknown, Debug, Debug3 };
+
+        private static ComPtr<ID3D12Debug> GetDebug(out SupportedDebugLayer supportedLayer)
+        {
+            using ComPtr<ID3D12Debug> debug = default;
+            Guard.TryGetInterface(D3D12GetDebugInterface(debug.Iid, ComPtr.GetVoidAddressOf(&debug)));
+            supportedLayer = debug.HasInterface<ID3D12Debug3>() ? SupportedDebugLayer.Debug3 : SupportedDebugLayer.Debug;
+            return debug.Move();
+        }
+
+        private static ComPtr<IDXGIDebug1> GetDxgiDebug()
+        {
+            using ComPtr<IDXGIDebug1> debug = default;
+            Guard.TryGetInterface(DXGIGetDebugInterface1(0, debug.Iid, ComPtr.GetVoidAddressOf(&debug)));
+            return debug.Move();
+        }
+
+        private static ComPtr<ID3D12DeviceRemovedExtendedDataSettings> GetDred()
+        {
+            using ComPtr<ID3D12DeviceRemovedExtendedDataSettings> dredSettings = default;
+            Guard.TryGetInterface(D3D12GetDebugInterface(dredSettings.Iid, ComPtr.GetVoidAddressOf(&dredSettings)));
+            return dredSettings;
+        }
+
+        private static ComPtr<IDXGraphicsAnalysis> GetPixIfAttached()
+        {
+            using ComPtr<IDXGraphicsAnalysis> analysis = default;
+            Guard.TryGetInterface(DXGIGetDebugInterface1(0, analysis.Iid, ComPtr.GetVoidAddressOf(&analysis)));
+            if (analysis.Exists)
+            {
+                LogHelper.LogInformation("PIX debugger is attached");
+            }
+
+            return analysis.Move();
+        }
+
+        /// <summary>
+        /// Enables the experimental D3D12 Meta Commands feature
+        /// </summary>
+        public static void EnableMetaCommands()
+        {
+            Guid iid = D3D12MetaCommand;
+            Guard.ThrowIfFailed(D3D12EnableExperimentalFeatures(1, &iid, null, null));
+            AreMetaCommandsEnabled = true;
+        }
+
+        /// <summary>
+        /// Enables experimental D3D12 shader models
+        /// </summary>
+        public static void EnableExperimentalShaderModels()
+        {
+            Guid iid = D3D12ExperimentalShaderModels;
+            Guard.ThrowIfFailed(D3D12EnableExperimentalFeatures(1, &iid, null, null));
+            AreExperimentalShaderModelsEnabled = true;
+        }
+
+        /// <summary>
+        /// Enables the D3D12 debug layer
+        /// </summary>
+        public static void EnableDebugLayer() => _debug.Get()->EnableDebugLayer();
+
+        /// <summary>
+        /// Enables GPU-based validation. This can help provide significantly more metadata than the traditional debug layer,
+        /// but can have a major performance penalty
+        /// </summary>
+        public static void EnableGpuBasedValidation()
+        {
+            if (_supportedLayer == SupportedDebugLayer.Debug3)
+            {
+                _debug.AsBase<ID3D12Debug3>().Get()->SetEnableGPUBasedValidation(TRUE);
+            }
+            else
+            {
+                ThrowHelper.ThrowPlatformNotSupportedException("GPU based validation is not supported on this system");
+            }
+        }
+
+        /// <summary>
+        /// Enables Device-Removed Extended Metadata (DRED)
+        /// </summary>
+        /// <param name="features">The <see cref="DredSettings"/> to enable</param>
+        public static void EnableDred(DredSettings features)
+        {
+            if (!_dred.Exists && features != DredSettings.None)
+            {
+                ThrowHelper.ThrowPlatformNotSupportedException("GPU based device removed metadata is not supported on this system");
+            }
+
+            if (features.HasFlag(DredSettings.AutoBreadcrumbs))
+            {
+                _dred.Get()->SetAutoBreadcrumbsEnablement(D3D12_DRED_ENABLEMENT.D3D12_DRED_ENABLEMENT_FORCED_ON);
+            }
+            if (features.HasFlag(DredSettings.PageFaultMetadata))
+            {
+                _dred.Get()->SetPageFaultEnablement(D3D12_DRED_ENABLEMENT.D3D12_DRED_ENABLEMENT_FORCED_ON);
+            }
+            if (features.HasFlag(DredSettings.WatsonDumpEnablement))
+            {
+                _dred.Get()->SetWatsonDumpEnablement(D3D12_DRED_ENABLEMENT.D3D12_DRED_ENABLEMENT_FORCED_ON);
+            }
+        }
+
+
+        internal static void BeginCapture()
         {
             if (_frameCapture.Exists)
             {
@@ -144,7 +197,7 @@ namespace Voltium.Common
             }
         }
 
-        public void EndCapture()
+        internal static void EndCapture()
         {
             if (_frameCapture.Exists)
             {
@@ -156,14 +209,44 @@ namespace Voltium.Common
             }
         }
 
-        private void LogPixNotAttached()
+        /// <summary>
+        /// <see langword="true"/> if PIX is attached, else <see langword="false"/>
+        /// </summary>
+        public static bool IsPixAttached => _frameCapture.Exists;
+
+        private static void LogPixNotAttached()
         {
             LogHelper.LogInformation("PIX Frame capture was created but PIX is not attached, so the capture was dropped");
         }
+    }
 
-        public void SetDeviceStateForConfig(ComputeDevice device)
+    internal unsafe class DebugLayer
+    {
+        private ComPtr<ID3D12InfoQueue> _d3d12InfoQueue;
+        private ComPtr<IDXGIInfoQueue> _dxgiInfoQueue;
+        private ComPtr<ID3D12DebugDevice> _d3d12DebugDevice;
+
+        // [Me]          > why is the inheritance tree of the debug layer types so confusing??!
+        // [DirectX dev] > Because someone made a mistake
+        //
+        // Ignore Debug1/2, just have 0 and 3 (which are base/derived)
+
+        private ComPtr<ID3D12Debug> _d3d12DebugLayer;
+
+        private Guid _dxgiProducerId = DXGI_DEBUG_DXGI;
+        private ComputeDevice _device = null!;
+        private DebugLayerConfiguration _config = null!;
+
+        public bool IsActive { get; }
+
+        public DebugLayerConfiguration Config => _config;
+
+        public DebugLayer(ComputeDevice device, DebugLayerConfiguration? config)
         {
-            if (!IsActive)
+            IsActive = config is not null;
+            _config = config!;
+
+            if (config is null)
             {
                 return;
             }
@@ -190,20 +273,6 @@ namespace Voltium.Common
             Summary = DXGI_DEBUG_RLO_FLAGS.DXGI_DEBUG_RLO_SUMMARY,
             Detail = DXGI_DEBUG_RLO_FLAGS.DXGI_DEBUG_RLO_DETAIL,
             InternalObjects = DXGI_DEBUG_RLO_FLAGS.DXGI_DEBUG_RLO_IGNORE_INTERNAL,
-        }
-
-        public void ReportLiveObjects(LiveObjectFlags flags = LiveObjectFlags.Summary)
-        {
-            if (!IsActive)
-            {
-                return;
-            }
-
-            if (!_dxgiDebugLayer.Exists)
-            {
-                ThrowHelper.ThrowInvalidOperationException("Cannot ReportLiveObjects because layer was not created with InfrastructureLayerValidation. Try ReportDeviceLiveObjects instead");
-            }
-            Guard.ThrowIfFailed(_dxgiDebugLayer.Get()->ReportLiveObjects(Windows.DXGI_DEBUG_DX, (DXGI_DEBUG_RLO_FLAGS)flags));
         }
 
         public void ResetGlobalState()
@@ -314,8 +383,6 @@ namespace Voltium.Common
             CreateAndAssert(out _d3d12DebugDevice);
             CreateAndAssert(out _d3d12InfoQueue);
 
-
-
             Span<D3D12_MESSAGE_SEVERITY> allowedSeverities = stackalloc D3D12_MESSAGE_SEVERITY[MaxSeverityCount];
 
             GetSeveritiesForLogLevel(_config.ValidationLogLevel, allowedSeverities, out int numAllowed);
@@ -335,22 +402,15 @@ namespace Voltium.Common
 
             for (var i = 0; i < numBreakOn; i++)
             {
-                Guard.ThrowIfFailed(_d3d12InfoQueue.Get()->SetBreakOnSeverity(allowedSeverities[i], Windows.TRUE));
+                Guard.ThrowIfFailed(_d3d12InfoQueue.Get()->SetBreakOnSeverity(allowedSeverities[i], TRUE));
             }
         }
 
         private void InitializeDxgi()
         {
-            {
-                using ComPtr<IDXGIInfoQueue> queue = default;
-                Guard.ThrowIfFailed(Windows.DXGIGetDebugInterface(queue.Iid, ComPtr.GetVoidAddressOf(&queue)));
-                _dxgiInfoQueue = queue.Move();
-
-
-                using ComPtr<IDXGIDebug1> debug = default;
-                Guard.ThrowIfFailed(Windows.DXGIGetDebugInterface(debug.Iid, ComPtr.GetVoidAddressOf(&debug)));
-                _dxgiDebugLayer = debug.Move();
-            }
+            ComPtr<IDXGIInfoQueue> infoQueue = default;
+            Guard.ThrowIfFailed(DXGIGetDebugInterface1(0, infoQueue.Iid, ComPtr.GetVoidAddressOf(&infoQueue)));
+            _dxgiInfoQueue = infoQueue.Move();
 
             // we deny retrieving anything that isn't an error/warning/corruption
             Span<DXGI_INFO_QUEUE_MESSAGE_SEVERITY> allowedSeverities = stackalloc DXGI_INFO_QUEUE_MESSAGE_SEVERITY[MaxSeverityCount];
@@ -372,7 +432,7 @@ namespace Voltium.Common
 
             for (var i = 0; i < numBreakOn; i++)
             {
-                Guard.ThrowIfFailed(_dxgiInfoQueue.Get()->SetBreakOnSeverity(_dxgiProducerId, allowedSeverities[i], Windows.TRUE));
+                Guard.ThrowIfFailed(_dxgiInfoQueue.Get()->SetBreakOnSeverity(_dxgiProducerId, allowedSeverities[i], TRUE));
             }
         }
 

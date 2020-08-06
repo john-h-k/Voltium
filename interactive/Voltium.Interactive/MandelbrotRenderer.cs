@@ -52,9 +52,9 @@ namespace Voltium.Interactive
         {
             _device = device;
 
-            using (var copy = device.BeginCopyContext())
+            using (var copy = device.BeginUploadContext())
             {
-                copy.UploadBuffer(GetColors(), ResourceState.PixelShaderResource, out _colors);
+                _colors = copy.UploadBuffer(GetColors());
             }
 
             var @params = new RootParameter[]

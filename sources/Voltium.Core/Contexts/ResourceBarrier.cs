@@ -36,9 +36,9 @@ namespace Voltium.Core.Contexts
     /// <summary>
     /// Represents a single resource barrier, either a UAV, alias, or transition barriers
     /// </summary>
-    public readonly unsafe partial struct ResourceBarrier
+    public unsafe partial struct ResourceBarrier
     {
-        internal readonly D3D12_RESOURCE_BARRIER Barrier;
+        internal D3D12_RESOURCE_BARRIER Barrier;
 
         private ResourceBarrier(
             D3D12_RESOURCE_BARRIER_FLAGS flags,
@@ -77,6 +77,21 @@ namespace Voltium.Core.Contexts
             Barrier.Flags = flags;
             Barrier.Anonymous.Aliasing.pResourceBefore = srcResource is null ? null : srcResource.GetResourcePointer();
             Barrier.Anonymous.Aliasing.pResourceAfter = destResource is null ? null : destResource.GetResourcePointer();
+        }
+
+        /// <summary>
+        /// Attempts to add another <see cref="ResourceState"/> to the barrier
+        /// </summary>
+        /// <param name="add">The <see cref="ResourceState"/> to try and add</param>
+        /// <returns><see langword="true"/> if it succeeded, else <see langword="false"/></returns>
+        public bool TryAddState(ResourceState add)
+        {
+            if (add.IsReadOnly() && ((ResourceState)Barrier.Anonymous.Transition.StateAfter).IsReadOnly())
+            {
+                Barrier.Anonymous.Transition.StateAfter |= (D3D12_RESOURCE_STATES)add;
+                return true;
+            }
+            return false;
         }
 
         /// <summary>

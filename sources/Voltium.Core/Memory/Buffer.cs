@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Memory;
@@ -43,6 +44,11 @@ namespace Voltium.Core.Memory
         /// <summary>
         /// The buffer data. This may be empty if the data is not CPU writable
         /// </summary>
+        public Span<T> DataAs<T>() where T : struct => MemoryMarshal.Cast<byte, T>(Data);
+
+        /// <summary>
+        /// The buffer data. This may be empty if the data is not CPU writable
+        /// </summary>
         public Span<byte> Data
         {
             get
@@ -79,6 +85,22 @@ namespace Voltium.Core.Memory
             }
             _resource.Unmap(0);
             _cpuAddress = null;
+        }
+
+        internal struct ScopedMap : IDisposable
+        {
+            internal ScopedMap(GpuResource resource) => _resource = resource;
+
+            public void Dispose() => _resource.Unmap(0);
+
+            private GpuResource _resource;
+        }
+
+        // internal because it allows use-after-free
+        internal ScopedMap MapScoped()
+        {
+            Map();
+            return new ScopedMap(_resource);
         }
 
         /// <summary>

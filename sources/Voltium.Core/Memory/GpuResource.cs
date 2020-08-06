@@ -95,6 +95,10 @@ namespace Voltium.Core.Memory
         /// <param name="subresource">The subresource index to unmap</param>
         public unsafe void Unmap(uint subresource)
         {
+            if (!_value.Exists)
+            {
+                return;
+            }
             // Apparently the range for map and unmap are for debugging purposes and yield no perf benefit. Maybe we could still support em
             GetResourcePointer()->Unmap(subresource, null);
         }
@@ -110,6 +114,9 @@ namespace Voltium.Core.Memory
             {
                 _value.Dispose();
             }
+
+            // Prevent use after free
+            _value = default;
 #if TRACE_DISPOSABLES || DEBUG
             GC.SuppressFinalize(this);
 #endif

@@ -1,5 +1,9 @@
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
+using System.Text;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Voltium.Analyzers
 {
@@ -46,6 +50,53 @@ namespace Voltium.Analyzers
                 return SymbolEqualityComparer.Default.Equals(method, definer);
             }
             return false;
+        }
+
+        public static string CreatePartialDecl(this INamedTypeSymbol symbol, string code)
+        {
+            var builder = new StringBuilder();
+            var syntax = (TypeDeclarationSyntax)symbol.DeclaringSyntaxReferences[0].GetSyntax();
+
+            var usings = syntax.SyntaxTree.GetRoot().ChildNodes().OfType<UsingDirectiveSyntax>();
+
+            foreach (var @using in usings)
+            {
+                builder.Append(@using.ToFullString());
+            }
+
+            var @namespace = symbol.ContainingNamespace;
+
+            builder.Append("namespace " + @namespace.ToString() + "{\n");
+
+
+            var types = new List<TypeDeclarationSyntax>();
+            int nestedLevel = 0;
+            do
+            {
+                nestedLevel++;
+                types.Add(syntax);
+                syntax = (syntax.Parent as TypeDeclarationSyntax)!;
+            }
+            while (syntax is not null);
+
+            foreach (var type in Enumerable.Reverse(types))
+            {
+                var s = type.RemoveNodes(type.ChildNodes().OfType<AttributeSyntax>(), SyntaxRemoveOptions.KeepDirectives).ToFullString();
+                builder.Append(s.Substring(0, s.IndexOf('{')));
+                builder.Append("\n{\n");
+            }
+
+            builder.Append(code);
+
+            for (int i = 0; i < nestedLevel; i++)
+            {
+                builder.Append("}\n");
+            }
+
+
+            builder.Append("}");
+
+            return builder.ToString();
         }
     }
 }

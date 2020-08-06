@@ -23,7 +23,7 @@ namespace Voltium.TextureLoading
         /// <param name="loaderFlags">The flags passed to the texture loader</param>
         /// <param name="maxMipMapSize">The maximum permitted size of a mipmap, or 0 to indicate the maximum size permitted by hardware</param>
         /// <returns>A texture description</returns>
-        public static LoadedTexture CreateTexture(
+        public static FormatTexture LoadTextureDesc(
             string fileName,
             TexType type = TexType.RuntimeDetect,
             LoaderFlags loaderFlags = LoaderFlags.None,
@@ -53,7 +53,7 @@ namespace Voltium.TextureLoading
         /// <param name="loaderFlags">The flags passed to the texture loader</param>
         /// <param name="maxMipMapSize">The maximum permitted size of a mipmap, or 0 to indicate the maximum size permitted by hardware</param>
         /// <returns>A texture description</returns>
-        public static LoadedTexture CreateTexture(
+        public static FormatTexture CreateTexture(
             Stream stream,
             TexType type = TexType.RuntimeDetect,
             LoaderFlags loaderFlags = LoaderFlags.None,
@@ -90,7 +90,7 @@ namespace Voltium.TextureLoading
         /// <param name="loaderFlags">The flags passed to the texture loader</param>
         /// <param name="maxMipMapSize">The maximum permitted size of a mipmap, or 0 to indicate the maximum size permitted by hardware</param>
         /// <returns>A texture description</returns>
-        public static LoadedTexture CreateTexture(
+        public static FormatTexture CreateTexture(
             Memory<byte> data,
             TexType type = TexType.RuntimeDetect,
             LoaderFlags loaderFlags = LoaderFlags.None,
@@ -137,7 +137,7 @@ namespace Voltium.TextureLoading
         public static void RecordTextureUpload(
             ID3D12Device* device,
             ID3D12GraphicsCommandList* cmdList,
-            in LoadedTexture texture,
+            in FormatTexture texture,
             out ID3D12Resource* textureBuffer,
             out ID3D12Resource* textureBufferUploadHeap,
             D3D12_RESOURCE_FLAGS resourceFlags = D3D12_RESOURCE_FLAGS.D3D12_RESOURCE_FLAG_NONE

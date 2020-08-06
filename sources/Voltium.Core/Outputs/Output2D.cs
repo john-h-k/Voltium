@@ -22,51 +22,13 @@ namespace Voltium.Core.Devices
     /// <summary>
     /// An output that displays graphics to the user
     /// </summary>
-    public unsafe class Output2D
+    public unsafe partial class Output2D
     {
-        private struct BackBufferBuffer8
-        {
-            public static readonly uint MaxBufferCount = 8;
+        [FixedBufferType(typeof(Texture), 8)]
+        private partial struct BackBufferBuffer8 { }
 
-#pragma warning disable CS0649
-            public Texture E0;
-            public Texture E1;
-            public Texture E2;
-            public Texture E3;
-            public Texture E4;
-            public Texture E5;
-            public Texture E6;
-            public Texture E7;
-#pragma warning restore CS0649
-
-            public ref Texture this[uint index]
-                => ref Unsafe.Add(ref GetPinnableReference(), (int)index);
-
-            public ref Texture GetPinnableReference()
-                => ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref E0, 0));
-        }
-
-        private struct DescriptorHandleBuffer8
-        {
-            public static readonly uint MaxBufferCount = 8;
-
-#pragma warning disable CS0649
-            public DescriptorHandle E0;
-            public DescriptorHandle E1;
-            public DescriptorHandle E2;
-            public DescriptorHandle E3;
-            public DescriptorHandle E4;
-            public DescriptorHandle E5;
-            public DescriptorHandle E6;
-            public DescriptorHandle E7;
-#pragma warning restore CS0649
-
-            public ref DescriptorHandle this[uint index]
-                => ref Unsafe.Add(ref GetPinnableReference(), (int)index);
-
-            public ref DescriptorHandle GetPinnableReference()
-                => ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref E0, 0));
-        }
+        [FixedBufferType(typeof(DescriptorHandle), 8)]
+        private partial struct DescriptorHandleBuffer8 { }
 
         private OutputConfiguration _desc;
         private GraphicsDevice _device;
@@ -84,24 +46,6 @@ namespace Voltium.Core.Devices
         /// The <see cref="OutputConfiguration"/> used 
         /// </summary>
         public OutputConfiguration Configuration => _desc;
-
-        /// <summary>
-        /// The current back buffer index
-        /// </summary>
-        public uint CurrentOutputBufferIndex => _backBufferIndex;
-
-        /// <summary>
-        /// Returns the backbuffer for a given index
-        /// </summary>
-        public Texture GetOutputBuffer(uint index)
-        {
-            if (index > OutputBufferCount)
-            {
-                ThrowHelper.ThrowArgumentOutOfRangeException(nameof(index));
-            }
-
-            return _backBuffers[index];
-        }
 
         /// <summary>
         /// Resize the render resources
@@ -375,9 +319,9 @@ namespace Voltium.Core.Devices
 
         private static DXGI_SWAP_CHAIN_DESC1 CreateDesc(OutputConfiguration desc, Size outputArea)
         {
-            if (desc.BackBufferCount > BackBufferBuffer8.MaxBufferCount)
+            if (desc.BackBufferCount > BackBufferBuffer8.BufferLength)
             {
-                ThrowHelper.ThrowArgumentException($"Cannot have more than {BackBufferBuffer8.MaxBufferCount} back buffers");
+                ThrowHelper.ThrowArgumentException($"Cannot have more than {BackBufferBuffer8.BufferLength} back buffers");
             }
 
             return new DXGI_SWAP_CHAIN_DESC1
@@ -407,7 +351,7 @@ namespace Voltium.Core.Devices
 
         internal void ResizeBuffers(Size newSize)
         {
-            for (var i = 0U; i < BackBufferBuffer8.MaxBufferCount; i++)
+            for (var i = 0U; i < BackBufferBuffer8.BufferLength; i++)
             {
                 _backBuffers[i].Dispose();
             }

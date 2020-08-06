@@ -16,7 +16,7 @@ namespace Voltium.TextureLoading.TGA
 {
     internal unsafe static class TGAImplementationFunctions
     {
-        public static LoadedTexture CreateTgaTexture(
+        public static FormatTexture CreateTgaTexture(
             ReadOnlyMemory<byte> tgaData,
             LoaderFlags loaderFlags = LoaderFlags.None
         )
@@ -72,7 +72,7 @@ namespace Voltium.TextureLoading.TGA
                 Dimension = TextureDimension.Tex2D
             };
 
-            return new LoadedTexture(
+            return new FormatTexture(
                 data,
                 desc,
                 1,

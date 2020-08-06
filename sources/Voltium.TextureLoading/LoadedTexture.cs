@@ -7,9 +7,9 @@ namespace Voltium.TextureLoading
     /// <summary>
     /// Represents a DDS texture that has been loaded into memory and parsed
     /// </summary>
-    public readonly struct LoadedTexture
+    public readonly struct FormatTexture
     {
-        internal LoadedTexture(
+        internal FormatTexture(
             ReadOnlyMemory<byte> bitData,
             TextureDesc desc,
             uint mipCount,

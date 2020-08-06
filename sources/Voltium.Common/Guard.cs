@@ -105,6 +105,35 @@ namespace Voltium.Common
 
         [DebuggerNonUserCode]
         [MethodImpl(MethodTypes.Validates)]
+        public static bool TryGetInterface(
+            int hr,
+            [CallerArgumentExpression("hr")] string? expression = null
+#if DEBUG || EXTENDED_ERROR_INFORMATION
+            ,
+            [CallerFilePath] string? filepath = default,
+            [CallerMemberName] string? memberName = default,
+            [CallerLineNumber] int lineNumber = default
+#endif
+        )
+        {
+            // invert branch so JIT assumes the HR is S_OK
+            if (SUCCEEDED(hr) || hr == E_NOINTERFACE)
+            {
+                return hr != E_NOINTERFACE;
+            }
+
+            ThrowForHr(hr
+#if DEBUG || EXTENDED_ERROR_INFORMATION
+                    ,
+                expression, filepath, memberName, lineNumber
+#endif
+                    );
+
+            return false; // never reached
+        }
+
+        [DebuggerNonUserCode]
+        [MethodImpl(MethodTypes.Validates)]
         public static void ThrowIfFailed(
             int hr,
             [CallerArgumentExpression("hr")] string? expression = null
@@ -310,7 +339,10 @@ namespace Voltium.Common
         {
 #if !DISPOSABLES_ALLOW_FINALIZE
             LogHelper.LogError(
-                $"OBJECT NOT DISPOSED ERROR\nFile: {filepath}\nMember: {memberName}\nLine: {lineNumber}\n"
+                "OBJECT NOT DISPOSED ERROR\nFile: {0}\nMember: {1}\nLine: {2}\n",
+                filepath,
+                memberName,
+                lineNumber
             );
 
             Debug.Fail("OBJECT NOT DISPOSED ERROR - see logs");

@@ -9,5 +9,4 @@ namespace Voltium.Core.Memory
         public ComPtr<ID3D12Heap> Heap;
         public List<HeapBlock> FreeBlocks;
     }
-
 }

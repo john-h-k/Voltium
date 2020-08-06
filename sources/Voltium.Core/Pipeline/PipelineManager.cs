@@ -191,7 +191,7 @@ namespace Voltium.Core.Devices
                 D3D12_COMPUTE_PIPELINE_STATE_DESC desc = new()
                 {
                     CS = new D3D12_SHADER_BYTECODE(vs, (uint)computeDesc.ComputeShader.Length),
-                    pRootSignature = computeDesc.ShaderSignature.Value
+                    pRootSignature = computeDesc.RootSignature.Value
                 };
 
                 using ComPtr<ID3D12PipelineState> pso = default;
@@ -287,7 +287,7 @@ namespace Voltium.Core.Devices
                 D3D12_COMPUTE_PIPELINE_STATE_DESC desc = new()
                 {
                     CS = new D3D12_SHADER_BYTECODE(vs, (uint)computeDesc.ComputeShader.Length),
-                    pRootSignature = computeDesc.ShaderSignature.Value
+                    pRootSignature = computeDesc.RootSignature.Value
                 };
 
                 fixed (char* pName = name)

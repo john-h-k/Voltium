@@ -14,6 +14,7 @@ using Voltium.Interactive.BasicRenderPipeline;
 using Voltium.Interactive.RenderGraphSamples;
 using Voltium.RenderEngine;
 using Voltium.Interactive.HelloTriangle;
+using Voltium.Interactive.FloatMultiplySample;
 
 namespace Voltium.Interactive
 {

@@ -58,7 +58,7 @@ namespace Voltium.Interactive
         private Texture _texture;
         private Texture _normals;
         private int _zoomDelta;
-        private Mesh<TexturedVertex>[] _texturedObjects = null!;
+        private RenderObject<TexturedVertex>[] _texturedObjects = null!;
         private GraphicsDevice _device = null!;
         private DescriptorHandle _texHandle;
         private DescriptorHandle _normalHandle;
@@ -96,28 +96,28 @@ namespace Voltium.Interactive
             _maxMsaaDesc = _device.HighestSupportedMsaa();
 
             _texturedObjects = ModelLoader.LoadGl_Old("Assets/Gltf/Handgun_Tangent.gltf");
-            var texture = TextureLoader.CreateTexture("Assets/Textures/handgun_c.dds");
-            var normals = TextureLoader.CreateTexture("Assets/Textures/handgun_n.dds");
+            var texture = TextureLoader.LoadTextureDesc("Assets/Textures/handgun_c.dds");
+            var normals = TextureLoader.LoadTextureDesc("Assets/Textures/handgun_n.dds");
 
             _vertexBuffer = new Buffer[_texturedObjects.Length];
             _indexBuffer = new Buffer[_texturedObjects.Length];
 
-            using (var list = _device.BeginCopyContext())
+            using (var list = _device.BeginUploadContext())
             using (_device.BeginScopedCapture())
             {
                 for (var i = 0; i < _texturedObjects.Length; i++)
                 {
-                    list.UploadBuffer(_texturedObjects[i].Vertices, ResourceState.VertexBuffer, out _vertexBuffer[i]);
+                    _vertexBuffer[i] = list.UploadBuffer(_texturedObjects[i].Vertices);
                     _vertexBuffer[i].SetName("VertexBuffer");
 
-                    list.UploadBuffer(_texturedObjects[i].Indices, ResourceState.IndexBuffer, out _indexBuffer[i]);
+                    _indexBuffer[i] = list.UploadBuffer(_texturedObjects[i].Indices);
                     _indexBuffer[i].SetName("IndexBuffer");
                 }
 
-                list.UploadTexture(texture.Data.Span, texture.SubresourceData.Span, texture.Desc, ResourceState.PixelShaderResource, out _texture);
+                _texture = list.UploadTexture(texture.Data.Span, texture.SubresourceData.Span, texture.Desc);
                 _texture.SetName("Gun texture");
 
-                list.UploadTexture(normals.Data.Span, normals.SubresourceData.Span, normals.Desc, ResourceState.PixelShaderResource, out _normals);
+                _normals = list.UploadTexture(normals.Data.Span, normals.SubresourceData.Span, normals.Desc);
                 _normals.SetName("Gun normals");
             }
 

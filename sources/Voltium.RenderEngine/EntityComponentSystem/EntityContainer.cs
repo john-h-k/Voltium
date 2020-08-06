@@ -42,7 +42,7 @@ namespace Voltium.RenderEngine.EntityComponentSystem
             components.Add(new TaggedComponent<TComponent>(entity, component));
         }
 
-        public EntityView<T0> ViewOf<T0>() where T0 : struct
+        public EntityView<T0> ViewOf<T0>() where T0 : struct 
             => new EntityView<T0>();
     }
 
@@ -51,12 +51,12 @@ namespace Voltium.RenderEngine.EntityComponentSystem
         public static List<TaggedComponent<TComponent>> Components = new();
     }
 
-    internal struct SparseSet<T>
+    internal struct SparseSet<T> where T : struct
     {
         public int[] Dense { get; private set; }
-        public T[] Sparse { get; private set; }
+        public TaggedComponent<T>[] Sparse { get; private set; }
 
-        public ref T this[int index] => ref Sparse[Dense[index]];
+        public ref T this[int index] => ref Sparse[Dense[index]].Component;
 
         public void Add(in T val)
         {

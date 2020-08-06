@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.Numerics;
+using Voltium.Common;
 using Voltium.Core;
 using Voltium.Core.Devices;
 using Voltium.Core.Devices.Shaders;
@@ -30,7 +31,9 @@ namespace Voltium.Interactive.HelloTriangle
         public unsafe override void Initialize(Size outputSize, IOutputOwner output)
         {
             // Create the device and output
+            DeviceCreationSettings.EnableDebugLayer();
             _device = new GraphicsDevice(DeviceConfiguration.Default);
+
             _output = Output2D.Create(OutputConfiguration.Default, _device, output);
             OnResize(outputSize);
 

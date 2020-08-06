@@ -117,7 +117,7 @@ namespace Voltium.Core
                 }
             }
 
-            _timer.Tick(_application, (timer, app) =>
+            _timer.Tick(_application, static (timer, app) =>
             {
                 app.Update(timer);
                 app.Render();

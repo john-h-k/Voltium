@@ -10,13 +10,13 @@ using static TerraFX.Interop.Windows;
 
 namespace Voltium.Core.Devices
 {
-    internal unsafe struct SynchronizedCommandQueue : IDisposable, IInternalD3D12Object
+    internal unsafe struct CommandQueue : IDisposable, IInternalD3D12Object
     {
         private ComPtr<ID3D12CommandQueue> _queue;
         private ComPtr<ID3D12Fence> _fence;
         private ulong _lastFence;
 
-        private ExecutionContext _type;
+        public readonly ExecutionContext Type;
         public readonly ulong Frequency;
 
         public ID3D12CommandQueue* GetQueue() => _queue.Get();
@@ -24,20 +24,20 @@ namespace Voltium.Core.Devices
         private static ulong StartingFenceForContext(ExecutionContext context) => context switch
         {
             // we do this to prevent conflicts when comparing markers
-            ExecutionContext.Copy => (ulong.MaxValue / 4) * 0,
-            ExecutionContext.Compute => (ulong.MaxValue / 4) * 1,
-            ExecutionContext.Graphics => (ulong.MaxValue / 4) * 2,
+            ExecutionContext.Copy => ulong.MaxValue / 4 * 0,
+            ExecutionContext.Compute => ulong.MaxValue / 4 * 1,
+            ExecutionContext.Graphics => ulong.MaxValue / 4 * 2,
             _ => 0xFFFFFFFFFFFFFFFF
         };
 
-        public SynchronizedCommandQueue(
+        public CommandQueue(
             ComputeDevice device,
             ExecutionContext context
         )
         {
             Debug.Assert(device is object);
 
-            _type = context;
+            Type = context;
 
             _queue = device.CreateQueue(context);
             _fence = device.CreateFence();
@@ -81,13 +81,13 @@ namespace Voltium.Core.Devices
 
         internal GpuTask GetSynchronizerForIdle() => Signal();
 
-        internal void Wait(in GpuTask waitable)
+        public void Wait(in GpuTask waitable)
         {
             waitable.GetFenceAndMarker(out var fence, out var marker);
             Guard.ThrowIfFailed(_queue.Get()->Wait(fence, marker));
         }
 
-        internal GpuTask Signal()
+        public GpuTask Signal()
         {
             Guard.ThrowIfFailed(_queue.Get()->Signal(_fence.Get(), Interlocked.Increment(ref _lastFence)));
             return new GpuTask(_fence, _lastFence);

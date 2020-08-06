@@ -16,8 +16,7 @@ using ZLogger;
 
 namespace Voltium.Common
 {
-
-    internal static class LogHelper
+    internal static partial class LogHelper
     {
         private const string LogFile = "log.txt";
 
@@ -74,7 +73,17 @@ namespace Voltium.Common
         [Conditional(LogSymbol)]
         public static void LogCritical(string message) => Out.WriteLine(message);
 
+        //[Conditional(LogSymbol)]
+        //public static void LogError(string message) => Out.WriteLine(message);
+
+
         [Conditional(LogSymbol)]
-        public static void LogError(string message) => Out.WriteLine(message);
+        [VariadicGeneric("Out.Write(%t)")]
+        public static void LogError(string message)
+        {
+            Out.Write(message);
+            VariadicGenericAttribute.InsertExpressionsHere();
+            Out.WriteLine();
+        }
     }
 }

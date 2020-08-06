@@ -20,7 +20,6 @@ namespace Voltium.Common
             ComPtr<IUnknown> p = default;
             Debug.Assert(ComPtr.GetAddressOf(&p) == &p._ptr);
 
-
             // *probably* not a valid COM type without a GUID
 #if REFLECTION
             Debug.Assert(typeof(T).GetCustomAttribute(typeof(GuidAttribute)) != null);

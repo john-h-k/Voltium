@@ -95,12 +95,13 @@ namespace Voltium.Core.Memory
             Msaa = desc.Msaa;
         }
 
-
-        // I don't like how this needs knowledge of DXGI. Should probably rewrite
+        // Required to get Texture's from SwapChains
         internal static Texture FromResource(ComputeDevice device, ComPtr<ID3D12Resource> buffer)
         {
             var resDesc = buffer.Get()->GetDesc();
             var res = new GpuResource(buffer.Move(), new InternalAllocDesc { Desc = resDesc, InitialState = D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_COMMON }, null, -1);
+
+            Debug.Assert(resDesc.Dimension == D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_TEXTURE2D);
 
             var texDesc = new TextureDesc
             {
@@ -108,7 +109,7 @@ namespace Voltium.Core.Memory
                 Dimension = TextureDimension.Tex2D,
                 Width = resDesc.Width,
                 Height = resDesc.Height,
-                DepthOrArraySize = 1,
+                DepthOrArraySize = resDesc.DepthOrArraySize,
             };
 
             return new Texture(texDesc, res);

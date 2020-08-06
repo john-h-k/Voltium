@@ -6,13 +6,15 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Text;
 
 namespace Voltium.Analyzers
 {
+    [Generator]
     internal sealed class VariadicGenericGenerator : PredicatedGenerator<MethodDeclarationSyntax>
     {
         private const string AttributeName = "Voltium.Common.VariadicGenericAttribute";
-        private const string TargetExpressionName = "InsertExpressionHere";
+        private const string TargetExpressionName = "InsertExpressionsHere";
         protected override void Generate(SourceGeneratorContext context, ISymbol symbol, MethodDeclarationSyntax syntax)
         {
             Debug.Assert(symbol is IMethodSymbol);
@@ -29,6 +31,10 @@ namespace Voltium.Analyzers
                 WriteMethod(builder, context, (IMethodSymbol)symbol, syntax, template, i);
                 builder.AppendLine();
             }
+
+            var source = ((IMethodSymbol)symbol).ContainingType.CreatePartialDecl(builder.ToString());
+
+            context.AddSource($"{symbol.Name}.Variadics.cs", SourceText.From(source, Encoding.UTF8));
         }
 
         private void WriteMethod(StringBuilder builder, SourceGeneratorContext context, IMethodSymbol symbol, MethodDeclarationSyntax syntax, string template, int argCount)
@@ -49,23 +55,32 @@ namespace Voltium.Analyzers
             int targetStatementIndex = 0;
             foreach (var statement in body.Statements)
             {
-                if (statement is ExpressionStatementSyntax expr && expr.Expression is  InvocationExpressionSyntax invoke
-                    && invoke.Expression is IdentifierNameSyntax target && SymbolEqualityComparer.Default.Equals(semantics.GetDeclaredSymbol(target), targetSymbol))
+                if (statement is ExpressionStatementSyntax expr
+                    && expr.Expression is InvocationExpressionSyntax invoke
+                    && SymbolEqualityComparer.Default.Equals(semantics.GetSymbolInfo(invoke).Symbol, targetSymbol))
                 {
                     break;
                 }
                 targetStatementIndex++;
             }
 
-            var stripTarget = body.Statements.RemoveAt(targetStatementIndex);
+            var stmts = body.Statements.RemoveAt(targetStatementIndex).Select(s => s.ToString()).ToList();
+
+            var insertions = Enumerable.Range(0, argCount).Select(i => template.Replace("%t", $"t{i}"));
+
+            stmts.InsertRange(targetStatementIndex, insertions);
+            builder.Append("{" + string.Join(";\n", stmts) + ";\n" + "}");
         }
 
         private void WriteMethodDecl(StringBuilder builder, SourceGeneratorContext context, IMethodSymbol symbol, MethodDeclarationSyntax syntax, int argCount)
         {
-            builder.AppendLine(symbol.ToDisplayString());
+            syntax = syntax.AddTypeParameterListParameters(Enumerable.Range(0, argCount).Select(s => SyntaxFactory.TypeParameter($"T{s}")).ToArray());
+            syntax = syntax.AddParameterListParameters(Enumerable.Range(0, argCount).Select(s => SyntaxFactory.Parameter(SyntaxFactory.Identifier($"t{s}")).WithType(SyntaxFactory.IdentifierName($"T{s} "))).ToArray());
+            builder.AppendLine(syntax.WithBody(null).WithSemicolonToken(default).ToString());
         }
 
         private const string PartialTemplate = @"
+{4}
 namespace {0}
 {{
     partial {1} {2}

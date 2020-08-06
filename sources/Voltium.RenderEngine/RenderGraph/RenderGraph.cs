@@ -18,7 +18,7 @@ namespace Voltium.RenderEngine
     /// <summary>
     /// A graph used to schedule and execute frames
     /// </summary>
-    public unsafe sealed class RenderGraph
+    public unsafe sealed partial class RenderGraph
     {
         private GraphicsDevice _device;
 
@@ -38,20 +38,8 @@ namespace Voltium.RenderEngine
             public Resolver Resolver;
         }
 
-        private struct GpuTaskBuffer8
-        {
-            public GpuTask E0;
-            public GpuTask E1;
-            public GpuTask E2;
-            public GpuTask E3;
-            public GpuTask E4;
-            public GpuTask E5;
-            public GpuTask E6;
-            public GpuTask E7;
-
-            public ref GpuTask this[uint index] => ref Unsafe.Add(ref GetPinnableReference(), (int)index);
-            public ref GpuTask GetPinnableReference() => ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref E0, 0));
-        }
+        [FixedBufferType(typeof(GpuTask), 8)]
+        private partial struct GpuTaskBuffer8 { }
 
         private uint _maxFrameLatency;
         private uint _frameIndex;
@@ -188,7 +176,7 @@ namespace Voltium.RenderEngine
             MoveToNextGraphFrame(task, preserveLastFrame: true);
         }
 
-        private void MoveToNextGraphFrame(GpuTask task, bool preserveLastFrame)
+        private void MoveToNextGraphFrame(in GpuTask task, bool preserveLastFrame)
         {
             // won't block if frame is completed
             _frames[_frameIndex].Block();
@@ -250,7 +238,7 @@ namespace Voltium.RenderEngine
             }
         }
 
-        internal ResourceHandle AddResource(ResourceDesc desc, int callerPassIndex)
+        internal ResourceHandle AddResource(in ResourceDesc desc, int callerPassIndex)
         {
             var resource = new TrackedResource
             {
@@ -357,8 +345,11 @@ namespace Voltium.RenderEngine
 
                         layer.Barriers ??= new();
 
-                        layer.Barriers.Add(resource.CreateTransition(transition.State, ResourceBarrierOptions.Full));
-
+                        // We try and add the state, which works if it is just another read state. Else add new barrier
+                        if (layer.Barriers.Count == 0 || !layer.Barriers[^1].TryAddState(transition.State))
+                        {
+                            layer.Barriers.Add(resource.CreateTransition(transition.State, ResourceBarrierOptions.Full));
+                        }
                         if (transition.State.HasUnorderedAccess())
                         {
                             layer.Barriers.Add(resource.CreateUav(ResourceBarrierOptions.Full));

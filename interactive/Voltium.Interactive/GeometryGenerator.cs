@@ -16,7 +16,7 @@ namespace Voltium.Interactive
 {
     public static class GeometryGenerator
     {
-        public static Mesh<Vertex> CreateCube(float radius)
+        public static RenderObject<Vertex> CreateCube(float radius)
         {
             var cubeVertices = new Vertex[24]
             {
@@ -57,7 +57,7 @@ namespace Voltium.Interactive
                 new Vertex(+radius, -radius, +radius, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f)
             };
 
-            return new Mesh<Vertex>(cubeVertices, CubeIndices);
+            return new RenderObject<Vertex>(cubeVertices, CubeIndices);
         }
 
         private const string AssetsFolder = "Assets/";
@@ -71,7 +71,7 @@ namespace Voltium.Interactive
         private static readonly IMaterialStreamProvider _assetsProvider = new AssetsProvider();
         private static ThreadLocal<IObjLoader> _loader = new ThreadLocal<IObjLoader>(() => { lock (_factory) { return _factory.Create(_assetsProvider); } });
 
-        public static Mesh<Vertex> LoadSingleModel(string filename, in Material material = default)
+        public static RenderObject<Vertex> LoadSingleModel(string filename, in Material material = default)
         {
             var model = _loader.Value!.Load(File.OpenRead(AssetsFolder + filename));
 
@@ -107,7 +107,7 @@ namespace Voltium.Interactive
                 }
             }
 
-            return new Mesh<Vertex>(vertices, indices, material);
+            return new RenderObject<Vertex>(vertices, indices, material);
         }
 
         private static Vector3 ToVector3(ObjVertex vertex) => new Vector3(vertex.X, vertex.Y, vertex.Z);

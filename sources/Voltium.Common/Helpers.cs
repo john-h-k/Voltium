@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
 using System.Text;
@@ -59,5 +60,8 @@ namespace Voltium.Common
 
         public static bool Int32ToBool(int val) => val != 0;
         public static int BoolToInt32(bool val) => (int)(uint)Unsafe.As<bool, byte>(ref val);
+
+        public static T* AddressOf<T>(T[] arr) where T : unmanaged => (T*)Unsafe.AsPointer(ref MemoryMarshal.GetArrayDataReference(arr));
+        public static T* AddressOf<T>(Span<T> arr) where T : unmanaged => (T*)Unsafe.AsPointer(ref MemoryMarshal.GetReference(arr));
     }
 }

@@ -44,12 +44,9 @@ namespace Voltium.Core.Devices
 
             _config = config;
 
-            Allocator = new GpuAllocator(this);
-            PipelineManager = new PipelineManager(this);
-            GraphicsQueue = new SynchronizedCommandQueue(this, ExecutionContext.Graphics);
+            GraphicsQueue = new CommandQueue(this, ExecutionContext.Graphics);
 
             CreateSwapChain();
-            CreateDescriptorHeaps();
         }
 
         // Output requires this for swapchain creation

@@ -26,24 +26,8 @@ namespace Voltium.Core.Contexts
         internal UploadContext(in ContextParams @params) : base(@params)
         {
             _listBuffers = new();
-            _transientAllocator = new DynamicAllocator(Device);
+            _transientAllocator = new DynamicAllocator(Device, MemoryAccess.CpuUpload);
         }
-
-        //private struct BufferBuffer
-        //{
-
-        //    public Buffer Buffer0;
-        //    public Buffer Buffer1;
-        //    public Buffer Buffer2;
-        //    public Buffer Buffer3;
-        //    public Buffer Buffer4;
-        //    public Buffer Buffer5;
-        //    public Buffer Buffer6;
-        //    public Buffer Buffer7;
-
-        //    public ref Buffer GetPinnableReference() => ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref Buffer0, 0));
-        //    public ref Buffer this[int index] => ref Unsafe.Add(ref GetPinnableReference(), index);
-        //}
 
         /// <summary>
         /// Uploads a buffer from the CPU to the GPU
@@ -66,30 +50,27 @@ namespace Voltium.Core.Contexts
         /// Uploads a buffer from the CPU to the GPU
         /// </summary>
         /// <param name="buffer"></param>
-        /// <param name="destination"></param>
-        public void UploadBuffer<T>(T[] buffer, out Buffer destination) where T : unmanaged
-            => UploadBuffer((ReadOnlySpan<T>)buffer, out destination);
+        public Buffer UploadBuffer<T>(T[] buffer) where T : unmanaged
+            => UploadBuffer((ReadOnlySpan<T>)buffer);
 
 
         /// <summary>
         /// Uploads a buffer from the CPU to the GPU
         /// </summary>
         /// <param name="buffer"></param>
-        /// <param name="destination"></param>
-        public void UploadBuffer<T>(Span<T> buffer, out Buffer destination) where T : unmanaged
-            => UploadBuffer((ReadOnlySpan<T>)buffer, out destination);
+        public Buffer UploadBuffer<T>(Span<T> buffer) where T : unmanaged
+            => UploadBuffer((ReadOnlySpan<T>)buffer);
 
 
         /// <summary>
         /// Uploads a buffer from the CPU to the GPU
         /// </summary>
         /// <param name="buffer"></param>
-        /// <param name="destination"></param>
-        public void UploadBuffer<T>(ReadOnlySpan<T> buffer, out Buffer destination) where T : unmanaged
+        public Buffer UploadBuffer<T>(ReadOnlySpan<T> buffer) where T : unmanaged
         {
-            destination = Device.Allocator.AllocateBuffer(buffer.Length * sizeof(T), MemoryAccess.GpuOnly, ResourceState.CopyDestination);
-
+            var destination = Device.Allocator.AllocateBuffer(buffer.Length * sizeof(T), MemoryAccess.GpuOnly, ResourceState.CopyDestination);
             UploadBufferToPreexisting(buffer, destination);
+            return destination;
         }
 
         /// <summary>
@@ -98,11 +79,11 @@ namespace Voltium.Core.Contexts
         /// <param name="texture"></param>
         /// <param name="subresources"></param>
         /// <param name="tex"></param>
-        /// <param name="destination"></param>
-        public void UploadTexture(ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, in TextureDesc tex, out Texture destination)
+        public Texture UploadTexture(ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, in TextureDesc tex)
         {
-            destination = Device.Allocator.AllocateTexture(tex, ResourceState.CopyDestination);
+            var destination = Device.Allocator.AllocateTexture(tex, ResourceState.CopyDestination);
             UploadTextureToPreexisting(texture, subresources, destination);
+            return destination;
         }
 
         /// <summary>

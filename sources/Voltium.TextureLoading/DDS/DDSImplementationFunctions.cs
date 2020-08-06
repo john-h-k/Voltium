@@ -11,7 +11,7 @@ namespace Voltium.TextureLoading.DDS
 {
     internal static class DDSImplementationFunctions
     {
-        public static LoadedTexture CreateTextureFromDds12(
+        public static FormatTexture CreateTextureFromDds12(
             DDSFileMetadata metadata,
             uint maxsize,
             LoaderFlags loaderFlags)
@@ -84,7 +84,7 @@ namespace Voltium.TextureLoading.DDS
                 Dimension = (TextureDimension)resDim
             };
 
-            return new LoadedTexture(
+            return new FormatTexture(
                 metadata.BitData,
                 desc,
                 mipCount - skipMip,
