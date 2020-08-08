@@ -19,7 +19,6 @@
     <PackageReference Include="SixLabors.ImageSharp" Version="1.0.0-rc0003" />
     <PackageReference Include="TerraFX.Interop.Windows" Version="10.0.19041-alpha-20200715.1" />
     <PackageReference Include="RaiiSharp.Annotations" Version="1.0.1" />
-    <PackageReference Include="ZLogger" Version="1.2.1" />
   </ItemGroup>
 
   <ItemGroup>

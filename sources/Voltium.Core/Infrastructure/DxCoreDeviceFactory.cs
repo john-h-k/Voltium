@@ -2,7 +2,7 @@ using System;
 using System.Text;
 using TerraFX.Interop;
 using Voltium.Common;
-using ZLogger;
+
 using static TerraFX.Interop.Windows;
 
 namespace Voltium.Core.Infrastructure

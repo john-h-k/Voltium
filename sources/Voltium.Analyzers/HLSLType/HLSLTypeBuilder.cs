@@ -1,4 +1,4 @@
-﻿namespace Voltium.Analyzers.HLSLType
+namespace Voltium.Analyzers.HLSLType
 {
     class HLSLTypeBuilder
     {

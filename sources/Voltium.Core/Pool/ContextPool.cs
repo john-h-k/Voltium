@@ -12,7 +12,7 @@ using Voltium.Common.Debugging;
 using Voltium.Core.Devices;
 using Voltium.Core.Memory;
 using Voltium.Core.Pipeline;
-using ZLogger;
+
 using SpinLock = Voltium.Common.Threading.SpinLockWrapped;
 
 namespace Voltium.Core.Pool

@@ -15,10 +15,11 @@ using Voltium.Interactive.RenderGraphSamples;
 using Voltium.RenderEngine;
 using Voltium.Interactive.HelloTriangle;
 using Voltium.Interactive.FloatMultiplySample;
+using TerraFX.Interop;
 
 namespace Voltium.Interactive
 {
-    internal static class Program
+    internal static unsafe class Program
     {
         private static int Main(string[] args)
         {

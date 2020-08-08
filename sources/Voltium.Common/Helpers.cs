@@ -19,6 +19,20 @@ namespace Voltium.Common
         public static void* Alloc(nint size) => Alloc((nuint)size);
         public static T* Alloc<T>(nint count = 1) where T : unmanaged => (T*)Alloc(sizeof(T) * count);
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool AreSame<T, U>() => typeof(T) == typeof(U);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool IsPrimitive<T>()
+            => AreSame<T, byte>() || AreSame<T, sbyte>() ||
+                AreSame<T, ushort>() || AreSame<T, short>() ||
+                AreSame<T, uint>() || AreSame<T, int>() ||
+                AreSame<T, ulong>() || AreSame<T, long>() ||
+                AreSame<T, float>() || AreSame<T, double>() ||
+                AreSame<T, bool>() ||
+                AreSame<T, char>();
+
+
         public static void Free(void* data) => Windows.HeapFree(Heap, 0, data);
 
         public static bool IsNullRef<T>(ref T val)

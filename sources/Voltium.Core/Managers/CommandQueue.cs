@@ -40,13 +40,11 @@ namespace Voltium.Core.Devices
             Type = context;
 
             _queue = device.CreateQueue(context);
-            _fence = device.CreateFence();
+            _fence = device.CreateFence(StartingFenceForContext(context));
+            _lastFence = _fence.Get()->GetCompletedValue();
 
             DebugHelpers.SetName(_queue.Get(), GetListTypeName(context) + " Queue");
             DebugHelpers.SetName(_fence.Get(), GetListTypeName(context) + " Fence");
-
-            _lastFence = StartingFenceForContext(context);
-            Guard.ThrowIfFailed(_queue.Get()->Signal(_fence.Get(), _lastFence));
 
             ulong frequency;
             int hr = _queue.Get()->GetTimestampFrequency(&frequency);

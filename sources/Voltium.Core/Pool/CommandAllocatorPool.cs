@@ -4,7 +4,7 @@ using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Devices;
 using Voltium.Core.Pool;
-using ZLogger;
+
 
 namespace Voltium.Core.Devices
 {

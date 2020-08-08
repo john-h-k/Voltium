@@ -93,9 +93,7 @@ namespace Voltium.Core.Infrastructure
             Guid iid = IID_IDXGIDevice;
             Guard.ThrowIfFailed(dxgiAdapter.Get()->CheckInterfaceSupport(&iid, &driverVersion));
 
-
-            var nullChar = new Span<char>(desc.Description, 128).IndexOf('\0');
-            var descText = new string((char*)desc.Description, 0, nullChar);
+            var descText = new string((char*)desc.Description);
 
             return new Adapter(
                 dxgiAdapter.AsIUnknown(),

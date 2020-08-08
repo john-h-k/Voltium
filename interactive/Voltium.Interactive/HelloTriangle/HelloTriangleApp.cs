@@ -31,7 +31,6 @@ namespace Voltium.Interactive.HelloTriangle
         public unsafe override void Initialize(Size outputSize, IOutputOwner output)
         {
             // Create the device and output
-            DeviceCreationSettings.EnableDebugLayer();
             _device = new GraphicsDevice(DeviceConfiguration.Default);
 
             _output = Output2D.Create(OutputConfiguration.Default, _device, output);
@@ -53,6 +52,7 @@ namespace Voltium.Interactive.HelloTriangle
             {
                 RenderTargetFormats = _output.Configuration.BackBufferFormat,
                 Topology = TopologyClass.Triangle,
+                DepthStencil = DepthStencilDesc.DisableDepthStencil,
                 VertexShader = ShaderManager.CompileShader("HelloTriangle/Shader.hlsl", ShaderType.Vertex, entrypoint: "VertexMain"),
                 PixelShader = ShaderManager.CompileShader("HelloTriangle/Shader.hlsl", ShaderType.Pixel, entrypoint: "PixelMain")
             };
@@ -61,7 +61,9 @@ namespace Voltium.Interactive.HelloTriangle
             _pso = _device.PipelineManager.CreatePipelineStateObject<HelloWorldVertex>("Draw", psoDesc);
         }
 
-        public override void OnResize(Size newOutputSize) => _output.Resize(newOutputSize); 
+        public override void OnResize(Size newOutputSize) => _output.Resize(newOutputSize);
+
+        int k = 0;
 
         public override void Update(ApplicationTimer timer) { /* This app doesn't do any updating */ }
         public override void Render()
@@ -87,6 +89,11 @@ namespace Voltium.Interactive.HelloTriangle
 
             // Present the rendered frame to the output
             _output.Present();
+
+            if (k++ == 2000)
+            {
+                _device.RemoveDevice();
+            }
         }
 
         public override void Dispose()

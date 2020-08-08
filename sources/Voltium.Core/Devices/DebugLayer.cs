@@ -9,7 +9,7 @@ using TerraFX.Interop;
 using Voltium.Common.Debugging;
 using Voltium.Core.Devices;
 using static TerraFX.Interop.Windows;
-using ZLogger;
+
 
 namespace Voltium.Common
 {
@@ -29,7 +29,7 @@ namespace Voltium.Common
     /// Defines the settings for Device-Removed Extended Data (DRED)
     /// </summary>
     [Flags]
-    public enum DredSettings
+    public enum DredFlags
     {
         /// <summary>
         /// None. DRED is disabled
@@ -58,6 +58,28 @@ namespace Voltium.Common
     }
 
     /// <summary>
+    /// Defines the settings for the debug layer
+    /// </summary>
+    [Flags]
+    public enum DebugFlags
+    {
+        /// <summary>
+        /// None. The debug layer is disabled
+        /// </summary>
+        None = 0,
+
+        /// <summary>
+        /// Enable the debug layer
+        /// </summary>
+        DebugLayer = 1 << 0,
+
+        /// <summary>
+        /// Enable GPU-based validation. This allow more thorough debugging but will significantly slow down your app
+        /// </summary>
+        GpuBasedValidation = 1 << 1,
+    }
+
+    /// <summary>
     /// Defines global settings for creation of a <see cref="ComputeDevice"/> or <see cref="GraphicsDevice"/>
     /// </summary>
     public unsafe static class DeviceCreationSettings
@@ -71,8 +93,6 @@ namespace Voltium.Common
                 ThrowHelper.ThrowInvalidOperationException("Cannot change DeviceCreationSettings after a device has been created");
             }
         }
-
-
 
         internal static bool AreMetaCommandsEnabled { get; private set; } = false;
         internal static bool AreExperimentalShaderModelsEnabled { get; private set; } = false;
@@ -162,23 +182,23 @@ namespace Voltium.Common
         /// <summary>
         /// Enables Device-Removed Extended Metadata (DRED)
         /// </summary>
-        /// <param name="features">The <see cref="DredSettings"/> to enable</param>
-        public static void EnableDred(DredSettings features)
+        /// <param name="features">The <see cref="DredFlags"/> to enable</param>
+        public static void EnableDred(DredFlags features)
         {
-            if (!_dred.Exists && features != DredSettings.None)
+            if (!_dred.Exists && features != DredFlags.None)
             {
                 ThrowHelper.ThrowPlatformNotSupportedException("GPU based device removed metadata is not supported on this system");
             }
 
-            if (features.HasFlag(DredSettings.AutoBreadcrumbs))
+            if (features.HasFlag(DredFlags.AutoBreadcrumbs))
             {
                 _dred.Get()->SetAutoBreadcrumbsEnablement(D3D12_DRED_ENABLEMENT.D3D12_DRED_ENABLEMENT_FORCED_ON);
             }
-            if (features.HasFlag(DredSettings.PageFaultMetadata))
+            if (features.HasFlag(DredFlags.PageFaultMetadata))
             {
                 _dred.Get()->SetPageFaultEnablement(D3D12_DRED_ENABLEMENT.D3D12_DRED_ENABLEMENT_FORCED_ON);
             }
-            if (features.HasFlag(DredSettings.WatsonDumpEnablement))
+            if (features.HasFlag(DredFlags.WatsonDumpEnablement))
             {
                 _dred.Get()->SetWatsonDumpEnablement(D3D12_DRED_ENABLEMENT.D3D12_DRED_ENABLEMENT_FORCED_ON);
             }
@@ -226,6 +246,7 @@ namespace Voltium.Common
         private ComPtr<IDXGIInfoQueue> _dxgiInfoQueue;
         private ComPtr<ID3D12DebugDevice> _d3d12DebugDevice;
 
+        // For some reason, Debug3 inherits from Debug, but Debug1 and Debug2 are seperate types
         // [Me]          > why is the inheritance tree of the debug layer types so confusing??!
         // [DirectX dev] > Because someone made a mistake
         //
@@ -253,18 +274,14 @@ namespace Voltium.Common
 
             _device = device;
 
-            if (!_config.Validation.GraphicsLayerValidation && _config.Validation.GpuBasedValidation)
+            if (!_config.DebugFlags.HasFlag(DebugFlags.DebugLayer) && _config.DebugFlags.HasFlag(DebugFlags.GpuBasedValidation))
             {
-                ThrowHelper.ThrowArgumentException("Cannot have GPU based validation enabled unless graphics layer validation is");
+                ThrowHelper.ThrowArgumentException("Cannot have GPU based validation enabled unless graphics layer validation is enabled");
             }
 
-            if (_config.Validation.GraphicsLayerValidation)
+            if (_config.DebugFlags.HasFlag(DebugFlags.DebugLayer))
             {
                 InitializeD3D12();
-            }
-            if (_config.Validation.InfrastructureLayerValidation)
-            {
-                InitializeDxgi();
             }
         }
 
@@ -366,8 +383,8 @@ namespace Voltium.Common
             static void ThrowIfFailed(int hr)
             {
                 LogHelper.LogError(
-                    $"if this next bit of text says E_INVALIDARG then this code is messing up. {DebugExtensions.TranslateHr(hr)}. " +
-                    "Else you have really messed up and have managed to break the debug message queue");
+                    "if this next bit of text says E_INVALIDARG then this code is messing up. {0}. " +
+                    "Else you have really messed up and have managed to break the debug message queue", DebugExtensions.TranslateHr(hr));
             }
         }
 

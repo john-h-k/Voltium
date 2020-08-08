@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
+using Microsoft.Collections.Extensions;
 using TerraFX.Interop;
 using Voltium.Allocators;
 using Voltium.Common;
@@ -49,6 +50,8 @@ namespace Voltium.Core.Devices
     /// </summary>
     public unsafe partial class ComputeDevice : IDisposable, IInternalD3D12Object
     {
+        internal static readonly List<ComputeDevice> AllDevices = new();
+
         /// <summary>
         /// The default allocator for the device
         /// </summary>
@@ -58,6 +61,7 @@ namespace Voltium.Core.Devices
         /// The default pipeline manager for the device
         /// </summary>
         public PipelineManager PipelineManager { get; private protected set; } = null!;
+
 
         private protected ComPtr<ID3D12Device> Device;
         internal SupportedDevice DeviceLevel;
@@ -152,6 +156,11 @@ namespace Voltium.Core.Devices
 
             return descs;
         }
+
+        /// <summary>
+        /// Whether the device is removed
+        /// </summary>
+        public bool IsDeviceRemoved => DevicePointer->GetDeviceRemovedReason() != S_OK;
 
         private Lazy<MetaCommandDesc[]?>? _metaCommandDescs;
 
@@ -398,11 +407,29 @@ namespace Voltium.Core.Devices
         /// <param name="config">The <see cref="DeviceConfiguration"/> to create the device with</param>
         public ComputeDevice(DeviceConfiguration config, in Adapter? adapter)
         {
+            lock (AllDevices)
+            {
+                AllDevices.Add(this);
+            }
+
             CreateNewDevice(adapter, config.RequiredFeatureLevel);
 
             if (!Device.Exists)
             {
                 ThrowHelper.ThrowPlatformNotSupportedException($"FATAL: Creation of ID3D12Device with feature level '{config.RequiredFeatureLevel}' failed");
+            }
+
+            if (config.DebugLayerConfiguration is not null)
+            {
+                if (config.DebugLayerConfiguration.DebugFlags.HasFlag(DebugFlags.DebugLayer))
+                {
+                    DeviceCreationSettings.EnableDebugLayer();
+                }
+                if (config.DebugLayerConfiguration.DebugFlags.HasFlag(DebugFlags.GpuBasedValidation))
+                {
+                    DeviceCreationSettings.EnableGpuBasedValidation();
+                }
+                DeviceCreationSettings.EnableDred(config.DebugLayerConfiguration.DredFlags);
             }
             Debug = new DebugLayer(this, config.DebugLayerConfiguration);
 
@@ -432,14 +459,48 @@ namespace Voltium.Core.Devices
             {
                 _metaCommandDescs = new Lazy<MetaCommandDesc[]?>(EnumMetaCommands);
             }
+
+            HANDLE deviceRemoved = CreateEventW(null, FALSE, FALSE, null);
+            _residencyFence.Get()->SetEventOnCompletion(ulong.MaxValue, deviceRemoved);
+
+            var weakThis = GCHandle.Alloc(this, GCHandleType.Weak);
+
+            IntPtr waitHandle;
+            RegisterWaitForSingleObject(
+              &waitHandle,
+              deviceRemoved,
+              (delegate* stdcall<void*, byte, void>)(delegate*<void*, byte, void>)&NativeOnDeviceRemoved,
+              (void*)GCHandle.ToIntPtr(weakThis), // Pass the device as our context
+              INFINITE, // No timeout
+              0 // No flags
+            );
         }
 
-        internal unsafe ComPtr<ID3D12Fence> CreateFence()
+        [UnmanagedCallersOnly]
+        private static void NativeOnDeviceRemoved(void* deviceHandle, byte _)
+        {
+            var handle = GCHandle.FromIntPtr((IntPtr)deviceHandle);
+
+            if (handle.Target is not null)
+            {
+                var device = (ComputeDevice)handle.Target;
+                device.OnDeviceRemoved();
+            }
+        }
+
+        internal void ThrowIfFailed(int hr) { }
+
+        private void OnDeviceRemoved()
+        {
+            throw new DeviceDisconnectedException(this);
+        }
+
+        internal unsafe ComPtr<ID3D12Fence> CreateFence(ulong startValue = 0)
         {
             ComPtr<ID3D12Fence> fence = default;
 
             Guard.ThrowIfFailed(DevicePointer->CreateFence(
-                0,
+                startValue,
                 0,
                 fence.Iid,
                 (void**)&fence
@@ -455,24 +516,24 @@ namespace Voltium.Core.Devices
         {
             var usedAdapter = adapter is Adapter notNull ? notNull : DefaultAdapter;
 
-            if (PreexistingDevices.Contains(adapter.GetValueOrDefault().AdapterLuid))
+            if (PreexistingDevices.Contains(usedAdapter.AdapterLuid))
             {
                 ThrowHelper.ThrowArgumentException("Device already exists for adapter");
             }
 
             {
-                using ComPtr<ID3D12Device> p = default;
+                using ComPtr<ID3D12Device> device = default;
 
                 Guard.ThrowIfFailed(D3D12CreateDevice(
-                    // null device triggers D3D12 to select a default device
                     usedAdapter.GetAdapterPointer(),
                     (D3D_FEATURE_LEVEL)level,
-                    p.Iid,
-                    ComPtr.GetVoidAddressOf(&p)
+                    device.Iid,
+                    ComPtr.GetVoidAddressOf(&device)
                 ));
-                Device = p.Move();
 
-                LogHelper.LogInformation($"New D3D12 device created from adapter: \n{usedAdapter}");
+                Device = device.Move();
+
+                LogHelper.LogInformation("New D3D12 device created from adapter: \n{0}", usedAdapter);
             }
 
             this.SetName("Primary Device");
@@ -496,11 +557,19 @@ namespace Voltium.Core.Devices
             Adapter = usedAdapter;
         }
 
-        internal void QueryFeatureSupport<T>(D3D12_FEATURE feature, ref T val) where T : unmanaged
+        /// <summary>
+        /// Only use this method for debugging. It immeditately removes the device
+        /// </summary>
+        public void RemoveDevice()
         {
-            fixed (T* pVal = &val)
+            if (DeviceLevel >= SupportedDevice.Device5)
             {
-                Guard.ThrowIfFailed(DevicePointer->CheckFeatureSupport(feature, pVal, (uint)sizeof(T)));
+                DevicePointerAs<ID3D12Device5>()->RemoveDevice();
+            }
+            else
+            {
+                // Guaranteed to remove the device, but more risky
+                DevicePointer->CreateRenderTargetView(null, null, new D3D12_CPU_DESCRIPTOR_HANDLE { ptr = unchecked((nuint)(-1)) });
             }
         }
 
@@ -509,13 +578,21 @@ namespace Voltium.Core.Devices
             Guard.ThrowIfFailed(DevicePointer->CheckFeatureSupport(feature, pVal, (uint)sizeof(T)));
         }
 
+        internal void QueryFeatureSupport<T>(D3D12_FEATURE feature, out T val) where T : unmanaged
+        {
+            fixed (T* pVal = &val)
+            {
+                Guard.ThrowIfFailed(DevicePointer->CheckFeatureSupport(feature, pVal, (uint)sizeof(T)));
+            }
+        }
+
         private protected virtual void QueryFeaturesOnCreation()
         {
             D3D12_FEATURE_DATA_SHADER_MODEL highest;
 
             // the highest shader model that the app understands
             highest.HighestShaderModel = D3D_SHADER_MODEL.D3D_SHADER_MODEL_6_6;
-            QueryFeatureSupport(D3D12_FEATURE_SHADER_MODEL, ref highest);
+            QueryFeatureSupport(D3D12_FEATURE_SHADER_MODEL, &highest);
 
             GetMajorMinorForShaderModel(highest.HighestShaderModel, out var major, out var minor);
             HighestSupportedShaderModel = new ShaderModel(ShaderType.Unspecified, (byte)major, (byte)minor);
@@ -540,6 +617,28 @@ namespace Voltium.Core.Devices
             var success = ComPtr.TryQueryInterface(DevicePointer, out T* val);
             result = new ComPtr<T>(val);
             return success;
+        }
+
+        internal bool HasInterface<T>() where T : unmanaged
+        {
+            var success = ComPtr.TryQueryInterface(DevicePointer, out T* val);
+
+            if ((void*)val is null)
+            {
+                ((IUnknown*)val)->Release();
+            }
+
+            return success;
+        }
+
+        internal ComPtr<T> QueryInterface<T>() where T : unmanaged
+        {
+            var success = ComPtr.TryQueryInterface(DevicePointer, out T* val);
+            if (!success)
+            {
+                ThrowHelper.ThrowInvalidCastException(nameof(T));
+            }
+            return new ComPtr<T>(val);
         }
 
         /// <summary>

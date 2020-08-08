@@ -64,8 +64,7 @@ namespace Voltium.Core.Memory
             Debug.Assert(device is not null);
             _device = device;
 
-            D3D12_FEATURE_DATA_D3D12_OPTIONS options = default;
-            _device.QueryFeatureSupport(D3D12_FEATURE.D3D12_FEATURE_D3D12_OPTIONS, &options);
+            _device.QueryFeatureSupport(D3D12_FEATURE.D3D12_FEATURE_D3D12_OPTIONS, out D3D12_FEATURE_DATA_D3D12_OPTIONS options);
             _hasMergedHeapSupport = options.ResourceHeapTier == D3D12_RESOURCE_HEAP_TIER.D3D12_RESOURCE_HEAP_TIER_2;
 
             if (_hasMergedHeapSupport)

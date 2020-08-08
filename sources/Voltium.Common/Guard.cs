@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
-using ZLogger;
 using static TerraFX.Interop.Windows;
 
 namespace Voltium.Common
@@ -116,7 +115,7 @@ namespace Voltium.Common
 #endif
         )
         {
-            // invert branch so JIT assumes the HR is S_OK
+            // invert branch so JIT assumes the HR is success
             if (SUCCEEDED(hr) || hr == E_NOINTERFACE)
             {
                 return hr != E_NOINTERFACE;
@@ -162,7 +161,7 @@ namespace Voltium.Common
         [DebuggerNonUserCode]
         [DebuggerStepThrough]
         [MethodImpl(MethodTypes.ThrowHelperMethod)]
-        private static void ThrowForHr(
+        private static unsafe void ThrowForHr(
             int hr,
 #if DEBUG || EXTENDED_ERROR_INFORMATION
             [CallerArgumentExpression("hr")] string? expression = null,
@@ -173,6 +172,9 @@ namespace Voltium.Common
             string? extraInfo = null
         )
         {
+            //if (hr == DXGI_ERROR_DEVICE_REMOVED)
+                //return;
+
             var nativeMessage = $"Native code threw an exception with HR '0x{hr:X8}', message '{ResolveErrorCode(hr)}'.";
 
 
@@ -193,6 +195,7 @@ namespace Voltium.Common
                 additionalInfo
             );
 
+            
             Exception ex = hr switch
             {
                 E_INVALIDARG => new ArgumentException(inner.Message, inner),
@@ -200,6 +203,7 @@ namespace Voltium.Common
                 E_POINTER => new ArgumentNullException(inner.Message, inner),
                 E_FAIL => new InvalidOperationException(inner.Message, inner),
                 E_OUTOFMEMORY => new OutOfMemoryException(inner.Message, inner),
+                E_NOTIMPL => new NotImplementedException(inner.Message, inner),
                 _ => inner,
             };
 

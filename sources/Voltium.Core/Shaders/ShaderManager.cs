@@ -9,7 +9,7 @@ using TerraFX.Interop;
 using Voltium.Allocators;
 using Voltium.Common;
 using Voltium.Core.Devices.Shaders;
-using ZLogger;
+
 using static TerraFX.Interop.Windows;
 
 namespace Voltium.Core.Devices

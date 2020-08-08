@@ -8,7 +8,6 @@ using Voltium.Core.Configuration.Graphics;
 using Voltium.Core.Memory;
 using Voltium.Core.Infrastructure;
 using Voltium.Core.Pipeline;
-using ZLogger;
 using static TerraFX.Interop.Windows;
 using Voltium.Core.Pool;
 
@@ -26,11 +25,37 @@ namespace Voltium.Core.Devices
         private bool _disposed;
 
         /// <summary>
-        /// 
+        /// Block until this device has idled on all queues
         /// </summary>
         public void Idle()
         {
-            GraphicsQueue.GetSynchronizerForIdle().Block();
+            var graphics = GraphicsQueue.GetSynchronizerForIdle();
+            var compute = ComputeQueue.GetSynchronizerForIdle();
+            var copy = CopyQueue.GetSynchronizerForIdle();
+
+            if (DeviceLevel >= SupportedDevice.Device1)
+            {
+                var fences = stackalloc ID3D12Fence*[3];
+                var fenceValues = stackalloc ulong[3];
+
+                graphics.GetFenceAndMarker(out fences[0], out fenceValues[0]);
+                compute.GetFenceAndMarker(out fences[1], out fenceValues[1]);
+                copy.GetFenceAndMarker(out fences[2], out fenceValues[2]);
+
+                Guard.ThrowIfFailed(DevicePointerAs<ID3D12Device1>()->SetEventOnMultipleFenceCompletion(
+                    fences,
+                    fenceValues,
+                    3,
+                    D3D12_MULTIPLE_FENCE_WAIT_FLAGS.D3D12_MULTIPLE_FENCE_WAIT_FLAG_ALL,
+                    default
+                ));
+            }
+            else
+            {
+                graphics.Block();
+                compute.Block();
+                copy.Block();
+            }
         }
 
         /// <summary>
@@ -62,7 +87,7 @@ namespace Voltium.Core.Devices
                 desc.SampleCount = sampleCount;
                 desc.Format = DXGI_FORMAT.DXGI_FORMAT_R8G8B8A8_UNORM;
 
-                QueryFeatureSupport(D3D12_FEATURE.D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS, ref desc);
+                QueryFeatureSupport(D3D12_FEATURE.D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS, &desc);
 
                 return desc.NumQualityLevels;
             }
@@ -227,8 +252,6 @@ namespace Voltium.Core.Devices
             _disposed = true;
 
             base.Dispose();
-
-            Debug?.ReportDeviceLiveObjects();
 
             GraphicsQueue.Dispose();
         }
