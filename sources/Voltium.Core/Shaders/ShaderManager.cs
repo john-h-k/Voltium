@@ -75,9 +75,9 @@ namespace Voltium.Core.Devices
             ComPtr<IDxcUtils> utils = default;
 
             Guid clsid = CLSID_DxcCompiler;
-            Guard.ThrowIfFailed(DxcCreateInstance(&clsid, compiler.Iid, ComPtr.GetVoidAddressOf(&compiler)));
+            Guard.ThrowIfFailed(DxcCreateInstance(&clsid, compiler.Iid, (void**)&compiler));
             clsid = CLSID_DxcUtils;
-            Guard.ThrowIfFailed(DxcCreateInstance(&clsid, utils.Iid, ComPtr.GetVoidAddressOf(&utils)));
+            Guard.ThrowIfFailed(DxcCreateInstance(&clsid, utils.Iid, (void**)&utils));
 
             Compiler = compiler.Move();
             Utils = utils.Move();
@@ -420,7 +420,7 @@ namespace Voltium.Core.Devices
                     (uint)(flagPointerLength / sizeof(nuint)),
                     pInclude,
                     compileResult.Iid,
-                    ComPtr.GetVoidAddressOf(&compileResult)
+                    (void**)&compileResult
                 ));
 
                 int statusHr;

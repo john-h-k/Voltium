@@ -144,7 +144,7 @@ namespace Voltium.Common
                 _localBlocks.Add(data);
 
                 // Create the final
-                _localBlocks.GetRefUnsafe(_localBlocks.Count).StartTick = Stopwatch.GetTimestamp();
+                _localBlocks.GetRefUnsafe(_localBlocks.Count - 1).StartTick = Stopwatch.GetTimestamp();
 
                 data.Name = name;
                 data.Flags = flags;

@@ -42,7 +42,7 @@ namespace Voltium.Core.Devices
                 compute.GetFenceAndMarker(out fences[1], out fenceValues[1]);
                 copy.GetFenceAndMarker(out fences[2], out fenceValues[2]);
 
-                Guard.ThrowIfFailed(DevicePointerAs<ID3D12Device1>()->SetEventOnMultipleFenceCompletion(
+                ThrowIfFailed(DevicePointerAs<ID3D12Device1>()->SetEventOnMultipleFenceCompletion(
                     fences,
                     fenceValues,
                     3,
@@ -234,8 +234,8 @@ namespace Voltium.Core.Devices
             D3D12_DRED_AUTO_BREADCRUMBS_OUTPUT breadcrumbs;
             D3D12_DRED_PAGE_FAULT_OUTPUT pageFault;
 
-            Guard.ThrowIfFailed(dred->GetAutoBreadcrumbsOutput(&breadcrumbs));
-            Guard.ThrowIfFailed(dred->GetPageFaultAllocationOutput(&pageFault));
+            ThrowIfFailed(dred->GetAutoBreadcrumbsOutput(&breadcrumbs));
+            ThrowIfFailed(dred->GetPageFaultAllocationOutput(&pageFault));
 
             // TODO dred logging
         }

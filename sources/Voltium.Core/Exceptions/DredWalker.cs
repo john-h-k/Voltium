@@ -1,6 +1,7 @@
 using System;
 using TerraFX.Interop;
 using Voltium.Common;
+using Voltium.Core.Devices;
 using static TerraFX.Interop.D3D12_AUTO_BREADCRUMB_OP;
 using static TerraFX.Interop.D3D12_DRED_ALLOCATION_TYPE;
 using static TerraFX.Interop.Windows;

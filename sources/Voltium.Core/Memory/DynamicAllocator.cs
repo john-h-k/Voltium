@@ -237,7 +237,7 @@ namespace Voltium.Core.Memory
 
                 using ComPtr<ID3D12Resource> page = _device.CreateCommittedResource(&desc);
 
-                var buff = new Buffer(size, new GpuResource(page.Move(), desc, null));
+                var buff = new Buffer(size, new GpuResource(_device, page.Move(), desc, null));
 
                 if (_access == MemoryAccess.CpuUpload)
                 {

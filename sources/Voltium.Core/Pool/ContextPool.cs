@@ -85,7 +85,7 @@ namespace Voltium.Core.Pool
 
             if (allocators.TryDequeue(out var allocator, &IsAllocatorFinished))
             {
-                Guard.ThrowIfFailed(allocator.Allocator.Get()->Reset());
+                _device.ThrowIfFailed(allocator.Allocator.Get()->Reset());
             }
             else
             {
@@ -94,7 +94,7 @@ namespace Voltium.Core.Pool
 
             if (lists.TryDequeue(out var list))
             {
-                Guard.ThrowIfFailed(list.Get()->Reset(allocator.Allocator.Get(), pso is null ? null : pso.GetPso()));
+                _device.ThrowIfFailed(list.Get()->Reset(allocator.Allocator.Get(), pso is null ? null : pso.GetPso()));
             }
             else
             {

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Runtime.CompilerServices;
 using TerraFX.Interop;
@@ -12,7 +12,7 @@ namespace Voltium.Core.Devices
     internal unsafe partial struct DxcIncludeHandler : IDisposable
     {
         private ComPtr<IDxcUtils> _utils;
-        private IncludeHandler _handler;
+        private static IncludeHandler _handler;
 
         public string AppDirectory
         {

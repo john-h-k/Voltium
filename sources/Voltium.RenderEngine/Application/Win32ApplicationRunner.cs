@@ -110,7 +110,7 @@ namespace Voltium.Core
             if (_timer.TotalSeconds - _lastUpdatedTitle >= 1)
             {
                 _lastUpdatedTitle = _timer.TotalSeconds;
-                fixed (char* pTitle = _application.WindowTitle)
+                fixed (char* pTitle = _application.WindowTitle + " FPS: " + _timer.FramesPerSeconds.ToString())
                 {
                     int result = SetWindowTextW(Hwnd, (ushort*)pTitle);
                     Debug.Assert(result != 0 /* nonzero is success */);

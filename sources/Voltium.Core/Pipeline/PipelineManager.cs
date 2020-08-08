@@ -118,10 +118,10 @@ namespace Voltium.Core.Devices
                 desc.InputLayout = new D3D12_INPUT_LAYOUT_DESC { NumElements = (uint)graphicsDesc.Inputs.Length, pInputElementDescs = pDesc };
 
                 using ComPtr<ID3D12PipelineState> pso = default;
-                Guard.ThrowIfFailed(_device.DevicePointer->CreateGraphicsPipelineState(
+                _device.ThrowIfFailed(_device.DevicePointer->CreateGraphicsPipelineState(
                     &desc,
                     pso.Iid,
-                    ComPtr.GetVoidAddressOf(&pso)
+                    (void**)&pso
                 ));
 
                 // Prevent GC disposing it while translation occurs etc
@@ -161,7 +161,7 @@ namespace Voltium.Core.Devices
             if (!IsLegacy)
             {
                 using ComPtr<ID3D12PipelineLibrary> psoLibrary = default;
-                int hr = _device.DevicePointerAs<ID3D12Device1>()->CreatePipelineLibrary(null, 0, psoLibrary.Iid, ComPtr.GetVoidAddressOf(&psoLibrary));
+                int hr = _device.DevicePointerAs<ID3D12Device1>()->CreatePipelineLibrary(null, 0, psoLibrary.Iid, (void**)&psoLibrary);
                 _psoLibrary = psoLibrary.Move();
 
                 if (hr == Windows.DXGI_ERROR_UNSUPPORTED)
@@ -195,10 +195,10 @@ namespace Voltium.Core.Devices
                 };
 
                 using ComPtr<ID3D12PipelineState> pso = default;
-                Guard.ThrowIfFailed(_device.DevicePointer->CreateComputePipelineState(
+                _device.ThrowIfFailed(_device.DevicePointer->CreateComputePipelineState(
                     &desc,
                     pso.Iid,
-                    ComPtr.GetVoidAddressOf(&pso)
+                    (void**)&pso
                 ));
 
                 DebugHelpers.SetName(pso.Get(), $"Compute pipeline state object '{name}'");
@@ -258,7 +258,7 @@ namespace Voltium.Core.Devices
                 fixed (char* pName = name)
                 {
                     using ComPtr<ID3D12PipelineState> pso = default;
-                    _psoLibrary.Get()->LoadGraphicsPipeline((ushort*)pName, &desc, pso.Iid, ComPtr.GetVoidAddressOf(&pso));
+                    _psoLibrary.Get()->LoadGraphicsPipeline((ushort*)pName, &desc, pso.Iid, (void**)&pso);
 
                     // Prevent GC disposing it while translation occurs etc
                     GC.KeepAlive(strBuff);
@@ -293,7 +293,7 @@ namespace Voltium.Core.Devices
                 fixed (char* pName = name)
                 {
                     using ComPtr<ID3D12PipelineState> pso = default;
-                    _psoLibrary.Get()->LoadComputePipeline((ushort*)pName, &desc, pso.Iid, ComPtr.GetVoidAddressOf(&pso));
+                    _psoLibrary.Get()->LoadComputePipeline((ushort*)pName, &desc, pso.Iid, (void**)&pso);
 
                     return (ComputePipelineStateObject)_psoMap[pso];
                 }

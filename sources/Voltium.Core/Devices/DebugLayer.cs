@@ -100,14 +100,14 @@ namespace Voltium.Common
         private static ComPtr<IDXGIDebug1> _dxgiDebugLayer = GetDxgiDebug();
         private static ComPtr<IDXGraphicsAnalysis> _frameCapture = GetPixIfAttached();
         private static ComPtr<ID3D12Debug> _debug = GetDebug(out _supportedLayer);
-        private static ComPtr<ID3D12DeviceRemovedExtendedDataSettings> _dred = GetDred();
+        private static ComPtr<ID3D12DeviceRemovedExtendedDataSettings1> _dred = GetDred();
         private static SupportedDebugLayer _supportedLayer;
         private enum SupportedDebugLayer { Unknown, Debug, Debug3 };
 
         private static ComPtr<ID3D12Debug> GetDebug(out SupportedDebugLayer supportedLayer)
         {
             using ComPtr<ID3D12Debug> debug = default;
-            Guard.TryGetInterface(D3D12GetDebugInterface(debug.Iid, ComPtr.GetVoidAddressOf(&debug)));
+            Guard.TryGetInterface(D3D12GetDebugInterface(debug.Iid, (void**)&debug));
             supportedLayer = debug.HasInterface<ID3D12Debug3>() ? SupportedDebugLayer.Debug3 : SupportedDebugLayer.Debug;
             return debug.Move();
         }
@@ -115,21 +115,21 @@ namespace Voltium.Common
         private static ComPtr<IDXGIDebug1> GetDxgiDebug()
         {
             using ComPtr<IDXGIDebug1> debug = default;
-            Guard.TryGetInterface(DXGIGetDebugInterface1(0, debug.Iid, ComPtr.GetVoidAddressOf(&debug)));
+            Guard.TryGetInterface(DXGIGetDebugInterface1(0, debug.Iid, (void**)&debug));
             return debug.Move();
         }
 
-        private static ComPtr<ID3D12DeviceRemovedExtendedDataSettings> GetDred()
+        private static ComPtr<ID3D12DeviceRemovedExtendedDataSettings1> GetDred()
         {
-            using ComPtr<ID3D12DeviceRemovedExtendedDataSettings> dredSettings = default;
-            Guard.TryGetInterface(D3D12GetDebugInterface(dredSettings.Iid, ComPtr.GetVoidAddressOf(&dredSettings)));
-            return dredSettings;
+            using ComPtr<ID3D12DeviceRemovedExtendedDataSettings1> dredSettings = default;
+            Guard.TryGetInterface(D3D12GetDebugInterface(dredSettings.Iid, (void**)&dredSettings));
+            return dredSettings.Move();
         }
 
         private static ComPtr<IDXGraphicsAnalysis> GetPixIfAttached()
         {
             using ComPtr<IDXGraphicsAnalysis> analysis = default;
-            Guard.TryGetInterface(DXGIGetDebugInterface1(0, analysis.Iid, ComPtr.GetVoidAddressOf(&analysis)));
+            Guard.TryGetInterface(DXGIGetDebugInterface1(0, analysis.Iid, (void**)&analysis));
             if (analysis.Exists)
             {
                 LogHelper.LogInformation("PIX debugger is attached");
@@ -308,7 +308,7 @@ namespace Voltium.Common
             {
                 ThrowHelper.ThrowInvalidOperationException("Cannot ReportDeviceLiveObjects because layer was not created with GraphicsLayerValidation. Try ReportLiveObjects instead");
             }
-            Guard.ThrowIfFailed(_d3d12DebugDevice.Get()->ReportLiveDeviceObjects((D3D12_RLDO_FLAGS)flags));
+            _device.ThrowIfFailed(_d3d12DebugDevice.Get()->ReportLiveDeviceObjects((D3D12_RLDO_FLAGS)flags));
         }
 
         public void FlushQueues()
@@ -379,7 +379,7 @@ namespace Voltium.Common
                 }
             }
 
-            // Guard.ThrowIfFailed calls this to flush messages, so we can't call it
+            // _device.ThrowIfFailed calls this to flush messages, so we can't call it
             static void ThrowIfFailed(int hr)
             {
                 LogHelper.LogError(
@@ -413,20 +413,20 @@ namespace Voltium.Common
                 }
             };
 
-            Guard.ThrowIfFailed(_d3d12InfoQueue.Get()->AddRetrievalFilterEntries(&filter));
+            _device.ThrowIfFailed(_d3d12InfoQueue.Get()->AddRetrievalFilterEntries(&filter));
 
             GetSeveritiesForLogLevel(_config.BreakpointLogLevel, allowedSeverities, out int numBreakOn);
 
             for (var i = 0; i < numBreakOn; i++)
             {
-                Guard.ThrowIfFailed(_d3d12InfoQueue.Get()->SetBreakOnSeverity(allowedSeverities[i], TRUE));
+                _device.ThrowIfFailed(_d3d12InfoQueue.Get()->SetBreakOnSeverity(allowedSeverities[i], TRUE));
             }
         }
 
         private void InitializeDxgi()
         {
             ComPtr<IDXGIInfoQueue> infoQueue = default;
-            Guard.ThrowIfFailed(DXGIGetDebugInterface1(0, infoQueue.Iid, ComPtr.GetVoidAddressOf(&infoQueue)));
+            _device.ThrowIfFailed(DXGIGetDebugInterface1(0, infoQueue.Iid, (void**)&infoQueue));
             _dxgiInfoQueue = infoQueue.Move();
 
             // we deny retrieving anything that isn't an error/warning/corruption
@@ -443,13 +443,13 @@ namespace Voltium.Common
                 }
             };
 
-            Guard.ThrowIfFailed(_dxgiInfoQueue.Get()->AddRetrievalFilterEntries(_dxgiProducerId, &filter));
+            _device.ThrowIfFailed(_dxgiInfoQueue.Get()->AddRetrievalFilterEntries(_dxgiProducerId, &filter));
 
             GetSeveritiesForLogLevel(_config.BreakpointLogLevel, allowedSeverities, out int numBreakOn);
 
             for (var i = 0; i < numBreakOn; i++)
             {
-                Guard.ThrowIfFailed(_dxgiInfoQueue.Get()->SetBreakOnSeverity(_dxgiProducerId, allowedSeverities[i], TRUE));
+                _device.ThrowIfFailed(_dxgiInfoQueue.Get()->SetBreakOnSeverity(_dxgiProducerId, allowedSeverities[i], TRUE));
             }
         }
 

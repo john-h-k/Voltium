@@ -16,6 +16,8 @@ using Voltium.RenderEngine;
 using Voltium.Interactive.HelloTriangle;
 using Voltium.Interactive.FloatMultiplySample;
 using TerraFX.Interop;
+using Voltium.Common;
+using Voltium.Core.Exceptions;
 
 namespace Voltium.Interactive
 {
@@ -23,7 +25,7 @@ namespace Voltium.Interactive
     {
         private static int Main(string[] args)
         {
-            var application = new HelloTriangleApp();
+            var application = new RenderPipeline();
             return ApplicationRunner.RunWin32(application);
         }
     }

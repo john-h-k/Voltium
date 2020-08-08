@@ -12,6 +12,7 @@ namespace Voltium.Core.Devices
 {
     internal unsafe struct CommandQueue : IDisposable, IInternalD3D12Object
     {
+        private ComputeDevice _device;
         private ComPtr<ID3D12CommandQueue> _queue;
         private ComPtr<ID3D12Fence> _fence;
         private ulong _lastFence;
@@ -39,6 +40,7 @@ namespace Voltium.Core.Devices
 
             Type = context;
 
+            _device = device;
             _queue = device.CreateQueue(context);
             _fence = device.CreateFence(StartingFenceForContext(context));
             _lastFence = _fence.Get()->GetCompletedValue();
@@ -57,7 +59,7 @@ namespace Voltium.Core.Devices
             else
             {
                 Frequency = 0;
-                Guard.ThrowIfFailed(hr, "_queue.Get()->GetTimestampFrequency(&frequency)");
+                _device.ThrowIfFailed(hr, "_queue.Get()->GetTimestampFrequency(&frequency)");
             }
         }
 
@@ -82,13 +84,13 @@ namespace Voltium.Core.Devices
         public void Wait(in GpuTask waitable)
         {
             waitable.GetFenceAndMarker(out var fence, out var marker);
-            Guard.ThrowIfFailed(_queue.Get()->Wait(fence, marker));
+            _device.ThrowIfFailed(_queue.Get()->Wait(fence, marker));
         }
 
         public GpuTask Signal()
         {
-            Guard.ThrowIfFailed(_queue.Get()->Signal(_fence.Get(), Interlocked.Increment(ref _lastFence)));
-            return new GpuTask(_fence, _lastFence);
+            _device.ThrowIfFailed(_queue.Get()->Signal(_fence.Get(), Interlocked.Increment(ref _lastFence)));
+            return new GpuTask(_device, _fence, _lastFence);
         }
 
         public void Dispose()

@@ -50,13 +50,13 @@ namespace Voltium.Core.Pool
         protected override ComPtr<ID3D12GraphicsCommandList> Create(ListCreationParams state)
         {
             using ComPtr<ID3D12GraphicsCommandList> list = default;
-            Guard.ThrowIfFailed(_device.DevicePointer->CreateCommandList(
+            _device.ThrowIfFailed(_device.DevicePointer->CreateCommandList(
                 0, // TODO: MULTI-GPU
                 state.Type,
                 state.Allocator,
                 state.Pso,
                 list.Iid,
-                ComPtr.GetVoidAddressOf(&list)
+                (void**)&list
             ));
 
             LogHelper.LogDebug($"New command list allocated (this is the #{_listCount++} list)");
@@ -64,7 +64,7 @@ namespace Voltium.Core.Pool
             DebugHelpers.SetName(list.Get(), $"Pooled list #{_listCount}");
 
             // 'ManageRent' expects closed list
-            Guard.ThrowIfFailed(list.Get()->Close());
+            _device.ThrowIfFailed(list.Get()->Close());
 
             return list.Move();
         }
@@ -76,7 +76,7 @@ namespace Voltium.Core.Pool
 
         protected override void ManageRent(ref ComPtr<ID3D12GraphicsCommandList> value, ListCreationParams state)
         {
-            Guard.ThrowIfFailed(value.Get()->Reset(state.Allocator, state.Pso));
+            _device.ThrowIfFailed(value.Get()->Reset(state.Allocator, state.Pso));
         }
 
         protected override void ManageReturn(ref ComPtr<ID3D12GraphicsCommandList> value)

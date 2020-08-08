@@ -29,8 +29,6 @@ namespace Voltium.Interactive.BasicRenderPipeline
 
         public override unsafe void Initialize(Size data, IOutputOwner output)
         {
-            DeviceCreationSettings.EnableDebugLayer();
-
             var config = new DeviceConfiguration
             {
                 RequiredFeatureLevel = FeatureLevel.GraphicsLevel11_0,
@@ -62,11 +60,13 @@ namespace Voltium.Interactive.BasicRenderPipeline
             };
 
 
-            _renderer = new BasicSceneRenderer(_device);
+            _renderer = new BasicSceneRenderer(_device, _output);
             _msaaPass = new MsaaPass();
             _outputPass = new TonemapPass(_output);
 
             _graph = new RenderGraph(_device, _output.Configuration.BackBufferCount);
+
+            GC.Collect();
         }
 
         public override void Update(ApplicationTimer timer)
@@ -74,17 +74,22 @@ namespace Voltium.Interactive.BasicRenderPipeline
         }
 
         private RenderGraph _graph = null!;
+        private int _frameIndex;
         public override unsafe void Render()
         {
+            Console.WriteLine(_frameIndex);
+
             _graph.CreateComponent(_settings);
 
             _graph.AddPass(_renderer);
-            _graph.AddPass(_msaaPass);
-            _graph.AddPass(_outputPass);
+            //_graph.AddPass(_msaaPass);
+            //_graph.AddPass(_outputPass);
 
             _graph.ExecuteGraph();
 
             _output.Present();
+
+            _frameIndex++;
         }
 
         public override void Dispose()

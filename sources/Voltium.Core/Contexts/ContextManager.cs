@@ -29,7 +29,7 @@ namespace Voltium.Core
     //            _pso = newPso;
     //        }
 
-    //        Guard.ThrowIfFailed(_list.Get()->Reset(
+    //        _device.ThrowIfFailed(_list.Get()->Reset(
     //            newAllocator,
     //            _pso.Get()
     //        ));
@@ -42,7 +42,7 @@ namespace Voltium.Core
     //    /// </summary>
     //    public void Close()
     //    {
-    //        Guard.ThrowIfFailed(_list.Get()->Close());
+    //        _device.ThrowIfFailed(_list.Get()->Close());
     //        _state = ListState.Closed;
     //    }
 

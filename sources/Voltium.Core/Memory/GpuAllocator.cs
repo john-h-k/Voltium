@@ -280,7 +280,7 @@ namespace Voltium.Core.Memory
         {
             D3D12_HEAP_PROPERTIES props;
             D3D12_HEAP_FLAGS flags;
-            Guard.ThrowIfFailed(allocation.GetResourcePointer()->GetHeapProperties(&props, &flags));
+            _device.ThrowIfFailed(allocation.GetResourcePointer()->GetHeapProperties(&props, &flags));
             var desc = allocation.GetResourcePointer()->GetDesc();
 
             return ref GetHeapPool(props.Type, GetResType(desc.Dimension, desc.Flags));
@@ -399,6 +399,7 @@ namespace Voltium.Core.Memory
             var resource = _device.CreateCommittedResource(desc);
 
             return new GpuResource(
+                _device,
                 resource.Move(),
                 *desc,
                 null,
@@ -471,6 +472,7 @@ namespace Voltium.Core.Memory
             var resource = _device.CreatePlacedResource(heap.Heap.Get(), block.Offset, desc);
 
             return new GpuResource(
+                _device,
                 resource.Move(),
                 *desc,
                 this,

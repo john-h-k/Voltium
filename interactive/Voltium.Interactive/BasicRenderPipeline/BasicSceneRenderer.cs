@@ -74,13 +74,15 @@ namespace Voltium.Interactive.BasicRenderPipeline
         private Buffer _obj;
         private Buffer _frame;
         private Buffer _light;
+        private Output2D _target;
 
         private const DataFormat DepthStencilFormat = DataFormat.Depth32Single;
         private const DataFormat RenderTargetFormat = DataFormat.R8G8B8A8UnsignedNormalized;
 
-        public BasicSceneRenderer(GraphicsDevice device)
+        public BasicSceneRenderer(GraphicsDevice device, Output2D target)
         {
             _device = device;
+            _target = target;
 
             _device.PipelineManager.Reset();
 
@@ -240,6 +242,8 @@ namespace Voltium.Interactive.BasicRenderPipeline
             _light.WriteConstantBufferData(ref _sceneLight, 0);
         }
 
+        public override OutputDesc Output => OutputDesc.FromBackBuffer(OutputClass.Primary, _target);
+
         public override void Register(ref RenderPassBuilder builder, ref Resolver resolver)
         {
             var resources = new PipelineResources();
@@ -269,7 +273,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
         {
             WriteConstantBuffers();
 
-            using var _ = recorder.BeginEvent(Argb32.Red, "BasicSceneRenderer");
+            //using var _ = recorder.BeginEvent(Argb32.Red, "BasicSceneRenderer");
 
             var resources = resolver.GetComponent<PipelineResources>();
             var settings = resolver.GetComponent<PipelineSettings>();
@@ -291,7 +295,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
             recorder.SetTopology(Topology.TriangeList);
 
             using (Profiler.BeginProfileBlock("Render Object"))
-            using (recorder.BeginEvent(Argb32.AliceBlue, "Render Objects"))
+            //using (recorder.BeginEvent(Argb32.AliceBlue, "Render Objects"))
             {
                 for (var i = 0u; i < _texturedObjects.Length; i++)
                 {
@@ -302,6 +306,8 @@ namespace Voltium.Interactive.BasicRenderPipeline
                     recorder.DrawIndexed(_texturedObjects[i].Indices.Length);
                 }
             }
+
+            recorder.CopyResource(sceneRender, _target.OutputBuffer);
         }
     }
 }

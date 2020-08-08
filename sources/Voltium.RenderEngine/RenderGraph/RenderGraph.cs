@@ -70,6 +70,7 @@ namespace Voltium.RenderEngine
                 ThrowHelper.ThrowArgumentOutOfRangeException(nameof(maxFrameLatency), "8 is the maximum allowed maxFrameLatency");
             }
 
+            _lastFrame.Resolver = new Resolver(this);
             // we don't actually have last frame so elide pointless copy
             MoveToNextGraphFrame(GpuTask.Completed, preserveLastFrame: false);
         }
@@ -195,7 +196,8 @@ namespace Voltium.RenderEngine
                 _lastFrame.Resources = null!;
             }
 
-            _frame.Resolver = new Resolver(this);
+            //_frame.Resolver = new Resolver(this);
+            _frame.Resolver = _lastFrame.Resolver;
             _frame.RenderPasses = new();
             _frame.RenderLayers = null;
             _frame.OutputPassIndices = new();

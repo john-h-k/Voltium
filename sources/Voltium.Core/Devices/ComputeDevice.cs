@@ -141,11 +141,11 @@ namespace Voltium.Core.Devices
             }
 
             int numMetaCommands;
-            Guard.ThrowIfFailed(DevicePointerAs<ID3D12Device5>()->EnumerateMetaCommands((uint*)&numMetaCommands, null));
+            ThrowIfFailed(DevicePointerAs<ID3D12Device5>()->EnumerateMetaCommands((uint*)&numMetaCommands, null));
 
             var meta = RentedArray<D3D12_META_COMMAND_DESC>.Create(numMetaCommands);
 
-            Guard.ThrowIfFailed(DevicePointerAs<ID3D12Device5>()->EnumerateMetaCommands((uint*)&numMetaCommands, Helpers.AddressOf(meta.Value)));
+            ThrowIfFailed(DevicePointerAs<ID3D12Device5>()->EnumerateMetaCommands((uint*)&numMetaCommands, Helpers.AddressOf(meta.Value)));
 
             var descs = new MetaCommandDesc[numMetaCommands];
 
@@ -217,7 +217,7 @@ namespace Voltium.Core.Devices
             var newValue = Interlocked.Increment(ref _lastFenceSignal);
             var pageable = evicted.GetPageable();
 
-            Guard.ThrowIfFailed(DevicePointerAs<ID3D12Device3>()->EnqueueMakeResident(
+            ThrowIfFailed(DevicePointerAs<ID3D12Device3>()->EnqueueMakeResident(
                 D3D12_RESIDENCY_FLAGS.D3D12_RESIDENCY_FLAG_DENY_OVERBUDGET,
                 1,
                 &pageable,
@@ -225,7 +225,7 @@ namespace Voltium.Core.Devices
                 newValue
             ));
 
-            return new GpuTask(_residencyFence, newValue);
+            return new GpuTask(this, _residencyFence, newValue);
         }
 
         /// <summary>
@@ -247,7 +247,7 @@ namespace Voltium.Core.Devices
             {
                 fixed (void* pEvictables = &Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(evicted)))
                 {
-                    Guard.ThrowIfFailed(DevicePointerAs<ID3D12Device3>()->EnqueueMakeResident(
+                    ThrowIfFailed(DevicePointerAs<ID3D12Device3>()->EnqueueMakeResident(
                         D3D12_RESIDENCY_FLAGS.D3D12_RESIDENCY_FLAG_DENY_OVERBUDGET,
                         (uint)evicted.Length,
                         (ID3D12Pageable**)pEvictables,
@@ -267,7 +267,7 @@ namespace Voltium.Core.Devices
                         pEvictables[i] = evicted[i].GetPageable();
                     }
 
-                    Guard.ThrowIfFailed(DevicePointerAs<ID3D12Device3>()->EnqueueMakeResident(
+                    ThrowIfFailed(DevicePointerAs<ID3D12Device3>()->EnqueueMakeResident(
                         D3D12_RESIDENCY_FLAGS.D3D12_RESIDENCY_FLAG_DENY_OVERBUDGET,
                         (uint)evicted.Length,
                         pEvictables,
@@ -284,7 +284,7 @@ namespace Voltium.Core.Devices
                         pool.Value[i] = (nuint)evicted[i].GetPageable();
                     }
 
-                    Guard.ThrowIfFailed(DevicePointerAs<ID3D12Device3>()->EnqueueMakeResident(
+                    ThrowIfFailed(DevicePointerAs<ID3D12Device3>()->EnqueueMakeResident(
                         D3D12_RESIDENCY_FLAGS.D3D12_RESIDENCY_FLAG_DENY_OVERBUDGET,
                         (uint)evicted.Length,
                         (ID3D12Pageable**)Unsafe.AsPointer(ref MemoryMarshal.GetArrayDataReference(pool.Value)),
@@ -294,7 +294,7 @@ namespace Voltium.Core.Devices
                 }
             }
 
-            return new GpuTask(_residencyFence, newValue);
+            return new GpuTask(this, _residencyFence, newValue);
         }
 
         // MakeResident is 34th member of vtable
@@ -339,7 +339,7 @@ namespace Voltium.Core.Devices
         private void ChangeResidency<T>(delegate* stdcall<uint, ID3D12Pageable**, int> changeFunc, T evictable) where T : IEvictable
         {
             var pageable = evictable.GetPageable();
-            Guard.ThrowIfFailed(changeFunc(1, &pageable));
+            ThrowIfFailed(changeFunc(1, &pageable));
         }
 
         private void ChangeResidency<T>(delegate* stdcall<uint, ID3D12Pageable**, int> changeFunc, ReadOnlySpan<T> evictables) where T : IEvictable
@@ -349,7 +349,7 @@ namespace Voltium.Core.Devices
             {
                 fixed (void* pEvictables = &Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(evictables)))
                 {
-                    Guard.ThrowIfFailed(changeFunc((uint)evictables.Length, (ID3D12Pageable**)pEvictables));
+                    ThrowIfFailed(changeFunc((uint)evictables.Length, (ID3D12Pageable**)pEvictables));
                 }
             }
             else
@@ -363,7 +363,7 @@ namespace Voltium.Core.Devices
                         pEvictables[i] = evictables[i].GetPageable();
                     }
 
-                    Guard.ThrowIfFailed(changeFunc((uint)evictables.Length, pEvictables));
+                    ThrowIfFailed(changeFunc((uint)evictables.Length, pEvictables));
                 }
                 else
                 {
@@ -374,7 +374,7 @@ namespace Voltium.Core.Devices
                         pool.Value[i] = (nuint)evictables[i].GetPageable();
                     }
 
-                    Guard.ThrowIfFailed(changeFunc((uint)evictables.Length, (ID3D12Pageable**)Unsafe.AsPointer(ref MemoryMarshal.GetArrayDataReference(pool.Value))));
+                    ThrowIfFailed(changeFunc((uint)evictables.Length, (ID3D12Pageable**)Unsafe.AsPointer(ref MemoryMarshal.GetArrayDataReference(pool.Value))));
                 }
             }
         }
@@ -389,12 +389,12 @@ namespace Voltium.Core.Devices
         internal ComPtr<ID3D12RootSignature> CreateRootSignature(uint nodeMask, void* pSignature, uint signatureLength)
         {
             using ComPtr<ID3D12RootSignature> rootSig = default;
-            Guard.ThrowIfFailed(DevicePointer->CreateRootSignature(
+            ThrowIfFailed(DevicePointer->CreateRootSignature(
                 nodeMask,
                 pSignature,
                 signatureLength,
                 rootSig.Iid,
-                ComPtr.GetVoidAddressOf(&rootSig)
+                (void**)&rootSig
             ));
 
             return rootSig.Move();
@@ -407,18 +407,6 @@ namespace Voltium.Core.Devices
         /// <param name="config">The <see cref="DeviceConfiguration"/> to create the device with</param>
         public ComputeDevice(DeviceConfiguration config, in Adapter? adapter)
         {
-            lock (AllDevices)
-            {
-                AllDevices.Add(this);
-            }
-
-            CreateNewDevice(adapter, config.RequiredFeatureLevel);
-
-            if (!Device.Exists)
-            {
-                ThrowHelper.ThrowPlatformNotSupportedException($"FATAL: Creation of ID3D12Device with feature level '{config.RequiredFeatureLevel}' failed");
-            }
-
             if (config.DebugLayerConfiguration is not null)
             {
                 if (config.DebugLayerConfiguration.DebugFlags.HasFlag(DebugFlags.DebugLayer))
@@ -430,6 +418,13 @@ namespace Voltium.Core.Devices
                     DeviceCreationSettings.EnableGpuBasedValidation();
                 }
                 DeviceCreationSettings.EnableDred(config.DebugLayerConfiguration.DredFlags);
+            }
+
+            CreateDevice(adapter, config.RequiredFeatureLevel);
+
+            if (!Device.Exists)
+            {
+                ThrowHelper.ThrowPlatformNotSupportedException($"FATAL: Creation of ID3D12Device with feature level '{config.RequiredFeatureLevel}' failed");
             }
             Debug = new DebugLayer(this, config.DebugLayerConfiguration);
 
@@ -460,46 +455,88 @@ namespace Voltium.Core.Devices
                 _metaCommandDescs = new Lazy<MetaCommandDesc[]?>(EnumMetaCommands);
             }
 
-            HANDLE deviceRemoved = CreateEventW(null, FALSE, FALSE, null);
-            _residencyFence.Get()->SetEventOnCompletion(ulong.MaxValue, deviceRemoved);
+            //HANDLE deviceRemoved = CreateEventW(null, FALSE, FALSE, null);
+            //_residencyFence.Get()->SetEventOnCompletion(ulong.MaxValue, deviceRemoved);
 
-            var weakThis = GCHandle.Alloc(this, GCHandleType.Weak);
+            //var weakThis = GCHandle.Alloc(this, GCHandleType.Weak);
 
-            IntPtr waitHandle;
-            RegisterWaitForSingleObject(
-              &waitHandle,
-              deviceRemoved,
-              (delegate* stdcall<void*, byte, void>)(delegate*<void*, byte, void>)&NativeOnDeviceRemoved,
-              (void*)GCHandle.ToIntPtr(weakThis), // Pass the device as our context
-              INFINITE, // No timeout
-              0 // No flags
-            );
+            //IntPtr waitHandle;
+            //RegisterWaitForSingleObject(
+            //  &waitHandle,
+            //  deviceRemoved,
+            //  (delegate* stdcall<void*, byte, void>)(delegate*<void*, byte, void>)&NativeOnDeviceRemoved,
+            //  (void*)GCHandle.ToIntPtr(weakThis), // Pass the device as our context
+            //  INFINITE, // No timeout
+            //  0 // No flags
+            //);
         }
 
-        [UnmanagedCallersOnly]
-        private static void NativeOnDeviceRemoved(void* deviceHandle, byte _)
-        {
-            var handle = GCHandle.FromIntPtr((IntPtr)deviceHandle);
+        //[UnmanagedCallersOnly]
+        //private static void NativeOnDeviceRemoved(void* deviceHandle, byte _)
+        //{
+        //    var handle = GCHandle.FromIntPtr((IntPtr)deviceHandle);
 
-            if (handle.Target is not null)
+        //    if (handle.Target is not null)
+        //    {
+        //        var device = (ComputeDevice)handle.Target;
+        //        device.OnDeviceRemoved();
+        //    }
+        //}
+
+        /// <summary>
+        /// Throws if a given HR is a fail code. Also properly handles device-removed error codes, unlike Guard.ThrowIfFailed
+        /// </summary>
+        [MethodImpl(MethodTypes.Validates)]
+        internal void ThrowIfFailed(
+            int hr,
+            [CallerArgumentExpression("hr")] string? expression = null
+#if DEBUG || EXTENDED_ERROR_INFORMATION
+            ,
+            [CallerFilePath] string? filepath = default,
+            [CallerMemberName] string? memberName = default,
+            [CallerLineNumber] int lineNumber = default
+#endif
+        )
+        {
+            // invert branch so JIT assumes the HR is S_OK
+            if (SUCCEEDED(hr))
             {
-                var device = (ComputeDevice)handle.Target;
-                device.OnDeviceRemoved();
+                return;
             }
-        }
 
-        internal void ThrowIfFailed(int hr) { }
+            HrIsFail(this, hr, expression, filepath, memberName, lineNumber);
 
-        private void OnDeviceRemoved()
-        {
-            throw new DeviceDisconnectedException(this);
+            [MethodImpl(MethodImplOptions.NoInlining)]
+            static void HrIsFail(ComputeDevice device, int hr, string? expression, string? filepath, string? memberName, int lineNumber)
+            {
+                if (hr is DXGI_ERROR_DEVICE_REMOVED or DXGI_ERROR_DEVICE_RESET or DXGI_ERROR_DEVICE_HUNG)
+                {
+                    throw new DeviceDisconnectedException(device, GetReason(device.DevicePointer->GetDeviceRemovedReason()));
+                }
+
+                static DeviceDisconnectReason GetReason(int hr) => hr switch
+                {
+                    DXGI_ERROR_DEVICE_REMOVED => DeviceDisconnectReason.Removed,
+                    DXGI_ERROR_DEVICE_HUNG => DeviceDisconnectReason.Hung,
+                    DXGI_ERROR_DEVICE_RESET => DeviceDisconnectReason.Reset,
+                    DXGI_ERROR_DRIVER_INTERNAL_ERROR => DeviceDisconnectReason.InternalDriverError,
+                    _ => DeviceDisconnectReason.Unknown
+                };
+
+                Guard.ThrowForHr(hr
+#if DEBUG || EXTENDED_ERROR_INFORMATION
+                    ,
+                    expression, filepath, memberName, lineNumber
+#endif
+                    );
+            }
         }
 
         internal unsafe ComPtr<ID3D12Fence> CreateFence(ulong startValue = 0)
         {
             ComPtr<ID3D12Fence> fence = default;
 
-            Guard.ThrowIfFailed(DevicePointer->CreateFence(
+            ThrowIfFailed(DevicePointer->CreateFence(
                 startValue,
                 0,
                 fence.Iid,
@@ -509,7 +546,7 @@ namespace Voltium.Core.Devices
             return fence;
         }
 
-        private protected void CreateNewDevice(
+        private protected void CreateDevice(
             in Adapter? adapter,
             FeatureLevel level
         )
@@ -524,11 +561,11 @@ namespace Voltium.Core.Devices
             {
                 using ComPtr<ID3D12Device> device = default;
 
-                Guard.ThrowIfFailed(D3D12CreateDevice(
+                ThrowIfFailed(D3D12CreateDevice(
                     usedAdapter.GetAdapterPointer(),
                     (D3D_FEATURE_LEVEL)level,
                     device.Iid,
-                    ComPtr.GetVoidAddressOf(&device)
+                    (void**)&device
                 ));
 
                 Device = device.Move();
@@ -575,14 +612,14 @@ namespace Voltium.Core.Devices
 
         internal void QueryFeatureSupport<T>(D3D12_FEATURE feature, T* pVal) where T : unmanaged
         {
-            Guard.ThrowIfFailed(DevicePointer->CheckFeatureSupport(feature, pVal, (uint)sizeof(T)));
+            ThrowIfFailed(DevicePointer->CheckFeatureSupport(feature, pVal, (uint)sizeof(T)));
         }
 
         internal void QueryFeatureSupport<T>(D3D12_FEATURE feature, out T val) where T : unmanaged
         {
             fixed (T* pVal = &val)
             {
-                Guard.ThrowIfFailed(DevicePointer->CheckFeatureSupport(feature, pVal, (uint)sizeof(T)));
+                ThrowIfFailed(DevicePointer->CheckFeatureSupport(feature, pVal, (uint)sizeof(T)));
             }
         }
 
@@ -803,10 +840,10 @@ namespace Voltium.Core.Devices
         internal ComPtr<ID3D12Heap> CreateHeap(D3D12_HEAP_DESC* desc)
         {
             ComPtr<ID3D12Heap> heap = default;
-            Guard.ThrowIfFailed(DevicePointer->CreateHeap(
+            ThrowIfFailed(DevicePointer->CreateHeap(
                 desc,
                 heap.Iid,
-                ComPtr.GetVoidAddressOf(&heap)
+                (void**)&heap
             ));
 
             return heap.Move();
@@ -824,10 +861,10 @@ namespace Voltium.Core.Devices
 
             ComPtr<ID3D12CommandQueue> p = default;
 
-            Guard.ThrowIfFailed(DevicePointer->CreateCommandQueue(
+            ThrowIfFailed(DevicePointer->CreateCommandQueue(
                 &desc,
                 p.Iid,
-                ComPtr.GetVoidAddressOf(&p)
+                (void**)&p
             ));
 
             return p.Move();
@@ -1008,10 +1045,10 @@ namespace Voltium.Core.Devices
         internal ComPtr<ID3D12CommandAllocator> CreateAllocator(ExecutionContext context)
         {
             using ComPtr<ID3D12CommandAllocator> allocator = default;
-            Guard.ThrowIfFailed(DevicePointer->CreateCommandAllocator(
+            ThrowIfFailed(DevicePointer->CreateCommandAllocator(
                 (D3D12_COMMAND_LIST_TYPE)context,
                 allocator.Iid,
-                ComPtr.GetVoidAddressOf(&allocator)
+                (void**)&allocator
             ));
 
             return allocator.Move();
@@ -1020,13 +1057,13 @@ namespace Voltium.Core.Devices
         internal ComPtr<ID3D12GraphicsCommandList> CreateList(ExecutionContext context, ID3D12CommandAllocator* allocator, ID3D12PipelineState* pso)
         {
             using ComPtr<ID3D12GraphicsCommandList> list = default;
-            Guard.ThrowIfFailed(DevicePointer->CreateCommandList(
+            ThrowIfFailed(DevicePointer->CreateCommandList(
                 0, // TODO: MULTI-GPU
                 (D3D12_COMMAND_LIST_TYPE)context,
                 allocator,
                 pso,
                 list.Iid,
-                ComPtr.GetVoidAddressOf(&list)
+                (void**)&list
             ));
 
             return list.Move();
@@ -1035,7 +1072,7 @@ namespace Voltium.Core.Devices
         internal ComPtr<ID3D12QueryHeap> CreateQueryHeap(D3D12_QUERY_HEAP_DESC desc)
         {
             using ComPtr<ID3D12QueryHeap> queryHeap = default;
-            DevicePointer->CreateQueryHeap(&desc, queryHeap.Iid, ComPtr.GetVoidAddressOf(&queryHeap));
+            DevicePointer->CreateQueryHeap(&desc, queryHeap.Iid, (void**)&queryHeap);
             return queryHeap.Move();
         }
 
@@ -1045,14 +1082,14 @@ namespace Voltium.Core.Devices
 
             using ComPtr<ID3D12Resource> resource = default;
 
-            Guard.ThrowIfFailed(DevicePointer->CreatePlacedResource(
+            ThrowIfFailed(DevicePointer->CreatePlacedResource(
                  heap,
                  offset,
                  &desc->Desc,
                  desc->InitialState,
                  desc->ClearValue is null ? null : &clearVal,
                  resource.Iid,
-                 ComPtr.GetVoidAddressOf(&resource)
+                 (void**)&resource
              ));
 
             return resource.Move();
@@ -1065,14 +1102,14 @@ namespace Voltium.Core.Devices
 
             using ComPtr<ID3D12Resource> resource = default;
 
-            Guard.ThrowIfFailed(DevicePointer->CreateCommittedResource(
+            ThrowIfFailed(DevicePointer->CreateCommittedResource(
                     &heapProperties,
                     D3D12_HEAP_FLAGS.D3D12_HEAP_FLAG_NONE,
                     &desc->Desc,
                     desc->InitialState,
                     desc->ClearValue is null ? null : &clearVal,
                     resource.Iid,
-                    ComPtr.GetVoidAddressOf(&resource)
+                    (void**)&resource
             ));
 
             return resource.Move();

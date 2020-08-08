@@ -161,7 +161,7 @@ namespace Voltium.Common
         [DebuggerNonUserCode]
         [DebuggerStepThrough]
         [MethodImpl(MethodTypes.ThrowHelperMethod)]
-        private static unsafe void ThrowForHr(
+        internal static unsafe void ThrowForHr(
             int hr,
 #if DEBUG || EXTENDED_ERROR_INFORMATION
             [CallerArgumentExpression("hr")] string? expression = null,

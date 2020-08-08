@@ -119,7 +119,7 @@ namespace Voltium.Core.Text
             using ComPtr<IDWriteGlyphRunAnalysis> analysis = default;
             fixed (DWRITE_MATRIX* pTransform = &_transform)
             {
-                Guard.ThrowIfFailed(_factory.Get()->CreateGlyphRunAnalysis(
+                _device.ThrowIfFailed(_factory.Get()->CreateGlyphRunAnalysis(
                     glyphRun,
                     _pixelsPerDip,
                     pTransform,
@@ -134,13 +134,13 @@ namespace Voltium.Core.Text
             var type = DWRITE_TEXTURE_TYPE.DWRITE_TEXTURE_ALIASED_1x1;
 
             RECT fullTex;
-            Guard.ThrowIfFailed(analysis.Get()->GetAlphaTextureBounds(type, &fullTex));
+            _device.ThrowIfFailed(analysis.Get()->GetAlphaTextureBounds(type, &fullTex));
 
             var size = GetSizeForTexture(type, &fullTex);
             using var buff = RentedArray<byte>.Create(size);
             fixed (byte* pBuff = buff.Value)
             {
-                Guard.ThrowIfFailed(analysis.Get()->CreateAlphaTexture(type, &fullTex, pBuff, (uint)size));
+                _device.ThrowIfFailed(analysis.Get()->CreateAlphaTexture(type, &fullTex, pBuff, (uint)size));
             }
 
             return S_OK;

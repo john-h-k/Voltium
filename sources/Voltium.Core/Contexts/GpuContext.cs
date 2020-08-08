@@ -116,7 +116,7 @@ namespace Voltium.Core
         public virtual void Dispose()
         {
             FlushBarriers();
-            Guard.ThrowIfFailed(List->Close());
+            Params.Device.ThrowIfFailed(List->Close());
             if (Params.ExecuteOnClose)
             {
                 _ = Params.Device.Execute(this);

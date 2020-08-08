@@ -14,8 +14,12 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
+using System.Timers;
 using Microsoft.Extensions.Logging;
 using Microsoft.Toolkit.HighPerformance.Extensions;
+using TerraFX.Interop;
+using Voltium.Common.Threading;
 
 namespace Voltium.Common
 {
@@ -46,6 +50,18 @@ namespace Voltium.Common
 #endif
             }
         }
+
+        private static readonly Timer AsyncFlush = GetAsyncFlushTimer();
+
+        private static Timer GetAsyncFlushTimer()
+        {
+            var timer = new Timer(1000);
+            timer.Start();
+            timer.AutoReset = true;
+            timer.Elapsed += static (_, _) => FlushBuffer();
+            return timer;
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool AreSame<T, U>() => typeof(T) == typeof(U);
 
@@ -55,9 +71,10 @@ namespace Voltium.Common
 
         private const int BufferSize = 4096;
 
+        private static LockedList<FixedSizeArrayBufferWriter<char>?, MonitorLock> ThreadBuffers = new(MonitorLock.Create());
+
         [ThreadStatic]
-        private static char[]? TextBuffer;
-        private static int TextBufferHead;
+        private static FixedSizeArrayBufferWriter<char>? TextBuffer;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         [MemberNotNull(nameof(TextBuffer))]
@@ -74,14 +91,26 @@ namespace Voltium.Common
             [MemberNotNull(nameof(TextBuffer))]
             static void InitializeTextBuffer()
             {
-                TextBuffer = new char[BufferSize];
+                TextBuffer = new FixedSizeArrayBufferWriter<char>(BufferSize);
+
+                ThreadBuffers.Add(TextBuffer);
             }
         }
 
         private static void FlushBuffer()
         {
-            Console.Out.Write(TextBuffer.AsSpan(0, TextBufferHead));
-            TextBufferHead = 0;
+            using (ThreadBuffers.EnterScopedLock())
+            {
+                foreach (var buffer in ThreadBuffers.UnderlyingList)
+                {
+                    if (buffer is null)
+                    {
+                        return;
+                    }
+                    Console.Out.Write(buffer.GetWrittenSpan());
+                    buffer.ResetBuffer();
+                }
+            }
         }
 
         private static void DirectWriteData(ReadOnlySpan<char> val) => Console.Out.Write(val);
@@ -89,9 +118,9 @@ namespace Voltium.Common
         private static void Write(ReadOnlySpan<char> val)
         {
             EnsureInitialized();
-            if (!val.TryCopyTo(TextBuffer.AsSpan(TextBufferHead)))
+            if (!val.TryCopyTo(TextBuffer.GetSpan()))
             {
-                if (val.Length > BufferSize)
+                if (val.Length > TextBuffer.Capacity)
                 {
                     DirectWriteData(val);
                 }
@@ -102,9 +131,9 @@ namespace Voltium.Common
         private static void Write(char val)
         {
             EnsureInitialized();
-            if (TextBufferHead < TextBuffer.Length)
+            if (!TextBuffer.IsEmpty)
             {
-                TextBuffer[TextBufferHead++] = val;
+                TextBuffer.GetSpan()[0] = val;
             }
             else
             {

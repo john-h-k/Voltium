@@ -19,7 +19,7 @@ namespace Voltium.Core.Infrastructure
             using ComPtr<IDXCoreAdapterFactory> factory = default;
             using ComPtr<IDXCoreAdapterList> list = default;
 
-            Guard.ThrowIfFailed(DXCoreCreateAdapterFactory(factory.Iid, ComPtr.GetVoidAddressOf(&factory)));
+            Guard.ThrowIfFailed(DXCoreCreateAdapterFactory(factory.Iid, (void**)&factory));
 
             const int MaxNumFilterAttributes = 2;
             Guid* filterAttributes = stackalloc Guid[MaxNumFilterAttributes];
@@ -34,7 +34,7 @@ namespace Voltium.Core.Infrastructure
                 filterAttributes[i++] = DXCORE_ADAPTER_ATTRIBUTE_D3D12_GRAPHICS;
             }
 
-            Guard.ThrowIfFailed(factory.Get()->CreateAdapterList(i, filterAttributes, list.Iid, ComPtr.GetVoidAddressOf(&list)));
+            Guard.ThrowIfFailed(factory.Get()->CreateAdapterList(i, filterAttributes, list.Iid, (void**)&list));
 
             _factory = factory.Move();
             _list = list.Move();
@@ -53,7 +53,7 @@ namespace Voltium.Core.Infrastructure
                     return false;
                 }
 
-                Guard.ThrowIfFailed(_list.Get()->GetAdapter(index, dxcoreAdapter.Iid, ComPtr.GetVoidAddressOf(&dxcoreAdapter)));
+                Guard.ThrowIfFailed(_list.Get()->GetAdapter(index, dxcoreAdapter.Iid, (void**)&dxcoreAdapter));
 
                 if (_softwareOnly)
                 {

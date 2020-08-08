@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using TerraFX.Interop;
 using Voltium.Annotations;
 using Voltium.Common;
@@ -9,7 +9,7 @@ namespace Voltium.Core.Devices
     [NativeComType(implements: typeof(ID3DInclude))]
     internal unsafe partial struct LegacyFxcIncludeHandler
     {
-        private IncludeHandler _handler;
+        private static IncludeHandler _handler;
 
         [NativeComMethod]
         public int Close(void* data)

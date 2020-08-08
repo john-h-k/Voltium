@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.Numerics;
+using Microsoft.Extensions.Logging;
 using Voltium.Common;
 using Voltium.Core;
 using Voltium.Core.Devices;
@@ -31,7 +32,8 @@ namespace Voltium.Interactive.HelloTriangle
         public unsafe override void Initialize(Size outputSize, IOutputOwner output)
         {
             // Create the device and output
-            _device = new GraphicsDevice(DeviceConfiguration.Default);
+            var debug = new DebugLayerConfiguration().WithDebugFlags(DebugFlags.DebugLayer).WithDredFlags(DredFlags.All);//.WithBreakpointLogLevel(LogLevel.None);
+            _device = new GraphicsDevice(new DeviceConfiguration { DebugLayerConfiguration = debug });
 
             _output = Output2D.Create(OutputConfiguration.Default, _device, output);
             OnResize(outputSize);
@@ -85,15 +87,19 @@ namespace Voltium.Interactive.HelloTriangle
             context.Close();
 
             // Execute the context and wait for it to finish
-            _device.Execute(context).Block();
+            var task = _device.Execute(context);
 
-            // Present the rendered frame to the output
-            _output.Present();
+
 
             if (k++ == 2000)
             {
                 _device.RemoveDevice();
             }
+
+            task.Block();
+
+            // Present the rendered frame to the output
+            _output.Present();
         }
 
         public override void Dispose()

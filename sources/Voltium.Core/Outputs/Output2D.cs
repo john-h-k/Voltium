@@ -114,7 +114,7 @@ namespace Voltium.Core.Devices
             }
 
             DXGI_SWAP_CHAIN_DESC1 swapChainDesc;
-            Guard.ThrowIfFailed(swapChain3.Get()->GetDesc1(&swapChainDesc));
+            _device.ThrowIfFailed(swapChain3.Get()->GetDesc1(&swapChainDesc));
             Dimensions = new Size((int)swapChainDesc.Width, (int)swapChainDesc.Height);
             AspectRatio = Dimensions.AspectRatio();
 
@@ -149,7 +149,7 @@ namespace Voltium.Core.Devices
             for (var i = 0U; i < _desc.BackBufferCount; i++)
             {
                 using ComPtr<ID3D12Resource> buffer = default;
-                Guard.ThrowIfFailed(_swapChain.Get()->GetBuffer(i, buffer.Iid, ComPtr.GetVoidAddressOf(&buffer)));
+                _device.ThrowIfFailed(_swapChain.Get()->GetBuffer(i, buffer.Iid, (void**)&buffer));
                 DebugHelpers.SetName(buffer.Get(), $"BackBuffer #{i}");
 
                 _backBuffers[i] = Texture.FromResource(_device, buffer.Move());
@@ -203,7 +203,7 @@ namespace Voltium.Core.Devices
 
             using ComPtr<IDXGISwapChain1> swapChain = default;
 
-            Guard.ThrowIfFailed(factory.Get()->CreateSwapChainForHwnd(
+            device.ThrowIfFailed(factory.Get()->CreateSwapChainForHwnd(
                 device.GetGraphicsQueue(),
                 window,
                 &swapChainDesc,
@@ -245,7 +245,7 @@ namespace Voltium.Core.Devices
 
             using ComPtr<IDXGISwapChain1> swapChain = default;
 
-            Guard.ThrowIfFailed(factory.Get()->CreateSwapChainForCoreWindow(
+            device.ThrowIfFailed(factory.Get()->CreateSwapChainForCoreWindow(
                 device.GetGraphicsQueue(),
                 (IUnknown*)window,
                 &swapChainDesc,
@@ -276,14 +276,14 @@ namespace Voltium.Core.Devices
 
             using ComPtr<IDXGISwapChain1> swapChain = default;
 
-            Guard.ThrowIfFailed(factory.Get()->CreateSwapChainForComposition(
+            device.ThrowIfFailed(factory.Get()->CreateSwapChainForComposition(
                 device.GetGraphicsQueue(),
                 &swapChainDesc,
                 null, // TODO maybe implement
                 ComPtr.GetAddressOf(&swapChain)
             ));
 
-            Guard.ThrowIfFailed(((ISwapChainPanelNative*)swapChainPanelNative)->SetSwapChain((IDXGISwapChain*)swapChain.Get()));
+            device.ThrowIfFailed(((ISwapChainPanelNative*)swapChainPanelNative)->SetSwapChain((IDXGISwapChain*)swapChain.Get()));
 
             var output = new Output2D(device, swapChain.Move(), desc);
 
@@ -298,12 +298,12 @@ namespace Voltium.Core.Devices
             int hr;
             if (device.Adapter.GetAdapterPointer() is not null && ComPtr.TryQueryInterface(device.Adapter.GetAdapterPointer(), out IDXGIAdapter* dxgiAdapter))
             {
-                hr = dxgiAdapter->GetParent(factory.Iid, ComPtr.GetVoidAddressOf(&factory));
+                hr = dxgiAdapter->GetParent(factory.Iid, (void**)&factory);
                 _ = dxgiAdapter->Release();
             }
             else
             {
-                hr = CreateDXGIFactory1(factory.Iid, ComPtr.GetVoidAddressOf(&factory));
+                hr = CreateDXGIFactory1(factory.Iid, (void**)&factory);
             }
 
             if (hr == E_NOINTERFACE)
@@ -312,7 +312,7 @@ namespace Voltium.Core.Devices
                 ThrowHelper.ThrowPlatformNotSupportedException("Platform does not support IDXGIFactory2, which is required");
             }
 
-            Guard.ThrowIfFailed(hr);
+            device.ThrowIfFailed(hr);
 
             return factory.Move();
         }
@@ -345,7 +345,7 @@ namespace Voltium.Core.Devices
         /// </summary>
         public void Present()
         {
-            Guard.ThrowIfFailed(_swapChain.Get()->Present(_desc.SyncInterval, 0));
+            _device.ThrowIfFailed(_swapChain.Get()->Present(_desc.SyncInterval, 0));
             _backBufferIndex = (_backBufferIndex + 1) % _desc.BackBufferCount;
         }
 
@@ -356,7 +356,7 @@ namespace Voltium.Core.Devices
                 _backBuffers[i].Dispose();
             }
 
-            Guard.ThrowIfFailed(_swapChain.Get()->ResizeBuffers(
+            _device.ThrowIfFailed(_swapChain.Get()->ResizeBuffers(
                    0, // preserve existing number
                    (uint)newSize.Width,
                    (uint)newSize.Height,

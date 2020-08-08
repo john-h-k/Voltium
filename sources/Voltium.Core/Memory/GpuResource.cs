@@ -19,6 +19,7 @@ namespace Voltium.Core.Memory
         internal ID3D12Object* GetPointer() => ((IInternalD3D12Object)this).GetPointer();
 
         internal GpuResource(
+            ComputeDevice device,
             ComPtr<ID3D12Resource> resource,
             in InternalAllocDesc desc,
             GpuAllocator? allocator,
@@ -26,6 +27,7 @@ namespace Voltium.Core.Memory
             HeapBlock block = default
         )
         {
+            _device = device;
             _value = resource.Move();
             State = (ResourceState)desc.InitialState;
             ResourceFormat = (DataFormat)desc.Desc.Format;
@@ -85,7 +87,7 @@ namespace Voltium.Core.Memory
         {
             // Apparently the range for map and unmap are for debugging purposes and yield no perf benefit. Maybe we could still support em
             void* pData;
-            Guard.ThrowIfFailed(GetResourcePointer()->Map(subresource, null, &pData));
+            _device.ThrowIfFailed(GetResourcePointer()->Map(subresource, null, &pData));
             return pData;
         }
 

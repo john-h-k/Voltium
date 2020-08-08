@@ -24,10 +24,10 @@ namespace Voltium.Core.Devices
         protected override ComPtr<ID3D12CommandAllocator> Create(ExecutionContext context)
         {
             using ComPtr<ID3D12CommandAllocator> allocator = default;
-            Guard.ThrowIfFailed(_device.DevicePointer->CreateCommandAllocator(
+            _device.ThrowIfFailed(_device.DevicePointer->CreateCommandAllocator(
                 (D3D12_COMMAND_LIST_TYPE)context,
                 allocator.Iid,
-                ComPtr.GetVoidAddressOf(&allocator)
+                (void**)&allocator
             ));
 
             LogHelper.LogDebug($"New command allocator allocated (this is the #{_allocatorCount++} allocator)");
@@ -48,6 +48,6 @@ namespace Voltium.Core.Devices
         }
 
         protected override void ManageReturn(ref ComPtr<ID3D12CommandAllocator> state)
-            => Guard.ThrowIfFailed(state.Get()->Reset());
+            => _device.ThrowIfFailed(state.Get()->Reset());
     }
 }
