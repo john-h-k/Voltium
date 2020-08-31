@@ -74,7 +74,7 @@ namespace Voltium.TextureLoading
         /// <inheritdoc cref="object"/>
         public override string ToString()
         {
-            using RentedStringBuilder val = StringHelper.RentStringBuilder();
+            using RentedStringBuilder val = StringHelpers.RentStringBuilder();
 
             val.AppendLine($"UnderlyingTextureType: {UnderlyingTextureType}");
             val.AppendLine($"BitData: {Data}");

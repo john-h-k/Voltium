@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Voltium.Core.Configuration.Graphics;
 using Rectangle = System.Drawing.Rectangle;
 
@@ -13,13 +13,13 @@ namespace Voltium.Core.Memory
         /// Creates a new <see cref="TextureDesc"/> representing a 2D render target
         /// </summary>
         /// <param name="format">The <see cref="BackBufferFormat"/> for the render target</param>
-        /// <param name="height">The height, in texels, of the target</param>
         /// <param name="width">The width, in texels, of the target</param>
+        /// <param name="height">The height, in texels, of the target</param>
         /// <param name="clearColor">The <see cref="Rgba128"/> to set to be the optimized clear value</param>
         /// <param name="msaa">Optionally, the <see cref="MultisamplingDesc"/> for the render target</param>
         /// <returns>A new <see cref="TextureDesc"/> representing a render target</returns>
-        public static TextureDesc CreateRenderTargetDesc(BackBufferFormat format, uint height, uint width, Rgba128 clearColor, MultisamplingDesc msaa = default)
-            => CreateRenderTargetDesc((DataFormat)format, height, width, clearColor, msaa);
+        public static TextureDesc CreateRenderTargetDesc(BackBufferFormat format, uint width, uint height, Rgba128 clearColor, MultisamplingDesc msaa = default)
+            => CreateRenderTargetDesc((DataFormat)format, width, height, clearColor, msaa);
 
         /// <summary>
         /// Creates a new <see cref="TextureDesc"/> representing a 2D render target, with no height or width, for unspecified size targets
@@ -45,12 +45,12 @@ namespace Voltium.Core.Memory
         /// Creates a new <see cref="TextureDesc"/> representing a 2D render target
         /// </summary>
         /// <param name="format">The <see cref="DataFormat"/> for the render target</param>
-        /// <param name="height">The height, in texels, of the target</param>
         /// <param name="width">The width, in texels, of the target</param>
+        /// <param name="height">The height, in texels, of the target</param>
         /// <param name="clearColor">The <see cref="Rgba128"/> to set to be the optimized clear value</param>
         /// <param name="msaa">Optionally, the <see cref="MultisamplingDesc"/> for the render target</param>
         /// <returns>A new <see cref="TextureDesc"/> representing a render target</returns>
-        public static TextureDesc CreateRenderTargetDesc(DataFormat format, uint height, uint width, Rgba128 clearColor, MultisamplingDesc msaa = default)
+        public static TextureDesc CreateRenderTargetDesc(DataFormat format, uint width, uint height, Rgba128 clearColor, MultisamplingDesc msaa = default)
         {
             return new TextureDesc
             {
@@ -82,14 +82,14 @@ namespace Voltium.Core.Memory
         /// Creates a new <see cref="TextureDesc"/> representing a 2D depth stencil
         /// </summary>
         /// <param name="format">The <see cref="DataFormat"/> for the depth stencil</param>
-        /// <param name="height">The height, in texels, of the depth stencil</param>
         /// <param name="width">The width, in texels, of the depth stencil</param>
+        /// <param name="height">The height, in texels, of the depth stencil</param>
         /// <param name="clearDepth">The <see cref="float"/> to set to be the optimized clear value for the depth element</param>
         /// <param name="clearStencil">The <see cref="byte"/> to set to be the optimized clear value for the stencil element</param>
         /// <param name="shaderVisible">Whether the <see cref="Texture"/> is shader visible. <see langword="true"/> by default</param>
         /// <param name="msaa">Optionally, the <see cref="MultisamplingDesc"/> for the depth stencil</param>
         /// <returns>A new <see cref="TextureDesc"/> representing a depth stencil</returns>
-        public static TextureDesc CreateDepthStencilDesc(DataFormat format, uint height, uint width, float clearDepth, byte clearStencil, bool shaderVisible = true, MultisamplingDesc msaa = default)
+        public static TextureDesc CreateDepthStencilDesc(DataFormat format, uint width, uint height, float clearDepth, byte clearStencil, bool shaderVisible = true, MultisamplingDesc msaa = default)
         {
             return new TextureDesc
             {
@@ -126,7 +126,7 @@ namespace Voltium.Core.Memory
         /// <param name="depthOrArraySize">The depth, in texels, of the resource, if <paramref name="dimension"/>
         /// is <see cref="TextureDimension.Tex3D"/>, else, the number of textures in the array</param>
         /// <returns>A new <see cref="TextureDesc"/> representing a shader resource</returns>
-        public static TextureDesc CreateShaderResourceDesc(DataFormat format, in TextureDimension dimension, uint height, uint width = 1, ushort depthOrArraySize = 1)
+        public static TextureDesc CreateShaderResourceDesc(DataFormat format, in TextureDimension dimension, ulong width, uint height = 1, ushort depthOrArraySize = 1)
         {
             return new TextureDesc
             {
@@ -148,7 +148,7 @@ namespace Voltium.Core.Memory
         /// <param name="depthOrArraySize">The depth, in texels, of the resource, if <paramref name="dimension"/>
         /// is <see cref="TextureDimension.Tex3D"/>, else, the number of textures in the array</param>
         /// <returns>A new <see cref="TextureDesc"/> representing a shader resource</returns>
-        public static TextureDesc CreateUnorderedAccessResourceDesc(DataFormat format, in TextureDimension dimension, uint height, uint width = 1, ushort depthOrArraySize = 1)
+        public static TextureDesc CreateUnorderedAccessResourceDesc(DataFormat format, in TextureDimension dimension, ulong width, uint height = 1, ushort depthOrArraySize = 1)
         {
             return new TextureDesc
             {

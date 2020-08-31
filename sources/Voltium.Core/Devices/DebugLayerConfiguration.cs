@@ -10,9 +10,35 @@ namespace Voltium.Core.Devices
     public class DebugLayerConfiguration
     {
         /// <summary>
-        /// The default <see cref="DebugLayerConfiguration"/>
+        /// The default layer for debugging
         /// </summary>
-        public static DebugLayerConfiguration Default { get; } = new DebugLayerConfiguration();
+        public static DebugLayerConfiguration Debug { get; } = new DebugLayerConfiguration()
+            .WithDebugFlags(DebugFlags.DebugLayer)
+            .WithDredFlags(DredFlags.All)
+            .WithValidationLogLevel(LogLevel.Information)
+            .WithBreakpointLogLevel(LogLevel.Error)
+            .WithProfilingEnabled(false);
+
+
+        /// <summary>
+        /// No debug layer, logging, or profiling
+        /// </summary>
+        public static DebugLayerConfiguration None { get; } = new DebugLayerConfiguration()
+            .WithDebugFlags(DebugFlags.None)
+            .WithDredFlags(DredFlags.None)
+            .WithValidationLogLevel(LogLevel.None)
+            .WithBreakpointLogLevel(LogLevel.None)
+            .WithProfilingEnabled(false);
+
+        /// <summary>
+        /// The default layer for profiling
+        /// </summary>
+        public static DebugLayerConfiguration Profile { get; } = new DebugLayerConfiguration()
+            .WithDebugFlags(DebugFlags.None)
+            .WithDredFlags(DredFlags.None)
+            .WithValidationLogLevel(LogLevel.None)
+            .WithBreakpointLogLevel(LogLevel.None)
+            .WithProfilingEnabled(true);
 
 
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
@@ -40,10 +66,16 @@ namespace Voltium.Core.Devices
             return this;
         }
 
+        public DebugLayerConfiguration WithProfilingEnabled(bool enabled)
+        {
+            ProfilingEnabled = enabled;
+            return this;
+        }
+
         /// <summary>
         /// The <see cref="DebugFlags"/> that describes the debug for the application
         /// </summary>
-        public DebugFlags DebugFlags { get; set; } = DebugFlags.None;
+        public DebugFlags DebugFlags { get; set; } = EnvVars.IsDebug ? DebugFlags.DebugLayer : DebugFlags.None;
 
         /// <summary>
         /// The <see cref="DredFlags"/> that describes the metadata created to help debug device removed scenarios

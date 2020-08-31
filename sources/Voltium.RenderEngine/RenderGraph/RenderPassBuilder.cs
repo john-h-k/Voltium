@@ -114,6 +114,40 @@ namespace Voltium.RenderEngine
 
         private const string InvalidResourceStateFlags = "ResourceStateFlags is invalid, which means it contains both write and read states, or multiple write states";
 
+        // TODO: Allow named transients (currently we use null names to mark transients)
+
+        internal const int PersistentResourceMask = int.MinValue;
+
+        internal static bool IsPersistent(ResourceHandle handle) => (handle.Index & PersistentResourceMask) != 0;
+        internal static ResourceHandle NormalizeHandle(ResourceHandle handle) => new (handle.Index & ~PersistentResourceMask);
+
+
+        //public BufferHandle CreatePersistentBuffer(string name, in BufferDesc desc, MemoryAccess memoryAccess, ResourceState initialState = ResourceState.CopyDestination, string? debugName = null)
+        //{
+        //    ThrowForUnnamedPersistent(name);
+
+        //    return _graph.AddResource(new ResourceDesc
+        //    {
+        //        Name = name,
+        //        Type = ResourceType.Buffer,
+        //        BufferDesc = desc,
+        //        MemoryAccess = memoryAccess,
+        //        InitialState = initialState,
+        //        DebugName = debugName
+        //    }, _passIndex).AsBufferHandle();
+        //}
+
+        private static void ThrowForUnnamedPersistent(string name)
+        {
+            if (name is not null)
+            {
+                return;
+            }
+            // We specifically validate this, because not doing so would cause the graph to think this resource is transient
+            // And shit would explode
+            ThrowHelper.ThrowArgumentNullException(nameof(name), "Persistent resources must have a name");
+        }
+
         /// <summary>
         /// Indicates a pass creates a new buffer
         /// </summary>
@@ -164,5 +198,25 @@ namespace Voltium.RenderEngine
 
         public TextureHandle CreatePrimaryOutputRelativeTexture(in TextureDesc desc, ResourceState initialState = ResourceState.CopyDestination, double outputRelativeSize = 1, string? debugName = null)
             => _graph.AddResource(new ResourceDesc { Type = ResourceType.Texture, OutputRelativeSize = outputRelativeSize, TextureDesc = desc, InitialState = initialState, DebugName = debugName }, _passIndex).AsTextureHandle();
+    }
+
+    enum ResourceUsage
+    {
+        /// <summary>
+        /// The application only writes to the resource, and so its results can be discarded each frame
+        /// </summary>
+        Discard,
+
+        /// <summary>
+        /// The resource persists across frames, but there is a different copy of the resource for each frame index, so that 
+        /// the application can safely write to it with multiple latent frames
+        /// </summary>
+        Persistent,
+
+        /// <summary>
+        /// The resource persists across frames, and there is only a single copy of it provided to all frames. Use with caution, to prevent 
+        /// overwriting of data being used by the GPU in prior latent frames
+        /// </summary>
+        PersistentPerFrame
     }
 }

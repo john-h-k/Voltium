@@ -16,15 +16,29 @@ namespace Voltium.Common
 
         public static void RegisterComObject<TCom, TManaged>(TCom* com, TManaged managed) where TCom : unmanaged where TManaged : class
         {
-            _identity.Add((nuint)com, managed);
+            lock (_identity)
+            {
+                _identity.Add((nuint)com, managed);
+            }
         }
 
-        public static bool TryGetManagedObject<TCom, TManaged>(TCom* com, [NotNullWhen(true)] out TManaged? managed) where TCom : unmanaged where TManaged : class
+        public static bool TryGetManagedObject<TCom, TManaged>(TCom* com, [MaybeNullWhen(false)] out TManaged managed) where TCom : unmanaged where TManaged : class
         {
-            var val = _identity.TryGetValue((nuint)com, out var obj) ? obj : null;
+            object? val;
+            lock (_identity)
+            {
+                val = _identity.TryGetValue((nuint)com, out var obj) ? obj : null;
+            }
             Debug.Assert(val is null or TManaged);
             managed = (TManaged?)val;
             return managed is not null;
+        }
+
+        public static TManaged GetManagedObject<TCom, TManaged>(TCom* com) where TCom : unmanaged where TManaged : class
+        {
+            var val = _identity.TryGetValue((nuint)com, out var obj) ? obj : null;
+            Debug.Assert(val is TManaged);
+            return (TManaged)val;
         }
     }
 }

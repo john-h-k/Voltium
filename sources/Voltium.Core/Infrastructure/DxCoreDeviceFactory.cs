@@ -34,7 +34,7 @@ namespace Voltium.Core.Infrastructure
                 filterAttributes[i++] = DXCORE_ADAPTER_ATTRIBUTE_D3D12_GRAPHICS;
             }
 
-            Guard.ThrowIfFailed(factory.Get()->CreateAdapterList(i, filterAttributes, list.Iid, (void**)&list));
+            Guard.ThrowIfFailed(factory.Ptr->CreateAdapterList(i, filterAttributes, list.Iid, (void**)&list));
 
             _factory = factory.Move();
             _list = list.Move();
@@ -47,18 +47,18 @@ namespace Voltium.Core.Infrastructure
                 using ComPtr<IDXCoreAdapter> dxcoreAdapter = default;
 
                 // Reached end of list
-                if (_list.Get()->GetAdapterCount() - (index + _hardwareAdapterSkip) == 0)
+                if (_list.Ptr->GetAdapterCount() - (index + _hardwareAdapterSkip) == 0)
                 {
                     adapter = default;
                     return false;
                 }
 
-                Guard.ThrowIfFailed(_list.Get()->GetAdapter(index, dxcoreAdapter.Iid, (void**)&dxcoreAdapter));
+                Guard.ThrowIfFailed(_list.Ptr->GetAdapter(index, dxcoreAdapter.Iid, (void**)&dxcoreAdapter));
 
                 if (_softwareOnly)
                 {
                     bool isSoftware;
-                    Guard.ThrowIfFailed(dxcoreAdapter.Get()->GetProperty(DXCoreAdapterProperty.IsHardware, sizeof(bool), &isSoftware));
+                    Guard.ThrowIfFailed(dxcoreAdapter.Ptr->GetProperty(DXCoreAdapterProperty.IsHardware, sizeof(bool), &isSoftware));
 
                     if (!isSoftware)
                     {
@@ -75,7 +75,7 @@ namespace Voltium.Core.Infrastructure
         private static Adapter CreateAdapter(ComPtr<IDXCoreAdapter> adapter)
         {
             nuint size;
-            Guard.ThrowIfFailed(adapter.Get()->GetPropertySize(DXCoreAdapterProperty.DriverDescription, &size));
+            Guard.ThrowIfFailed(adapter.Ptr->GetPropertySize(DXCoreAdapterProperty.DriverDescription, &size));
 
             // we do this because we don't want to overrwrite the mem of the buff
             // this just truncates if necessary
@@ -85,7 +85,7 @@ namespace Voltium.Core.Infrastructure
 
             fixed (byte* pBuff = buff.Value)
             {
-                Guard.ThrowIfFailed(adapter.Get()->GetProperty(DXCoreAdapterProperty.DriverDescription, (uint)realSize, pBuff));
+                Guard.ThrowIfFailed(adapter.Ptr->GetProperty(DXCoreAdapterProperty.DriverDescription, (uint)realSize, pBuff));
             }
 
             GetProperty<DXCoreHardwareID>(DXCoreAdapterProperty.HardwareID, out var vendor);
@@ -99,11 +99,11 @@ namespace Voltium.Core.Infrastructure
             DeviceType type;
             Guid graphics = DXCORE_ADAPTER_ATTRIBUTE_D3D12_GRAPHICS;
             Guid compute = DXCORE_ADAPTER_ATTRIBUTE_D3D12_CORE_COMPUTE;
-            if (adapter.Get()->IsAttributeSupported(&graphics))
+            if (adapter.Ptr->IsAttributeSupported(&graphics))
             {
                 type = DeviceType.GraphicsAndCompute;
             }
-            else if (adapter.Get()->IsAttributeSupported(&compute))
+            else if (adapter.Ptr->IsAttributeSupported(&compute))
             {
                 type = DeviceType.ComputeOnly;
             }
@@ -131,14 +131,14 @@ namespace Voltium.Core.Infrastructure
 
             void GetProperty<T>(DXCoreAdapterProperty property, out T val) where T : unmanaged
             {
-                if (!adapter.Get()->IsPropertySupported(property))
+                if (!adapter.Ptr->IsPropertySupported(property))
                 {
                     val = default;
                     LogHelper.LogInformation($"DXCoreProperty '{property}' not supported by adapter");
                 }
 
                 T data;
-                Guard.ThrowIfFailed(adapter.Get()->GetProperty(property, (uint)sizeof(T), &data));
+                Guard.ThrowIfFailed(adapter.Ptr->GetProperty(property, (uint)sizeof(T), &data));
                 val = data;
             }
         }
@@ -163,7 +163,7 @@ namespace Voltium.Core.Infrastructure
                 return false;
             }
 
-            Guard.ThrowIfFailed(_list.Get()->Sort((uint)i, pPreferences));
+            Guard.ThrowIfFailed(_list.Ptr->Sort((uint)i, pPreferences));
 
             return true;
 
@@ -174,7 +174,7 @@ namespace Voltium.Core.Infrastructure
                     return true;
                 }
 
-                if (!_list.Get()->IsAdapterPreferenceSupported(dxCorePref))
+                if (!_list.Ptr->IsAdapterPreferenceSupported(dxCorePref))
                 {
                     return false;
                 }

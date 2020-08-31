@@ -161,7 +161,7 @@ namespace Voltium.Common
         /// <summary>
         /// Enables the D3D12 debug layer
         /// </summary>
-        public static void EnableDebugLayer() => _debug.Get()->EnableDebugLayer();
+        public static void EnableDebugLayer() => _debug.Ptr->EnableDebugLayer();
 
         /// <summary>
         /// Enables GPU-based validation. This can help provide significantly more metadata than the traditional debug layer,
@@ -171,7 +171,7 @@ namespace Voltium.Common
         {
             if (_supportedLayer == SupportedDebugLayer.Debug3)
             {
-                _debug.AsBase<ID3D12Debug3>().Get()->SetEnableGPUBasedValidation(TRUE);
+                _debug.AsBase<ID3D12Debug3>().Ptr->SetEnableGPUBasedValidation(TRUE);
             }
             else
             {
@@ -192,15 +192,15 @@ namespace Voltium.Common
 
             if (features.HasFlag(DredFlags.AutoBreadcrumbs))
             {
-                _dred.Get()->SetAutoBreadcrumbsEnablement(D3D12_DRED_ENABLEMENT.D3D12_DRED_ENABLEMENT_FORCED_ON);
+                _dred.Ptr->SetAutoBreadcrumbsEnablement(D3D12_DRED_ENABLEMENT.D3D12_DRED_ENABLEMENT_FORCED_ON);
             }
             if (features.HasFlag(DredFlags.PageFaultMetadata))
             {
-                _dred.Get()->SetPageFaultEnablement(D3D12_DRED_ENABLEMENT.D3D12_DRED_ENABLEMENT_FORCED_ON);
+                _dred.Ptr->SetPageFaultEnablement(D3D12_DRED_ENABLEMENT.D3D12_DRED_ENABLEMENT_FORCED_ON);
             }
             if (features.HasFlag(DredFlags.WatsonDumpEnablement))
             {
-                _dred.Get()->SetWatsonDumpEnablement(D3D12_DRED_ENABLEMENT.D3D12_DRED_ENABLEMENT_FORCED_ON);
+                _dred.Ptr->SetWatsonDumpEnablement(D3D12_DRED_ENABLEMENT.D3D12_DRED_ENABLEMENT_FORCED_ON);
             }
         }
 
@@ -209,7 +209,7 @@ namespace Voltium.Common
         {
             if (_frameCapture.Exists)
             {
-                _frameCapture.Get()->BeginCapture();
+                _frameCapture.Ptr->BeginCapture();
             }
             else
             {
@@ -221,7 +221,7 @@ namespace Voltium.Common
         {
             if (_frameCapture.Exists)
             {
-                _frameCapture.Get()->EndCapture();
+                _frameCapture.Ptr->EndCapture();
             }
             else
             {
@@ -308,7 +308,7 @@ namespace Voltium.Common
             {
                 ThrowHelper.ThrowInvalidOperationException("Cannot ReportDeviceLiveObjects because layer was not created with GraphicsLayerValidation. Try ReportLiveObjects instead");
             }
-            _device.ThrowIfFailed(_d3d12DebugDevice.Get()->ReportLiveDeviceObjects((D3D12_RLDO_FLAGS)flags));
+            _device.ThrowIfFailed(_d3d12DebugDevice.Ptr->ReportLiveDeviceObjects((D3D12_RLDO_FLAGS)flags));
         }
 
         public void FlushQueues()
@@ -325,10 +325,10 @@ namespace Voltium.Common
 
             if (_d3d12InfoQueue.Exists)
             {
-                for (ulong i = 0; i < _d3d12InfoQueue.Get()->GetNumStoredMessagesAllowedByRetrievalFilter(); i++)
+                for (ulong i = 0; i < _d3d12InfoQueue.Ptr->GetNumStoredMessagesAllowedByRetrievalFilter(); i++)
                 {
                     nuint pLength;
-                    ThrowIfFailed(_d3d12InfoQueue.Get()->GetMessage(i, null, &pLength));
+                    ThrowIfFailed(_d3d12InfoQueue.Ptr->GetMessage(i, null, &pLength));
 
                     int length = (int)pLength;
 
@@ -339,7 +339,7 @@ namespace Voltium.Common
                     fixed (void* pHeapBuffer = rented.Value)
                     {
                         var msgBuffer = (D3D12_MESSAGE*)pHeapBuffer;
-                        ThrowIfFailed(_d3d12InfoQueue.Get()->GetMessage(i, msgBuffer, &pLength));
+                        ThrowIfFailed(_d3d12InfoQueue.Ptr->GetMessage(i, msgBuffer, &pLength));
 
                         transcoded = Encoding.ASCII.GetString(
                             (byte*)msgBuffer->pDescription,
@@ -353,10 +353,10 @@ namespace Voltium.Common
 
             if (_dxgiInfoQueue.Exists)
             {
-                for (ulong i = 0; i < _dxgiInfoQueue.Get()->GetNumStoredMessagesAllowedByRetrievalFilters(_dxgiProducerId); i++)
+                for (ulong i = 0; i < _dxgiInfoQueue.Ptr->GetNumStoredMessagesAllowedByRetrievalFilters(_dxgiProducerId); i++)
                 {
                     nuint pLength;
-                    ThrowIfFailed(_dxgiInfoQueue.Get()->GetMessage(_dxgiProducerId, i, null, &pLength));
+                    ThrowIfFailed(_dxgiInfoQueue.Ptr->GetMessage(_dxgiProducerId, i, null, &pLength));
 
                     int length = (int)pLength;
 
@@ -367,7 +367,7 @@ namespace Voltium.Common
                     fixed (void* pHeapBuffer = rented.Value)
                     {
                         var msgBuffer = (DXGI_INFO_QUEUE_MESSAGE*)pHeapBuffer;
-                        ThrowIfFailed(_dxgiInfoQueue.Get()->GetMessage(_dxgiProducerId, i, msgBuffer, &pLength));
+                        ThrowIfFailed(_dxgiInfoQueue.Ptr->GetMessage(_dxgiProducerId, i, msgBuffer, &pLength));
 
                         transcoded = Encoding.ASCII.GetString(
                             (byte*)msgBuffer->pDescription,
@@ -413,13 +413,13 @@ namespace Voltium.Common
                 }
             };
 
-            _device.ThrowIfFailed(_d3d12InfoQueue.Get()->AddRetrievalFilterEntries(&filter));
+            _device.ThrowIfFailed(_d3d12InfoQueue.Ptr->AddRetrievalFilterEntries(&filter));
 
             GetSeveritiesForLogLevel(_config.BreakpointLogLevel, allowedSeverities, out int numBreakOn);
 
             for (var i = 0; i < numBreakOn; i++)
             {
-                _device.ThrowIfFailed(_d3d12InfoQueue.Get()->SetBreakOnSeverity(allowedSeverities[i], TRUE));
+                _device.ThrowIfFailed(_d3d12InfoQueue.Ptr->SetBreakOnSeverity(allowedSeverities[i], TRUE));
             }
         }
 
@@ -443,13 +443,13 @@ namespace Voltium.Common
                 }
             };
 
-            _device.ThrowIfFailed(_dxgiInfoQueue.Get()->AddRetrievalFilterEntries(_dxgiProducerId, &filter));
+            _device.ThrowIfFailed(_dxgiInfoQueue.Ptr->AddRetrievalFilterEntries(_dxgiProducerId, &filter));
 
             GetSeveritiesForLogLevel(_config.BreakpointLogLevel, allowedSeverities, out int numBreakOn);
 
             for (var i = 0; i < numBreakOn; i++)
             {
-                _device.ThrowIfFailed(_dxgiInfoQueue.Get()->SetBreakOnSeverity(_dxgiProducerId, allowedSeverities[i], TRUE));
+                _device.ThrowIfFailed(_dxgiInfoQueue.Ptr->SetBreakOnSeverity(_dxgiProducerId, allowedSeverities[i], TRUE));
             }
         }
 

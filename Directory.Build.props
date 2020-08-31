@@ -52,13 +52,13 @@
     <Copyright>Copyright © John Kelly and Contributors</Copyright>
     <Description>$Description</Description>
     <Features>strict</Features>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <HighEntropyVA>true</HighEntropyVA>
     <LangVersion>preview</LangVersion>
     <NeutralLanguage>en-US</NeutralLanguage>
     <OverwriteReadOnlyFiles>true</OverwriteReadOnlyFiles>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>$(RepositoryUrl)</PackageProjectUrl>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <ProduceReferenceAssembly>true</ProduceReferenceAssembly>
     <PublicSign>false</PublicSign>
     <RepositoryType>git</RepositoryType>

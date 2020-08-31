@@ -20,7 +20,7 @@ namespace Voltium.Core
         /// </summary>
         public bool Exists => _heap.Exists;
 
-        internal ID3D12DescriptorHeap* GetHeap() => _heap.Get();
+        internal ID3D12DescriptorHeap* GetHeap() => _heap.Ptr;
 
         /// <summary>
         /// Whether this heap is visible to shaders
@@ -84,8 +84,13 @@ namespace Voltium.Core
             _device.ThrowIfFailed(device.DevicePointer->CreateDescriptorHeap(&desc, heap.Iid, (void**)&heap));
 
             _heap = heap.Move();
-            var cpu = _heap.Get()->GetCPUDescriptorHandleForHeapStart();
-            var gpu = _heap.Get()->GetGPUDescriptorHandleForHeapStart();
+            var cpu = _heap.Ptr->GetCPUDescriptorHandleForHeapStart();
+
+            D3D12_GPU_DESCRIPTOR_HANDLE gpu = default;
+            if (desc.Flags.HasFlag(D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE))
+            {
+                gpu = _heap.Ptr->GetGPUDescriptorHandleForHeapStart();
+            }
 
             _firstHandle = new DescriptorHandle(device.DevicePointer->GetDescriptorHandleIncrementSize(desc.Type), cpu, gpu);
             _offset = 0;
@@ -100,7 +105,7 @@ namespace Voltium.Core
         /// <summary>
         /// The description of the heap
         /// </summary>
-        public D3D12_DESCRIPTOR_HEAP_DESC Desc => _heap.Get()->GetDesc();
+        public D3D12_DESCRIPTOR_HEAP_DESC Desc => _heap.Ptr->GetDesc();
 
         private uint _count;
         private uint _offset;
@@ -139,9 +144,9 @@ namespace Voltium.Core
         /// <inheritdoc cref="IComType.Dispose"/>
         public void Dispose() => _heap.Dispose();
 
-        ID3D12Object* IInternalD3D12Object.GetPointer() => (ID3D12Object*)_heap.Get();
+        ID3D12Object* IInternalD3D12Object.GetPointer() => (ID3D12Object*)_heap.Ptr;
 
-        ID3D12Pageable* IEvictable.GetPageable() => (ID3D12Pageable*)_heap.Get();
+        ID3D12Pageable* IEvictable.GetPageable() => (ID3D12Pageable*)_heap.Ptr;
         bool IEvictable.IsBlittableToPointer => false;
     }
 

@@ -74,15 +74,13 @@ namespace Voltium.Interactive.BasicRenderPipeline
         private Buffer _obj;
         private Buffer _frame;
         private Buffer _light;
-        private Output2D _target;
 
         private const DataFormat DepthStencilFormat = DataFormat.Depth32Single;
         private const DataFormat RenderTargetFormat = DataFormat.R8G8B8A8UnsignedNormalized;
 
-        public BasicSceneRenderer(GraphicsDevice device, Output2D target)
+        public BasicSceneRenderer(GraphicsDevice device)
         {
             _device = device;
-            _target = target;
 
             _device.PipelineManager.Reset();
 
@@ -130,7 +128,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
             InitializeConstants();
         }
 
-        [MemberNotNull(nameof(_tex), nameof(_texMsaa8x))]
+        //[MemberNotNull(nameof(_tex), nameof(_texMsaa8x))]
         public void CreatePipelines()
         {
             var rootParams = new[]
@@ -170,17 +168,17 @@ namespace Voltium.Interactive.BasicRenderPipeline
             var psoDesc = new GraphicsPipelineDesc
             {
                 RootSignature = _rootSig,
-                RenderTargetFormats = new GraphicsPipelineDesc.FormatBuffer8(RenderTargetFormat),
+                RenderTargetFormats = RenderTargetFormat,
                 DepthStencilFormat = DepthStencilFormat,
                 VertexShader = vertexShader,
                 PixelShader = pixelShader,
                 Topology = TopologyClass.Triangle
             };
 
-            _tex = _device.PipelineManager.CreatePipelineStateObject<TexturedVertex>("Texture", psoDesc);
+            _tex = _device.PipelineManager.CreatePipelineStateObject<TexturedVertex>(psoDesc, "Texture");
 
             psoDesc.Msaa = MultisamplingDesc.X8;
-            _texMsaa8x = _device.PipelineManager.CreatePipelineStateObject<TexturedVertex>("Texture_MSAA8X", psoDesc);
+            _texMsaa8x = _device.PipelineManager.CreatePipelineStateObject<TexturedVertex>(psoDesc, "Texture_MSAA8X");
         }
 
         private GraphicsPipelineStateObject _tex = null!;
@@ -242,8 +240,6 @@ namespace Voltium.Interactive.BasicRenderPipeline
             _light.WriteConstantBufferData(ref _sceneLight, 0);
         }
 
-        public override OutputDesc Output => OutputDesc.FromBackBuffer(OutputClass.Primary, _target);
-
         public override void Register(ref RenderPassBuilder builder, ref Resolver resolver)
         {
             var resources = new PipelineResources();
@@ -252,13 +248,13 @@ namespace Voltium.Interactive.BasicRenderPipeline
             resources.SceneColor = builder.CreatePrimaryOutputRelativeTexture(
                 TextureDesc.CreateRenderTargetDesc(DataFormat.R8G8B8A8UnsignedNormalized, Rgba128.CornflowerBlue, settings.Msaa),
                 ResourceState.RenderTarget,
-                debugName: "SceneColor"
+                debugName: nameof(resources.SceneColor)
             );
 
             resources.SceneDepth = builder.CreatePrimaryOutputRelativeTexture(
                 TextureDesc.CreateDepthStencilDesc(DataFormat.Depth32Single, 1.0f, 0, false, settings.Msaa),
                 ResourceState.DepthWrite,
-                debugName: "SceneDepth"
+                debugName: nameof(resources.SceneDepth)
             );
 
             resolver.CreateComponent(resources);
@@ -273,7 +269,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
         {
             WriteConstantBuffers();
 
-            //using var _ = recorder.BeginEvent(Argb32.Red, "BasicSceneRenderer");
+            using var _ = recorder.BeginEvent(Argb32.Red, "BasicSceneRenderer");
 
             var resources = resolver.GetComponent<PipelineResources>();
             var settings = resolver.GetComponent<PipelineSettings>();
@@ -284,7 +280,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
             var rtv = _device.CreateRenderTargetView(sceneRender);
             var dsv = _device.CreateDepthStencilView(sceneDepth);
 
-            recorder.SetViewportAndScissor(settings.Resolution);
+            recorder.SetViewportAndScissor(sceneRender.Resolution);
 
             recorder.SetAndClearRenderTarget(rtv, Rgba128.CornflowerBlue, dsv);
 
@@ -295,7 +291,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
             recorder.SetTopology(Topology.TriangeList);
 
             using (Profiler.BeginProfileBlock("Render Object"))
-            //using (recorder.BeginEvent(Argb32.AliceBlue, "Render Objects"))
+            using (recorder.BeginEvent(Argb32.AliceBlue, "Render Objects"))
             {
                 for (var i = 0u; i < _texturedObjects.Length; i++)
                 {
@@ -306,8 +302,6 @@ namespace Voltium.Interactive.BasicRenderPipeline
                     recorder.DrawIndexed(_texturedObjects[i].Indices.Length);
                 }
             }
-
-            recorder.CopyResource(sceneRender, _target.OutputBuffer);
         }
     }
 }

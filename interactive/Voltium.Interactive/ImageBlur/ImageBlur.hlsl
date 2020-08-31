@@ -28,7 +28,7 @@ ConstantBuffer<Constants> Settings : register(b0);
 static const int MaxBlurRadius = 5;
 
 
-RWTexture2D<float4> Image : register(u0);
+RWTexture2D<float4> Image : register(u0, space1);
 
 #define N 256
 #define CacheSize (N + 2 * MaxBlurRadius)

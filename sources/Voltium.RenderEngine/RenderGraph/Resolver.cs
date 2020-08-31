@@ -1,4 +1,5 @@
 using Voltium.Common;
+using Voltium.Core.Devices;
 using Voltium.Core.Memory;
 using Buffer = Voltium.Core.Memory.Buffer;
 

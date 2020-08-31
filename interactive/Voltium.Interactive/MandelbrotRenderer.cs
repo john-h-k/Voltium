@@ -117,7 +117,7 @@ namespace Voltium.Interactive
             _outputResolution = new Size((int)width, (int)height);
             _renderTarget.Dispose();
 
-            var target = TextureDesc.CreateRenderTargetDesc(DataFormat.R16G16B16A16Single, height, width, Rgba128.Black);
+            var target = TextureDesc.CreateRenderTargetDesc(DataFormat.R16G16B16A16Single, width, height, Rgba128.Black);
 
             _renderTarget = _device.Allocator.AllocateTexture(target, ResourceState.RenderTarget);
             _renderTargetView = _device.CreateRenderTargetView(_renderTarget);

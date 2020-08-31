@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.CompilerServices;
 using System.Text;
 using TerraFX.Interop;
 using Voltium.Common;
@@ -8,37 +9,38 @@ namespace Voltium.Core.Infrastructure
     /// <summary>
     /// Represents a DXGI adapter
     /// </summary>
-    public struct Adapter : IDisposable
+    [GenerateEquality]
+    public partial struct Adapter : IEquatable<Adapter>, IDisposable
     {
         /// <summary>
         /// The value of the <see cref="IDXGIAdapter1"/>
         /// </summary>
-        internal unsafe IUnknown* GetAdapterPointer() => _adapter.Get();
+        internal unsafe IUnknown* GetAdapterPointer() => _adapter.Ptr;
 
         private ComPtr<IUnknown> _adapter;
 
         /// <summary>
-        /// A string that contains the adapter description. On feature level 9 graphics hardware, GetDesc1 returns “Software Adapter” for the description string.
+        /// A string that contains the adapter description
         /// </summary>
         public string Description { get; }
 
         /// <summary>
-        /// The PCI ID of the hardware vendor. On feature level 9 graphics hardware, GetDesc1 returns zeros for the PCI ID of the hardware vendor.
+        /// The PCI ID of the hardware vendor
         /// </summary>
         public AdapterVendor VendorId { get; }
 
         /// <summary>
-        /// The PCI ID of the hardware device. On feature level 9 graphics hardware, GetDesc1 returns zeros for the PCI ID of the hardware device.
+        /// The PCI ID of the hardware device
         /// </summary>
         public uint DeviceId { get; }
 
         /// <summary>
-        /// The PCI ID of the sub system. On feature level 9 graphics hardware, GetDesc1 returns zeros for the PCI ID of the sub system.
+        /// The PCI ID of the sub system
         /// </summary>
         public uint SubSysId { get; }
 
         /// <summary>
-        /// The PCI ID of the revision number of the adapter. On feature level 9 graphics hardware, GetDesc1 returns zeros for the PCI ID of the revision number of the adapter.
+        /// The PCI ID of the revision number of the adapter
         /// </summary>
         public uint Revision { get; }
 
@@ -68,7 +70,7 @@ namespace Voltium.Core.Infrastructure
         public ulong DriverVersion { get; }
 
         /// <summary>
-        ///  <code>true</code> if this adapter is implemented in software, else <code>false</code>
+        ///  <see langword="true"/> if this adapter is implemented in software, else <see langword="false"/>
         /// </summary>
         public bool IsSoftware { get; }
 
@@ -115,7 +117,7 @@ namespace Voltium.Core.Infrastructure
         /// <inheritdoc/>
         public override string ToString()
         {
-            using var builder = StringHelper.RentStringBuilder();
+            using var builder = StringHelpers.RentStringBuilder();
 
             builder.Append("Vendor: ").AppendLine(VendorId);
             builder.Append("Description: ").AppendLine(Description);
@@ -132,6 +134,12 @@ namespace Voltium.Core.Infrastructure
 
             return builder.ToString();
         }
+
+        /// <inheritdoc />
+        public override int GetHashCode() => AdapterLuid.GetHashCode();
+
+        /// <inheritdoc />
+        public bool Equals(Adapter other) => AdapterLuid == other.AdapterLuid;
 
         /// <inheritdoc cref="IDisposable"/>
         public void Dispose() => _adapter.Dispose();

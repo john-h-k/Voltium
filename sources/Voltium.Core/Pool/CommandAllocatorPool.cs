@@ -32,7 +32,7 @@ namespace Voltium.Core.Devices
 
             LogHelper.LogDebug($"New command allocator allocated (this is the #{_allocatorCount++} allocator)");
 
-            DebugHelpers.SetName(allocator.Get(), $"Pooled allocator #{_allocatorCount}");
+            DebugHelpers.SetName(allocator.Ptr, $"Pooled allocator #{_allocatorCount}");
 
             return allocator.Move();
         }
@@ -48,6 +48,6 @@ namespace Voltium.Core.Devices
         }
 
         protected override void ManageReturn(ref ComPtr<ID3D12CommandAllocator> state)
-            => _device.ThrowIfFailed(state.Get()->Reset());
+            => _device.ThrowIfFailed(state.Ptr->Reset());
     }
 }

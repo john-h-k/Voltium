@@ -12,7 +12,7 @@ namespace Voltium.Common.Strings
 
         public int GetHashCode(string obj)
         {
-            return StringHelper.FastHash(obj);
+            return StringHelpers.FastHash(obj);
         }
     }
 }

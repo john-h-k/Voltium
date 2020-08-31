@@ -7,7 +7,7 @@ namespace Voltium.Core.Pipeline
     /// The mask used to determine which channels of an RGBA value
     /// should be written
     /// </summary>
-    public enum ColorWriteFlags
+    public enum ColorWriteFlags : byte
     {
         /// <summary>
         /// No channels will be written

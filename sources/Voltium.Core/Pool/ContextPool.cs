@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
+
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
@@ -73,7 +73,7 @@ namespace Voltium.Core.Pool
             // Check list support
             var ctx = Rent(ExecutionContext.Graphics, null, false);
             SupportedList = CheckListSupport(ctx.List);
-            ctx.List.Get()->Close();
+            ctx.List.Ptr->Close();
             Return(ctx, GpuTask.Completed);
         }
 
@@ -85,7 +85,7 @@ namespace Voltium.Core.Pool
 
             if (allocators.TryDequeue(out var allocator, &IsAllocatorFinished))
             {
-                _device.ThrowIfFailed(allocator.Allocator.Get()->Reset());
+                _device.ThrowIfFailed(allocator.Allocator.Ptr->Reset());
             }
             else
             {
@@ -94,11 +94,11 @@ namespace Voltium.Core.Pool
 
             if (lists.TryDequeue(out var list))
             {
-                _device.ThrowIfFailed(list.Get()->Reset(allocator.Allocator.Get(), pso is null ? null : pso.GetPso()));
+                _device.ThrowIfFailed(list.Ptr->Reset(allocator.Allocator.Ptr, pso is null ? null : pso.GetPso()));
             }
             else
             {
-                list = CreateList(context, allocator.Allocator.Get(), pso is null ? null : pso.GetPso());
+                list = CreateList(context, allocator.Allocator.Ptr, pso is null ? null : pso.GetPso());
             }
 
             return new ContextParams(_device, list, allocator.Allocator, pso, context, executeOnClose);
@@ -141,8 +141,8 @@ namespace Voltium.Core.Pool
 
             LogHelper.LogDebug($"New command allocator allocated (this is the #{_allocatorCount++} allocator)");
 
-            DebugHelpers.SetName(allocator.Get(), $"Pooled allocator #{_allocatorCount}");
-            DebugHelpers.SetPrivateData(allocator.Get(), Guid_AllocatorType, context);
+            DebugHelpers.SetName(allocator.Ptr, $"Pooled allocator #{_allocatorCount}");
+            DebugHelpers.SetPrivateData(allocator.Ptr, Guid_AllocatorType, context);
 
             return allocator.Move();
         }
@@ -153,7 +153,7 @@ namespace Voltium.Core.Pool
 
             LogHelper.LogDebug($"New command list allocated (this is the #{_listCount++} list)");
 
-            DebugHelpers.SetName(list.Get(), $"Pooled list #{_listCount}");
+            DebugHelpers.SetName(list.Ptr, $"Pooled list #{_listCount}");
 
             return list.Move();
         }

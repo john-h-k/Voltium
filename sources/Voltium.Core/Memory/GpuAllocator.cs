@@ -8,7 +8,7 @@ using Voltium.Common;
 using Voltium.Core.Devices;
 using Voltium.Core.Memory;
 using Buffer = Voltium.Core.Memory.Buffer;
-using System.Linq;
+
 using Voltium.Extensions;
 
 namespace Voltium.Core.Memory
@@ -82,17 +82,65 @@ namespace Voltium.Core.Memory
         /// <summary>
         /// Allocates a <see cref="MemoryAccess.CpuUpload"/> buffer and copy initial data to it
         /// </summary>
+        /// <typeparam name="T">The type of the elements of the buffer</typeparam>
+        /// <param name="count">The number of <typeparamref name="T"/>s to allocate</param>
+        /// <param name="allocFlags">Any additional allocation flags</param>
+        /// <returns>A new <see cref="Buffer"/></returns>
+        public Buffer AllocateUploadBuffer<T>(
+            int count = 1,
+            AllocFlags allocFlags = AllocFlags.None
+        ) where T : unmanaged
+        {
+            var buff = AllocateBuffer(sizeof(T) * count, MemoryAccess.CpuUpload, allocFlags: allocFlags);
+            return buff;
+        }
+
+        /// <summary>
+        /// Allocates a <see cref="MemoryAccess.CpuUpload"/> buffer and copy initial data to it
+        /// </summary>
+        /// <param name="count">The number of bytes to allocate</param>
+        /// <param name="allocFlags">Any additional allocation flags</param>
+        /// <returns>A new <see cref="Buffer"/></returns>
+        public Buffer AllocateUploadBuffer(
+            int count = 1,
+            AllocFlags allocFlags = AllocFlags.None
+        )
+        {
+            var buff = AllocateBuffer(count, MemoryAccess.CpuUpload, allocFlags: allocFlags);
+            return buff;
+        }
+
+        /// <summary>
+        /// Allocates a <see cref="MemoryAccess.CpuUpload"/> buffer and copy initial data to it
+        /// </summary>
         /// <typeparam name="T">The type of the elements of <paramref name="data"/></typeparam>
         /// <param name="data">The data to copy to the buffer</param>
         /// <param name="allocFlags">Any additional allocation flags</param>
         /// <returns>A new <see cref="Buffer"/> with <paramref name="data"/> copied to it</returns>
-        public Buffer AllocateBuffer<T>(
+        public Buffer AllocateUploadBuffer<T>(
             ReadOnlySpan<T> data,
             AllocFlags allocFlags = AllocFlags.None
         ) where T : unmanaged
         {
             var buff = AllocateBuffer(data.ByteLength(), MemoryAccess.CpuUpload, allocFlags: allocFlags);
             buff.WriteData(data);
+            return buff;
+        }
+
+        /// <summary>
+        /// Allocates a <see cref="MemoryAccess.CpuUpload"/> buffer and copy initial data to it
+        /// </summary>
+        /// <typeparam name="T">The type of the elements of <paramref name="data"/></typeparam>
+        /// <param name="data">The data to copy to the buffer</param>
+        /// <param name="allocFlags">Any additional allocation flags</param>
+        /// <returns>A new <see cref="Buffer"/> with <paramref name="data"/> copied to it</returns>
+        public Buffer AllocateUploadBuffer<T>(
+            ref T data,
+            AllocFlags allocFlags = AllocFlags.None
+        ) where T : unmanaged
+        {
+            var buff = AllocateBuffer(sizeof(T), MemoryAccess.CpuUpload, allocFlags: allocFlags);
+            buff.WriteData(ref data);
             return buff;
         }
 
@@ -469,7 +517,7 @@ namespace Voltium.Core.Memory
 
         private GpuResource CreatePlaced(InternalAllocDesc* desc, ref AllocatorHeap heap, int heapIndex, HeapBlock block)
         {
-            var resource = _device.CreatePlacedResource(heap.Heap.Get(), block.Offset, desc);
+            var resource = _device.CreatePlacedResource(heap.Heap.Ptr, block.Offset, desc);
 
             return new GpuResource(
                 _device,
@@ -514,7 +562,7 @@ namespace Voltium.Core.Memory
         [Conditional("HEAP_VERIFY")]
         private void ValidateFreeBlock(ref AllocatorHeap heap, HeapBlock block)
         {
-            var check = heap.Heap.Get()->GetDesc().SizeInBytes >= block.Offset + block.Size;
+            var check = heap.Heap.Ptr->GetDesc().SizeInBytes >= block.Offset + block.Size;
             Debug.Assert(check, "Invalid free block added");
             _ = check;
 

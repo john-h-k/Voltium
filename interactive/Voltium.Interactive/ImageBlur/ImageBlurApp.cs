@@ -18,28 +18,28 @@ using Voltium.TextureLoading;
 
 namespace Voltium.Interactive.FloatMultiplySample
 {
-    public sealed class D3D12TextureDecoder : IImageDecoder
-    {
-        public Image<TPixel> Decode<TPixel>(Configuration configuration, Stream stream) where TPixel : unmanaged, IPixel<TPixel>
-        {
-            throw new NotImplementedException();
-        }
+    //public sealed class D3D12TextureDecoder : IImageDecoder
+    //{
+    //    public Image<TPixel> Decode<TPixel>(Configuration configuration, Stream stream) where TPixel : unmanaged, IPixel<TPixel>
+    //    {
+    //        throw new NotImplementedException();
+    //    }
 
-        public Image Decode(Configuration configuration, Stream stream)
-        {
-            throw new NotImplementedException();
-        }
+    //    public Image Decode(Configuration configuration, Stream stream)
+    //    {
+    //        throw new NotImplementedException();
+    //    }
 
-        public Task<Image<TPixel>> DecodeAsync<TPixel>(Configuration configuration, Stream stream) where TPixel : unmanaged, IPixel<TPixel>
-        {
-            throw new NotImplementedException();
-        }
+    //    public Task<Image<TPixel>> DecodeAsync<TPixel>(Configuration configuration, Stream stream) where TPixel : unmanaged, IPixel<TPixel>
+    //    {
+    //        throw new NotImplementedException();
+    //    }
 
-        public Task<Image> DecodeAsync(Configuration configuration, Stream stream)
-        {
-            throw new NotImplementedException();
-        }
-    }
+    //    public Task<Image> DecodeAsync(Configuration configuration, Stream stream)
+    //    {
+    //        throw new NotImplementedException();
+    //    }
+    //}
 
     public unsafe class ImageBlurApp
     {
@@ -50,18 +50,19 @@ namespace Voltium.Interactive.FloatMultiplySample
         }
 
         private ComputeDevice _device;
-        private ComputePipelineStateObject _horizontalBlurPso;
-        private ComputePipelineStateObject _verticalBlurPso;
+        private PipelineStateObject _horizontalBlurPso;
+        private PipelineStateObject _verticalBlurPso;
         private Settings _settings;
 
         public ImageBlurApp()
         {
-            _device = new ComputeDevice(DeviceConfiguration.DefaultCompute, null);
+            _device = GraphicsDevice.Create(FeatureLevel.GraphicsLevel11_0, null);
 
             var rootParams = new RootParameter[]
             {
-                RootParameter.CreateConstants(12, 0, 0),
-                RootParameter.CreateDescriptorTable(DescriptorRangeType.UnorderedAccessView, 0, 1, 0)
+                RootParameter.CreateConstants<Settings>(0, 0),
+                RootParameter.CreateDescriptorTable(DescriptorRangeType.ShaderResourceView, 0, 1, 0),
+                RootParameter.CreateDescriptorTable(DescriptorRangeType.UnorderedAccessView, 0, 1, 1)
             };
 
             var rootSig = _device.CreateRootSignature(rootParams);
@@ -71,14 +72,14 @@ namespace Voltium.Interactive.FloatMultiplySample
                 RootSignature = rootSig,
                 ComputeShader = ShaderManager.CompileShader("ImageBlur/ImageBlur.hlsl", ShaderType.Compute, entrypoint: "BlurHorizontal"),
             };
-            _horizontalBlurPso = _device.PipelineManager.CreatePipelineStateObject("BlurHorizontal", psoDesc);
+            _horizontalBlurPso = _device.PipelineManager.CreatePipelineStateObject(psoDesc, "BlurHorizontal");
 
             psoDesc = new ComputePipelineDesc
             {
                 RootSignature = rootSig,
                 ComputeShader = ShaderManager.CompileShader("ImageBlur/ImageBlur.hlsl", ShaderType.Compute, entrypoint: "BlurVertical"),
             };
-            _verticalBlurPso = _device.PipelineManager.CreatePipelineStateObject("BlurVertical", psoDesc);
+            _verticalBlurPso = _device.PipelineManager.CreatePipelineStateObject(psoDesc, "BlurVertical");
 
             _settings = new Settings();
             _settings.BlurRadius = 8;
@@ -112,16 +113,18 @@ namespace Voltium.Interactive.FloatMultiplySample
             }
         }
 
-        private (Texture Image, string Name)[] _images = null!;
+        private (Texture Source, Texture Dest, string Name)[] _images = null!;
 
         public void Setup()
         {
-            _images = new (Texture Image, string Name)[1];
+            _images = new (Texture Source, Texture Dest, string Name)[1];
             var bricks = TextureLoader.LoadTextureDesc("Assets/Textures/bricks3bgra.dds");
 
             using (var upload = _device.BeginUploadContext())
             {
-                _images[0].Image = upload.UploadTexture(bricks, ResourceFlags.AllowUnorderedAccess);
+                var src = upload.UploadTexture(bricks);
+                _images[0].Source = src;
+                _images[0].Dest = _device.Allocator.AllocateTexture(TextureDesc.CreateUnorderedAccessResourceDesc(src.Format, src.Dimension, src.Width, src.Height, src.DepthOrArraySize), ResourceState.NonPixelShaderResource);
                 _images[0].Name = "bricks";
             }
         }
@@ -130,13 +133,13 @@ namespace Voltium.Interactive.FloatMultiplySample
         {
             Setup();
 
-            foreach (var (image, name) in _images)
+            foreach (var (src, dest, name) in _images)
             {
-                BlurImage(image);
+                BlurImage(src, dest);
 
-                var memory = MemoryPool<Bgra32>.Shared.Rent((int)_device.GetRequiredSize(image, 1));
+                var memory = MemoryPool<Bgra32>.Shared.Rent((int)_device.GetRequiredSize(dest, 1));
 
-                using (var data = Image.LoadPixelData((ReadOnlySpan<Bgra32>)memory.Memory.Span, (int)image.Width, (int)image.Height))
+                using (var data = Image.LoadPixelData((ReadOnlySpan<Bgra32>)memory.Memory.Span, (int)dest.Width, (int)dest.Height))
                 {
                     data.Save($"blur_{name}.bmp");
                     using (var readback = _device.BeginReadbackContext())
@@ -145,32 +148,36 @@ namespace Voltium.Interactive.FloatMultiplySample
                     }
                 }
 
-                using (var data = Image.LoadPixelData((ReadOnlySpan<Bgra32>)memory.Memory.Span, (int)image.Width, (int)image.Height))
+                using (var data = Image.LoadPixelData((ReadOnlySpan<Bgra32>)memory.Memory.Span, (int)dest.Width, (int)dest.Height))
                 {
                     data.Save($"blur_{name}.bmp");
                 }
             }
         }
 
-        public void BlurImage(in Texture texture)
+        public void BlurImage(in Texture source, in Texture dest)
         {
-            var view = _device.CreateUnorderedAccessView(texture);
+            var srcView = _device.CreateShaderResourceView(source);
+            var destView = _device.CreateUnorderedAccessView(dest);
 
             var context = _device.BeginComputeContext(_horizontalBlurPso);
 
-            context.ResourceTransition(texture, ResourceState.UnorderedAccess);
-            context.SetRoot32BitConstants(0, _settings);
-            context.SetRootDescriptorTable(1, view);
+            context.ResourceTransition(dest, ResourceState.NonPixelShaderResource);
+            context.ResourceTransition(source, ResourceState.UnorderedAccess);
 
-            uint x = (uint)MathF.Ceiling(texture.Width / 256.0f);
-            context.Dispatch(x, texture.Height, 1);
+            context.SetRoot32BitConstants(0, _settings);
+            context.SetRootDescriptorTable(1, srcView);
+            context.SetRootDescriptorTable(2, destView);
+
+            uint x = (uint)MathF.Ceiling(source.Width / 256.0f);
+            context.Dispatch(x, source.Height, 1);
 
             context.SetPipelineState(_verticalBlurPso);
 
-            uint y = (uint)MathF.Ceiling(texture.Height / 256.0f);
-            context.Dispatch((uint)texture.Width, y, 1);
+            uint y = (uint)MathF.Ceiling(source.Height / 256.0f);
+            context.Dispatch((uint)source.Width, y, 1);
 
-            context.TransitionForCrossContextAccess(texture);
+            context.TransitionForCrossContextAccess(source);
 
             context.Close();
 

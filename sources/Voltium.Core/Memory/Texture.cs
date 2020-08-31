@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Drawing;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Configuration.Graphics;
@@ -59,14 +60,19 @@ namespace Voltium.Core.Memory
         private readonly ulong _length;
 
         /// <summary>
-        /// The width, in bytes, of the texture
+        /// The width, in texels, of the texture
         /// </summary>
         public readonly ulong Width;
 
         /// <summary>
-        /// The height, in bytes, of the texture
+        /// The height, in texels, of the texture
         /// </summary>
         public readonly uint Height;
+
+        /// <summary>
+        /// The resolution, in texels, of the texture
+        /// </summary>
+        public readonly Size Resolution => new Size((int)Width, (int)Height);
 
         /// <summary>
         /// The depth, in bytes, of the texture, if <see cref="Dimension"/> is <see cref="TextureDimension.Tex3D"/>,
@@ -98,7 +104,7 @@ namespace Voltium.Core.Memory
         // Required to get Texture's from SwapChains
         internal static Texture FromResource(ComputeDevice device, ComPtr<ID3D12Resource> buffer)
         {
-            var resDesc = buffer.Get()->GetDesc();
+            var resDesc = buffer.Ptr->GetDesc();
             var res = new GpuResource(device, buffer.Move(), new InternalAllocDesc { Desc = resDesc, InitialState = D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_COMMON }, null, -1);
 
             Debug.Assert(resDesc.Dimension == D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_TEXTURE2D);

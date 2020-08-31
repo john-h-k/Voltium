@@ -1,3 +1,4 @@
+using System;
 using System.Runtime.InteropServices;
 using Voltium.Core;
 using Voltium.Core.Memory;
@@ -19,7 +20,7 @@ namespace Voltium.RenderEngine
         public Texture Texture;
 
         // null if resource is not swapchain relative
-        public double? OutputRelativeSize;
+        public Nullable<double> OutputRelativeSize;
 
         public string? DebugName;
     }

@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Voltium.Analyzers
@@ -52,7 +53,9 @@ namespace Voltium.Analyzers
             return false;
         }
 
-        public static string CreatePartialDecl(this INamedTypeSymbol symbol, string code)
+        public static string CreatePartialDecl(this INamedTypeSymbol symbol, string code, params INamedTypeSymbol?[]? newBases)
+            => CreatePartialDecl(symbol, code, (IEnumerable<INamedTypeSymbol>?)newBases);
+        public static string CreatePartialDecl(this INamedTypeSymbol symbol, string code, IEnumerable<INamedTypeSymbol>? newBases = null)
         {
             var builder = new StringBuilder();
             var syntax = (TypeDeclarationSyntax)symbol.DeclaringSyntaxReferences[0].GetSyntax();
@@ -68,6 +71,14 @@ namespace Voltium.Analyzers
 
             builder.Append("namespace " + @namespace.ToString() + "{\n");
 
+            if (newBases is not null)
+            {
+                var bases = SyntaxFactory.SeparatedList<BaseTypeSyntax>(
+                    newBases.Select(symbol => SyntaxFactory.SimpleBaseType(SyntaxFactory.ParseTypeName(symbol.Name)))
+                );
+
+                syntax = syntax.WithBaseList(syntax.BaseList is null ? SyntaxFactory.BaseList(bases) : syntax.BaseList.WithTypes(bases));
+            }
 
             var types = new List<TypeDeclarationSyntax>();
             int nestedLevel = 0;
@@ -81,7 +92,7 @@ namespace Voltium.Analyzers
 
             foreach (var type in Enumerable.Reverse(types))
             {
-                var s = type.RemoveNodes(type.ChildNodes().OfType<AttributeSyntax>(), SyntaxRemoveOptions.KeepDirectives).ToFullString();
+                var s = type.RemoveNodes(type.ChildNodes().OfType<AttributeListSyntax>(), SyntaxRemoveOptions.KeepDirectives).ToFullString();
                 builder.Append(s.Substring(0, s.IndexOf('{')));
                 builder.Append("\n{\n");
             }

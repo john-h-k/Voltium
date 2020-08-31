@@ -15,6 +15,7 @@ using Voltium.Core.MetaCommands;
 using Voltium.Core.Pipeline;
 using Voltium.Core.Pool;
 using static TerraFX.Interop.D3D12_FEATURE;
+using static TerraFX.Interop.D3D_FEATURE_LEVEL;
 using static TerraFX.Interop.Windows;
 using Buffer = Voltium.Core.Memory.Buffer;
 
@@ -50,23 +51,33 @@ namespace Voltium.Core.Devices
     /// </summary>
     public unsafe partial class ComputeDevice : IDisposable, IInternalD3D12Object
     {
-        internal static readonly List<ComputeDevice> AllDevices = new();
+        /// <summary>
+        /// The <see cref="Adapter"/> this device uses
+        /// </summary>
+        public Adapter Adapter { get; private set; }
 
         /// <summary>
         /// The default allocator for the device
         /// </summary>
-        public GpuAllocator Allocator { get; private protected set; } = null!;
+        public GpuAllocator Allocator { get; private protected set; }
 
         /// <summary>
         /// The default pipeline manager for the device
         /// </summary>
-        public PipelineManager PipelineManager { get; private protected set; } = null!;
+        public PipelineManager PipelineManager { get; private protected set; }
 
+        // ClearUnorderedAccessView methods require a CPU descriptor handle that is not shader visible and a GPU descriptor handle that is shader visible
+        // These methods can be implemented by the driver as a Dispatch (which requires a shader visible handle)
+        // But also may be implemented by fixed-function hardware like ClearRenderTargetView which require a CPU descriptor
+        // Because shader visible heaps are created in UPLOAD/WRITE_BACK memory, they are very slow to read from, so a non-shader visible CPU descriptor is required for perf
+        // This is the heap for that
+        private protected DescriptorHeap OpaqueUavs;
+        private protected DescriptorHeap UavCbvSrvs;
 
         private protected ComPtr<ID3D12Device> Device;
         internal SupportedDevice DeviceLevel;
         internal enum SupportedDevice { Unknown, Device, Device1, Device2, Device3, Device4, Device5, Device6, Device7, Device8 }
-        private protected static HashSet<ulong> PreexistingDevices = new(1);
+        private protected static Dictionary<Adapter, ComputeDevice> AdapterDeviceMap = new(1);
         private protected DebugLayer? Debug;
         private protected ContextPool ContextPool;
 
@@ -78,6 +89,136 @@ namespace Voltium.Core.Devices
         private protected ulong CpuFrequency;
 
         private protected SupportedGraphicsCommandList SupportedList;
+
+        internal ID3D12Device* DevicePointer => Device.Ptr;
+        internal TDevice* DevicePointerAs<TDevice>() where TDevice : unmanaged => Device.AsBase<TDevice>().Ptr;
+
+        /// <summary>
+        /// The number of physical adapters, referred to as nodes, that the device uses
+        /// </summary>
+        public uint NodeCount { get; }
+
+
+        private protected static readonly Lazy<Adapter> DefaultAdapter = new(() =>
+        {
+            using DeviceFactory.Enumerator factory = new DxgiDeviceFactory().GetEnumerator();
+            _ = factory.MoveNext();
+            return factory.Current;
+        });
+
+        /// <summary>
+        /// The highest <see cref="ShaderModel"/> supported by this device
+        /// </summary>
+        public ShaderModel HighestSupportedShaderModel { get; private set; }
+
+        /// <summary>
+        /// Whether DXIL is supported, rather than the old DXBC bytecode form.
+        /// This is equivalent to cheking if <see cref="HighestSupportedShaderModel"/> supports shader model 6
+        /// </summary>
+        public bool IsDxilSupported => HighestSupportedShaderModel.IsDxil;
+
+        /// <summary>
+        /// Whether the device is removed
+        /// </summary>
+        public bool IsDeviceRemoved => DevicePointer->GetDeviceRemovedReason() != S_OK;
+
+        private protected static bool TryGetDevice(FeatureLevel level, in Adapter adapter, out ComputeDevice device)
+        {
+            lock (AdapterDeviceMap)
+            {
+                if (AdapterDeviceMap.TryGetValue(adapter, out device!))
+                {
+                    const int numLevels = 5;
+                    var pLevels = stackalloc D3D_FEATURE_LEVEL[numLevels]
+                    {
+                        D3D_FEATURE_LEVEL_1_0_CORE,
+                        D3D_FEATURE_LEVEL_11_0,
+                        D3D_FEATURE_LEVEL_11_1,
+                        D3D_FEATURE_LEVEL_12_0,
+                        D3D_FEATURE_LEVEL_12_1
+                    };
+
+                    D3D12_FEATURE_DATA_FEATURE_LEVELS levels;
+                    levels.pFeatureLevelsRequested = pLevels;
+                    levels.NumFeatureLevels = numLevels;
+
+                    device.QueryFeatureSupport(D3D12_FEATURE_FEATURE_LEVELS, &levels);
+
+                    if ((FeatureLevel)levels.MaxSupportedFeatureLevel < level)
+                    {
+                        ThrowHelper.ThrowNotSupportedException($"Requested adapter doesn't support desired feature level '{level}'");
+                    }
+
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Gets the <see cref="ComputeDevice"/> for a given <see cref="Adapter"/>
+        /// </summary>
+        /// <param name="requiredFeatureLevel">The required <see cref="FeatureLevel"/> for device creation</param>
+        /// <param name="adapter">The <see cref="Adapter"/> to create the device from, or <see langword="null"/> to use the default adapter</param>
+        /// <param name="config">The <see cref="DebugLayerConfiguration"/> for the device, or <see langword="null"/> to use the default</param>
+        /// <returns>A <see cref="ComputeDevice"/></returns>
+        public static ComputeDevice Create(FeatureLevel requiredFeatureLevel, in Adapter? adapter, DebugLayerConfiguration? config = null)
+        {
+            return TryGetDevice(requiredFeatureLevel, adapter ?? DefaultAdapter.Value, out var device) ? device : new ComputeDevice(requiredFeatureLevel, adapter, config);
+        }
+
+        private protected ComputeDevice(FeatureLevel level, in Adapter? adapter, DebugLayerConfiguration? config = null)
+        {
+            if (config is not null)
+            {
+                if (config.DebugFlags.HasFlag(DebugFlags.DebugLayer))
+                {
+                    DeviceCreationSettings.EnableDebugLayer();
+                }
+                if (config.DebugFlags.HasFlag(DebugFlags.GpuBasedValidation))
+                {
+                    DeviceCreationSettings.EnableGpuBasedValidation();
+                }
+                DeviceCreationSettings.EnableDred(config.DredFlags);
+            }
+
+            CreateDevice(adapter ?? DefaultAdapter.Value, level);
+
+            if (!Device.Exists)
+            {
+                ThrowHelper.ThrowPlatformNotSupportedException($"FATAL: Creation of ID3D12Device with feature level '{level}' failed");
+            }
+
+            Debug = new DebugLayer(this, config);
+
+
+            ulong frequency;
+            var res = QueryPerformanceFrequency((LARGE_INTEGER*) /* <- can we do that? */ &frequency);
+
+            if (res == 0)
+            {
+                ThrowHelper.ThrowPlatformNotSupportedException("No CPU high resolution timer found");
+            }
+
+            CpuFrequency = frequency;
+
+            _residencyFence = CreateFence();
+
+            NodeCount = DevicePointer->GetNodeCount();
+            QueryFeaturesOnCreation();
+            ContextPool = new ContextPool(this);
+            CopyQueue = new CommandQueue(this, ExecutionContext.Copy, true);
+            ComputeQueue = new CommandQueue(this, ExecutionContext.Compute, true);
+            Allocator = new GpuAllocator(this);
+            PipelineManager = new PipelineManager(this);
+            EmptyRootSignature = RootSignature.Create(this, ReadOnlyMemory<RootParameter>.Empty, ReadOnlyMemory<StaticSampler>.Empty);
+            CreateDescriptorHeaps();
+
+            if (DeviceCreationSettings.AreMetaCommandsEnabled)
+            {
+                _metaCommandDescs = new Lazy<MetaCommandDesc[]?>(EnumMetaCommands);
+            }
+        }
 
         private ref CommandQueue GetQueueForContext(ExecutionContext context)
         {
@@ -93,395 +234,7 @@ namespace Voltium.Core.Devices
 
             return ref Helpers.NullRef<CommandQueue>();
         }
-
-        /// <summary>
-        /// The <see cref="Adapter"/> this device uses
-        /// </summary>
-        public Adapter Adapter { get; private set; }
-
-        internal ID3D12Device* DevicePointer => Device.Get();
-        internal TDevice* DevicePointerAs<TDevice>() where TDevice : unmanaged => Device.AsBase<TDevice>().Get();
-
-        /// <summary>
-        /// The number of physical adapters, referred to as nodes, that the device uses
-        /// </summary>
-        public uint NodeCount => DevicePointer->GetNodeCount();
-
-
-        private static readonly Adapter DefaultAdapter = GetDefaultAdapter();
-
-        /// <summary>
-        /// The highest <see cref="ShaderModel"/> supported by this device
-        /// </summary>
-        public ShaderModel HighestSupportedShaderModel { get; private set; }
-
-        /// <summary>
-        /// Whether DXIL is supported, rather than the old DXBC bytecode form.
-        /// This is equivalent to cheking if <see cref="HighestSupportedShaderModel"/> supports shader model 6
-        /// </summary>
-        public bool IsDxilSupported => HighestSupportedShaderModel.IsDxil;
-
-        // this fence is specifically used by the device for MakeResidentAsync. unrelated to queue fences
-        private ComPtr<ID3D12Fence> _residencyFence;
-        private ulong _lastFenceSignal;
-
-        /// <summary>
-        /// Indicates whether calls to <see cref="MakeResidentAsync{T}(T)"/> and <see cref="MakeResidentAsync{T}(ReadOnlySpan{T})"/> can succeed
-        /// </summary>
-        public bool CanMakeResidentAsync => DeviceLevel >= SupportedDevice.Device3;
-
-        private const string Error_CantMakeResidentAsync = "Cannot MakeResidentAsync on a system that does not support ID3D12Device3.\n" +
-            "Check CanMakeResidentAsync to determine if you can call MakeResidentAsync without it failing";
-
-        private MetaCommandDesc[]? EnumMetaCommands()
-        {
-            if (DeviceLevel < SupportedDevice.Device5)
-            {
-                ThrowHelper.ThrowPlatformNotSupportedException("Current OS does not support ID3D12Device5, which is required for meta commands");
-            }
-
-            int numMetaCommands;
-            ThrowIfFailed(DevicePointerAs<ID3D12Device5>()->EnumerateMetaCommands((uint*)&numMetaCommands, null));
-
-            var meta = RentedArray<D3D12_META_COMMAND_DESC>.Create(numMetaCommands);
-
-            ThrowIfFailed(DevicePointerAs<ID3D12Device5>()->EnumerateMetaCommands((uint*)&numMetaCommands, Helpers.AddressOf(meta.Value)));
-
-            var descs = new MetaCommandDesc[numMetaCommands];
-
-            for (int i = 0; i < numMetaCommands; i++)
-            {
-                descs[i] = new MetaCommandDesc(meta.Value[i].Id, new string((char*)meta.Value[i].Name));
-            }
-
-            return descs;
-        }
-
-        /// <summary>
-        /// Whether the device is removed
-        /// </summary>
-        public bool IsDeviceRemoved => DevicePointer->GetDeviceRemovedReason() != S_OK;
-
-        private Lazy<MetaCommandDesc[]?>? _metaCommandDescs;
-
-        /// <summary>
-        /// The device meta commands, if <see cref="DeviceCreationSettings.EnableMetaCommands"/> was called before device creation
-        /// </summary>
-        public ReadOnlyMemory<MetaCommandDesc> MetaCommands => _metaCommandDescs?.Value;
-
-        /// <summary>
-        /// An empty <see cref="RootSignature"/>
-        /// </summary>
-        public RootSignature EmptyRootSignature { get; }
-
-        /// <summary>
-        /// Creates a new <see cref="RootSignature"/>
-        /// </summary>
-        /// <param name="rootParameter">The <see cref="RootParameter"/> in the signature</param>
-        /// <param name="staticSampler">The <see cref="StaticSampler"/> in the signature</param>
-        /// <returns>A new <see cref="RootSignature"/></returns>
-        public RootSignature CreateRootSignature(in RootParameter rootParameter, in StaticSampler staticSampler)
-            => CreateRootSignature(new[] { rootParameter }, new[] { staticSampler });
-
-        /// <summary>
-        /// Creates a new <see cref="RootSignature"/>
-        /// </summary>
-        /// <param name="rootParameters">The <see cref="RootParameter"/>s in the signature</param>
-        /// <param name="staticSampler">The <see cref="StaticSampler"/> in the signature</param>
-        /// <returns>A new <see cref="RootSignature"/></returns>
-        public RootSignature CreateRootSignature(ReadOnlyMemory<RootParameter> rootParameters, in StaticSampler staticSampler)
-            => CreateRootSignature(rootParameters, new[] { staticSampler });
-
-        /// <summary>
-        /// Creates a new <see cref="RootSignature"/>
-        /// </summary>
-        /// <param name="rootParameters">The <see cref="RootParameter"/>s in the signature</param>
-        /// <param name="staticSamplers">The <see cref="StaticSampler"/>s in the signature</param>
-        /// <returns>A new <see cref="RootSignature"/></returns>
-        public RootSignature CreateRootSignature(ReadOnlyMemory<RootParameter> rootParameters, ReadOnlyMemory<StaticSampler> staticSamplers = default)
-            => RootSignature.Create(this, rootParameters, staticSamplers);
-
-        /// <summary>
-        /// Asynchronously makes <paramref name="evicted"/> resident on the device
-        /// </summary>
-        /// <typeparam name="T">The type of the evicted resource</typeparam>
-        /// <param name="evicted">The <typeparamref name="T"/> to make resident</param>
-        /// <returns>A <see cref="GpuTask"/> that can be used to work out when the resource is resident</returns>
-        public GpuTask MakeResidentAsync<T>(T evicted) where T : IEvictable
-        {
-            if (DeviceLevel < SupportedDevice.Device3)
-            {
-                ThrowHelper.ThrowNotSupportedException(Error_CantMakeResidentAsync);
-            }
-
-            var newValue = Interlocked.Increment(ref _lastFenceSignal);
-            var pageable = evicted.GetPageable();
-
-            ThrowIfFailed(DevicePointerAs<ID3D12Device3>()->EnqueueMakeResident(
-                D3D12_RESIDENCY_FLAGS.D3D12_RESIDENCY_FLAG_DENY_OVERBUDGET,
-                1,
-                &pageable,
-                _residencyFence.Get(),
-                newValue
-            ));
-
-            return new GpuTask(this, _residencyFence, newValue);
-        }
-
-        /// <summary>
-        /// Asynchronously makes <paramref name="evicted"/> resident on the device
-        /// </summary>
-        /// <typeparam name="T">The type of the evicted resourcse</typeparam>
-        /// <param name="evicted">The <typeparamref name="T"/>s to make resident</param>
-        /// <returns>A <see cref="GpuTask"/> that can be used to work out when the resource is resident</returns>
-        public GpuTask MakeResidentAsync<T>(ReadOnlySpan<T> evicted) where T : IEvictable
-        {
-            if (DeviceLevel < SupportedDevice.Device3)
-            {
-                ThrowHelper.ThrowNotSupportedException(Error_CantMakeResidentAsync);
-            }
-
-            var newValue = Interlocked.Increment(ref _lastFenceSignal);
-            // classes will never be blittable to pointer, so this handles that
-            if (default(T)?.IsBlittableToPointer ?? false)
-            {
-                fixed (void* pEvictables = &Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(evicted)))
-                {
-                    ThrowIfFailed(DevicePointerAs<ID3D12Device3>()->EnqueueMakeResident(
-                        D3D12_RESIDENCY_FLAGS.D3D12_RESIDENCY_FLAG_DENY_OVERBUDGET,
-                        (uint)evicted.Length,
-                        (ID3D12Pageable**)pEvictables,
-                        _residencyFence.Get(),
-                        newValue
-                    ));
-                }
-            }
-            else
-            {
-
-                if (StackSentinel.SafeToStackallocPointers(evicted.Length))
-                {
-                    ID3D12Pageable** pEvictables = stackalloc ID3D12Pageable*[evicted.Length];
-                    for (int i = 0; i < evicted.Length; i++)
-                    {
-                        pEvictables[i] = evicted[i].GetPageable();
-                    }
-
-                    ThrowIfFailed(DevicePointerAs<ID3D12Device3>()->EnqueueMakeResident(
-                        D3D12_RESIDENCY_FLAGS.D3D12_RESIDENCY_FLAG_DENY_OVERBUDGET,
-                        (uint)evicted.Length,
-                        pEvictables,
-                        _residencyFence.Get(),
-                        newValue
-                    ));
-                }
-                else
-                {
-                    using var pool = RentedArray<nuint>.Create(evicted.Length, PinnedArrayPool<nuint>.Default);
-
-                    for (int i = 0; i < evicted.Length; i++)
-                    {
-                        pool.Value[i] = (nuint)evicted[i].GetPageable();
-                    }
-
-                    ThrowIfFailed(DevicePointerAs<ID3D12Device3>()->EnqueueMakeResident(
-                        D3D12_RESIDENCY_FLAGS.D3D12_RESIDENCY_FLAG_DENY_OVERBUDGET,
-                        (uint)evicted.Length,
-                        (ID3D12Pageable**)Unsafe.AsPointer(ref MemoryMarshal.GetArrayDataReference(pool.Value)),
-                        _residencyFence.Get(),
-                        newValue
-                    ));
-                }
-            }
-
-            return new GpuTask(this, _residencyFence, newValue);
-        }
-
-        // MakeResident is 34th member of vtable
-        // Evict is 35th
-        private delegate* stdcall<uint, ID3D12Pageable**, int> MakeResidentFunc => (delegate* stdcall<uint, ID3D12Pageable**, int>)DevicePointer->lpVtbl[34];
-        private delegate* stdcall<uint, ID3D12Pageable**, int> EvictFunc => (delegate* stdcall<uint, ID3D12Pageable**, int>)DevicePointer->lpVtbl[35];
-
-        // take advantage of the fact make resident and evict have same sig to reduce code duplication
-
-        /// <summary>
-        /// Synchronously makes <paramref name="evicted"/> resident on the device
-        /// </summary>
-        /// <typeparam name="T">The type of the evicted resource</typeparam>
-        /// <param name="evicted">The <typeparamref name="T"/> to make resident</param>
-        public void MakeResident<T>(T evicted) where T : IEvictable
-            => ChangeResidency(MakeResidentFunc, evicted);
-
-        /// <summary>
-        /// Synchronously makes <paramref name="evicted"/> resident on the device
-        /// </summary>
-        /// <typeparam name="T">The type of the evicted resource</typeparam>
-        /// <param name="evicted">The <typeparamref name="T"/>s to make resident</param>
-        public void MakeResident<T>(ReadOnlySpan<T> evicted) where T : IEvictable
-            => ChangeResidency(MakeResidentFunc, evicted);
-
-        /// <summary>
-        /// Indicates <paramref name="evicted"/> can be evicted if necessary
-        /// </summary>
-        /// <typeparam name="T">The type of the evictable resource</typeparam>
-        /// <param name="evicted">The <typeparamref name="T"/> to mark as evictable</param>
-        public void Evict<T>(T evicted) where T : IEvictable
-            => ChangeResidency(EvictFunc, evicted);
-
-        /// <summary>
-        /// Indicates <paramref name="evicted"/> can be evicted if necessary
-        /// </summary>
-        /// <typeparam name="T">The type of the evictable resource</typeparam>
-        /// <param name="evicted">The <typeparamref name="T"/>s to mark as evictable</param>
-        public void Evict<T>(ReadOnlySpan<T> evicted) where T : IEvictable
-            => ChangeResidency(EvictFunc, evicted);
-
-        private void ChangeResidency<T>(delegate* stdcall<uint, ID3D12Pageable**, int> changeFunc, T evictable) where T : IEvictable
-        {
-            var pageable = evictable.GetPageable();
-            ThrowIfFailed(changeFunc(1, &pageable));
-        }
-
-        private void ChangeResidency<T>(delegate* stdcall<uint, ID3D12Pageable**, int> changeFunc, ReadOnlySpan<T> evictables) where T : IEvictable
-        {
-            // classes will never be blittable to pointer, so this handles that
-            if (default(T)?.IsBlittableToPointer ?? false)
-            {
-                fixed (void* pEvictables = &Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(evictables)))
-                {
-                    ThrowIfFailed(changeFunc((uint)evictables.Length, (ID3D12Pageable**)pEvictables));
-                }
-            }
-            else
-            {
-
-                if (StackSentinel.SafeToStackallocPointers(evictables.Length))
-                {
-                    ID3D12Pageable** pEvictables = stackalloc ID3D12Pageable*[evictables.Length];
-                    for (int i = 0; i < evictables.Length; i++)
-                    {
-                        pEvictables[i] = evictables[i].GetPageable();
-                    }
-
-                    ThrowIfFailed(changeFunc((uint)evictables.Length, pEvictables));
-                }
-                else
-                {
-                    using var pool = RentedArray<nuint>.Create(evictables.Length, PinnedArrayPool<nuint>.Default);
-
-                    for (int i = 0; i < evictables.Length; i++)
-                    {
-                        pool.Value[i] = (nuint)evictables[i].GetPageable();
-                    }
-
-                    ThrowIfFailed(changeFunc((uint)evictables.Length, (ID3D12Pageable**)Unsafe.AsPointer(ref MemoryMarshal.GetArrayDataReference(pool.Value))));
-                }
-            }
-        }
-
-        private static Adapter GetDefaultAdapter()
-        {
-            using var factory = new DxgiDeviceFactory().GetEnumerator();
-            _ = factory.MoveNext();
-            return factory.Current;
-        }
-
-        internal ComPtr<ID3D12RootSignature> CreateRootSignature(uint nodeMask, void* pSignature, uint signatureLength)
-        {
-            using ComPtr<ID3D12RootSignature> rootSig = default;
-            ThrowIfFailed(DevicePointer->CreateRootSignature(
-                nodeMask,
-                pSignature,
-                signatureLength,
-                rootSig.Iid,
-                (void**)&rootSig
-            ));
-
-            return rootSig.Move();
-        }
-
-        /// <summary>
-        /// Create a new <see cref="ComputeDevice"/>
-        /// </summary>
-        /// <param name="adapter">The <see cref="Adapter"/> to create the device on, or <see langword="null"/> to use the default adapter</param>
-        /// <param name="config">The <see cref="DeviceConfiguration"/> to create the device with</param>
-        public ComputeDevice(DeviceConfiguration config, in Adapter? adapter)
-        {
-            if (config.DebugLayerConfiguration is not null)
-            {
-                if (config.DebugLayerConfiguration.DebugFlags.HasFlag(DebugFlags.DebugLayer))
-                {
-                    DeviceCreationSettings.EnableDebugLayer();
-                }
-                if (config.DebugLayerConfiguration.DebugFlags.HasFlag(DebugFlags.GpuBasedValidation))
-                {
-                    DeviceCreationSettings.EnableGpuBasedValidation();
-                }
-                DeviceCreationSettings.EnableDred(config.DebugLayerConfiguration.DredFlags);
-            }
-
-            CreateDevice(adapter, config.RequiredFeatureLevel);
-
-            if (!Device.Exists)
-            {
-                ThrowHelper.ThrowPlatformNotSupportedException($"FATAL: Creation of ID3D12Device with feature level '{config.RequiredFeatureLevel}' failed");
-            }
-            Debug = new DebugLayer(this, config.DebugLayerConfiguration);
-
-
-            ulong frequency;
-            var res = QueryPerformanceFrequency((LARGE_INTEGER*) /* <- can we do that? */ &frequency);
-
-            if (res == 0)
-            {
-                ThrowHelper.ThrowPlatformNotSupportedException("No high resolution timer found");
-            }
-
-            CpuFrequency = frequency;
-
-            _residencyFence = CreateFence();
-
-            QueryFeaturesOnCreation();
-            ContextPool = new ContextPool(this);
-            CopyQueue = new CommandQueue(this, ExecutionContext.Copy);
-            ComputeQueue = new CommandQueue(this, ExecutionContext.Compute);
-            Allocator = new GpuAllocator(this);
-            PipelineManager = new PipelineManager(this);
-            EmptyRootSignature = RootSignature.Create(this, ReadOnlyMemory<RootParameter>.Empty, ReadOnlyMemory<StaticSampler>.Empty);
-            CreateDescriptorHeaps();
-
-            if (DeviceCreationSettings.AreMetaCommandsEnabled)
-            {
-                _metaCommandDescs = new Lazy<MetaCommandDesc[]?>(EnumMetaCommands);
-            }
-
-            //HANDLE deviceRemoved = CreateEventW(null, FALSE, FALSE, null);
-            //_residencyFence.Get()->SetEventOnCompletion(ulong.MaxValue, deviceRemoved);
-
-            //var weakThis = GCHandle.Alloc(this, GCHandleType.Weak);
-
-            //IntPtr waitHandle;
-            //RegisterWaitForSingleObject(
-            //  &waitHandle,
-            //  deviceRemoved,
-            //  (delegate* stdcall<void*, byte, void>)(delegate*<void*, byte, void>)&NativeOnDeviceRemoved,
-            //  (void*)GCHandle.ToIntPtr(weakThis), // Pass the device as our context
-            //  INFINITE, // No timeout
-            //  0 // No flags
-            //);
-        }
-
-        //[UnmanagedCallersOnly]
-        //private static void NativeOnDeviceRemoved(void* deviceHandle, byte _)
-        //{
-        //    var handle = GCHandle.FromIntPtr((IntPtr)deviceHandle);
-
-        //    if (handle.Target is not null)
-        //    {
-        //        var device = (ComputeDevice)handle.Target;
-        //        device.OnDeviceRemoved();
-        //    }
-        //}
+        
 
         /// <summary>
         /// Throws if a given HR is a fail code. Also properly handles device-removed error codes, unlike Guard.ThrowIfFailed
@@ -504,17 +257,26 @@ namespace Voltium.Core.Devices
                 return;
             }
 
-            HrIsFail(this, hr, expression, filepath, memberName, lineNumber);
+            HrIsFail(this, hr
+#if DEBUG || EXTENDED_ERROR_INFORMATION
+                , expression, filepath, memberName, lineNumber
+#endif
+                );
 
             [MethodImpl(MethodImplOptions.NoInlining)]
-            static void HrIsFail(ComputeDevice device, int hr, string? expression, string? filepath, string? memberName, int lineNumber)
+            static void HrIsFail(ComputeDevice device, int hr
+
+#if DEBUG || EXTENDED_ERROR_INFORMATION
+                                , string? expression, string? filepath, string? memberName, int lineNumber
+#endif
+)
             {
                 if (hr is DXGI_ERROR_DEVICE_REMOVED or DXGI_ERROR_DEVICE_RESET or DXGI_ERROR_DEVICE_HUNG)
                 {
-                    throw new DeviceDisconnectedException(device, GetReason(device.DevicePointer->GetDeviceRemovedReason()));
+                    throw new DeviceDisconnectedException(device, TranslateReason(device.DevicePointer->GetDeviceRemovedReason()));
                 }
 
-                static DeviceDisconnectReason GetReason(int hr) => hr switch
+                static DeviceDisconnectReason TranslateReason(int hr) => hr switch
                 {
                     DXGI_ERROR_DEVICE_REMOVED => DeviceDisconnectReason.Removed,
                     DXGI_ERROR_DEVICE_HUNG => DeviceDisconnectReason.Hung,
@@ -547,22 +309,16 @@ namespace Voltium.Core.Devices
         }
 
         private protected void CreateDevice(
-            in Adapter? adapter,
+            in Adapter adapter,
             FeatureLevel level
         )
         {
-            var usedAdapter = adapter is Adapter notNull ? notNull : DefaultAdapter;
-
-            if (PreexistingDevices.Contains(usedAdapter.AdapterLuid))
-            {
-                ThrowHelper.ThrowArgumentException("Device already exists for adapter");
-            }
-
+            lock (AdapterDeviceMap)
             {
                 using ComPtr<ID3D12Device> device = default;
 
                 ThrowIfFailed(D3D12CreateDevice(
-                    usedAdapter.GetAdapterPointer(),
+                    adapter.GetAdapterPointer(),
                     (D3D_FEATURE_LEVEL)level,
                     device.Iid,
                     (void**)&device
@@ -570,28 +326,25 @@ namespace Voltium.Core.Devices
 
                 Device = device.Move();
 
-                LogHelper.LogInformation("New D3D12 device created from adapter: \n{0}", usedAdapter);
+                LogHelper.LogInformation("New D3D12 device created from adapter: \n{0}", adapter);
+
+                this.SetName("Primary Device");
+
+                DeviceLevel = Device switch
+                {
+                    _ when Device.HasInterface<ID3D12Device8>() => SupportedDevice.Device8,
+                    _ when Device.HasInterface<ID3D12Device7>() => SupportedDevice.Device7,
+                    _ when Device.HasInterface<ID3D12Device6>() => SupportedDevice.Device6,
+                    _ when Device.HasInterface<ID3D12Device5>() => SupportedDevice.Device5,
+                    _ when Device.HasInterface<ID3D12Device4>() => SupportedDevice.Device4,
+                    _ when Device.HasInterface<ID3D12Device3>() => SupportedDevice.Device3,
+                    _ when Device.HasInterface<ID3D12Device2>() => SupportedDevice.Device2,
+                    _ when Device.HasInterface<ID3D12Device1>() => SupportedDevice.Device1,
+                    _ => SupportedDevice.Device
+                };
+
+                AdapterDeviceMap[adapter] = this;
             }
-
-            this.SetName("Primary Device");
-
-            DeviceLevel = Device switch
-            {
-                _ when Device.HasInterface<ID3D12Device8>() => SupportedDevice.Device8,
-                _ when Device.HasInterface<ID3D12Device7>() => SupportedDevice.Device7,
-                _ when Device.HasInterface<ID3D12Device6>() => SupportedDevice.Device6,
-                _ when Device.HasInterface<ID3D12Device5>() => SupportedDevice.Device5,
-                _ when Device.HasInterface<ID3D12Device4>() => SupportedDevice.Device4,
-                _ when Device.HasInterface<ID3D12Device3>() => SupportedDevice.Device3,
-                _ when Device.HasInterface<ID3D12Device2>() => SupportedDevice.Device2,
-                _ when Device.HasInterface<ID3D12Device1>() => SupportedDevice.Device1,
-                _ => SupportedDevice.Device
-            };
-
-            LUID luid = DevicePointer->GetAdapterLuid();
-            System.Diagnostics.Debug.Assert(sizeof(LUID) == sizeof(ulong));
-            _ = PreexistingDevices.Add(Unsafe.As<LUID, ulong>(ref luid));
-            Adapter = usedAdapter;
         }
 
         /// <summary>
@@ -605,7 +358,7 @@ namespace Voltium.Core.Devices
             }
             else
             {
-                // Guaranteed to remove the device, but more risky
+                // Guaranteed to remove the device, but more risky (might AV)
                 DevicePointer->CreateRenderTargetView(null, null, new D3D12_CPU_DESCRIPTOR_HANDLE { ptr = unchecked((nuint)(-1)) });
             }
         }
@@ -633,6 +386,9 @@ namespace Voltium.Core.Devices
 
             GetMajorMinorForShaderModel(highest.HighestShaderModel, out var major, out var minor);
             HighestSupportedShaderModel = new ShaderModel(ShaderType.Unspecified, (byte)major, (byte)minor);
+
+            QueryFeatureSupport<D3D12_FEATURE_DATA_D3D12_OPTIONS>(D3D12_FEATURE_D3D12_OPTIONS, out var options);
+            ResourceCount = options.ResourceBindingTier == D3D12_RESOURCE_BINDING_TIER.D3D12_RESOURCE_BINDING_TIER_3 ? 1_000_000 : 1_000_000;
         }
 
         private static void GetMajorMinorForShaderModel(D3D_SHADER_MODEL model, out int major, out int minor)
@@ -654,28 +410,6 @@ namespace Voltium.Core.Devices
             var success = ComPtr.TryQueryInterface(DevicePointer, out T* val);
             result = new ComPtr<T>(val);
             return success;
-        }
-
-        internal bool HasInterface<T>() where T : unmanaged
-        {
-            var success = ComPtr.TryQueryInterface(DevicePointer, out T* val);
-
-            if ((void*)val is null)
-            {
-                ((IUnknown*)val)->Release();
-            }
-
-            return success;
-        }
-
-        internal ComPtr<T> QueryInterface<T>() where T : unmanaged
-        {
-            var success = ComPtr.TryQueryInterface(DevicePointer, out T* val);
-            if (!success)
-            {
-                ThrowHelper.ThrowInvalidCastException(nameof(T));
-            }
-            return new ComPtr<T>(val);
         }
 
         /// <summary>
@@ -745,7 +479,7 @@ namespace Voltium.Core.Devices
         /// <summary>
         /// Returns a <see cref="ComputeContext"/> used for recording compute commands
         /// </summary>
-        public ComputeContext BeginComputeContext(ComputePipelineStateObject? pso = null, bool executeOnClose = false)
+        public ComputeContext BeginComputeContext(PipelineStateObject? pso = null, bool executeOnClose = false)
         {
             var @params = ContextPool.Rent(ExecutionContext.Compute, pso, executeOnClose: executeOnClose);
 
@@ -824,7 +558,8 @@ namespace Voltium.Core.Devices
             return finish;
         }
 
-        private unsafe void SetDefaultState(GpuContext context, ComputePipelineStateObject? pso)
+
+        private unsafe void SetDefaultState(GpuContext context, PipelineStateObject? pso)
         {
             if (pso is not null)
             {
@@ -832,82 +567,10 @@ namespace Voltium.Core.Devices
             }
 
             const int numHeaps = 1;
-            var heaps = stackalloc ID3D12DescriptorHeap*[1] { ResourceDescriptors.GetHeap() };
+            var heaps = stackalloc ID3D12DescriptorHeap*[1] { UavCbvSrvs.GetHeap() };
 
             context.List->SetDescriptorHeaps(numHeaps, heaps);
         }
-
-        internal ComPtr<ID3D12Heap> CreateHeap(D3D12_HEAP_DESC* desc)
-        {
-            ComPtr<ID3D12Heap> heap = default;
-            ThrowIfFailed(DevicePointer->CreateHeap(
-                desc,
-                heap.Iid,
-                (void**)&heap
-            ));
-
-            return heap.Move();
-        }
-
-        internal unsafe ComPtr<ID3D12CommandQueue> CreateQueue(ExecutionContext type)
-        {
-            var desc = new D3D12_COMMAND_QUEUE_DESC
-            {
-                Type = (D3D12_COMMAND_LIST_TYPE)type,
-                Flags = D3D12_COMMAND_QUEUE_FLAGS.D3D12_COMMAND_QUEUE_FLAG_NONE,
-                NodeMask = 0, // TODO: MULTI-GPU
-                Priority = (int)D3D12_COMMAND_QUEUE_PRIORITY.D3D12_COMMAND_QUEUE_PRIORITY_NORMAL // why are you like this D3D12
-            };
-
-            ComPtr<ID3D12CommandQueue> p = default;
-
-            ThrowIfFailed(DevicePointer->CreateCommandQueue(
-                &desc,
-                p.Iid,
-                (void**)&p
-            ));
-
-            return p.Move();
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="tex"></param>
-        /// <param name="intermediate"></param>
-        /// <param name="data"></param>
-        public void ReadbackIntermediateBuffer(SubresourceLayout tex, in Buffer intermediate, Span<byte> data)
-        {
-            var offset = data;
-            var mapped = intermediate.Data;
-
-            var alignedRowSize = MathHelpers.AlignUp(tex.RowSize, 256);
-            for (var i = 0; i < tex.NumRows - 1; i++)
-            {
-                mapped.Slice(0, (int)tex.RowSize).CopyTo(offset);
-
-                mapped = mapped.Slice((int)alignedRowSize);
-                offset = offset.Slice((int)tex.RowSize);
-            }
-            mapped.Slice(0, (int)tex.RowSize).CopyTo(offset);
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        public SubresourceLayout GetSubresourceLayout(in Texture tex, uint subresourceIndex)
-        {
-            GetCopyableFootprint(tex, subresourceIndex, 1, out _, out var numRows, out var rowSizes, out _);
-
-            return new SubresourceLayout { NumRows = numRows, RowSize = rowSizes };
-        }
-
-        /// <summary>
-        /// Returns the size, in bytes, necessary to readback a <see cref="SubresourceLayout"/>
-        /// </summary>
-        /// <param name="tex">The <see cref="SubresourceLayout"/> to be read back</param>
-        /// <returns>The size, in bytes, necessary to readback <paramref name="tex"/></returns>
-        public ulong GetReadbackSize(SubresourceLayout tex) => tex.NumRows * tex.RowSize;
 
         /// <summary>
         /// Queries the GPU and timestamp
@@ -938,187 +601,6 @@ namespace Voltium.Core.Devices
             cpu = TimeSpan.FromSeconds(cpuTick / (double)CpuFrequency);
         }
 
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="tex"></param>
-        /// <param name="subresourceIndex"></param>
-        /// <returns></returns>
-        public SubresourceLayout GetSubresourceFootprin(in Texture tex, uint subresourceIndex)
-        {
-            SubresourceLayout result;
-            GetCopyableFootprint(tex, subresourceIndex, 1, out _, out result.NumRows, out result.RowSize, out _);
-            return result;
-        }
-
-        internal void GetCopyableFootprint(
-            in Texture tex,
-            uint firstSubresource,
-            uint numSubresources,
-            out D3D12_PLACED_SUBRESOURCE_FOOTPRINT layouts,
-            out uint numRows,
-            out ulong rowSizesInBytes,
-            out ulong requiredSize
-        )
-        {
-            var desc = tex.GetResourcePointer()->GetDesc();
-
-            fixed (D3D12_PLACED_SUBRESOURCE_FOOTPRINT* pLayout = &layouts)
-            {
-                ulong rowSizes;
-                uint rowCount;
-                ulong size;
-                DevicePointer->GetCopyableFootprints(&desc, 0, numSubresources, 0, pLayout, &rowCount, &rowSizes, &size);
-
-                rowSizesInBytes = rowSizes;
-                numRows = rowCount;
-                requiredSize = size;
-            }
-        }
-
-        internal TextureLayout GetCopyableFootprints(
-            in Texture tex,
-            uint firstSubresource,
-            uint numSubresources
-        )
-        {
-            TextureLayout layout;
-            GetCopyableFootprints(tex, firstSubresource, numSubresources, out layout.Layouts, out layout.NumRows, out layout.RowSizes, out layout.TotalSize);
-            return layout;
-        }
-
-        internal void GetCopyableFootprints(
-            in Texture tex,
-            uint firstSubresource,
-            uint numSubresources,
-            out D3D12_PLACED_SUBRESOURCE_FOOTPRINT[] layouts,
-            out uint[] numRows,
-            out ulong[] rowSizesInBytes,
-            out ulong requiredSize
-        )
-        {
-            var desc = tex.GetResourcePointer()->GetDesc();
-
-            layouts = new D3D12_PLACED_SUBRESOURCE_FOOTPRINT[numSubresources];
-            numRows = new uint[numSubresources];
-            rowSizesInBytes = new ulong[numSubresources];
-
-            fixed (D3D12_PLACED_SUBRESOURCE_FOOTPRINT* pLayouts = layouts)
-            fixed (uint* pNumRows = numRows)
-            fixed (ulong* pRowSizesInBytes = rowSizesInBytes)
-            {
-                ulong size;
-                DevicePointer->GetCopyableFootprints(&desc, 0, numSubresources, 0, pLayouts, pNumRows, pRowSizesInBytes, &size);
-                requiredSize = size;
-            }
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="tex"></param>
-        /// <param name="numSubresources"></param>
-        /// <returns></returns>
-        public ulong GetRequiredSize(
-            in Texture tex,
-            uint numSubresources
-        )
-        {
-            var desc = tex.GetResourcePointer()->GetDesc();
-            return GetRequiredSize(&desc, numSubresources);
-        }
-
-        internal ulong GetRequiredSize(
-            D3D12_RESOURCE_DESC* desc,
-            uint numSubresources
-        )
-        {
-            ulong requiredSize;
-            DevicePointer->GetCopyableFootprints(desc, 0, numSubresources, 0, null, null, null, &requiredSize);
-            return requiredSize;
-        }
-
-        internal D3D12_RESOURCE_ALLOCATION_INFO GetAllocationInfo(InternalAllocDesc* desc)
-            => DevicePointer->GetResourceAllocationInfo(0, 1, &desc->Desc);
-
-        internal ComPtr<ID3D12CommandAllocator> CreateAllocator(ExecutionContext context)
-        {
-            using ComPtr<ID3D12CommandAllocator> allocator = default;
-            ThrowIfFailed(DevicePointer->CreateCommandAllocator(
-                (D3D12_COMMAND_LIST_TYPE)context,
-                allocator.Iid,
-                (void**)&allocator
-            ));
-
-            return allocator.Move();
-        }
-
-        internal ComPtr<ID3D12GraphicsCommandList> CreateList(ExecutionContext context, ID3D12CommandAllocator* allocator, ID3D12PipelineState* pso)
-        {
-            using ComPtr<ID3D12GraphicsCommandList> list = default;
-            ThrowIfFailed(DevicePointer->CreateCommandList(
-                0, // TODO: MULTI-GPU
-                (D3D12_COMMAND_LIST_TYPE)context,
-                allocator,
-                pso,
-                list.Iid,
-                (void**)&list
-            ));
-
-            return list.Move();
-        }
-
-        internal ComPtr<ID3D12QueryHeap> CreateQueryHeap(D3D12_QUERY_HEAP_DESC desc)
-        {
-            using ComPtr<ID3D12QueryHeap> queryHeap = default;
-            DevicePointer->CreateQueryHeap(&desc, queryHeap.Iid, (void**)&queryHeap);
-            return queryHeap.Move();
-        }
-
-        internal ComPtr<ID3D12Resource> CreatePlacedResource(ID3D12Heap* heap, ulong offset, InternalAllocDesc* desc)
-        {
-            var clearVal = desc->ClearValue.GetValueOrDefault();
-
-            using ComPtr<ID3D12Resource> resource = default;
-
-            ThrowIfFailed(DevicePointer->CreatePlacedResource(
-                 heap,
-                 offset,
-                 &desc->Desc,
-                 desc->InitialState,
-                 desc->ClearValue is null ? null : &clearVal,
-                 resource.Iid,
-                 (void**)&resource
-             ));
-
-            return resource.Move();
-        }
-
-        internal ComPtr<ID3D12Resource> CreateCommittedResource(InternalAllocDesc* desc)
-        {
-            var heapProperties = GetHeapProperties(desc);
-            var clearVal = desc->ClearValue.GetValueOrDefault();
-
-            using ComPtr<ID3D12Resource> resource = default;
-
-            ThrowIfFailed(DevicePointer->CreateCommittedResource(
-                    &heapProperties,
-                    D3D12_HEAP_FLAGS.D3D12_HEAP_FLAG_NONE,
-                    &desc->Desc,
-                    desc->InitialState,
-                    desc->ClearValue is null ? null : &clearVal,
-                    resource.Iid,
-                    (void**)&resource
-            ));
-
-            return resource.Move();
-
-            static D3D12_HEAP_PROPERTIES GetHeapProperties(InternalAllocDesc* desc)
-            {
-                return new D3D12_HEAP_PROPERTIES(desc->HeapType);
-            }
-        }
 
         /// <inheritdoc/>
         public virtual void Dispose()

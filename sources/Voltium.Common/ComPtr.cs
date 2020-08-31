@@ -63,7 +63,7 @@ namespace Voltium.Common
         /// <summary>
         /// Retrieves the underlying pointer
         /// </summary>
-        public readonly T* Get() => _ptr;
+        public readonly T* Ptr => _ptr;
 
         /// <summary>
         /// Explicit conversion between a T* and a <see cref="ComPtr{T}"/>
@@ -152,7 +152,7 @@ namespace Voltium.Common
             => Windows.SUCCEEDED(As(out result));
 
         /// <summary>
-        /// Determine if the current pointer supports a given interface, so that <see cref="TryQueryInterface{TInterface}(out ComPtr{TInterface})"/>
+        /// Determine if the current pointer supports a given interface, so that <see cref="TryQueryInterface{T}(out ComPtr{T})"/>
         /// will succeed
         /// </summary>
         /// <typeparam name="TInterface">The type to check for</typeparam>
@@ -218,7 +218,7 @@ namespace Voltium.Common
         public override bool Equals(object? obj) => obj is ComPtr<T> other && Equals(other);
 
         /// <summary>
-        /// Casts a <see cref="ComPtr{T}"/> to a <see cref="ComPtr{TUp}"/> without dynamic type checking
+        /// Casts a <see cref="ComPtr{T}"/> to a <see cref="ComPtr{T}"/> without dynamic type checking
         /// </summary>
         /// <typeparam name="TBase">The desired type of the pointer</typeparam>
         /// <returns>The casted pointer</returns>
@@ -226,7 +226,7 @@ namespace Voltium.Common
             => ComPtr.UpCast<T, TBase>(this);
 
         /// <summary>
-        /// Casts a <see cref="ComPtr{T}"/> to a <see cref="ComPtr{IUnknown}"/>
+        /// Casts a <see cref="ComPtr{T}"/> to a <see cref="ComPtr{T}"/>
         /// </summary>
         /// <returns>The casted pointer</returns>
         public ComPtr<IUnknown> AsIUnknown()
@@ -267,7 +267,7 @@ namespace Voltium.Common
             where TInterface : unmanaged
         {
             var success = new ComPtr<T>(ptr).TryQueryInterface<TInterface>(out var comPtr);
-            result = comPtr.Get();
+            result = comPtr.Ptr;
             return success;
         }
 
@@ -284,7 +284,7 @@ namespace Voltium.Common
         }
 
         /// <summary>
-        /// Casts a <see cref="ComPtr{T}"/> to a <see cref="ComPtr{TUp}"/> without dynamic type checking
+        /// Casts a <see cref="ComPtr{T}"/> to a <see cref="ComPtr{T}"/> without dynamic type checking
         /// </summary>
         /// <param name="comPtr">The pointer to cast</param>
         /// <typeparam name="T">The original type of the pointer</typeparam>
@@ -301,7 +301,7 @@ namespace Voltium.Common
             assertion.Dispose();
 #endif
 
-            return new ComPtr<TUp>((TUp*)comPtr.Get());
+            return new ComPtr<TUp>((TUp*)comPtr.Ptr);
         }
 
 

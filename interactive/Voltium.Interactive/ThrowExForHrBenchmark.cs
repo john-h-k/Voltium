@@ -17,7 +17,7 @@ namespace Voltium.Interactive
         [GlobalSetup]
         public void Setup()
         {
-            var device = new GraphicsDevice(DeviceConfiguration.NoDebugLayer, null);
+            var device = GraphicsDevice.Create(FeatureLevel.GraphicsLevel11_0, null, null);
 
             _buffer = device.Allocator.AllocateBuffer(16, MemoryAccess.CpuUpload, /* so GetHeapProperties succeeds */ allocFlags: AllocFlags.ForceAllocateNotComitted);
             pResource = _buffer.GetResourcePointer();

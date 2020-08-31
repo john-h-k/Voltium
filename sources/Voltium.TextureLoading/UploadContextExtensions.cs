@@ -37,5 +37,31 @@ namespace Voltium.TextureLoading
             resDesc.ResourceFlags |= flags;
             return upload.UploadTexture(desc.Data.Span, desc.SubresourceData.Span, resDesc);
         }
+
+        /// <summary>
+        /// Uploads a texture
+        /// </summary>
+        /// <param name="upload">The <see cref="UploadContext"/> to use</param>
+        /// <param name="bytes">The <see cref="FormatTexture"/> to load</param>
+        /// <returns>A new <see cref="Texture"/></returns>
+        public static Texture UploadTexture(this UploadContext upload, ReadOnlyMemory<byte> bytes)
+        {
+            var desc = TextureLoader.LoadTextureDesc(bytes);
+            return upload.UploadTexture(desc);
+        }
+
+
+        /// <summary>
+        /// Uploads a texture
+        /// </summary>
+        /// <param name="upload">The <see cref="UploadContext"/> to use</param>
+        /// <param name="bytes">The <see cref="FormatTexture"/> to load</param>
+        /// <param name="flags">Any <see cref="ResourceFlags"/> to upload the texture with</param>
+        /// <returns>A new <see cref="Texture"/></returns>
+        public static Texture UploadTexture(this UploadContext upload, ReadOnlyMemory<byte> bytes, ResourceFlags flags)
+        {
+            var desc = TextureLoader.LoadTextureDesc(bytes);
+            return upload.UploadTexture(desc, flags);
+        }
     }
 }

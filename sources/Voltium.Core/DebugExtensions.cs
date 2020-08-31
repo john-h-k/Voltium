@@ -30,7 +30,7 @@ namespace Voltium.Common
 //        }
 
         public static bool IsDeviceRemoved(this ComPtr<ID3D12Device> device) =>
-            device.Get()->GetDeviceRemovedReason() != Windows.S_OK;
+            device.Ptr->GetDeviceRemovedReason() != Windows.S_OK;
 
         public static string DeviceRemovedMessage(int removedReason) => TranslateHr(removedReason);
 

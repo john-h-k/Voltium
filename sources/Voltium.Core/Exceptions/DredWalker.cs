@@ -29,7 +29,7 @@ namespace Voltium.Core.Exceptions
             using (dred)
             {
                 D3D12_DRED_AUTO_BREADCRUMBS_OUTPUT1 crumb;
-                int hr = dred.Get()->GetAutoBreadcrumbsOutput1(&crumb);
+                int hr = dred.Ptr->GetAutoBreadcrumbsOutput1(&crumb);
 
                 if (hr != DXGI_ERROR_UNSUPPORTED)
                 {
@@ -39,7 +39,7 @@ namespace Voltium.Core.Exceptions
                 }
 
                 D3D12_DRED_PAGE_FAULT_OUTPUT1 fault;
-                hr = dred.Get()->GetPageFaultAllocationOutput1(&fault);
+                hr = dred.Ptr->GetPageFaultAllocationOutput1(&fault);
 
                 if (hr != DXGI_ERROR_UNSUPPORTED)
                 {

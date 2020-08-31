@@ -6,12 +6,14 @@ namespace Voltium.Core
     public enum BackBufferFormat : uint
     {
         /// <summary>
-        /// A four-component, 32-bit unsigned-normalized-integer format that supports 8 bits per channel including alpha
+        /// A four-component, 32-bit unsigned-normalized-integer format that supports 8 bits per channel including alpha.
+        /// Consider using <see cref="B8G8R8A8UnsignedNormalized"/> for greater efficiency, as it is the format used by the compositor.
         /// </summary>
         R8G8B8A8UnsignedNormalized = DataFormat.R8G8B8A8UnsignedNormalized,
 
         /// <summary>
         /// A four-component, 32-bit unsigned-normalized integer sRGB format that supports 8 bits per channel including alpha
+        /// Consider using <see cref="B8G8R8A8UnsignedNormalizedSRGB"/> for greater efficiency, as it is the format used by the compositor.
         /// </summary>
         R8G8B8A8UnsignedNormalizedSRGB = DataFormat.R8G8B8A8UnsignedNormalizedSRGB,
 

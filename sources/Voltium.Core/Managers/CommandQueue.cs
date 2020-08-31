@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using TerraFX.Interop;
 using Voltium.Common;
@@ -20,7 +21,7 @@ namespace Voltium.Core.Devices
         public readonly ExecutionContext Type;
         public readonly ulong Frequency;
 
-        public ID3D12CommandQueue* GetQueue() => _queue.Get();
+        public ID3D12CommandQueue* GetQueue() => _queue.Ptr;
 
         private static ulong StartingFenceForContext(ExecutionContext context) => context switch
         {
@@ -33,7 +34,8 @@ namespace Voltium.Core.Devices
 
         public CommandQueue(
             ComputeDevice device,
-            ExecutionContext context
+            ExecutionContext context,
+            bool enableTdr
         )
         {
             Debug.Assert(device is object);
@@ -41,15 +43,15 @@ namespace Voltium.Core.Devices
             Type = context;
 
             _device = device;
-            _queue = device.CreateQueue(context);
+            _queue = device.CreateQueue(context, enableTdr ? D3D12_COMMAND_QUEUE_FLAGS.D3D12_COMMAND_QUEUE_FLAG_NONE : D3D12_COMMAND_QUEUE_FLAGS.D3D12_COMMAND_QUEUE_FLAG_DISABLE_GPU_TIMEOUT);
             _fence = device.CreateFence(StartingFenceForContext(context));
-            _lastFence = _fence.Get()->GetCompletedValue();
+            _lastFence = _fence.Ptr->GetCompletedValue();
 
-            DebugHelpers.SetName(_queue.Get(), GetListTypeName(context) + " Queue");
-            DebugHelpers.SetName(_fence.Get(), GetListTypeName(context) + " Fence");
+            DebugHelpers.SetName(_queue.Ptr, GetListTypeName(context) + " Queue");
+            DebugHelpers.SetName(_fence.Ptr, GetListTypeName(context) + " Fence");
 
             ulong frequency;
-            int hr = _queue.Get()->GetTimestampFrequency(&frequency);
+            int hr = _queue.Ptr->GetTimestampFrequency(&frequency);
 
             // E_FAIL is returned when the queue doesn't support timestamps
             if (hr != E_FAIL)
@@ -59,17 +61,17 @@ namespace Voltium.Core.Devices
             else
             {
                 Frequency = 0;
-                _device.ThrowIfFailed(hr, "_queue.Get()->GetTimestampFrequency(&frequency)");
+                _device.ThrowIfFailed(hr, "_queue.Ptr->GetTimestampFrequency(&frequency)");
             }
         }
 
         public GpuTask ExecuteCommandLists(uint numLists, ID3D12CommandList** ppLists)
         {
-            _queue.Get()->ExecuteCommandLists(numLists, ppLists);
+            _queue.Ptr->ExecuteCommandLists(numLists, ppLists);
             return Signal();
         }
 
-        public bool TryQueryTimestamps(ulong* gpu, ulong* cpu) => SUCCEEDED(_queue.Get()->GetClockCalibration(gpu, cpu));
+        public bool TryQueryTimestamps(ulong* gpu, ulong* cpu) => SUCCEEDED(_queue.Ptr->GetClockCalibration(gpu, cpu));
 
         private static string GetListTypeName(ExecutionContext type) => type switch
         {
@@ -83,13 +85,15 @@ namespace Voltium.Core.Devices
 
         public void Wait(in GpuTask waitable)
         {
+            _queue.Ptr->Wait(waitable);
+
             waitable.GetFenceAndMarker(out var fence, out var marker);
-            _device.ThrowIfFailed(_queue.Get()->Wait(fence, marker));
+            _device.ThrowIfFailed(_queue.Ptr->Wait(fence, marker));
         }
 
         public GpuTask Signal()
         {
-            _device.ThrowIfFailed(_queue.Get()->Signal(_fence.Get(), Interlocked.Increment(ref _lastFence)));
+            _device.ThrowIfFailed(_queue.Ptr->Signal(_fence.Ptr, Interlocked.Increment(ref _lastFence)));
             return new GpuTask(_device, _fence, _lastFence);
         }
 
@@ -99,6 +103,15 @@ namespace Voltium.Core.Devices
             _fence.Dispose();
         }
 
-        ID3D12Object* IInternalD3D12Object.GetPointer() => (ID3D12Object*)_queue.Get();
+        ID3D12Object* IInternalD3D12Object.GetPointer() => (ID3D12Object*)_queue.Ptr;
+    }
+
+    internal static unsafe class QueueExtensions
+    {
+        public static void Wait(this ref ID3D12CommandQueue queue, in GpuTask waitable)
+        {
+            waitable.GetFenceAndMarker(out var fence, out var marker);
+            Guard.ThrowIfFailed(queue.Wait(fence, marker));
+        }
     }
 }

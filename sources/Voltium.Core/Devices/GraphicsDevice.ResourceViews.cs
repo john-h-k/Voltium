@@ -176,9 +176,11 @@ namespace Voltium.Core.Devices
         {
             var handle = _samplers.GetNextHandle();
 
-            var samplerDesc = sampler.GetDesc();
 
-            DevicePointer->CreateSampler(&samplerDesc, handle.CpuHandle);
+            fixed (D3D12_SAMPLER_DESC* pDesc = &sampler.Desc)
+            {
+                DevicePointer->CreateSampler(pDesc, handle.CpuHandle);
+            }
 
             return handle;
         }

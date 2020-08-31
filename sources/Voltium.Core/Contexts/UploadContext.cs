@@ -1,12 +1,15 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
+
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 using TerraFX.Interop;
+using Voltium.Common;
 using Voltium.Core.Memory;
 using Voltium.Core.Pool;
 using Voltium.TextureLoading;
@@ -110,6 +113,8 @@ namespace Voltium.Core.Contexts
             var upload = _transientAllocator.AllocateBuffer(
                 checked((uint)Windows.GetRequiredIntermediateSize(destination.GetResourcePointer(), 0, (uint)subresources.Length))
             );
+
+            upload.Buffer.SetName("Intermediate texture upload buffer");
 
             fixed (byte* pTextureData = texture)
             fixed (SubresourceData* pSubresources = subresources)

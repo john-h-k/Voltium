@@ -1,50 +1,67 @@
-//using System;
-//using System.Diagnostics.CodeAnalysis;
-//using System.Drawing;
-//using System.Runtime.CompilerServices;
-//using System.Runtime.Intrinsics;
-//using System.Runtime.Intrinsics.X86;
-//using Voltium.Core;
-//using Voltium.Core.Devices;
-//using Voltium.RenderEngine;
+using System;
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
+using System.Drawing;
+using System.Runtime.CompilerServices;
+using System.Runtime.Intrinsics;
+using System.Runtime.Intrinsics.X86;
+using Voltium.Common;
+using Voltium.Core;
+using Voltium.Core.Devices;
+using Voltium.Core.Pipeline;
+using Voltium.RenderEngine;
 
-//namespace Voltium.CubeGame
-//{
-internal unsafe class Program
+namespace Voltium.CubeGame
 {
-    private static int Main() => 0; // ApplicationRunner.RunWin32(new CubeApp());
+    internal unsafe class Program
+    {
+        private static int Main() => ApplicationRunner.RunWin32(new CubeApp());
+    }
+
+    internal sealed class CubeApp : Application
+    {
+        public override string Name => nameof(CubeApp);
+
+        private GraphicsDevice _device = null!;
+        private Output _output = null!;
+
+
+        private RenderGraph _graph = null!;
+
+        private WorldPass _worldPass = null!;
+        private TonemapPass _outputPass = null!;
+
+        [MemberNotNull(nameof(_worldPass))]
+        public override void Initialize(Size outputSize, IOutputOwner outputOwner)
+        {
+            _device = GraphicsDevice.Create(FeatureLevel.GraphicsLevel11_0, null, DebugLayerConfiguration.Debug.WithDebugFlags(DebugFlags.DebugLayer));
+            _output = Output.Create(OutputConfiguration.Default, _device, outputOwner);
+
+            _graph = new RenderGraph(_device, 3);
+            _worldPass = new WorldPass(_device);
+            _outputPass = new TonemapPass(_output);
+        }
+
+        public override void OnResize(Size newOutputSize)
+        {
+        }
+
+        public override void Render()
+        {
+            _graph.AddPass(_worldPass);
+            _graph.AddPass(_outputPass);
+
+            _graph.ExecuteGraph();
+
+            _output.Present();
+        }
+
+        public override void Update(ApplicationTimer timer)
+        {
+        }
+
+        public override void Dispose()
+        {
+        }
+    }
 }
-
-//    internal sealed class CubeApp : Application
-//    {
-//        public override string Name => nameof(CubeApp);
-
-
-//        private WorldRenderer _renderer = null!;
-
-//        [MemberNotNull(nameof(_renderer))]
-//        public override void Initialize(Size outputSize, IOutputOwner output)
-//        {
-//            throw new NotImplementedException();
-//        }
-
-//        public override void OnResize(Size newOutputSize)
-//        {
-//            throw new NotImplementedException();
-//        }
-
-//        public override void Render()
-//        {
-
-//        }
-
-//        public override void Update(ApplicationTimer timer)
-//        {
-//            throw new NotImplementedException();
-//        }
-
-//        public override void Dispose()
-//        {
-//        }
-//    }
-//}

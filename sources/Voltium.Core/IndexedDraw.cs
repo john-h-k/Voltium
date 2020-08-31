@@ -1,9 +1,9 @@
-﻿using TerraFX.Interop;
+using TerraFX.Interop;
 
 namespace Voltium.Core
 {
     /// <summary>
-    /// Represents the parameters used for a call to <see cref="ID3D12GraphicsCommandList.DrawIndexedInstanced"/>
+    /// Represents the parameters used for a call to <see cref="ID3D12GraphicsCommandList.DrawIndexedInstanced" />
     /// </summary>
     public readonly struct IndexedDraw
     {

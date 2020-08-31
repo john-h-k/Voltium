@@ -14,57 +14,56 @@ namespace Voltium.Core
         /// Defines the <see cref="TextureAddressMode"/> to use for sampling points outside
         /// of the texture coordinates in the U address dimension
         /// </summary>
-        public TextureAddressMode TexU => (TextureAddressMode)_desc.AddressU;
+        public TextureAddressMode TexU => (TextureAddressMode)Desc.AddressU;
 
         /// <summary>
         /// Defines the <see cref="TextureAddressMode"/> to use for sampling points outside
         /// of the texture coordinates in the W address dimension
         /// </summary>
-        public TextureAddressMode TexW => (TextureAddressMode)_desc.AddressW;
+        public TextureAddressMode TexW => (TextureAddressMode)Desc.AddressW;
 
         /// <summary>
         /// Defines the <see cref="TextureAddressMode"/> to use for sampling points outside
         /// of the texture coordinates in the V address dimension
         /// </summary>
-        public TextureAddressMode TexV => (TextureAddressMode)_desc.AddressV;
+        public TextureAddressMode TexV => (TextureAddressMode)Desc.AddressV;
 
         /// <summary>
         /// The <see cref="SamplerFilterType"/> used for filtering mipmaps, minification, and magnification
         /// </summary>
-        public SamplerFilterType Filter => (SamplerFilterType)_desc.Filter;
+        public SamplerFilterType Filter => (SamplerFilterType)Desc.Filter;
 
         /// <summary>
         /// Defines the bias used for mips - that is, if the calculated mip is level 3, and the offset is n, the used mip is 3 + n
         /// </summary>
-        public float MipLODBias => _desc.MipLODBias;
+        public float MipLODBias => Desc.MipLODBias;
 
         /// <summary>
         /// The maximum value used for anistropy
         /// </summary>
-        public uint MaxAnisotropy => _desc.MaxAnisotropy;
+        public uint MaxAnisotropy => Desc.MaxAnisotropy;
 
         /// <summary>
         /// The comparison operator used to compare sampled data when the <see cref="SamplerFilterType.UseComparisonOperator"/> flag is set
         /// </summary>
-        public SampleComparisonFunc ComparisonFunc => (SampleComparisonFunc)_desc.ComparisonFunc;
+        public SampleComparisonFunc ComparisonFunc => (SampleComparisonFunc)Desc.ComparisonFunc;
 
         /// <summary>
         /// The color
         /// </summary>
-        public Rgba128 BorderColor => Unsafe.As<float, Rgba128>(ref _desc.BorderColor[0]);
+        public Rgba128 BorderColor => Unsafe.As<float, Rgba128>(ref Desc.BorderColor[0]);
 
         /// <summary>
         /// The minimum (most detailed) mipmap level to use
         /// </summary>
-        public float MinLOD => _desc.MinLOD;
+        public float MinLOD => Desc.MinLOD;
 
         /// <summary>
         /// The maximum (least detailed) mipmap level to use
         /// </summary>
-        public float MaxLOD => _desc.MaxLOD;
+        public float MaxLOD => Desc.MaxLOD;
 
-        private D3D12_SAMPLER_DESC _desc;
-        internal D3D12_SAMPLER_DESC GetDesc() => _desc;
+        internal D3D12_SAMPLER_DESC Desc;
 
         /// <summary>
         /// Creates a new <see cref="Sampler"/>
@@ -101,7 +100,7 @@ namespace Voltium.Core
         {
             Debug.Assert(maxAnisotropy <= 16);
 
-            _desc = new D3D12_SAMPLER_DESC
+            Desc = new D3D12_SAMPLER_DESC
             {
                 AddressU = (D3D12_TEXTURE_ADDRESS_MODE)texU,
                 AddressW = (D3D12_TEXTURE_ADDRESS_MODE)texW,
@@ -113,7 +112,7 @@ namespace Voltium.Core
                 MinLOD = minLOD,
                 MaxLOD = maxLOD,
             };
-            Unsafe.As<float, Rgba128>(ref _desc.BorderColor[0]) = borderColor;
+            Unsafe.As<float, Rgba128>(ref Desc.BorderColor[0]) = borderColor;
         }
     }
 }

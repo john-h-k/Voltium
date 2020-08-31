@@ -89,5 +89,12 @@ namespace Voltium.Core
             Debug.Assert(length >= 4);
             return Unsafe.As<float, Rgba128>(ref *p);
         }
+
+        // you can pass a length, say, of a span, and get a free lil bit of validation
+        internal static unsafe Rgba128 FromRef(ref float p, uint length = 4)
+        {
+            Debug.Assert(length >= 4);
+            return Unsafe.As<float, Rgba128>(ref p);
+        }
     }
 }

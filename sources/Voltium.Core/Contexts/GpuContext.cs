@@ -18,8 +18,8 @@ namespace Voltium.Core
 
         internal ID3D12GraphicsCommandList* GetListPointer() => List;
 
-        internal ID3D12GraphicsCommandList* List => Params.List.Get();
-        internal ID3D12CommandAllocator* Allocator => Params.Allocator.Get();
+        internal ID3D12GraphicsCommandList* List => Params.List.Ptr;
+        internal ID3D12CommandAllocator* Allocator => Params.Allocator.Ptr;
         internal ComputeDevice Device => Params.Device;
 
         internal ExecutionContext Context => Params.Context;

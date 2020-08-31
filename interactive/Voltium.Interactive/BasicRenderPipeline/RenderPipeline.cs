@@ -24,24 +24,18 @@ namespace Voltium.Interactive.BasicRenderPipeline
         private MsaaPass _msaaPass = null!;
         private TonemapPass _outputPass = null!;
 
-        private Output2D _output = null!;
+        private Output _output = null!;
         private PipelineSettings _settings;
 
         public override unsafe void Initialize(Size data, IOutputOwner output)
         {
-            var config = new DeviceConfiguration
-            {
-                RequiredFeatureLevel = FeatureLevel.GraphicsLevel11_0,
-                DebugLayerConfiguration = null
-            };
-
             using var factory = DeviceFactory.Create();
             foreach (var device in factory)
             {
                 Console.WriteLine(device);
             }
 
-            _device = new GraphicsDevice(config, null);
+            _device = GraphicsDevice.Create(FeatureLevel.GraphicsLevel11_0, null);
 
             var desc = new OutputConfiguration
             {
@@ -50,7 +44,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
                 SyncInterval = 0
             };
             
-            _output = Output2D.Create(desc, _device, output);
+            _output = Output.Create(desc, _device, output);
 
             _settings = new PipelineSettings
             {
@@ -60,13 +54,11 @@ namespace Voltium.Interactive.BasicRenderPipeline
             };
 
 
-            _renderer = new BasicSceneRenderer(_device, _output);
+            _renderer = new BasicSceneRenderer(_device);
             _msaaPass = new MsaaPass();
             _outputPass = new TonemapPass(_output);
 
             _graph = new RenderGraph(_device, _output.Configuration.BackBufferCount);
-
-            GC.Collect();
         }
 
         public override void Update(ApplicationTimer timer)
@@ -74,22 +66,18 @@ namespace Voltium.Interactive.BasicRenderPipeline
         }
 
         private RenderGraph _graph = null!;
-        private int _frameIndex;
+
         public override unsafe void Render()
         {
-            Console.WriteLine(_frameIndex);
-
             _graph.CreateComponent(_settings);
 
             _graph.AddPass(_renderer);
-            //_graph.AddPass(_msaaPass);
-            //_graph.AddPass(_outputPass);
+            _graph.AddPass(_msaaPass);
+            _graph.AddPass(_outputPass);
 
             _graph.ExecuteGraph();
 
             _output.Present();
-
-            _frameIndex++;
         }
 
         public override void Dispose()

@@ -19,22 +19,21 @@ namespace Voltium.Analyzers
 
             OnExecute(context);
 
-
             // this handles partial types, which have multiple type declaration nodes
-            var visited = new HashSet<string>();
+            var visited = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
             foreach (var (tree, node) in nodes)
             {
                 var semantics = comp.GetSemanticModel(tree);
                 var type = (semantics.GetDeclaredSymbol(node) as INamedTypeSymbol)!;
 
-                if (!Predicate(context, type) || visited.Contains(type.Name))
+                if (!Predicate(context, type) || visited.Contains(type))
                 {
                     continue;
                 }
 
                 GenerateFromSyntax(context, node, tree);
                 GenerateFromSymbol(context, type);
-                visited.Add(type.Name);
+                visited.Add(type);
             }
         }
 

@@ -9,17 +9,11 @@ namespace Voltium.Core.Devices
 {
     public unsafe partial class ComputeDevice
     {
-        /// <summary>
-        /// The <see cref="DescriptorHeap"/> for shader resource views, constant buffer views,
-        /// and unordered access views
-        /// </summary>
-        protected DescriptorHeap ResourceDescriptors;
-
-        private const int ResourceCount = 1024;
+        private uint ResourceCount; // 8 million lol
 
         private protected virtual void CreateDescriptorHeaps()
         {
-            ResourceDescriptors = DescriptorHeap.Create(this, DescriptorHeapType.ConstantBufferShaderResourceOrUnorderedAccessView, ResourceCount);
+            UavCbvSrvs = DescriptorHeap.Create(this, DescriptorHeapType.ConstantBufferShaderResourceOrUnorderedAccessView, ResourceCount);
         }
 
         /// <summary>
@@ -53,9 +47,9 @@ namespace Voltium.Core.Devices
             srvDesc.Anonymous.Buffer.NumElements = lengthInElements;
             srvDesc.Anonymous.Buffer.StructureByteStride = elementSize;
 
-            var handle = ResourceDescriptors.GetNextHandle();
+            var handle = UavCbvSrvs.GetNextHandle();
 
-            DevicePointer->CreateShaderResourceView(resource.Resource.GetResourcePointer(), &srvDesc, ResourceDescriptors.GetNextHandle().CpuHandle);
+            DevicePointer->CreateShaderResourceView(resource.Resource.GetResourcePointer(), &srvDesc, UavCbvSrvs.GetNextHandle().CpuHandle);
 
             return handle;
         }
@@ -74,7 +68,7 @@ namespace Voltium.Core.Devices
         /// <param name="resource">The <see cref="Buffer"/> resource to create the view for</param>
         public DescriptorHandle CreateShaderResourceView(in Buffer resource)
         {
-            var handle = ResourceDescriptors.GetNextHandle();
+            var handle = UavCbvSrvs.GetNextHandle();
 
             DevicePointer->CreateShaderResourceView(resource.Resource.GetResourcePointer(), null, handle.CpuHandle);
 
@@ -87,7 +81,7 @@ namespace Voltium.Core.Devices
         /// <param name="resource">The <see cref="Buffer"/> resource to create the view for</param>
         public DescriptorHandle CreateUnorderedAccessView(in Buffer resource)
         {
-            var handle = ResourceDescriptors.GetNextHandle();
+            var handle = UavCbvSrvs.GetNextHandle();
 
             DevicePointer->CreateUnorderedAccessView(resource.Resource.GetResourcePointer(), /* TODO: counter support? */ null, null, handle.CpuHandle);
 
@@ -104,7 +98,7 @@ namespace Voltium.Core.Devices
         /// <param name="resource">The <see cref="Texture"/> resource to create the view for</param>
         public DescriptorHandle CreateShaderResourceView(in Texture resource)
         {
-            var handle = ResourceDescriptors.GetNextHandle();
+            var handle = UavCbvSrvs.GetNextHandle();
 
             DevicePointer->CreateShaderResourceView(resource.Resource.GetResourcePointer(), null, handle.CpuHandle);
 
@@ -154,7 +148,7 @@ namespace Voltium.Core.Devices
             srvDesc.Format = (DXGI_FORMAT)desc.Format;
             srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING; // TODO
 
-            var handle = ResourceDescriptors.GetNextHandle();
+            var handle = UavCbvSrvs.GetNextHandle();
 
             DevicePointer->CreateShaderResourceView(resource.Resource.GetResourcePointer(), &srvDesc, handle.CpuHandle);
 
@@ -167,7 +161,7 @@ namespace Voltium.Core.Devices
         /// <param name="resource">The <see cref="Texture"/> resource to create the view for</param>
         public DescriptorHandle CreateUnorderedAccessView(in Texture resource)
         {
-            var handle = ResourceDescriptors.GetNextHandle();
+            var handle = UavCbvSrvs.GetNextHandle();
 
             DevicePointer->CreateUnorderedAccessView(resource.Resource.GetResourcePointer(), /* TODO: counter support? */ null, null, handle.CpuHandle);
 

@@ -1,6 +1,6 @@
 #if DEBUG
 #define DEBUG_OUTPUT_CONSOLE
-#define LOG_LEVEL_DEBUG
+#define LOG_LEVEL_TRACE
 #define LOG
 #endif
 
@@ -23,8 +23,10 @@ using Voltium.Common.Threading;
 
 namespace Voltium.Common
 {
-    internal static partial class LogHelper
+#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
+    public static partial class LogHelper
     {
+#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
         private const string LogFile = "log.txt";
 
         public static LogLevel MinimumLogLevel
@@ -67,14 +69,14 @@ namespace Voltium.Common
 
         private static bool CanSerializeType<T>() => Helpers.IsPrimitive<T>();
 
-        private const string LogSymbol = "LOG";
+        private const string LogSymbol = "DEBUG";
 
         private const int BufferSize = 4096;
 
-        private static LockedList<FixedSizeArrayBufferWriter<char>?, MonitorLock> ThreadBuffers = new(MonitorLock.Create());
+        private static LockedList<FixedSizeArrayBufferWriter<string>?, MonitorLock> ThreadBuffers = new(MonitorLock.Create());
 
         [ThreadStatic]
-        private static FixedSizeArrayBufferWriter<char>? TextBuffer;
+        private static FixedSizeArrayBufferWriter<string>? TextBuffer;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         [MemberNotNull(nameof(TextBuffer))]
@@ -91,7 +93,7 @@ namespace Voltium.Common
             [MemberNotNull(nameof(TextBuffer))]
             static void InitializeTextBuffer()
             {
-                TextBuffer = new FixedSizeArrayBufferWriter<char>(BufferSize);
+                TextBuffer = new FixedSizeArrayBufferWriter<string>(BufferSize);
 
                 ThreadBuffers.Add(TextBuffer);
             }
@@ -107,7 +109,11 @@ namespace Voltium.Common
                     {
                         return;
                     }
-                    Console.Out.Write(buffer.GetWrittenSpan());
+
+                    foreach (var span in buffer.GetWrittenSpan())
+                    {
+                        Console.Out.Write(span);
+                    }
                     buffer.ResetBuffer();
                 }
             }
@@ -118,34 +124,44 @@ namespace Voltium.Common
         private static void Write(ReadOnlySpan<char> val)
         {
             EnsureInitialized();
-            if (!val.TryCopyTo(TextBuffer.GetSpan()))
+
+            while (true)
             {
-                if (val.Length > TextBuffer.Capacity)
+               // if (val.TryCopyTo(TextBuffer.GetSpan()))
                 {
-                    DirectWriteData(val);
+                    TextBuffer.Advance(val.Length);
+                    break;
                 }
-                FlushBuffer();
+                //else
+                //{
+                //    if (val.Length > TextBuffer.Capacity)
+                //    {
+                //        DirectWriteData(val);
+                //        break;
+                //    }
+                //    FlushBuffer();
+                //}
             }
         }
 
         private static void Write(char val)
         {
             EnsureInitialized();
-            if (!TextBuffer.IsEmpty)
-            {
-                TextBuffer.GetSpan()[0] = val;
-            }
-            else
+
+            if (TextBuffer.IsEmpty)
             {
                 FlushBuffer();
             }
+
+           // TextBuffer.GetSpan()[0] = val;
+            TextBuffer.Advance(1);
         }
 
         private static void Write<T>(T val) => Write((val?.ToString() ?? "null").AsSpan());
 
         private const char NewLine = '\n';
 
-        [Conditional(LogSymbol)]
+        //[Conditional(LogSymbol)]
         [VariadicGeneric("Write(%t)")]
         public static void Log(LogLevel level, ReadOnlySpan<char> message)
         {
@@ -158,28 +174,28 @@ namespace Voltium.Common
             Write(NewLine);
         }
 
-        [Conditional(LogSymbol)]
+        //[Conditional(LogSymbol)]
         [VariadicGeneric("Log(LogLevel.Trace, message %t...)")]
         public static partial void LogTrace(ReadOnlySpan<char> message);
 
-        [Conditional(LogSymbol)]
+        //[Conditional(LogSymbol)]
         [VariadicGeneric("Log(LogLevel.Debug, message %t...)")]
         public static partial void LogDebug(ReadOnlySpan<char> message);
 
-        [Conditional(LogSymbol)]
+        //[Conditional(LogSymbol)]
         [VariadicGeneric("Log(LogLevel.Information, message %t...)")]
         public static partial void LogInformation(ReadOnlySpan<char> message);
 
-        [Conditional(LogSymbol)]
+        //[Conditional(LogSymbol)]
         [VariadicGeneric("Log(LogLevel.Warning, message %t...)")]
         public static partial void LogWarning(ReadOnlySpan<char> message);
 
-        [Conditional(LogSymbol)]
+        //[Conditional(LogSymbol)]
         [VariadicGeneric("Log(LogLevel.Critical, message %t...)")]
         public static partial void LogCritical(ReadOnlySpan<char> message);
 
 
-        [Conditional(LogSymbol)]
+        //[Conditional(LogSymbol)]
         [VariadicGeneric("Log(LogLevel.Error, message %t...)")]
         public static partial void LogError(ReadOnlySpan<char> message);
     }

@@ -18,6 +18,7 @@ using Voltium.Interactive.FloatMultiplySample;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Exceptions;
+using Microsoft.Extensions.Logging;
 
 namespace Voltium.Interactive
 {
@@ -25,8 +26,27 @@ namespace Voltium.Interactive
     {
         private static int Main(string[] args)
         {
-            var application = new RenderPipeline();
+            var application = new HelloTriangleApp();
             return ApplicationRunner.RunWin32(application);
         }
     }
+
+
+
+    public class LogBenchmark
+    {
+        [Benchmark]
+        public void Console_WriteLine()
+        {
+            Console.WriteLine("Hello world, Console.WriteLine here!");
+        }
+
+        [Benchmark]
+        public void LogHelper_WriteLine()
+        {
+             LogHelper.Log(LogLevel.Trace, "Hello world, Console.WriteLine here!");
+        }
+    }
+
+
 }

@@ -25,7 +25,7 @@ namespace Voltium.Interactive
         /// Create a cube with a given radius
         /// </summary>
         /// <param name="radius">The radius of the cube</param>
-        /// <returns>A new <see cref="RenderObject{TVertex}"/></returns>
+        /// <returns>A new <see cref="RenderObject{T}"/></returns>
         public static RenderObject<Vertex> CreateCube(float radius)
         {
             var cubeVertices = new Vertex[24]

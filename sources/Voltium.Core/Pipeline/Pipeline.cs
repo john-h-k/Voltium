@@ -7,11 +7,11 @@ namespace Voltium.Core.Pipeline
     /// <summary>
     /// A pipeline state object
     /// </summary>
-    public unsafe abstract class PipelineStateObject : IDisposable
+    public unsafe class PipelineStateObject : IDisposable
     {
         private ComPtr<ID3D12PipelineState> _pso;
 
-        internal ID3D12PipelineState* GetPso() => _pso.Get();
+        internal ID3D12PipelineState* GetPso() => _pso.Ptr;
         internal virtual ID3D12RootSignature* GetRootSig() => null;
 
         internal PipelineStateObject(ComPtr<ID3D12PipelineState> pso)

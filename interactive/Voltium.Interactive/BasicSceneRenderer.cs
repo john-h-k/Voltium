@@ -93,7 +93,7 @@ namespace Voltium.Interactive
             _allocator = _device.Allocator;
             _outputResolution = screen;
 
-            _maxMsaaDesc = _device.HighestSupportedMsaa();
+            _maxMsaaDesc = MultisamplingDesc.None;
 
             _texturedObjects = ModelLoader.LoadGl_Old("Assets/Gltf/Handgun_Tangent.gltf");
             var texture = TextureLoader.LoadTextureDesc("Assets/Textures/handgun_c.dds");
@@ -142,8 +142,8 @@ namespace Voltium.Interactive
         public override void Resize(Size newScreenData)
         {
             _outputResolution = newScreenData;
-            var dsDesc = TextureDesc.CreateDepthStencilDesc(DataFormat.Depth32Single, (uint)newScreenData.Height, (uint)newScreenData.Width, 1, 0, false, _msaaDesc);
-            var rtDesc = TextureDesc.CreateRenderTargetDesc(DataFormat.R8G8B8A8UnsignedNormalized, (uint)newScreenData.Height, (uint)newScreenData.Width, Rgba128.CornflowerBlue, _msaaDesc);
+            var dsDesc = TextureDesc.CreateDepthStencilDesc(DataFormat.Depth32Single, (uint)newScreenData.Width, (uint)newScreenData.Height, 1, 0, false, _msaaDesc);
+            var rtDesc = TextureDesc.CreateRenderTargetDesc(DataFormat.R8G8B8A8UnsignedNormalized, (uint)newScreenData.Width, (uint)newScreenData.Height, Rgba128.CornflowerBlue, _msaaDesc);
 
             _depthStencil.Dispose();
             _renderTarget.Dispose();
@@ -202,10 +202,10 @@ namespace Voltium.Interactive
                 Topology = TopologyClass.Triangle
             };
 
-            _pso = _device.PipelineManager.CreatePipelineStateObject<TexturedVertex>("Texture", psoDesc);
+            _pso = _device.PipelineManager.CreatePipelineStateObject<TexturedVertex>(psoDesc, "Texture");
 
             psoDesc.Msaa = MultisamplingDesc.X8;
-            _msaaPso = _device.PipelineManager.CreatePipelineStateObject<TexturedVertex>("TextureMSAA", psoDesc);
+            _msaaPso = _device.PipelineManager.CreatePipelineStateObject<TexturedVertex>(psoDesc, "TextureMSAA");
         }
 
         public void InitializeConstants()

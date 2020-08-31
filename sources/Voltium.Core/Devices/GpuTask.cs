@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using Voltium.Core.Devices;
+using System.Diagnostics;
 
 namespace Voltium.Core.Memory
 {
@@ -77,7 +78,7 @@ namespace Voltium.Core.Memory
             /// This property should not be used except by compilers
             /// </summary>
             [EditorBrowsable(EditorBrowsableState.Never)]
-            public bool IsCompleted => /* null fence = completed */ !_fence.Exists || _finished || (_finished = _fence.Get()->GetCompletedValue() >= _reached);
+            public bool IsCompleted => /* null fence = completed */ !_fence.Exists || _finished || (_finished = _fence.Ptr->GetCompletedValue() >= _reached);
 
             private struct CallbackData
             {
@@ -87,6 +88,7 @@ namespace Voltium.Core.Memory
 
             internal void RegisterCallback<T>(T state, delegate*<T, void> onFinished) where T : class?
             {
+                Debug.Assert(state is T);
                 if (IsCompleted)
                 {
                     onFinished(state);
@@ -103,7 +105,7 @@ namespace Voltium.Core.Memory
                 context->FnPtr = (delegate*<object?, void>)onFinished;
                 context->ObjectHandle = GCHandle.ToIntPtr(gcHandle);
 
-                _device!.ThrowIfFailed(_fence.Get()->SetEventOnCompletion(_reached, handle));
+                _device!.ThrowIfFailed(_fence.Ptr->SetEventOnCompletion(_reached, handle));
                 int err = Windows.RegisterWaitForSingleObject(
                     &newHandle,
                     handle,
@@ -142,13 +144,13 @@ namespace Voltium.Core.Memory
                 if (!IsCompleted)
                 {
                     // blocks current thread until we complete
-                    _device?.ThrowIfFailed(_fence.Get()->SetEventOnCompletion(_reached, default));
+                    _device?.ThrowIfFailed(_fence.Ptr->SetEventOnCompletion(_reached, default));
                 }
             }
 
             internal void GetFenceAndMarker(out ID3D12Fence* fence, out ulong marker)
             {
-                fence = _fence.Get();
+                fence = _fence.Ptr;
                 marker = _reached;
             }
         }

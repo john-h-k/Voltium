@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
-using System.Linq;
+
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -22,7 +22,7 @@ namespace Voltium.Core.Devices
     /// <summary>
     /// An output that displays graphics to the user
     /// </summary>
-    public unsafe partial class Output2D
+    public unsafe partial class Output
     {
         [FixedBufferType(typeof(Texture), 8)]
         private partial struct BackBufferBuffer8 { }
@@ -93,7 +93,7 @@ namespace Voltium.Core.Devices
         /// </summary>
         public DescriptorHandle OutputBufferView => _views[_backBufferIndex];
 
-        private Output2D(GraphicsDevice device, OutputConfiguration desc)
+        private Output(GraphicsDevice device, OutputConfiguration desc)
         {
             _device = device;
             _desc = desc;
@@ -104,7 +104,7 @@ namespace Voltium.Core.Devices
             throw new NotImplementedException();
         }
 
-        private Output2D(GraphicsDevice device, ComPtr<IDXGISwapChain1> swapChain, OutputConfiguration desc)
+        private Output(GraphicsDevice device, ComPtr<IDXGISwapChain1> swapChain, OutputConfiguration desc)
         {
             _device = device;
 
@@ -114,7 +114,7 @@ namespace Voltium.Core.Devices
             }
 
             DXGI_SWAP_CHAIN_DESC1 swapChainDesc;
-            _device.ThrowIfFailed(swapChain3.Get()->GetDesc1(&swapChainDesc));
+            _device.ThrowIfFailed(swapChain3.Ptr->GetDesc1(&swapChainDesc));
             Dimensions = new Size((int)swapChainDesc.Width, (int)swapChainDesc.Height);
             AspectRatio = Dimensions.AspectRatio();
 
@@ -149,24 +149,24 @@ namespace Voltium.Core.Devices
             for (var i = 0U; i < _desc.BackBufferCount; i++)
             {
                 using ComPtr<ID3D12Resource> buffer = default;
-                _device.ThrowIfFailed(_swapChain.Get()->GetBuffer(i, buffer.Iid, (void**)&buffer));
-                DebugHelpers.SetName(buffer.Get(), $"BackBuffer #{i}");
+                _device.ThrowIfFailed(_swapChain.Ptr->GetBuffer(i, buffer.Iid, (void**)&buffer));
+                DebugHelpers.SetName(buffer.Ptr, $"BackBuffer #{i}");
 
                 _backBuffers[i] = Texture.FromResource(_device, buffer.Move());
             }
 
-            _backBufferIndex = _swapChain.Get()->GetCurrentBackBufferIndex();
+            _backBufferIndex = _swapChain.Ptr->GetCurrentBackBufferIndex();
         }
 
         /// <summary>
-        /// Creates a new <see cref="Output2D"/> to a <see cref="IOutputOwner"/>
+        /// Creates a new <see cref="Output"/> to a <see cref="IOutputOwner"/>
         /// </summary>
         /// <param name="desc">The <see cref="OutputConfiguration"/> for this output</param>
         /// <param name="device">The <see cref="GraphicsDevice"/> that will output to this buffer</param>
         /// <param name="window">The <see cref="IOutputOwner"/> that owns the window</param>
         /// <param name="outputArea">Optionally, the <see cref="Size"/> of the rendered output. By default, this will be the entire window</param>
-        /// <returns>A new <see cref="Output2D"/></returns>
-        public static Output2D Create(OutputConfiguration desc, GraphicsDevice device, IOutputOwner window, Size outputArea = default)
+        /// <returns>A new <see cref="Output"/></returns>
+        public static Output Create(OutputConfiguration desc, GraphicsDevice device, IOutputOwner window, Size outputArea = default)
         {
             return window.Type switch
             {
@@ -177,33 +177,33 @@ namespace Voltium.Core.Devices
         }
 
         /// <summary>
-        /// Creates a new <see cref="Output2D"/> to a Win32 Window backed by a HWND
+        /// Creates a new <see cref="Output"/> to a Win32 Window backed by a HWND
         /// </summary>u
         /// <param name="device">The <see cref="GraphicsDevice"/> that will output to this buffer</param>
         /// <param name="desc">The <see cref="OutputConfiguration"/> for this output</param>
         /// <param name="window">The <see cref="IHwndOwner"/> that owns the window</param>
         /// <param name="outputArea">Optionally, the <see cref="Size"/> of the rendered output. By default, this will be the entire window</param>
-        /// <returns>A new <see cref="Output2D"/></returns>
-        public static Output2D CreateForWin32(GraphicsDevice device, OutputConfiguration desc, IHwndOwner window, Size outputArea = default)
+        /// <returns>A new <see cref="Output"/></returns>
+        public static Output CreateForWin32(GraphicsDevice device, OutputConfiguration desc, IHwndOwner window, Size outputArea = default)
             => CreateForWin32(device, desc, window.GetHwnd(), outputArea);
 
         /// <summary>
-        /// Creates a new <see cref="Output2D"/> to a Win32 Window backed by a HWND
+        /// Creates a new <see cref="Output"/> to a Win32 Window backed by a HWND
         /// </summary>
         /// <param name="device">The <see cref="GraphicsDevice"/> that will output to this buffer</param>
         /// <param name="desc">The <see cref="OutputConfiguration"/> for this output</param>
         /// <param name="window">The HWND for the window to bind to</param>
         /// <param name="outputArea">Optionally, the <see cref="Size"/> of the rendered output. By default, this will be the entire window</param>
-        /// <returns>A new <see cref="Output2D"/></returns>
-        public static Output2D CreateForWin32(GraphicsDevice device, OutputConfiguration desc, IntPtr window, Size outputArea = default)
+        /// <returns>A new <see cref="Output"/></returns>
+        public static Output CreateForWin32(GraphicsDevice device, OutputConfiguration desc, IntPtr window, Size outputArea = default)
         {
             var swapChainDesc = CreateDesc(desc, outputArea);
 
-            using ComPtr<IDXGIFactory2> factory = CreateFactory(device);
+            using ComPtr<IDXGIFactory2> factory = CreateFactory();
 
             using ComPtr<IDXGISwapChain1> swapChain = default;
 
-            device.ThrowIfFailed(factory.Get()->CreateSwapChainForHwnd(
+            device.ThrowIfFailed(factory.Ptr->CreateSwapChainForHwnd(
                 device.GetGraphicsQueue(),
                 window,
                 &swapChainDesc,
@@ -212,40 +212,40 @@ namespace Voltium.Core.Devices
                 ComPtr.GetAddressOf(&swapChain)
             ));
 
-            var output = new Output2D(device, swapChain.Move(), desc);
+            var output = new Output(device, swapChain.Move(), desc);
 
             return output;
         }
 
 
         /// <summary>
-        /// Creates a new <see cref="Output2D"/> to a WinRT ICoreWindow
+        /// Creates a new <see cref="Output"/> to a WinRT ICoreWindow
         /// </summary>
         /// <param name="device">The <see cref="GraphicsDevice"/> that will output to this buffer</param>
         /// <param name="desc">The <see cref="OutputConfiguration"/> for this output</param>
         /// <param name="window">The <see cref="ICoreWindowsOwner"/> that owns the window</param>
         /// <param name="outputArea">Optionally, the <see cref="Size"/> of the rendered output. By default, this will be the entire window</param>
-        /// <returns>A new <see cref="Output2D"/></returns>
-        public static Output2D CreateForWinRT(GraphicsDevice device, OutputConfiguration desc, ICoreWindowsOwner window, Size outputArea = default)
+        /// <returns>A new <see cref="Output"/></returns>
+        public static Output CreateForWinRT(GraphicsDevice device, OutputConfiguration desc, ICoreWindowsOwner window, Size outputArea = default)
             => CreateForWinRT(device, desc, window.GetIUnknownForWindow(), outputArea);
 
         /// <summary>
-        /// Creates a new <see cref="Output2D"/> to a WinRT ICoreWindow
+        /// Creates a new <see cref="Output"/> to a WinRT ICoreWindow
         /// </summary>
         /// <param name="device">The <see cref="GraphicsDevice"/> that will output to this buffer</param>
         /// <param name="desc">The <see cref="OutputConfiguration"/> for this output</param>
         /// <param name="window">The IUnknown* for the window to bind to</param>
         /// <param name="outputArea">Optionally, the <see cref="Size"/> of the rendered output. By default, this will be the entire window</param>
-        /// <returns>A new <see cref="Output2D"/></returns>
-        public static Output2D CreateForWinRT(GraphicsDevice device, OutputConfiguration desc, void* window, Size outputArea = default)
+        /// <returns>A new <see cref="Output"/></returns>
+        public static Output CreateForWinRT(GraphicsDevice device, OutputConfiguration desc, void* window, Size outputArea = default)
         {
             var swapChainDesc = CreateDesc(desc, outputArea);
 
-            using ComPtr<IDXGIFactory2> factory = CreateFactory(device);
+            using ComPtr<IDXGIFactory2> factory = CreateFactory();
 
             using ComPtr<IDXGISwapChain1> swapChain = default;
 
-            device.ThrowIfFailed(factory.Get()->CreateSwapChainForCoreWindow(
+            device.ThrowIfFailed(factory.Ptr->CreateSwapChainForCoreWindow(
                 device.GetGraphicsQueue(),
                 (IUnknown*)window,
                 &swapChainDesc,
@@ -254,65 +254,55 @@ namespace Voltium.Core.Devices
             ));
 
 
-            var output = new Output2D(device, swapChain.Move(), desc);
+            var output = new Output(device, swapChain.Move(), desc);
 
             return output;
         }
 
 
         /// <summary>
-        /// Creates a new <see cref="Output2D"/> to a WinRT ISwapChainPanelNative
+        /// Creates a new <see cref="Output"/> to a WinRT ISwapChainPanelNative
         /// </summary>
         /// <param name="device">The <see cref="GraphicsDevice"/> that will output to this buffer</param>
         /// <param name="desc">The <see cref="OutputConfiguration"/> for this output</param>
         /// <param name="swapChainPanelNative">The IUnknown* for the ISwapChainPanelNative to bind to</param>
         /// <param name="outputArea">The <see cref="Size"/> of the rendered output</param>
-        /// <returns>A new <see cref="Output2D"/></returns>
-        public static Output2D CreateForSwapChainPanel(GraphicsDevice device, OutputConfiguration desc, void* swapChainPanelNative, Size outputArea)
+        /// <returns>A new <see cref="Output"/></returns>
+        public static Output CreateForSwapChainPanel(GraphicsDevice device, OutputConfiguration desc, void* swapChainPanelNative, Size outputArea)
         {
             var swapChainDesc = CreateDesc(desc, outputArea);
 
-            using ComPtr<IDXGIFactory2> factory = CreateFactory(device);
+            using ComPtr<IDXGIFactory2> factory = CreateFactory();
 
             using ComPtr<IDXGISwapChain1> swapChain = default;
 
-            device.ThrowIfFailed(factory.Get()->CreateSwapChainForComposition(
+            device.ThrowIfFailed(factory.Ptr->CreateSwapChainForComposition(
                 device.GetGraphicsQueue(),
                 &swapChainDesc,
                 null, // TODO maybe implement
                 ComPtr.GetAddressOf(&swapChain)
             ));
 
-            device.ThrowIfFailed(((ISwapChainPanelNative*)swapChainPanelNative)->SetSwapChain((IDXGISwapChain*)swapChain.Get()));
+            device.ThrowIfFailed(((ISwapChainPanelNative*)swapChainPanelNative)->SetSwapChain((IDXGISwapChain*)swapChain.Ptr));
 
-            var output = new Output2D(device, swapChain.Move(), desc);
+            var output = new Output(device, swapChain.Move(), desc);
 
             return output;
         }
 
-        private static ComPtr<IDXGIFactory2> CreateFactory(GraphicsDevice device)
+        private static ComPtr<IDXGIFactory2> CreateFactory()
         {
             using ComPtr<IDXGIFactory2> factory = default;
 
-            // Try get the factory from the device if possible. Won't work if the device is a IDXCoreAdapter tho, then we fallback to manual creation
-            int hr;
-            if (device.Adapter.GetAdapterPointer() is not null && ComPtr.TryQueryInterface(device.Adapter.GetAdapterPointer(), out IDXGIAdapter* dxgiAdapter))
-            {
-                hr = dxgiAdapter->GetParent(factory.Iid, (void**)&factory);
-                _ = dxgiAdapter->Release();
-            }
-            else
-            {
-                hr = CreateDXGIFactory1(factory.Iid, (void**)&factory);
-            }
-
+            int hr = CreateDXGIFactory2(DXGI_CREATE_FACTORY_DEBUG, factory.Iid, (void**)&factory);
+            
             if (hr == E_NOINTERFACE)
             {
                 // we don't actually *need* IDXGIFactory2, we just need to do CreateSwapChain (rather than CreateSwapChainForHwnd etc) without it which is currently not implemented
                 ThrowHelper.ThrowPlatformNotSupportedException("Platform does not support IDXGIFactory2, which is required");
             }
 
-            device.ThrowIfFailed(hr);
+            Guard.ThrowIfFailed(hr, "CreateDXGIFactory2(DXGI_CREATE_FACTORY_DEBUG, factory.Iid, (void**)&factory)");
 
             return factory.Move();
         }
@@ -345,7 +335,7 @@ namespace Voltium.Core.Devices
         /// </summary>
         public void Present()
         {
-            _device.ThrowIfFailed(_swapChain.Get()->Present(_desc.SyncInterval, 0));
+            _device.ThrowIfFailed(_swapChain.Ptr->Present(_desc.SyncInterval, 0));
             _backBufferIndex = (_backBufferIndex + 1) % _desc.BackBufferCount;
         }
 
@@ -356,7 +346,7 @@ namespace Voltium.Core.Devices
                 _backBuffers[i].Dispose();
             }
 
-            _device.ThrowIfFailed(_swapChain.Get()->ResizeBuffers(
+            _device.ThrowIfFailed(_swapChain.Ptr->ResizeBuffers(
                    0, // preserve existing number
                    (uint)newSize.Width,
                    (uint)newSize.Height,

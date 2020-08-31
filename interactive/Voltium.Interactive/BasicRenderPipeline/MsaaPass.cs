@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using SharpGLTF.Schema2;
 using Voltium.Common.Pix;
 using Voltium.Core;
 using Voltium.Core.Configuration.Graphics;
@@ -18,13 +19,12 @@ namespace Voltium.Interactive.BasicRenderPipeline
             var resources = resolver.GetComponent<PipelineResources>();
             var settings = resolver.GetComponent<PipelineSettings>();
 
-
             if (settings.Msaa.IsMultiSampled)
             {
                 resources.SampledOutput = builder.CreatePrimaryOutputRelativeTexture(
                     TextureDesc.CreateRenderTargetDesc(DataFormat.R8G8B8A8UnsignedNormalized, Rgba128.CornflowerBlue),
                     ResourceState.ResolveDestination,
-                    debugName: "SampledOutput"
+                    debugName: nameof(resources.SampledOutput)
                 );
 
                 builder.MarkUsage(resources.SceneColor, ResourceState.ResolveSource);
@@ -39,21 +39,16 @@ namespace Voltium.Interactive.BasicRenderPipeline
 
         public override void Record(GraphicsContext context, ref Resolver resolver)
         {
-            using var _ = context.BeginEvent(Argb32.Red, "Msaa");
-
-            var resources = resolver.GetComponent<PipelineResources>();
             var settings = resolver.GetComponent<PipelineSettings>();
-
-
-            var sceneColor = resolver.ResolveResource(resources.SceneColor);
-            var sampleOutput = resolver.ResolveResource(resources.SampledOutput);
-
-            if (settings.Msaa == MultisamplingDesc.None)
+            if (settings.Msaa.IsMultiSampled)
             {
-                //context.CopyResource(sceneColor, sampleOutput);
-            }
-            else
-            {
+                using var _ = context.BeginEvent(Argb32.Red, "Msaa");
+
+                var resources = resolver.GetComponent<PipelineResources>();
+
+                var sceneColor = resolver.ResolveResource(resources.SceneColor);
+                var sampleOutput = resolver.ResolveResource(resources.SampledOutput);
+
                 context.ResolveSubresource(sceneColor, sampleOutput);
             }
         }

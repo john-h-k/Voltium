@@ -17,9 +17,9 @@ namespace Voltium.Common
             _blob = blob.Move();
         }
 
-        public override Span<byte> GetSpan() => new Span<byte>(_blob.Get()->GetBufferPointer(), (int)_blob.Get()->GetBufferSize());
+        public override Span<byte> GetSpan() => new Span<byte>(_blob.Ptr->GetBufferPointer(), (int)_blob.Ptr->GetBufferSize());
 
-        public override MemoryHandle Pin(int elementIndex = 0) => new MemoryHandle((byte*)_blob.Get()->GetBufferPointer() + elementIndex);
+        public override MemoryHandle Pin(int elementIndex = 0) => new MemoryHandle((byte*)_blob.Ptr->GetBufferPointer() + elementIndex);
 
         public override void Unpin()
         {
@@ -41,9 +41,9 @@ namespace Voltium.Common
             _blob = blob.Move();
         }
 
-        public override Span<byte> GetSpan() => new Span<byte>(_blob.Get()->GetBufferPointer(), (int)_blob.Get()->GetBufferSize());
+        public override Span<byte> GetSpan() => new Span<byte>(_blob.Ptr->GetBufferPointer(), (int)_blob.Ptr->GetBufferSize());
 
-        public override MemoryHandle Pin(int elementIndex = 0) => new MemoryHandle((byte*)_blob.Get()->GetBufferPointer() + elementIndex);
+        public override MemoryHandle Pin(int elementIndex = 0) => new MemoryHandle((byte*)_blob.Ptr->GetBufferPointer() + elementIndex);
 
         public override void Unpin()
         {

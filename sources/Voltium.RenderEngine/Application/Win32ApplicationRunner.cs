@@ -39,7 +39,7 @@ namespace Voltium.Core
                     style = CS_HREDRAW | CS_VREDRAW,
                     lpfnWndProc = WindowProcHandle,
                     hInstance = hInstance,
-                    hCursor = LoadCursorW(IntPtr.Zero, (ushort*)IDC_ARROW),
+                    hCursor = LoadCursorW(IntPtr.Zero, MAKEINTRESOURCE(32512)),
                     lpszClassName = (ushort*)name
                 };
                 _ = RegisterClassExW(&windowClass);
@@ -109,8 +109,18 @@ namespace Voltium.Core
             // Update window title approx every second
             if (_timer.TotalSeconds - _lastUpdatedTitle >= 1)
             {
+                string title;
+                if (_isPaused)
+                {
+                    title = _application.WindowTitle + " - Paused";
+                }
+                else
+                {
+                    title = _application.WindowTitle + " FPS: " + _timer.FramesPerSeconds.ToString();
+                }
+
                 _lastUpdatedTitle = _timer.TotalSeconds;
-                fixed (char* pTitle = _application.WindowTitle + " FPS: " + _timer.FramesPerSeconds.ToString())
+                fixed (char* pTitle = title)
                 {
                     int result = SetWindowTextW(Hwnd, (ushort*)pTitle);
                     Debug.Assert(result != 0 /* nonzero is success */);
@@ -151,6 +161,22 @@ namespace Voltium.Core
 
                 case WM_KEYDOWN:
                 {
+                    if ((ConsoleKey)wParam == ConsoleKey.Escape)
+                    {
+
+                        if (_isPaused)
+                        {
+                            SetCapture(Hwnd);
+                        }
+                        else
+                        {
+                            ReleaseCapture();
+                        }
+                        _isPaused = !_isPaused;
+
+                        return 0;
+                    }
+
                     if (TryGetModifier(wParam, out var modifier))
                     {
                         KeyboardHandler.SetModifierState(modifier, true);

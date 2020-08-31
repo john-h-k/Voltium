@@ -141,13 +141,13 @@ namespace Voltium.ModelLoading
         private static readonly IObjLoader _loader = _factory.Create(new MaterialStreamProvider());
         private static readonly Assimp _assimp = Assimp.GetApi();
 
-        private static MemoryHandle DiffuseKey = StringHelper.MarshalToUnmanagedAscii(Assimp.MaterialColorDiffuseBase);
-        private static MemoryHandle ShininessKey = StringHelper.MarshalToUnmanagedAscii(Assimp.MaterialShininessBase);
-        private static MemoryHandle ReflectionFactorKey = StringHelper.MarshalToUnmanagedAscii(Assimp.MaterialColorReflectiveBase);
+        private static MemoryHandle DiffuseKey = StringHelpers.MarshalToPinnedAscii(Assimp.MaterialColorDiffuseBase);
+        private static MemoryHandle ShininessKey = StringHelpers.MarshalToPinnedAscii(Assimp.MaterialShininessBase);
+        private static MemoryHandle ReflectionFactorKey = StringHelpers.MarshalToPinnedAscii(Assimp.MaterialColorReflectiveBase);
         // TODO improve
         public static unsafe RenderObject<TexturedVertex>[] Load(string filename)
         {
-            using var ascii = StringHelper.MarshalToUnmanagedAscii(filename);
+            using var ascii = StringHelpers.MarshalToPinnedAscii(filename);
             SimpScene* pScene = _assimp.ImportFile((byte*)ascii.Pointer, 0);
 
             var meshes = new ArrayBuilder<RenderObject<TexturedVertex>>();

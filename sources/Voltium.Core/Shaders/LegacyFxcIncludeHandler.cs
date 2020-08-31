@@ -9,7 +9,7 @@ namespace Voltium.Core.Devices
     [NativeComType(implements: typeof(ID3DInclude))]
     internal unsafe partial struct LegacyFxcIncludeHandler
     {
-        private static IncludeHandler _handler;
+        private IncludeHandler _handler;
 
         [NativeComMethod]
         public int Close(void* data)

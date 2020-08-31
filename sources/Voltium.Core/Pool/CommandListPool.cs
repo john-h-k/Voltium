@@ -61,10 +61,10 @@ namespace Voltium.Core.Pool
 
             LogHelper.LogDebug($"New command list allocated (this is the #{_listCount++} list)");
 
-            DebugHelpers.SetName(list.Get(), $"Pooled list #{_listCount}");
+            DebugHelpers.SetName(list.Ptr, $"Pooled list #{_listCount}");
 
             // 'ManageRent' expects closed list
-            _device.ThrowIfFailed(list.Get()->Close());
+            _device.ThrowIfFailed(list.Ptr->Close());
 
             return list.Move();
         }
@@ -76,7 +76,7 @@ namespace Voltium.Core.Pool
 
         protected override void ManageRent(ref ComPtr<ID3D12GraphicsCommandList> value, ListCreationParams state)
         {
-            _device.ThrowIfFailed(value.Get()->Reset(state.Allocator, state.Pso));
+            _device.ThrowIfFailed(value.Ptr->Reset(state.Allocator, state.Pso));
         }
 
         protected override void ManageReturn(ref ComPtr<ID3D12GraphicsCommandList> value)

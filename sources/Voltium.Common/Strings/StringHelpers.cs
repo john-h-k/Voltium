@@ -30,9 +30,9 @@ namespace Voltium.Common
 
         public override string ToString() => Value.ToString();
 
-        public void Dispose() => StringHelper.ReturnStringBuilder(this);
+        public void Dispose() => StringHelpers.ReturnStringBuilder(this);
     }
-    internal static class StringHelper
+    internal static class StringHelpers
     {
         [ThreadStatic]
         private static StringBuilder? _perThreadBuilder;
@@ -81,6 +81,9 @@ namespace Voltium.Common
             }
         }
 
+        public unsafe static int StringLength(sbyte* p) => new Span<byte>(p, int.MaxValue).IndexOf((byte)0);
+        public unsafe static Span<byte> ToSpan(sbyte* p) => new Span<byte>(p, StringLength(p));
+
         public static int FastHash(string str)
             => str is object
                 ? ArbitraryHash.HashBytes(
@@ -90,7 +93,7 @@ namespace Voltium.Common
                             (nuint)(str.Length * sizeof(char)))
                 : 0;
 
-        public static unsafe MemoryHandle MarshalToUnmanagedAscii(string str)
+        public static unsafe MemoryHandle MarshalToPinnedAscii(string str)
         {
             var arr = RentedArray<byte>.Create(Encoding.ASCII.GetMaxByteCount(str.Length) + 1, PinnedArrayPool<byte>.Default);
 
@@ -99,6 +102,35 @@ namespace Voltium.Common
 
             return arr.CreatePinnable(underlyingArrayIsPrePinned: true).Pin();
         }
+
+        public static unsafe sbyte* MarshalToUnmanagedAscii(string str)
+        {
+            var len = Encoding.ASCII.GetMaxByteCount(str.Length) + 1;
+            void* buff = Helpers.Alloc(len);
+            var encoded = Encoding.ASCII.GetBytes(str, new Span<byte>(buff, len));
+            ((byte*)buff)[encoded] = 0; // null terminate
+
+            return (sbyte*)buff;
+        }
+
+        public static unsafe void FreeUnmanagedAscii(sbyte* str)
+        {
+            Helpers.Free(str);
+        }
+    }
+
+    internal unsafe struct FreeHelperAlloc : IPinnable
+    {
+        
+        private void* Pointer;
+
+        public FreeHelperAlloc(void* pointer)
+        {
+            Pointer = pointer;
+        }
+
+        public MemoryHandle Pin(int elementIndex) => new MemoryHandle(Pointer, pinnable: this);
+        public void Unpin() => Helpers.Free(Pointer);
     }
 
     [Flags]

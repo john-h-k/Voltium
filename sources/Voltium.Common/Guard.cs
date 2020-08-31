@@ -91,7 +91,7 @@ namespace Voltium.Common
             string? filePath = null
         )
         {
-            using var builder = StringHelper.RentStringBuilder();
+            using var builder = StringHelpers.RentStringBuilder();
 
             builder.AppendLine(message);
             builder.AppendLine($"At file: {filePath}");
@@ -231,6 +231,7 @@ namespace Voltium.Common
                 FACILITY_DXGI => ResolveErrorCodeOrWin32(hr, DxgiMessages),
                 FACILITY_DXCORE => ResolveErrorCodeOrWin32(hr, DXCoreMessages),
                 FACILITY_DIRECT3D12 => ResolveErrorCodeOrWin32(hr, D3D12Messages),
+                FACILITY_DXC => ResolveErrorCodeOrWin32(hr, DxcMessages),
                 _ => ResolveErrorCodeOrWin32(hr, null),
             };
         }
@@ -253,7 +254,170 @@ namespace Voltium.Common
             [E_INVALIDARG] = "E_INVALIDARG: An invalid parameter was passed to the function",
             [E_OUTOFMEMORY] = "E_OUTOFMEMORY: The system did not have enough memory to fulfil the request",
             [E_POINTER] = "E_POINTER: A null or invalid pointer was passed to the method",
-            [E_NOINTERFACE] = "E_NOINTERFACE: The requested interface could not be provided by the function"
+            [E_NOINTERFACE] = "E_NOINTERFACE: The requested interface could not be provided by the function",
+        };
+
+        private const int DXC_SEVERITY_ERROR = 1;
+        private const int FACILITY_DXC = 0xAA;
+        private static int DXC_MAKE_HRESULT(int sev, int fac, int code) => MAKE_HRESULT(sev, fac, code);
+
+        // 0x80AA0001 - The operation failed because overlapping semantics were found.
+        private static readonly int DXC_E_OVERLAPPING_SEMANTICS = DXC_MAKE_HRESULT(DXC_SEVERITY_ERROR, FACILITY_DXC, (0x0001));
+
+        // 0x80AA0002 - The operation failed because multiple depth semantics were found.
+        private static readonly int DXC_E_MULTIPLE_DEPTH_SEMANTICS = DXC_MAKE_HRESULT(DXC_SEVERITY_ERROR, FACILITY_DXC, (0x0002));
+
+        // 0x80AA0003 - Input file is too large.
+        private static readonly int DXC_E_INPUT_FILE_TOO_LARGE = DXC_MAKE_HRESULT(DXC_SEVERITY_ERROR, FACILITY_DXC, (0x0003));
+
+        // 0x80AA0004 - Error parsing DXBC container.
+        private static readonly int DXC_E_INCORRECT_DXBC = DXC_MAKE_HRESULT(DXC_SEVERITY_ERROR, FACILITY_DXC, (0x0004));
+
+        // 0x80AA0005 - Error parsing DXBC bytecode.
+        private static readonly int DXC_E_ERROR_PARSING_DXBC_BYTECODE = DXC_MAKE_HRESULT(DXC_SEVERITY_ERROR, FACILITY_DXC, (0x0005));
+
+        // 0x80AA0006 - Data is too large.
+        private static readonly int DXC_E_DATA_TOO_LARGE = DXC_MAKE_HRESULT(DXC_SEVERITY_ERROR, FACILITY_DXC, (0x0006));
+
+        // 0x80AA0007 - Incompatible converter options.
+        private static readonly int DXC_E_INCOMPATIBLE_CONVERTER_OPTIONS = DXC_MAKE_HRESULT(DXC_SEVERITY_ERROR, FACILITY_DXC, (0x0007));
+
+        // 0x80AA0008 - Irreducible control flow graph.
+        private static readonly int DXC_E_IRREDUCIBLE_CFG = DXC_MAKE_HRESULT(DXC_SEVERITY_ERROR, FACILITY_DXC, (0x0008));
+
+        // 0x80AA0009 - IR verification error.
+        private static readonly int DXC_E_IR_VERIFICATION_FAILED = DXC_MAKE_HRESULT(DXC_SEVERITY_ERROR, FACILITY_DXC, (0x0009));
+
+        // 0x80AA000A - Scope-nested control flow recovery failed.
+        private static readonly int DXC_E_SCOPE_NESTED_FAILED = DXC_MAKE_HRESULT(DXC_SEVERITY_ERROR, FACILITY_DXC, (0x000A));
+
+        // 0x80AA000B - Operation is not supported.
+        private static readonly int DXC_E_NOT_SUPPORTED = DXC_MAKE_HRESULT(DXC_SEVERITY_ERROR, FACILITY_DXC, (0x000B));
+
+        // 0x80AA000C - Unable to encode string.
+        private static readonly int DXC_E_STRING_ENCODING_FAILED = DXC_MAKE_HRESULT(DXC_SEVERITY_ERROR, FACILITY_DXC, (0x000C));
+
+        // 0x80AA000D - DXIL container is invalid.
+        private static readonly int DXC_E_CONTAINER_INVALID = DXC_MAKE_HRESULT(DXC_SEVERITY_ERROR, FACILITY_DXC, (0x000D));
+
+        // 0x80AA000E - DXIL container is missing the DXIL part.
+        private static readonly int DXC_E_CONTAINER_MISSING_DXIL = DXC_MAKE_HRESULT(DXC_SEVERITY_ERROR, FACILITY_DXC, (0x000E));
+
+        // 0x80AA000F - Unable to parse DxilModule metadata.
+        private static readonly int DXC_E_INCORRECT_DXIL_METADATA = DXC_MAKE_HRESULT(DXC_SEVERITY_ERROR, FACILITY_DXC, (0x000F));
+
+        // 0x80AA0010 - Error parsing DDI signature.
+        private static readonly int DXC_E_INCORRECT_DDI_SIGNATURE = DXC_MAKE_HRESULT(DXC_SEVERITY_ERROR, FACILITY_DXC, (0x0010));
+
+        // 0x80AA0011 - Duplicate part exists in dxil container.
+        private static readonly int DXC_E_DUPLICATE_PART = DXC_MAKE_HRESULT(DXC_SEVERITY_ERROR, FACILITY_DXC, (0x0011));
+
+        // 0x80AA0012 - Error finding part in dxil container.
+        private static readonly int DXC_E_MISSING_PART = DXC_MAKE_HRESULT(DXC_SEVERITY_ERROR, FACILITY_DXC, (0x0012));
+
+        // 0x80AA0013 - Malformed DXIL Container.
+        private static readonly int DXC_E_MALFORMED_CONTAINER = DXC_MAKE_HRESULT(DXC_SEVERITY_ERROR, FACILITY_DXC, (0x0013));
+
+        // 0x80AA0014 - Incorrect Root Signature for shader.
+        private static readonly int DXC_E_INCORRECT_ROOT_SIGNATURE = DXC_MAKE_HRESULT(DXC_SEVERITY_ERROR, FACILITY_DXC, (0x0014));
+
+        // 0X80AA0015 - DXIL container is missing DebugInfo part.
+        private static readonly int DXC_E_CONTAINER_MISSING_DEBUG = DXC_MAKE_HRESULT(DXC_SEVERITY_ERROR, FACILITY_DXC, (0x0015));
+
+        // 0X80AA0016 - Unexpected failure in macro expansion.
+        private static readonly int DXC_E_MACRO_EXPANSION_FAILURE = DXC_MAKE_HRESULT(DXC_SEVERITY_ERROR, FACILITY_DXC, (0x0016));
+
+        // 0X80AA0017 - DXIL optimization pass failed.
+        private static readonly int DXC_E_OPTIMIZATION_FAILED = DXC_MAKE_HRESULT(DXC_SEVERITY_ERROR, FACILITY_DXC, (0x0017));
+
+        // 0X80AA0018 - General internal error.
+        private static readonly int DXC_E_GENERAL_INTERNAL_ERROR = DXC_MAKE_HRESULT(DXC_SEVERITY_ERROR, FACILITY_DXC, (0x0018));
+
+        // 0X80AA0019 - Abort compilation error.
+        private static readonly int DXC_E_ABORT_COMPILATION_ERROR = DXC_MAKE_HRESULT(DXC_SEVERITY_ERROR, FACILITY_DXC, (0x0019));
+
+        // 0X80AA001A - Error in extension mechanism.
+        private static readonly int DXC_E_EXTENSION_ERROR = DXC_MAKE_HRESULT(DXC_SEVERITY_ERROR, FACILITY_DXC, (0x001A));
+
+        private static readonly Dictionary<int, string> DxcMessages = new()
+        {
+            // 0x80AA0001 - The operation failed because overlapping semantics were found
+            [DXC_E_OVERLAPPING_SEMANTICS] = "The operation failed because overlapping semantics were found",
+
+            // 0x80AA0002 - The operation failed because multiple depth semantics were found
+            [DXC_E_MULTIPLE_DEPTH_SEMANTICS] = "The operation failed because multiple depth semantics were found",
+
+            // 0x80AA0003 - Input file is too large
+            [DXC_E_INPUT_FILE_TOO_LARGE] = "Input file is too large",
+
+            // 0x80AA0004 - Error parsing DXBC container
+            [DXC_E_INCORRECT_DXBC] = "Error parsing DXBC container",
+
+            // 0x80AA0005 - Error parsing DXBC bytecode
+            [DXC_E_ERROR_PARSING_DXBC_BYTECODE] = "Error parsing DXBC bytecode",
+
+            // 0x80AA0006 - Data is too large
+            [DXC_E_DATA_TOO_LARGE] = "Data is too large",
+
+            // 0x80AA0007 - Incompatible converter options
+            [DXC_E_INCOMPATIBLE_CONVERTER_OPTIONS] = "Incompatible converter options",
+
+            // 0x80AA0008 - Irreducible control flow graph
+            [DXC_E_IRREDUCIBLE_CFG] = "Irreducible control flow graph",
+
+            // 0x80AA0009 - IR verification error
+            [DXC_E_IR_VERIFICATION_FAILED] = "IR verification error",
+
+            // 0x80AA000A - Scope-nested control flow recovery failed
+            [DXC_E_SCOPE_NESTED_FAILED] = "Scope-nested control flow recovery failed",
+
+            // 0x80AA000B - Operation is not supported
+            [DXC_E_NOT_SUPPORTED] = "Operation is not supported",
+
+            // 0x80AA000C - Unable to encode string
+            [DXC_E_STRING_ENCODING_FAILED] = "Unable to encode string",
+
+            // 0x80AA000D - DXIL container is invalid
+            [DXC_E_CONTAINER_INVALID] = "DXIL container is invalid",
+
+            // 0x80AA000E - DXIL container is missing the DXIL part
+            [DXC_E_CONTAINER_MISSING_DXIL] = "DXIL container is missing the DXIL part",
+
+            // 0x80AA000F - Unable to parse DxilModule metadata
+            [DXC_E_INCORRECT_DXIL_METADATA] = "Unable to parse DxilModule metadata",
+
+            // 0x80AA0010 - Error parsing DDI signature
+            [DXC_E_INCORRECT_DDI_SIGNATURE] = "Error parsing DDI signature",
+
+            // 0x80AA0011 - Duplicate part exists in dxil container
+            [DXC_E_DUPLICATE_PART] = "Duplicate part exists in dxil container",
+
+            // 0x80AA0012 - Error finding part in dxil container
+            [DXC_E_MISSING_PART] = "Error finding part in dxil container",
+
+            // 0x80AA0013 - Malformed DXIL Container
+            [DXC_E_MALFORMED_CONTAINER] = "Malformed DXIL Container",
+
+            // 0x80AA0014 - Incorrect Root Signature for shader
+            [DXC_E_INCORRECT_ROOT_SIGNATURE] = "Incorrect Root Signature for shader",
+
+            // 0X80AA0015 - DXIL container is missing DebugInfo part
+            [DXC_E_CONTAINER_MISSING_DEBUG] = "DXIL container is missing DebugInfo part",
+
+            // 0X80AA0016 - Unexpected failure in macro expansion
+            [DXC_E_MACRO_EXPANSION_FAILURE] = "Unexpected failure in macro expansion",
+
+            // 0X80AA0017 - DXIL optimization pass failed
+            [DXC_E_OPTIMIZATION_FAILED] = "DXIL optimization pass failed",
+
+            // 0X80AA0018 - General internal error
+            [DXC_E_GENERAL_INTERNAL_ERROR] = "General internal error",
+
+            // 0X80AA0019 - Abort compilation error
+            [DXC_E_ABORT_COMPILATION_ERROR] = "Abort compilation error",
+
+            // 0X80AA001A - Error in extension mechanism
+            [DXC_E_EXTENSION_ERROR] = "Error in extension mechanism",
         };
 
         private static readonly Dictionary<int, string> DxgiMessages = new()

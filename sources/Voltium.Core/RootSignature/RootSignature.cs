@@ -31,7 +31,7 @@ namespace Voltium.Core
 
                 if (deserialize)
                 {
-                    RootSignatureDeserializer.DeserializeSignature(device, pSignature, rootSignatureShader.Length);
+                    RootSignatureDeserializer.DeserializeSignature(device, pSignature, (int)rootSignatureShader.Length);
                 }
 
                 return new RootSignature(rootSig.Move(), null, null);
@@ -58,16 +58,16 @@ namespace Voltium.Core
         /// <returns>A new <see cref="RootSignature"/></returns>
         internal static RootSignature Create(ComputeDevice device, ReadOnlyMemory<RootParameter> rootParameters, ReadOnlyMemory<StaticSampler> staticSamplers)
         {
-            using var rootParams = RentedArray<D3D12_ROOT_PARAMETER>.Create(rootParameters.Length);
+            using var rootParams = RentedArray<D3D12_ROOT_PARAMETER1>.Create(rootParameters.Length);
             using var samplers = RentedArray<D3D12_STATIC_SAMPLER_DESC>.Create(staticSamplers.Length);
 
             TranslateRootParameters(rootParameters, rootParams.Value);
             TranslateStaticSamplers(staticSamplers, samplers.Value);
 
-            fixed (D3D12_ROOT_PARAMETER* pRootParams = rootParams.Value)
+            fixed (D3D12_ROOT_PARAMETER1* pRootParams = rootParams.Value)
             fixed (D3D12_STATIC_SAMPLER_DESC* pSamplerDesc = samplers.Value)
             {
-                var desc = new D3D12_ROOT_SIGNATURE_DESC
+                var desc = new D3D12_ROOT_SIGNATURE_DESC1
                 {
                     NumParameters = (uint)rootParameters.Length,
                     pParameters = pRootParams,
@@ -78,10 +78,9 @@ namespace Voltium.Core
 
                 var versionedDesc = new D3D12_VERSIONED_ROOT_SIGNATURE_DESC
                 {
-                    Version = D3D_ROOT_SIGNATURE_VERSION.D3D_ROOT_SIGNATURE_VERSION_1
+                    Version = D3D_ROOT_SIGNATURE_VERSION.D3D_ROOT_SIGNATURE_VERSION_1_1,
+                    Desc_1_1 = desc
                 };
-
-                versionedDesc.Anonymous.Desc_1_0 = desc;
 
                 ID3DBlob* pBlob = default;
                 ID3DBlob* pError = default;
@@ -106,14 +105,15 @@ namespace Voltium.Core
             }
         }
 
-        private static void TranslateRootParameters(ReadOnlyMemory<RootParameter> rootParameters, Memory<D3D12_ROOT_PARAMETER> outRootParams)
+        private static void TranslateRootParameters(ReadOnlyMemory<RootParameter> rootParameters, Memory<D3D12_ROOT_PARAMETER1> outRootParams)
         {
             var span = rootParameters.Span;
             var outSpan = outRootParams.Span;
+
             for (var i = 0; i < span.Length; i++)
             {
                 var inRootParam = span[i];
-                D3D12_ROOT_PARAMETER outRootParam = new D3D12_ROOT_PARAMETER
+                D3D12_ROOT_PARAMETER1 outRootParam = new D3D12_ROOT_PARAMETER1
                 {
                     ParameterType = (D3D12_ROOT_PARAMETER_TYPE)inRootParam.Type,
                     ShaderVisibility = (D3D12_SHADER_VISIBILITY)inRootParam.Visibility
@@ -121,23 +121,24 @@ namespace Voltium.Core
                 switch (inRootParam.Type)
                 {
                     case RootParameterType.DescriptorTable:
-                        outRootParam.Anonymous.DescriptorTable = new D3D12_ROOT_DESCRIPTOR_TABLE
+                        outRootParam.DescriptorTable = new D3D12_ROOT_DESCRIPTOR_TABLE1
                         {
                             NumDescriptorRanges = (uint)inRootParam.DescriptorTable!.Length,
                             // IMPORTANT: we *know* this is pinned, because it can only come from RootParameter.CreateDescriptorTable, which strictly makes sure it is pinned
-                            pDescriptorRanges = (D3D12_DESCRIPTOR_RANGE*)Unsafe.AsPointer(
-                                ref MemoryMarshal.GetArrayDataReference(inRootParam.DescriptorTable))
+                            pDescriptorRanges = (D3D12_DESCRIPTOR_RANGE1*)Unsafe.AsPointer(
+                                ref MemoryMarshal.GetArrayDataReference(inRootParam.DescriptorTable)
+                            )
                         };
                         break;
 
                     case RootParameterType.DwordConstants:
-                        outRootParam.Anonymous.Constants = inRootParam.Constants;
+                        outRootParam.Constants = inRootParam.Constants;
                         break;
 
                     case RootParameterType.ConstantBufferView:
                     case RootParameterType.ShaderResourceView:
                     case RootParameterType.UnorderedAccessView:
-                        outRootParam.Anonymous.Descriptor = inRootParam.Descriptor;
+                        outRootParam.Descriptor = inRootParam.Descriptor;
                         break;
                 }
 
@@ -152,10 +153,11 @@ namespace Voltium.Core
             for (var i = 0; i < span.Length; i++)
             {
                 var staticSampler = span[i];
-                var desc = staticSampler.Sampler.GetDesc();
+
+                ref readonly var desc = ref staticSampler.Sampler.Desc;
 
                 D3D12_STATIC_BORDER_COLOR staticBorderColor;
-                var borderColor = Rgba128.FromPointer(desc.BorderColor);
+                var borderColor = Rgba128.FromRef(ref Unsafe.AsRef(in desc.BorderColor[0]));
 
                 if (borderColor == StaticSampler.OpaqueBlack)
                 {
@@ -207,7 +209,7 @@ namespace Voltium.Core
         /// <summary>
         /// The underlying value of the root signature
         /// </summary>
-        internal /* does this need to be public? */ ID3D12RootSignature* Value => _value.Get();
+        internal /* does this need to be public? */ ID3D12RootSignature* Value => _value.Ptr;
 
         /// <summary>
         /// The <see cref="RootParameter"/>s for this root signature, in order
@@ -225,12 +227,17 @@ namespace Voltium.Core
 
         // TODO root sig flags (when exposed)
 
+        internal static RootSignature GetRootSig(ID3D12RootSignature* rootSig)
+            => ComIdentity.GetManagedObject<ID3D12RootSignature, RootSignature>(rootSig);
+
         private RootSignature(
             ComPtr<ID3D12RootSignature> value,
             ReadOnlyMemory<RootParameter> parameters,
             ReadOnlyMemory<StaticSampler> staticSamplers
         )
         {
+            ComIdentity.RegisterComObject(value.Ptr, this);
+
             _value = value.Move();
             Parameters = parameters;
             StaticSamplers = staticSamplers;

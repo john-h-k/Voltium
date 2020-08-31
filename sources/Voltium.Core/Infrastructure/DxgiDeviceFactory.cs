@@ -18,7 +18,7 @@ namespace Voltium.Core.Infrastructure
         public DxgiDeviceFactory()
         {
             using ComPtr<IDXGIFactory2> factory = default;
-            Guard.ThrowIfFailed(CreateDXGIFactory1(factory.Iid, (void**)&factory));
+            Guard.ThrowIfFailed(CreateDXGIFactory2(0, factory.Iid, (void**)&factory));
             _factory = factory.Move();
         }
 
@@ -35,7 +35,7 @@ namespace Voltium.Core.Infrastructure
 
                     Guard.ThrowIfFailed(
                         _factory.AsBase<IDXGIFactory6>()
-                        .Get()->EnumAdapterByGpuPreference(
+                        .Ptr->EnumAdapterByGpuPreference(
                                 index + _skipAdapterOffset,
                                 // DXGI preference doesn't allow preferring hardware/software adapters, so we do that manually after filtering out the other hardware types
                                 // We remove the hardware and software flag so DXGI doesn't complain
@@ -56,7 +56,7 @@ namespace Voltium.Core.Infrastructure
                     if (_preference.HasFlag(DevicePreference.Hardware) != _preference.HasFlag(DevicePreference.Software))
                     {
                         DXGI_ADAPTER_DESC1 desc;
-                        Guard.ThrowIfFailed(dxgiAdapter.Get()->GetDesc1(&desc));
+                        Guard.ThrowIfFailed(dxgiAdapter.Ptr->GetDesc1(&desc));
                         bool isHardware = (desc.Flags & (int)DXGI_ADAPTER_FLAG.DXGI_ADAPTER_FLAG_SOFTWARE) == 0;
 
                         // If they want hardware but we don't have it, or they want software and we don't have it, skip this adapter
@@ -76,7 +76,7 @@ namespace Voltium.Core.Infrastructure
             {
                 using ComPtr<IDXGIAdapter1> dxgiAdapter = default;
 
-                Guard.ThrowIfFailed(_factory.Get()->EnumAdapters1(index, ComPtr.GetAddressOf(&dxgiAdapter)));
+                Guard.ThrowIfFailed(_factory.Ptr->EnumAdapters1(index, ComPtr.GetAddressOf(&dxgiAdapter)));
                 adapter = CreateAdapter(dxgiAdapter.Move());
 
                 return true;
@@ -85,13 +85,13 @@ namespace Voltium.Core.Infrastructure
 
         private static Adapter CreateAdapter(ComPtr<IDXGIAdapter1> dxgiAdapter)
         {
-            var p = dxgiAdapter.Get();
+            var p = dxgiAdapter.Ptr;
             DXGI_ADAPTER_DESC1 desc;
             Guard.ThrowIfFailed(p->GetDesc1(&desc));
 
             LARGE_INTEGER driverVersion;
             Guid iid = IID_IDXGIDevice;
-            Guard.ThrowIfFailed(dxgiAdapter.Get()->CheckInterfaceSupport(&iid, &driverVersion));
+            Guard.ThrowIfFailed(dxgiAdapter.Ptr->CheckInterfaceSupport(&iid, &driverVersion));
 
             var descText = new string((char*)desc.Description);
 

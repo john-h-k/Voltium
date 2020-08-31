@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
+
 using System.Text;
 using System.Threading.Tasks;
 using Voltium.Common;
@@ -31,7 +31,7 @@ namespace Voltium.Core.MetaCommands
         /// <inheritdoc/>
         public override string ToString()
         {
-            using var builder = StringHelper.RentStringBuilder();
+            using var builder = StringHelpers.RentStringBuilder();
             builder.Append("MetaCommand: ").Append(Name).Append(" - ").Append(Id);
             return builder.ToString();
         }

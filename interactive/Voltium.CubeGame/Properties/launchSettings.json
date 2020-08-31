@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Voltium.CubeGame": {
+      "commandName": "Project",
+      "nativeDebugging": true
+    }
+  }
+}

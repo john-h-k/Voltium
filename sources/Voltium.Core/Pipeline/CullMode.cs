@@ -1,3 +1,4 @@
+using TerraFX.Interop;
 using static TerraFX.Interop.D3D12_CULL_MODE;
 
 namespace Voltium.Core.Pipeline
@@ -13,13 +14,30 @@ namespace Voltium.Core.Pipeline
         None = D3D12_CULL_MODE_NONE,
 
         /// <summary>
-        /// Faces specified in clockwise order should be culled
+        /// Back faces should be culled
         /// </summary>
-        Clockwise = D3D12_CULL_MODE_BACK,
+        Back = D3D12_CULL_MODE_BACK,
 
         /// <summary>
-        /// Faces specified in anticlockwise order should be culled
+        /// Front faces should be culled
         /// </summary>
-        Anticockwise = D3D12_CULL_MODE_FRONT
+        Front = D3D12_CULL_MODE_FRONT
+    }
+
+    /// <summary>
+    /// Indicates whether the face is clockwise or anticlockwise
+    /// </summary>
+    public enum FaceType
+    {
+        /// <summary>
+        /// The faces vertices are clockwise
+        /// </summary>
+        Clockwise = Windows.FALSE,
+
+
+        /// <summary>
+        /// The faces vertices are anticlockwise
+        /// </summary>
+        Anticlockwise = Windows.TRUE
     }
 }

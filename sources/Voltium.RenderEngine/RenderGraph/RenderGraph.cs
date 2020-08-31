@@ -22,6 +22,9 @@ namespace Voltium.RenderEngine
     {
         private GraphicsDevice _device;
 
+        private DescriptorHeap _transientRtvs;
+        private DescriptorHeap _transientDsvs;
+
         private struct FrameData
         {
             public List<RenderPassBuilder> RenderPasses;
@@ -34,6 +37,7 @@ namespace Voltium.RenderEngine
 
             public List<int> InputPassIndices;
             public List<TrackedResource> Resources;
+            public List<TrackedResource> PersistentResources;
             public int MaxDepth;
             public Resolver Resolver;
         }
@@ -253,6 +257,19 @@ namespace Voltium.RenderEngine
             return new ResourceHandle((uint)_frame.Resources.Count);
         }
 
+
+        internal ResourceHandle AddPersitentResource(string name, in ResourceDesc desc, int callerPassIndex)
+        {
+            var resource = new TrackedResource
+            {
+                Desc = desc,
+                LastReadPassIndices = new(),
+                LastWritePassIndex = callerPassIndex
+            };
+
+            _frame.Resources.Add(resource);
+            return new ResourceHandle((uint)_frame.Resources.Count);
+        }
         internal ref TrackedResource GetResource(ResourceHandle handle)
         {
             if (handle.IsInvalid)

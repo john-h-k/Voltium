@@ -44,7 +44,7 @@ namespace Voltium.Core.Memory
             ComPtr<ID3D12Resource> resource
         )
         {
-            var desc = resource.Get()->GetDesc();
+            var desc = resource.Ptr->GetDesc();
             return new GpuResource
             {
                 _value = resource.Move(),
@@ -58,7 +58,7 @@ namespace Voltium.Core.Memory
         /// </summary>
         public DataFormat ResourceFormat;
 
-        public unsafe ID3D12Resource* GetResourcePointer() => _value.Get();
+        public unsafe ID3D12Resource* GetResourcePointer() => _value.Ptr;
 
         /// The current state of the resource
         public ResourceState State;

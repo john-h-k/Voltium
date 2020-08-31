@@ -19,6 +19,11 @@ namespace Voltium.Core.Memory
         private ulong _gpuAddress;
 
         /// <summary>
+        /// Whether this buffer has been allocated or is uninitialized
+        /// </summary>
+        public bool IsAllocated => _resource != null;
+
+        /// <summary>
         /// The size, in bytes, of the buffer
         /// </summary>
         public readonly uint Length;
@@ -45,6 +50,12 @@ namespace Voltium.Core.Memory
         /// The buffer data. This may be empty if the data is not CPU writable
         /// </summary>
         public Span<T> DataAs<T>() where T : struct => MemoryMarshal.Cast<byte, T>(Data);
+
+
+        /// <summary>
+        /// The buffer data. This may be empty if the data is not CPU writable
+        /// </summary>
+        public T* DataPointerAs<T>() where T : unmanaged => (T*)_cpuAddress;
 
         /// <summary>
         /// The buffer data. This may be empty if the data is not CPU writable

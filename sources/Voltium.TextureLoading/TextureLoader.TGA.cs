@@ -68,7 +68,7 @@ namespace Voltium.TextureLoading
         /// <param name="loaderFlags">The flags used by the loader</param>
         /// <returns>A descriptor struct of the texture</returns>
         public static FormatTexture CreateTgaTexture(
-            Memory<byte> tgaData,
+            ReadOnlyMemory<byte> tgaData,
             LoaderFlags loaderFlags = LoaderFlags.None
         )
         {
@@ -83,7 +83,7 @@ namespace Voltium.TextureLoading
             );
         }
 
-        private static bool InspectForValidTgaHeader(in Span<byte> span)
+        private static bool InspectForValidTgaHeader(in ReadOnlySpan<byte> span)
         {
             if (span.Length < 18)
             {

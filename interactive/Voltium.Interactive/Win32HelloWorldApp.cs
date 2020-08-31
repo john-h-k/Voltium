@@ -13,23 +13,12 @@ namespace Voltium.Interactive
         private Renderer _renderer = new TRenderer();
 
         private GraphicsDevice _device = null!;
-        private Output2D _output = null!;
+        private Output _output = null!;
         private bool _isPaused = false;
 
         public override unsafe void Initialize(Size data, IOutputOwner output)
         {
-            var config = new DeviceConfiguration
-            {
-                RequiredFeatureLevel = FeatureLevel.GraphicsLevel11_0,
-                DebugLayerConfiguration =
-#if DEBUG
-                new DebugLayerConfiguration()
-#else
-                null
-#endif
-            };
-
-            _device = new GraphicsDevice(config, null);
+            _device =GraphicsDevice.Create(FeatureLevel.GraphicsLevel11_0, null);
 
             var desc = new OutputConfiguration
             {
@@ -38,7 +27,7 @@ namespace Voltium.Interactive
                 SyncInterval = 0
             };
 
-            _output = Output2D.Create(desc, _device, output);
+            _output = Output.Create(desc, _device, output);
 
             _renderer.Init(_device, data);
         }
