@@ -31,12 +31,13 @@ namespace Voltium.Common
             Environment.FailFast(StackFucked);
         }
         private const string StackFucked = "stack fucked, possible buffer overrun detected. execution immediately ended";
+        private const string StackAssertFailed = "StackAssert failed (probably a bigger buffer was provided than was expected...)";
 
         public static void StackAssert(bool cond)
         {
             if (!cond)
             {
-                Environment.FailFast(StackFucked);
+                Environment.FailFast(StackAssertFailed);
             }
         }
     }

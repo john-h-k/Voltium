@@ -14,8 +14,8 @@ namespace Voltium.Core.Devices
     internal unsafe struct CommandQueue : IDisposable, IInternalD3D12Object
     {
         private ComputeDevice _device;
-        private ComPtr<ID3D12CommandQueue> _queue;
-        private ComPtr<ID3D12Fence> _fence;
+        private UniqueComPtr<ID3D12CommandQueue> _queue;
+        private UniqueComPtr<ID3D12Fence> _fence;
         private ulong _lastFence;
 
         public readonly ExecutionContext Type;

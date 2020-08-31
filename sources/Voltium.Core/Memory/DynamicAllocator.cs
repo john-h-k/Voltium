@@ -235,7 +235,7 @@ namespace Voltium.Core.Memory
                     InitialState = _access == MemoryAccess.CpuUpload ? D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_GENERIC_READ : D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_COPY_DEST,
                 };
 
-                using ComPtr<ID3D12Resource> page = _device.CreateCommittedResource(&desc);
+                using UniqueComPtr<ID3D12Resource> page = _device.CreateCommittedResource(&desc);
 
                 var buff = new Buffer(size, new GpuResource(_device, page.Move(), desc, null));
 

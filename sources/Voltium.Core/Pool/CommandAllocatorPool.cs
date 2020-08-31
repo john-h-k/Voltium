@@ -21,9 +21,9 @@ namespace Voltium.Core.Devices
         }
 
         private int _allocatorCount = 0;
-        protected override ComPtr<ID3D12CommandAllocator> Create(ExecutionContext context)
+        protected override UniqueComPtr<ID3D12CommandAllocator> Create(ExecutionContext context)
         {
-            using ComPtr<ID3D12CommandAllocator> allocator = default;
+            using UniqueComPtr<ID3D12CommandAllocator> allocator = default;
             _device.ThrowIfFailed(_device.DevicePointer->CreateCommandAllocator(
                 (D3D12_COMMAND_LIST_TYPE)context,
                 allocator.Iid,
@@ -43,11 +43,11 @@ namespace Voltium.Core.Devices
             _device.Dispose();
         }
 
-        protected override void ManageRent(ref ComPtr<ID3D12CommandAllocator> value, ExecutionContext context)
+        protected override void ManageRent(ref UniqueComPtr<ID3D12CommandAllocator> value, ExecutionContext context)
         {
         }
 
-        protected override void ManageReturn(ref ComPtr<ID3D12CommandAllocator> state)
+        protected override void ManageReturn(ref UniqueComPtr<ID3D12CommandAllocator> state)
             => _device.ThrowIfFailed(state.Ptr->Reset());
     }
 }

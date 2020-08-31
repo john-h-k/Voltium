@@ -34,5 +34,7 @@ namespace Voltium.CubeGame
 
         public ref readonly T this[int linear] => ref Span[linear];
         public ref readonly T this[int x, int y, int z] => ref Span[(((z * Depth) + y) * Width) + x];
+
+        public int Linearise(int x, int y, int z) => (((z * Depth) + y) * Width) + x;
     }
 }

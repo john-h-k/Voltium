@@ -10,9 +10,9 @@ namespace Voltium.Common
 {
     internal unsafe sealed class DxcBlobMemoryManager : MemoryManager<byte>
     {
-        private ComPtr<IDxcBlob> _blob;
+        private UniqueComPtr<IDxcBlob> _blob;
 
-        public DxcBlobMemoryManager(ComPtr<IDxcBlob> blob)
+        public DxcBlobMemoryManager(UniqueComPtr<IDxcBlob> blob)
         {
             _blob = blob.Move();
         }
@@ -34,9 +34,9 @@ namespace Voltium.Common
 
     internal unsafe sealed class D3DBlobMemoryManager : MemoryManager<byte>
     {
-        private ComPtr<ID3DBlob> _blob;
+        private UniqueComPtr<ID3DBlob> _blob;
 
-        public D3DBlobMemoryManager(ComPtr<ID3DBlob> blob)
+        public D3DBlobMemoryManager(UniqueComPtr<ID3DBlob> blob)
         {
             _blob = blob.Move();
         }

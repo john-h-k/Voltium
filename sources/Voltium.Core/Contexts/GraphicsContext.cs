@@ -550,13 +550,29 @@ namespace Voltium.Core
         /// <summary>
         /// Set the vertex buffers
         /// </summary>
+        /// <param name="vertexResource">The vertex buffer to set</param>
+        /// <param name="numVertices">The number of vertices in the buffer</param>
+        /// <param name="startSlot">The slot on the device array to set the vertex buffer to</param>
+        /// <typeparam name="T">The type of the vertex in <see cref="Buffer"/></typeparam>
+        public void SetVertexBuffers<T>(in Buffer vertexResource, uint numVertices, uint startSlot = 0)
+            where T : unmanaged
+        {
+            var desc = CreateVertexBufferView<T>(vertexResource, numVertices);
+
+            FlushBarriers();
+            List->IASetVertexBuffers(startSlot, 1, &desc);
+        }
+
+        /// <summary>
+        /// Set the vertex buffers
+        /// </summary>
         /// <param name="vertexBuffers">The vertex buffers to set</param>
         /// <param name="startSlot">The slot on the device array to start setting the vertex buffers to</param>
         /// <typeparam name="T">The type of the vertex in <see cref="Buffer"/></typeparam>
         public void SetVertexBuffers<T>(ReadOnlySpan<Buffer> vertexBuffers, uint startSlot = 0)
             where T : unmanaged
         {
-            Debug.Assert(StackSentinel.SafeToStackalloc<D3D12_VERTEX_BUFFER_VIEW>(vertexBuffers.Length));
+            StackSentinel.StackAssert(StackSentinel.SafeToStackalloc<D3D12_VERTEX_BUFFER_VIEW>(vertexBuffers.Length));
 
             D3D12_VERTEX_BUFFER_VIEW* views = stackalloc D3D12_VERTEX_BUFFER_VIEW[vertexBuffers.Length];
             for (int i = 0; i < vertexBuffers.Length; i++)
@@ -568,13 +584,13 @@ namespace Voltium.Core
             List->IASetVertexBuffers(startSlot, (uint)vertexBuffers.Length, views);
         }
 
-        private static D3D12_VERTEX_BUFFER_VIEW CreateVertexBufferView<T>(in Buffer buffer)
+        private static D3D12_VERTEX_BUFFER_VIEW CreateVertexBufferView<T>(in Buffer buffer, uint numVertices = uint.MaxValue)
             where T : unmanaged
         {
             return new D3D12_VERTEX_BUFFER_VIEW
             {
                 BufferLocation = buffer.GpuAddress,
-                SizeInBytes = buffer.Length,
+                SizeInBytes = numVertices == uint.MaxValue ? buffer.Length : (uint)sizeof(T) * numVertices,
                 StrideInBytes = (uint)sizeof(T)
             };
         }
@@ -583,44 +599,45 @@ namespace Voltium.Core
         /// Set the index buffer
         /// </summary>
         /// <param name="indexResource">The index buffer to set</param>
+        /// <param name="numIndices">The number of indices to bind</param>
         /// <typeparam name="T">The type of the index in <see cref="Buffer"/></typeparam>
-        public void SetIndexBuffer<T>(in Buffer indexResource)
+        public void SetIndexBuffer<T>(in Buffer indexResource, uint numIndices = uint.MaxValue)
             where T : unmanaged
         {
-            var desc = CreateIndexBufferView(indexResource);
+            var desc = CreateIndexBufferView<T>(indexResource, numIndices);
             List->IASetIndexBuffer(&desc);
+        }
 
-            static D3D12_INDEX_BUFFER_VIEW CreateIndexBufferView(in Buffer buffer)
+        private static D3D12_INDEX_BUFFER_VIEW CreateIndexBufferView<T>(in Buffer buffer, uint numIndices = uint.MaxValue) where T : unmanaged
+        {
+            return new D3D12_INDEX_BUFFER_VIEW
             {
-                return new D3D12_INDEX_BUFFER_VIEW
-                {
-                    BufferLocation = buffer.GpuAddress,
-                    SizeInBytes = buffer.Length,
-                    Format = GetDxgiIndexType()
-                };
+                BufferLocation = buffer.GpuAddress,
+                SizeInBytes = numIndices == uint.MaxValue ? buffer.Length : (uint)sizeof(T) * numIndices,
+                Format = GetDxgiIndexType()
+            };
 
-                static DXGI_FORMAT GetDxgiIndexType()
+            static DXGI_FORMAT GetDxgiIndexType()
+            {
+                if (typeof(T) == typeof(int))
                 {
-                    if (typeof(T) == typeof(int))
-                    {
-                        return DXGI_FORMAT.DXGI_FORMAT_R32_SINT;
-                    }
-                    else if (typeof(T) == typeof(uint))
-                    {
-                        return DXGI_FORMAT.DXGI_FORMAT_R32_UINT;
-                    }
-                    else if (typeof(T) == typeof(short))
-                    {
-                        return DXGI_FORMAT.DXGI_FORMAT_R16_SINT;
-                    }
-                    else if (typeof(T) == typeof(ushort))
-                    {
-                        return DXGI_FORMAT.DXGI_FORMAT_R16_UINT;
-                    }
-
-                    ThrowHelper.ThrowNotSupportedException("Unsupported index type, must be UInt32/Int32/UInt16/Int16");
-                    return default;
+                    return DXGI_FORMAT.DXGI_FORMAT_R32_SINT;
                 }
+                else if (typeof(T) == typeof(uint))
+                {
+                    return DXGI_FORMAT.DXGI_FORMAT_R32_UINT;
+                }
+                else if (typeof(T) == typeof(short))
+                {
+                    return DXGI_FORMAT.DXGI_FORMAT_R16_SINT;
+                }
+                else if (typeof(T) == typeof(ushort))
+                {
+                    return DXGI_FORMAT.DXGI_FORMAT_R16_UINT;
+                }
+
+                ThrowHelper.ThrowNotSupportedException("Unsupported index type, must be UInt32/Int32/UInt16/Int16");
+                return default;
             }
         }
 

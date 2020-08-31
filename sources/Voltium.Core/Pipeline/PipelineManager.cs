@@ -22,7 +22,7 @@ namespace Voltium.Core.Devices
     public unsafe class PipelineManager
     {
         private ComputeDevice _device;
-        private ComPtr<ID3D12PipelineLibrary1> _psoLibrary;
+        private UniqueComPtr<ID3D12PipelineLibrary1> _psoLibrary;
 
 
         /// <summary>
@@ -37,7 +37,7 @@ namespace Voltium.Core.Devices
 
             fixed (byte* pCache = cache)
             {
-                using ComPtr<ID3D12PipelineLibrary1> psoLibrary = default;
+                using UniqueComPtr<ID3D12PipelineLibrary1> psoLibrary = default;
                 int hr = _device.DevicePointerAs<ID3D12Device2>()->CreatePipelineLibrary(pCache, (uint)cache.Length, psoLibrary.Iid, (void**)&psoLibrary);
 
                 if (hr is D3D12_ERROR_DRIVER_VERSION_MISMATCH or D3D12_ERROR_ADAPTER_NOT_FOUND)
@@ -83,7 +83,7 @@ namespace Voltium.Core.Devices
         //            SizeInBytes = (nuint)sizeof(TPipelineStream)
         //        };
 
-        //        using ComPtr<ID3D12PipelineState> state = default;
+        //        using UniqueComPtr<ID3D12PipelineState> state = default;
         //        _device.ThrowIfFailed(_device.DevicePointerAs<ID3D12Device2>()->CreatePipelineState(&pso, state.Iid, (void**)&state));
         //    }
 
@@ -114,7 +114,7 @@ namespace Voltium.Core.Devices
 
 
 
-                using ComPtr<ID3D12PipelineState> state = default;
+                using UniqueComPtr<ID3D12PipelineState> state = default;
 
                 int hr = _psoLibrary.Ptr->LoadPipeline((ushort*)pName, &pso, state.Iid, (void**)&state);
                 if (hr == E_INVALIDARG)

@@ -28,12 +28,12 @@ namespace Voltium.Core.Memory
         public struct Awaiter : ICriticalNotifyCompletion
         {
             private ComputeDevice? _device;
-            private ComPtr<ID3D12Fence> _fence;
+            private UniqueComPtr<ID3D12Fence> _fence;
             private ulong _reached;
             private TaskScheduler _scheduler;
             private bool _finished;
 
-            internal Awaiter(ComputeDevice? device, ComPtr<ID3D12Fence> fence, ulong reached, TaskScheduler scheduler)
+            internal Awaiter(ComputeDevice? device, UniqueComPtr<ID3D12Fence> fence, ulong reached, TaskScheduler scheduler)
             {
                 _device = device;
                 _fence = fence;
@@ -157,7 +157,7 @@ namespace Voltium.Core.Memory
 
         private Awaiter _awaiter;
 
-        internal GpuTask(ComputeDevice? device, ComPtr<ID3D12Fence> fence, ulong marker)
+        internal GpuTask(ComputeDevice? device, UniqueComPtr<ID3D12Fence> fence, ulong marker)
         {
             _awaiter = new(device, fence, marker, TaskScheduler.Default);
         }
@@ -206,14 +206,14 @@ namespace Voltium.Core.Memory
     //    [EditorBrowsable(EditorBrowsableState.Never)]
     //    public struct Awaiter : ICriticalNotifyCompletion
     //    {
-    //        private ComPtr<ID3D12Fence> _fence;
+    //        private UniqueComPtr<ID3D12Fence> _fence;
     //        private ulong _reached;
     //        private TaskScheduler _scheduler;
     //        private bool _finished;
     //        private delegate*<T> _getResult;
     //        private T _value;
 
-    //        internal Awaiter(ComPtr<ID3D12Fence> fence, ulong reached, TaskScheduler scheduler, T value)
+    //        internal Awaiter(UniqueComPtr<ID3D12Fence> fence, ulong reached, TaskScheduler scheduler, T value)
     //        {
     //            _fence = fence;
     //            _reached = reached;
@@ -223,7 +223,7 @@ namespace Voltium.Core.Memory
     //            _value = value;
     //        }
 
-    //        internal Awaiter(ComPtr<ID3D12Fence> fence, ulong reached, TaskScheduler scheduler, delegate*<T> getResult)
+    //        internal Awaiter(UniqueComPtr<ID3D12Fence> fence, ulong reached, TaskScheduler scheduler, delegate*<T> getResult)
     //        {
     //            _fence = fence;
     //            _reached = reached;
@@ -302,12 +302,12 @@ namespace Voltium.Core.Memory
 
     //    private Awaiter _awaiter;
 
-    //    internal GpuTask(ComputeDevice device, ComPtr<ID3D12Fence> fence, ulong marker, delegate*<T> getResult)
+    //    internal GpuTask(ComputeDevice device, UniqueComPtr<ID3D12Fence> fence, ulong marker, delegate*<T> getResult)
     //    {
     //        _awaiter = new(device, fence, marker, TaskScheduler.Default, getResult);
     //    }
 
-    //    internal GpuTask(ComPtr<ID3D12Fence> fence, ulong marker, T value)
+    //    internal GpuTask(UniqueComPtr<ID3D12Fence> fence, ulong marker, T value)
     //    {
     //        _awaiter = new(device, fence, marker, TaskScheduler.Default, value);
     //    }

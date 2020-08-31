@@ -74,7 +74,7 @@ namespace Voltium.Core.Devices
         private protected DescriptorHeap OpaqueUavs;
         private protected DescriptorHeap UavCbvSrvs;
 
-        private protected ComPtr<ID3D12Device> Device;
+        private protected UniqueComPtr<ID3D12Device> Device;
         internal SupportedDevice DeviceLevel;
         internal enum SupportedDevice { Unknown, Device, Device1, Device2, Device3, Device4, Device5, Device6, Device7, Device8 }
         private protected static Dictionary<Adapter, ComputeDevice> AdapterDeviceMap = new(1);
@@ -294,9 +294,9 @@ namespace Voltium.Core.Devices
             }
         }
 
-        internal unsafe ComPtr<ID3D12Fence> CreateFence(ulong startValue = 0)
+        internal unsafe UniqueComPtr<ID3D12Fence> CreateFence(ulong startValue = 0)
         {
-            ComPtr<ID3D12Fence> fence = default;
+            UniqueComPtr<ID3D12Fence> fence = default;
 
             ThrowIfFailed(DevicePointer->CreateFence(
                 startValue,
@@ -315,7 +315,7 @@ namespace Voltium.Core.Devices
         {
             lock (AdapterDeviceMap)
             {
-                using ComPtr<ID3D12Device> device = default;
+                using UniqueComPtr<ID3D12Device> device = default;
 
                 ThrowIfFailed(D3D12CreateDevice(
                     adapter.GetAdapterPointer(),
@@ -405,10 +405,10 @@ namespace Voltium.Core.Devices
                 _ => throw new ArgumentException()
             };
 
-        internal bool TryQueryInterface<T>(out ComPtr<T> result) where T : unmanaged
+        internal bool TryQueryInterface<T>(out UniqueComPtr<T> result) where T : unmanaged
         {
             var success = ComPtr.TryQueryInterface(DevicePointer, out T* val);
-            result = new ComPtr<T>(val);
+            result = new UniqueComPtr<T>(val);
             return success;
         }
 

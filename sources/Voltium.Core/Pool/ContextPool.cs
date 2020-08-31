@@ -20,16 +20,16 @@ namespace Voltium.Core.Pool
     internal struct ContextParams
     {
         public ComputeDevice Device;
-        public ComPtr<ID3D12GraphicsCommandList> List;
-        public ComPtr<ID3D12CommandAllocator> Allocator;
+        public UniqueComPtr<ID3D12GraphicsCommandList> List;
+        public UniqueComPtr<ID3D12CommandAllocator> Allocator;
         public PipelineStateObject? PipelineStateObject;
         public ExecutionContext Context;
         public bool ExecuteOnClose;
 
         public ContextParams(
             ComputeDevice device,
-            ComPtr<ID3D12GraphicsCommandList> list,
-            ComPtr<ID3D12CommandAllocator> allocator,
+            UniqueComPtr<ID3D12GraphicsCommandList> list,
+            UniqueComPtr<ID3D12CommandAllocator> allocator,
             PipelineStateObject? pipelineStateObject,
             ExecutionContext context,
             bool executeOnClose
@@ -52,7 +52,7 @@ namespace Voltium.Core.Pool
 
         private struct CommandAllocator
         {
-            public ComPtr<ID3D12CommandAllocator> Allocator;
+            public UniqueComPtr<ID3D12CommandAllocator> Allocator;
             public GpuTask Task;
         }
 
@@ -60,9 +60,9 @@ namespace Voltium.Core.Pool
         private LockedQueue<CommandAllocator, SpinLock> _computeAllocators = new(GetLock());
         private LockedQueue<CommandAllocator, SpinLock> _directAllocators = new(GetLock());
 
-        private LockedQueue<ComPtr<ID3D12GraphicsCommandList>, SpinLock> _copyLists = new(GetLock());
-        private LockedQueue<ComPtr<ID3D12GraphicsCommandList>, SpinLock> _computeLists = new(GetLock());
-        private LockedQueue<ComPtr<ID3D12GraphicsCommandList>, SpinLock> _directLists = new(GetLock());
+        private LockedQueue<UniqueComPtr<ID3D12GraphicsCommandList>, SpinLock> _copyLists = new(GetLock());
+        private LockedQueue<UniqueComPtr<ID3D12GraphicsCommandList>, SpinLock> _computeLists = new(GetLock());
+        private LockedQueue<UniqueComPtr<ID3D12GraphicsCommandList>, SpinLock> _directLists = new(GetLock());
 
         public static readonly Guid Guid_AllocatorType = new Guid("5D16E61C-E2BF-4118-BB1D-8F804EC4F03D");
 
@@ -106,7 +106,7 @@ namespace Voltium.Core.Pool
 
         internal SupportedGraphicsCommandList SupportedList { get; }
 
-        private SupportedGraphicsCommandList CheckListSupport(ComPtr<ID3D12GraphicsCommandList> list)
+        private SupportedGraphicsCommandList CheckListSupport(UniqueComPtr<ID3D12GraphicsCommandList> list)
         {
             return list switch
             {
@@ -135,9 +135,9 @@ namespace Voltium.Core.Pool
 
         private int _allocatorCount;
         private int _listCount;
-        private ComPtr<ID3D12CommandAllocator> CreateAllocator(ExecutionContext context)
+        private UniqueComPtr<ID3D12CommandAllocator> CreateAllocator(ExecutionContext context)
         {
-            using ComPtr<ID3D12CommandAllocator> allocator = _device.CreateAllocator(context);
+            using UniqueComPtr<ID3D12CommandAllocator> allocator = _device.CreateAllocator(context);
 
             LogHelper.LogDebug($"New command allocator allocated (this is the #{_allocatorCount++} allocator)");
 
@@ -147,9 +147,9 @@ namespace Voltium.Core.Pool
             return allocator.Move();
         }
 
-        private ComPtr<ID3D12GraphicsCommandList> CreateList(ExecutionContext context, ID3D12CommandAllocator* allocator, ID3D12PipelineState* pso)
+        private UniqueComPtr<ID3D12GraphicsCommandList> CreateList(ExecutionContext context, ID3D12CommandAllocator* allocator, ID3D12PipelineState* pso)
         {
-            using ComPtr<ID3D12GraphicsCommandList> list = _device.CreateList(context, allocator, pso);
+            using UniqueComPtr<ID3D12GraphicsCommandList> list = _device.CreateList(context, allocator, pso);
 
             LogHelper.LogDebug($"New command list allocated (this is the #{_listCount++} list)");
 
@@ -167,7 +167,7 @@ namespace Voltium.Core.Pool
                 _ => default
             };
 
-        private LockedQueue<ComPtr<ID3D12GraphicsCommandList>, SpinLock> GetListPoolsForContext(ExecutionContext context)
+        private LockedQueue<UniqueComPtr<ID3D12GraphicsCommandList>, SpinLock> GetListPoolsForContext(ExecutionContext context)
             => context switch
             {
                 ExecutionContext.Copy => _copyLists,

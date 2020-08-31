@@ -7,6 +7,7 @@ using Buffer = Voltium.Core.Memory.Buffer;
 
 namespace Voltium.Core.Devices
 {
+
     public unsafe partial class ComputeDevice
     {
         private uint ResourceCount; // 8 million lol
@@ -14,6 +15,17 @@ namespace Voltium.Core.Devices
         private protected virtual void CreateDescriptorHeaps()
         {
             UavCbvSrvs = DescriptorHeap.Create(this, DescriptorHeapType.ConstantBufferShaderResourceOrUnorderedAccessView, ResourceCount);
+        }
+
+        /// <summary>
+        /// Allocates a range of descriptor handles in the resource descriptor heap, used for CBVs, SRVs, and UAVs
+        /// </summary>
+        /// <param name="descriptorCount"></param>
+        /// <returns></returns>
+        public DescriptorRange CreateResourceDescriptorRange(int descriptorCount)
+        {
+            var handles = UavCbvSrvs.GetNextHandles(descriptorCount);
+            return new DescriptorRange(handles, descriptorCount);
         }
 
         /// <summary>
@@ -103,6 +115,16 @@ namespace Voltium.Core.Devices
             DevicePointer->CreateShaderResourceView(resource.Resource.GetResourcePointer(), null, handle.CpuHandle);
 
             return handle;
+        }
+
+        /// <summary>
+        /// Creates a shader resource view to a <see cref="Texture"/>
+        /// </summary>
+        /// <param name="handle">The <see cref="DescriptorHandle"/> to create the view at</param>
+        /// <param name="resource">The <see cref="Texture"/> resource to create the view for</param>
+        public void CreateShaderResourceView(DescriptorHandle handle, in Texture resource)
+        {
+            DevicePointer->CreateShaderResourceView(resource.Resource.GetResourcePointer(), null, handle.CpuHandle);
         }
 
         /// <summary>

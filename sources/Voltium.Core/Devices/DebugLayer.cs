@@ -97,38 +97,38 @@ namespace Voltium.Common
         internal static bool AreMetaCommandsEnabled { get; private set; } = false;
         internal static bool AreExperimentalShaderModelsEnabled { get; private set; } = false;
 
-        private static ComPtr<IDXGIDebug1> _dxgiDebugLayer = GetDxgiDebug();
-        private static ComPtr<IDXGraphicsAnalysis> _frameCapture = GetPixIfAttached();
-        private static ComPtr<ID3D12Debug> _debug = GetDebug(out _supportedLayer);
-        private static ComPtr<ID3D12DeviceRemovedExtendedDataSettings1> _dred = GetDred();
+        private static UniqueComPtr<IDXGIDebug1> _dxgiDebugLayer = GetDxgiDebug();
+        private static UniqueComPtr<IDXGraphicsAnalysis> _frameCapture = GetPixIfAttached();
+        private static UniqueComPtr<ID3D12Debug> _debug = GetDebug(out _supportedLayer);
+        private static UniqueComPtr<ID3D12DeviceRemovedExtendedDataSettings1> _dred = GetDred();
         private static SupportedDebugLayer _supportedLayer;
         private enum SupportedDebugLayer { Unknown, Debug, Debug3 };
 
-        private static ComPtr<ID3D12Debug> GetDebug(out SupportedDebugLayer supportedLayer)
+        private static UniqueComPtr<ID3D12Debug> GetDebug(out SupportedDebugLayer supportedLayer)
         {
-            using ComPtr<ID3D12Debug> debug = default;
+            using UniqueComPtr<ID3D12Debug> debug = default;
             Guard.TryGetInterface(D3D12GetDebugInterface(debug.Iid, (void**)&debug));
             supportedLayer = debug.HasInterface<ID3D12Debug3>() ? SupportedDebugLayer.Debug3 : SupportedDebugLayer.Debug;
             return debug.Move();
         }
 
-        private static ComPtr<IDXGIDebug1> GetDxgiDebug()
+        private static UniqueComPtr<IDXGIDebug1> GetDxgiDebug()
         {
-            using ComPtr<IDXGIDebug1> debug = default;
+            using UniqueComPtr<IDXGIDebug1> debug = default;
             Guard.TryGetInterface(DXGIGetDebugInterface1(0, debug.Iid, (void**)&debug));
             return debug.Move();
         }
 
-        private static ComPtr<ID3D12DeviceRemovedExtendedDataSettings1> GetDred()
+        private static UniqueComPtr<ID3D12DeviceRemovedExtendedDataSettings1> GetDred()
         {
-            using ComPtr<ID3D12DeviceRemovedExtendedDataSettings1> dredSettings = default;
+            using UniqueComPtr<ID3D12DeviceRemovedExtendedDataSettings1> dredSettings = default;
             Guard.TryGetInterface(D3D12GetDebugInterface(dredSettings.Iid, (void**)&dredSettings));
             return dredSettings.Move();
         }
 
-        private static ComPtr<IDXGraphicsAnalysis> GetPixIfAttached()
+        private static UniqueComPtr<IDXGraphicsAnalysis> GetPixIfAttached()
         {
-            using ComPtr<IDXGraphicsAnalysis> analysis = default;
+            using UniqueComPtr<IDXGraphicsAnalysis> analysis = default;
             Guard.TryGetInterface(DXGIGetDebugInterface1(0, analysis.Iid, (void**)&analysis));
             if (analysis.Exists)
             {
@@ -242,9 +242,9 @@ namespace Voltium.Common
 
     internal unsafe class DebugLayer
     {
-        private ComPtr<ID3D12InfoQueue> _d3d12InfoQueue;
-        private ComPtr<IDXGIInfoQueue> _dxgiInfoQueue;
-        private ComPtr<ID3D12DebugDevice> _d3d12DebugDevice;
+        private UniqueComPtr<ID3D12InfoQueue> _d3d12InfoQueue;
+        private UniqueComPtr<IDXGIInfoQueue> _dxgiInfoQueue;
+        private UniqueComPtr<ID3D12DebugDevice> _d3d12DebugDevice;
 
         // For some reason, Debug3 inherits from Debug, but Debug1 and Debug2 are seperate types
         // [Me]          > why is the inheritance tree of the debug layer types so confusing??!
@@ -252,7 +252,7 @@ namespace Voltium.Common
         //
         // Ignore Debug1/2, just have 0 and 3 (which are base/derived)
 
-        private ComPtr<ID3D12Debug> _d3d12DebugLayer;
+        private UniqueComPtr<ID3D12Debug> _d3d12DebugLayer;
 
         private Guid _dxgiProducerId = DXGI_DEBUG_DXGI;
         private ComputeDevice _device = null!;
@@ -390,7 +390,7 @@ namespace Voltium.Common
 
         private void InitializeD3D12()
         {
-            void CreateAndAssert<T>(out ComPtr<T> result) where T : unmanaged
+            void CreateAndAssert<T>(out UniqueComPtr<T> result) where T : unmanaged
             {
                 var success = _device.TryQueryInterface(out result);
                 Debug.Assert(success);
@@ -425,7 +425,7 @@ namespace Voltium.Common
 
         private void InitializeDxgi()
         {
-            ComPtr<IDXGIInfoQueue> infoQueue = default;
+            UniqueComPtr<IDXGIInfoQueue> infoQueue = default;
             _device.ThrowIfFailed(DXGIGetDebugInterface1(0, infoQueue.Iid, (void**)&infoQueue));
             _dxgiInfoQueue = infoQueue.Move();
 

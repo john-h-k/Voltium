@@ -17,7 +17,7 @@ namespace Voltium.Core.Infrastructure
         /// </summary>
         internal unsafe IUnknown* GetAdapterPointer() => _adapter.Ptr;
 
-        private ComPtr<IUnknown> _adapter;
+        private UniqueComPtr<IUnknown> _adapter;
 
         /// <summary>
         /// A string that contains the adapter description
@@ -84,7 +84,7 @@ namespace Voltium.Core.Infrastructure
         /// Create a new instance of <see cref="Adapter"/>
         /// </summary>
         internal unsafe Adapter(
-            ComPtr<IUnknown> adapter,
+            UniqueComPtr<IUnknown> adapter,
             string description,
             AdapterVendor vendorId,
             uint deviceId,

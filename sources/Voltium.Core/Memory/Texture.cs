@@ -102,7 +102,7 @@ namespace Voltium.Core.Memory
         }
 
         // Required to get Texture's from SwapChains
-        internal static Texture FromResource(ComputeDevice device, ComPtr<ID3D12Resource> buffer)
+        internal static Texture FromResource(ComputeDevice device, UniqueComPtr<ID3D12Resource> buffer)
         {
             var resDesc = buffer.Ptr->GetDesc();
             var res = new GpuResource(device, buffer.Move(), new InternalAllocDesc { Desc = resDesc, InitialState = D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_COMMON }, null, -1);

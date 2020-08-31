@@ -4,7 +4,7 @@ namespace Voltium.Core
 {
     /// <summary>
     /// Indicates the type of the view represented by the descriptors in a
-    /// <see cref="DescriptorRange"/>
+    /// <see cref="DescriptorRangeParameter"/>
     /// </summary>
     public enum DescriptorRangeType
     {

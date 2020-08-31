@@ -86,12 +86,43 @@ namespace Voltium.Core.Memory
         /// <param name="count">The number of <typeparamref name="T"/>s to allocate</param>
         /// <param name="allocFlags">Any additional allocation flags</param>
         /// <returns>A new <see cref="Buffer"/></returns>
-        public Buffer AllocateUploadBuffer<T>(
+        public Buffer AllocateReadbackBuffer<T>(
             int count = 1,
             AllocFlags allocFlags = AllocFlags.None
         ) where T : unmanaged
         {
-            var buff = AllocateBuffer(sizeof(T) * count, MemoryAccess.CpuUpload, allocFlags: allocFlags);
+            var buff = AllocateBuffer(sizeof(T) * count, MemoryAccess.CpuReadback, allocFlags: allocFlags);
+            return buff;
+        }
+
+        /// <summary>
+        /// Allocates a <see cref="MemoryAccess.CpuUpload"/> buffer and copy initial data to it
+        /// </summary>
+        /// <param name="count">The number of bytes to allocate</param>
+        /// <param name="allocFlags">Any additional allocation flags</param>
+        /// <returns>A new <see cref="Buffer"/></returns>
+        public Buffer AllocateReadbackBuffer(
+            int count = 1,
+            AllocFlags allocFlags = AllocFlags.None
+        )
+        {
+            var buff = AllocateBuffer(count, MemoryAccess.CpuReadback, allocFlags: allocFlags);
+            return buff;
+        }
+
+
+        /// <summary>
+        /// Allocates a <see cref="MemoryAccess.CpuUpload"/> buffer and copy initial data to it
+        /// </summary>
+        /// <param name="count">The number of bytes to allocate</param>
+        /// <param name="allocFlags">Any additional allocation flags</param>
+        /// <returns>A new <see cref="Buffer"/></returns>
+        public Buffer AllocateUploadBuffer<T>(
+            int count = 1,
+            AllocFlags allocFlags = AllocFlags.None
+        )
+        {
+            var buff = AllocateUploadBuffer(Unsafe.SizeOf<T>() * count, allocFlags);
             return buff;
         }
 

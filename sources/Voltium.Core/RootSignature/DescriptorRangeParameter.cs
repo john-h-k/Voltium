@@ -3,7 +3,7 @@ namespace Voltium.Core
     /// <summary>
     /// Represents a range of descriptors relative to a descriptor heap
     /// </summary>
-    public readonly struct DescriptorRange
+    public readonly struct DescriptorRangeParameter
     {
         /// <summary>
         /// Indicates the type of the view represented by the descriptors
@@ -36,9 +36,9 @@ namespace Voltium.Core
         public const uint AppendAfterLastDescriptor = 0xFFFFFFFF;
 
         /// <summary>
-        /// Creates a new <see cref="DescriptorRange"/>
+        /// Creates a new <see cref="DescriptorRangeParameter"/>
         /// </summary>
-        public DescriptorRange(
+        public DescriptorRangeParameter(
             DescriptorRangeType type,
             uint baseShaderRegister,
             uint descriptorCount,

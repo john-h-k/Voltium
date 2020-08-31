@@ -25,7 +25,7 @@ namespace Voltium.Core.Text
 
         private DWRITE_MATRIX _transform;
         private GraphicsDevice _device;
-        private ComPtr<IDWriteFactory> _factory;
+        private UniqueComPtr<IDWriteFactory> _factory;
         private float _pixelsPerDip;
         private bool _isSnappingDisabled;
 
@@ -116,7 +116,7 @@ namespace Voltium.Core.Text
 
             ref GraphicsContext context = ref Unsafe.AsRef<GraphicsContext>(clientDrawingContext);
 
-            using ComPtr<IDWriteGlyphRunAnalysis> analysis = default;
+            using UniqueComPtr<IDWriteGlyphRunAnalysis> analysis = default;
             fixed (DWRITE_MATRIX* pTransform = &_transform)
             {
                 _device.ThrowIfFailed(_factory.Ptr->CreateGlyphRunAnalysis(

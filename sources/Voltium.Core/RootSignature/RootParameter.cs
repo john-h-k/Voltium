@@ -51,28 +51,28 @@ namespace Voltium.Core
             uint baseShaderRegister,
             uint descriptorCount,
             uint registerSpace,
-            uint offsetInDescriptorsFromTableStart = DescriptorRange.AppendAfterLastDescriptor,
+            uint offsetInDescriptorsFromTableStart = DescriptorRangeParameter.AppendAfterLastDescriptor,
             ShaderVisibility visibility = ShaderVisibility.All
         )
-            => CreateDescriptorTable(new DescriptorRange(type, baseShaderRegister, descriptorCount, registerSpace, offsetInDescriptorsFromTableStart), visibility);
+            => CreateDescriptorTable(new DescriptorRangeParameter(type, baseShaderRegister, descriptorCount, registerSpace, offsetInDescriptorsFromTableStart), visibility);
 
         /// <summary>
         /// Creates a new descriptor table root parameter
         /// </summary>
-        /// <param name="range">The <see cref="DescriptorRange"/> to bind</param>
+        /// <param name="range">The <see cref="DescriptorRangeParameter"/> to bind</param>
         /// <param name="visibility">Indicates which shaders have access to this parameter</param>
         /// <returns>A new <see cref="RootParameter"/> representing a descriptor table</returns>
-        public static RootParameter CreateDescriptorTable(DescriptorRange range, ShaderVisibility visibility = ShaderVisibility.All)
+        public static RootParameter CreateDescriptorTable(DescriptorRangeParameter range, ShaderVisibility visibility = ShaderVisibility.All)
             => CreateDescriptorTable(new[] { range }, visibility);
 
 
         /// <summary>
         /// Creates a new descriptor table root parameter
         /// </summary>
-        /// <param name="ranges">The <see cref="DescriptorRange"/>s to bind</param>
+        /// <param name="ranges">The <see cref="DescriptorRangeParameter"/>s to bind</param>
         /// <param name="visibility">Indicates which shaders have access to this parameter</param>
         /// <returns>A new <see cref="RootParameter"/> representing a descriptor table</returns>
-        public static RootParameter CreateDescriptorTable(DescriptorRange[] ranges, ShaderVisibility visibility = ShaderVisibility.All)
+        public static RootParameter CreateDescriptorTable(DescriptorRangeParameter[] ranges, ShaderVisibility visibility = ShaderVisibility.All)
         {
             // do NOT make this a not pinned array. RootSignature.TranslateRootParameters relies on it
             var d3d12Ranges = GC.AllocateArray<D3D12_DESCRIPTOR_RANGE1>(ranges.Length, pinned: true);

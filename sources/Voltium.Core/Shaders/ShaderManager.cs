@@ -66,15 +66,15 @@ namespace Voltium.Core.Devices
             return new CompiledShader(copy, data.Length, type);
         }
 
-        private static ComPtr<IDxcCompiler3> Compiler;
+        private static UniqueComPtr<IDxcCompiler3> Compiler;
         private static DxcIncludeHandler DefaultDxcIncludeHandler;
         private static LegacyFxcIncludeHandler DefaultFxcIncludeHandler;
-        private static ComPtr<IDxcUtils> Utils;
+        private static UniqueComPtr<IDxcUtils> Utils;
 
         static unsafe ShaderManager()
         {
-            ComPtr<IDxcCompiler3> compiler = default;
-            ComPtr<IDxcUtils> utils = default;
+            UniqueComPtr<IDxcCompiler3> compiler = default;
+            UniqueComPtr<IDxcUtils> utils = default;
 
             Guid clsid = CLSID_DxcCompiler;
             Guard.ThrowIfFailed(DxcCreateInstance(&clsid, compiler.Iid, (void**)&compiler));
@@ -415,7 +415,7 @@ namespace Voltium.Core.Devices
                 text.Size = (nuint)(shaderText.Length * sizeof(char));
                 text.Encoding = DXC_CP_UTF16;
 
-                using ComPtr<IDxcResult> compileResult = default;
+                using UniqueComPtr<IDxcResult> compileResult = default;
                 Guard.ThrowIfFailed(Compiler.Ptr->Compile(
                     &text,
                     (ushort**)ppFlags,
@@ -456,7 +456,7 @@ namespace Voltium.Core.Devices
                     }
                 }
 
-                using ComPtr<IDxcBlob> pBlob = default;
+                using UniqueComPtr<IDxcBlob> pBlob = default;
                 Guard.ThrowIfFailed(compileResult.Ptr->GetResult(ComPtr.GetAddressOf(&pBlob)));
                 var shaderBytes = FromBlob(pBlob.Ptr);
 
@@ -504,8 +504,8 @@ namespace Voltium.Core.Devices
 
             var fxcFlags = GetFxcFlags(flags, out var macros);
 
-            using ComPtr<ID3DBlob> pCode = default;
-            using ComPtr<ID3DBlob> pError = default;
+            using UniqueComPtr<ID3DBlob> pCode = default;
+            using UniqueComPtr<ID3DBlob> pError = default;
 
             fixed (byte* pSrcData = strBuff.Value)
             fixed (D3D_SHADER_MACRO* pDefines = macros)
@@ -700,14 +700,14 @@ namespace Voltium.Core.Devices
         private static unsafe bool TryGetOutput(
             IDxcResult* result,
             DXC_OUT_KIND kind,
-            out ComPtr<IDxcBlob> data,
-            out ComPtr<IDxcBlobUtf16> name
+            out UniqueComPtr<IDxcBlob> data,
+            out UniqueComPtr<IDxcBlobUtf16> name
         )
         {
             if (result->HasOutput(kind) == Windows.TRUE)
             {
-                fixed (ComPtr<IDxcBlob>* pData = &data)
-                fixed (ComPtr<IDxcBlobUtf16>* pName = &name)
+                fixed (UniqueComPtr<IDxcBlob>* pData = &data)
+                fixed (UniqueComPtr<IDxcBlobUtf16>* pName = &name)
                 {
                     Guard.ThrowIfFailed(result->GetOutput(
                         kind,

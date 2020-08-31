@@ -14,7 +14,7 @@ namespace Voltium.Core.Queries
     //public unsafe struct QueryHeap : IEvictable, IInternalD3D12Object
     //{
     //    private ComputeDevice _device;
-    //    private ComPtr<ID3D12QueryHeap> _queryHeap;
+    //    private UniqueComPtr<ID3D12QueryHeap> _queryHeap;
     //    private uint _numQueries;
     //    private uint _nextQuery;
 

@@ -23,7 +23,7 @@ namespace Voltium.Core
         {
             fixed (byte* pSignature = rootSignatureShader)
             {
-                using ComPtr<ID3D12RootSignature> rootSig = device.CreateRootSignature(
+                using UniqueComPtr<ID3D12RootSignature> rootSig = device.CreateRootSignature(
                     0 /* TODO: MULTI-GPU */,
                     pSignature,
                     (uint)rootSignatureShader.Length
@@ -95,7 +95,7 @@ namespace Voltium.Core
                     ThrowHelper.ErrorWithBlob(hr, pError);
                 }
 
-                using ComPtr<ID3D12RootSignature> rootSig = device.CreateRootSignature(
+                using UniqueComPtr<ID3D12RootSignature> rootSig = device.CreateRootSignature(
                     0 /* TODO: MULTI-GPU */,
                     pBlob->GetBufferPointer(),
                     (uint)pBlob->GetBufferSize()
@@ -204,7 +204,7 @@ namespace Voltium.Core
             _value.Dispose();
         }
 
-        private ComPtr<ID3D12RootSignature> _value;
+        private UniqueComPtr<ID3D12RootSignature> _value;
 
         /// <summary>
         /// The underlying value of the root signature
@@ -231,7 +231,7 @@ namespace Voltium.Core
             => ComIdentity.GetManagedObject<ID3D12RootSignature, RootSignature>(rootSig);
 
         private RootSignature(
-            ComPtr<ID3D12RootSignature> value,
+            UniqueComPtr<ID3D12RootSignature> value,
             ReadOnlyMemory<RootParameter> parameters,
             ReadOnlyMemory<StaticSampler> staticSamplers
         )

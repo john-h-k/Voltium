@@ -20,7 +20,7 @@ namespace Voltium.Core.Memory
 
         internal GpuResource(
             ComputeDevice device,
-            ComPtr<ID3D12Resource> resource,
+            UniqueComPtr<ID3D12Resource> resource,
             in InternalAllocDesc desc,
             GpuAllocator? allocator,
             int heapIndex = -1 /* no relevant heap block */,
@@ -41,7 +41,7 @@ namespace Voltium.Core.Memory
 
         // this is a hack. TODO make it right
         internal static GpuResource FromBackBuffer(
-            ComPtr<ID3D12Resource> resource
+            UniqueComPtr<ID3D12Resource> resource
         )
         {
             var desc = resource.Ptr->GetDesc();
@@ -66,7 +66,7 @@ namespace Voltium.Core.Memory
         /// Whether a resource transition was began on this resource, making it temporarily inaccessible
         public bool TransitionBegan;
 
-        private ComPtr<ID3D12Resource> _value;
+        private UniqueComPtr<ID3D12Resource> _value;
         public D3D12_RESOURCE_FLAGS Flags;
 
         // Null if the resource is unmapped or not CPU accessible (default heap)

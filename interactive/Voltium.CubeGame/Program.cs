@@ -9,6 +9,7 @@ using Voltium.Common;
 using Voltium.Core;
 using Voltium.Core.Devices;
 using Voltium.Core.Pipeline;
+using Voltium.Input;
 using Voltium.RenderEngine;
 
 namespace Voltium.CubeGame
@@ -28,6 +29,7 @@ namespace Voltium.CubeGame
 
         private RenderGraph _graph = null!;
 
+        private Camera _camera = null!;
         private WorldPass _worldPass = null!;
         private TonemapPass _outputPass = null!;
 
@@ -37,13 +39,23 @@ namespace Voltium.CubeGame
             _device = GraphicsDevice.Create(FeatureLevel.GraphicsLevel11_0, null, DebugLayerConfiguration.Debug.WithDebugFlags(DebugFlags.DebugLayer));
             _output = Output.Create(OutputConfiguration.Default, _device, outputOwner);
 
+            _camera = new();
+
             _graph = new RenderGraph(_device, 3);
-            _worldPass = new WorldPass(_device);
+            _worldPass = new WorldPass(_device, _camera);
             _outputPass = new TonemapPass(_output);
         }
 
         public override void OnResize(Size newOutputSize)
         {
+        }
+
+        public override void Update(ApplicationTimer timer)
+        {
+            if (KeyboardHandler.Key(ConsoleKey.W).IsDown())
+            {
+                _camera.TranslateZ(1);
+            }
         }
 
         public override void Render()
@@ -54,10 +66,6 @@ namespace Voltium.CubeGame
             _graph.ExecuteGraph();
 
             _output.Present();
-        }
-
-        public override void Update(ApplicationTimer timer)
-        {
         }
 
         public override void Dispose()

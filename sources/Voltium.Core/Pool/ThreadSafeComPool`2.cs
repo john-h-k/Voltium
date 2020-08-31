@@ -11,7 +11,7 @@ namespace Voltium.Core.Pool
     internal abstract class ThreadSafeComPool<T, TRentState> : IDisposable where T : unmanaged
     {
         private SpinLock _poolLock = new(EnvVars.IsDebug);
-        private Queue<ComPtr<T>> _pool;
+        private Queue<UniqueComPtr<T>> _pool;
 
         public ThreadSafeComPool(int capacity = 0)
         {
@@ -19,9 +19,9 @@ namespace Voltium.Core.Pool
             _pool = new(capacity);
         }
 
-        public ComPtr<T> Rent(TRentState state)
+        public UniqueComPtr<T> Rent(TRentState state)
         {
-            ComPtr<T> result;
+            UniqueComPtr<T> result;
 
             using (_poolLock.EnterScoped())
             {
@@ -41,7 +41,7 @@ namespace Voltium.Core.Pool
             return result;
         }
 
-        public void Return(ComPtr<T> value)
+        public void Return(UniqueComPtr<T> value)
         {
             ManageReturn(ref value);
             using (_poolLock.EnterScoped())
@@ -50,10 +50,10 @@ namespace Voltium.Core.Pool
             }
         }
 
-        protected abstract ComPtr<T> Create(TRentState state);
-        protected abstract void ManageRent(ref ComPtr<T> value, TRentState state);
-        protected abstract void ManageReturn(ref ComPtr<T> value);
-        protected virtual bool CanRent(ref ComPtr<T> value, TRentState state) => true;
+        protected abstract UniqueComPtr<T> Create(TRentState state);
+        protected abstract void ManageRent(ref UniqueComPtr<T> value, TRentState state);
+        protected abstract void ManageReturn(ref UniqueComPtr<T> value);
+        protected virtual bool CanRent(ref UniqueComPtr<T> value, TRentState state) => true;
 
         protected virtual void InternalDispose()
         {

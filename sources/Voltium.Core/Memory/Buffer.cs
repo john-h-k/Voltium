@@ -49,18 +49,18 @@ namespace Voltium.Core.Memory
         /// <summary>
         /// The buffer data. This may be empty if the data is not CPU writable
         /// </summary>
-        public Span<T> DataAs<T>() where T : struct => MemoryMarshal.Cast<byte, T>(Data);
+        public Span<T> AsSpan<T>() where T : struct => MemoryMarshal.Cast<byte, T>(Span);
 
 
         /// <summary>
         /// The buffer data. This may be empty if the data is not CPU writable
         /// </summary>
-        public T* DataPointerAs<T>() where T : unmanaged => (T*)_cpuAddress;
+        public T* As<T>() where T : unmanaged => (T*)_cpuAddress;
 
         /// <summary>
         /// The buffer data. This may be empty if the data is not CPU writable
         /// </summary>
-        public Span<byte> Data
+        public Span<byte> Span
         {
             get
             {

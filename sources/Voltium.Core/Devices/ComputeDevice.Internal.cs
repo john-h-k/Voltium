@@ -16,9 +16,9 @@ namespace Voltium.Core.Devices
         internal D3D12_RESOURCE_ALLOCATION_INFO GetAllocationInfo(InternalAllocDesc* desc)
             => DevicePointer->GetResourceAllocationInfo(0, 1, &desc->Desc);
 
-        internal ComPtr<ID3D12CommandAllocator> CreateAllocator(ExecutionContext context)
+        internal UniqueComPtr<ID3D12CommandAllocator> CreateAllocator(ExecutionContext context)
         {
-            using ComPtr<ID3D12CommandAllocator> allocator = default;
+            using UniqueComPtr<ID3D12CommandAllocator> allocator = default;
             ThrowIfFailed(DevicePointer->CreateCommandAllocator(
                 (D3D12_COMMAND_LIST_TYPE)context,
                 allocator.Iid,
@@ -28,9 +28,9 @@ namespace Voltium.Core.Devices
             return allocator.Move();
         }
 
-        internal ComPtr<ID3D12GraphicsCommandList> CreateList(ExecutionContext context, ID3D12CommandAllocator* allocator, ID3D12PipelineState* pso)
+        internal UniqueComPtr<ID3D12GraphicsCommandList> CreateList(ExecutionContext context, ID3D12CommandAllocator* allocator, ID3D12PipelineState* pso)
         {
-            using ComPtr<ID3D12GraphicsCommandList> list = default;
+            using UniqueComPtr<ID3D12GraphicsCommandList> list = default;
             ThrowIfFailed(DevicePointer->CreateCommandList(
                 0, // TODO: MULTI-GPU
                 (D3D12_COMMAND_LIST_TYPE)context,
@@ -43,18 +43,18 @@ namespace Voltium.Core.Devices
             return list.Move();
         }
 
-        internal ComPtr<ID3D12QueryHeap> CreateQueryHeap(D3D12_QUERY_HEAP_DESC desc)
+        internal UniqueComPtr<ID3D12QueryHeap> CreateQueryHeap(D3D12_QUERY_HEAP_DESC desc)
         {
-            using ComPtr<ID3D12QueryHeap> queryHeap = default;
+            using UniqueComPtr<ID3D12QueryHeap> queryHeap = default;
             DevicePointer->CreateQueryHeap(&desc, queryHeap.Iid, (void**)&queryHeap);
             return queryHeap.Move();
         }
 
-        internal ComPtr<ID3D12Resource> CreatePlacedResource(ID3D12Heap* heap, ulong offset, InternalAllocDesc* desc)
+        internal UniqueComPtr<ID3D12Resource> CreatePlacedResource(ID3D12Heap* heap, ulong offset, InternalAllocDesc* desc)
         {
             var clearVal = desc->ClearValue.GetValueOrDefault();
 
-            using ComPtr<ID3D12Resource> resource = default;
+            using UniqueComPtr<ID3D12Resource> resource = default;
 
             ThrowIfFailed(DevicePointer->CreatePlacedResource(
                  heap,
@@ -69,12 +69,12 @@ namespace Voltium.Core.Devices
             return resource.Move();
         }
 
-        internal ComPtr<ID3D12Resource> CreateCommittedResource(InternalAllocDesc* desc)
+        internal UniqueComPtr<ID3D12Resource> CreateCommittedResource(InternalAllocDesc* desc)
         {
             var heapProperties = GetHeapProperties(desc);
             var clearVal = desc->ClearValue.GetValueOrDefault();
 
-            using ComPtr<ID3D12Resource> resource = default;
+            using UniqueComPtr<ID3D12Resource> resource = default;
 
             ThrowIfFailed(DevicePointer->CreateCommittedResource(
                     &heapProperties,
@@ -94,9 +94,9 @@ namespace Voltium.Core.Devices
             }
         }
 
-        internal ComPtr<ID3D12Heap> CreateHeap(D3D12_HEAP_DESC* desc)
+        internal UniqueComPtr<ID3D12Heap> CreateHeap(D3D12_HEAP_DESC* desc)
         {
-            ComPtr<ID3D12Heap> heap = default;
+            UniqueComPtr<ID3D12Heap> heap = default;
             ThrowIfFailed(DevicePointer->CreateHeap(
                 desc,
                 heap.Iid,
@@ -106,7 +106,7 @@ namespace Voltium.Core.Devices
             return heap.Move();
         }
 
-        internal unsafe ComPtr<ID3D12CommandQueue> CreateQueue(ExecutionContext type, D3D12_COMMAND_QUEUE_FLAGS flags = D3D12_COMMAND_QUEUE_FLAGS.D3D12_COMMAND_QUEUE_FLAG_NONE)
+        internal unsafe UniqueComPtr<ID3D12CommandQueue> CreateQueue(ExecutionContext type, D3D12_COMMAND_QUEUE_FLAGS flags = D3D12_COMMAND_QUEUE_FLAGS.D3D12_COMMAND_QUEUE_FLAG_NONE)
         {
             var desc = new D3D12_COMMAND_QUEUE_DESC
             {
@@ -116,7 +116,7 @@ namespace Voltium.Core.Devices
                 Priority = (int)D3D12_COMMAND_QUEUE_PRIORITY.D3D12_COMMAND_QUEUE_PRIORITY_NORMAL // why are you like this D3D12
             };
 
-            ComPtr<ID3D12CommandQueue> p = default;
+            UniqueComPtr<ID3D12CommandQueue> p = default;
 
             ThrowIfFailed(DevicePointer->CreateCommandQueue(
                 &desc,
@@ -127,9 +127,9 @@ namespace Voltium.Core.Devices
             return p.Move();
         }
 
-        internal ComPtr<ID3D12RootSignature> CreateRootSignature(uint nodeMask, void* pSignature, uint signatureLength)
+        internal UniqueComPtr<ID3D12RootSignature> CreateRootSignature(uint nodeMask, void* pSignature, uint signatureLength)
         {
-            using ComPtr<ID3D12RootSignature> rootSig = default;
+            using UniqueComPtr<ID3D12RootSignature> rootSig = default;
             ThrowIfFailed(DevicePointer->CreateRootSignature(
                 nodeMask,
                 pSignature,

@@ -58,7 +58,7 @@ namespace Voltium.Common
 
             Guard.ThrowIfFailed(hr, "result->GetPrivateData(&guid, &size, null)");
 
-            return string.Create((int)size, (ComPtr<ID3D12Object>)result, (buff, ptr) =>
+            return string.Create((int)size, (UniqueComPtr<ID3D12Object>)result, (buff, ptr) =>
             {
                 var guid = Windows.WKPDID_D3DDebugObjectNameW;
                 int size = buff.Length * sizeof(char);

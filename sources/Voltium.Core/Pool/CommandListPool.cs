@@ -39,7 +39,7 @@ namespace Voltium.Core.Pool
             internal ID3D12PipelineState* Pso;
         }
 
-        public ComPtr<ID3D12GraphicsCommandList> Rent(
+        public UniqueComPtr<ID3D12GraphicsCommandList> Rent(
             ExecutionContext context,
             ID3D12CommandAllocator* allocator,
             ID3D12PipelineState* pso
@@ -47,9 +47,9 @@ namespace Voltium.Core.Pool
             => Rent(new ListCreationParams(context, allocator, pso));
 
         private int _listCount = 0;
-        protected override ComPtr<ID3D12GraphicsCommandList> Create(ListCreationParams state)
+        protected override UniqueComPtr<ID3D12GraphicsCommandList> Create(ListCreationParams state)
         {
-            using ComPtr<ID3D12GraphicsCommandList> list = default;
+            using UniqueComPtr<ID3D12GraphicsCommandList> list = default;
             _device.ThrowIfFailed(_device.DevicePointer->CreateCommandList(
                 0, // TODO: MULTI-GPU
                 state.Type,
@@ -74,12 +74,12 @@ namespace Voltium.Core.Pool
             base.InternalDispose();
         }
 
-        protected override void ManageRent(ref ComPtr<ID3D12GraphicsCommandList> value, ListCreationParams state)
+        protected override void ManageRent(ref UniqueComPtr<ID3D12GraphicsCommandList> value, ListCreationParams state)
         {
             _device.ThrowIfFailed(value.Ptr->Reset(state.Allocator, state.Pso));
         }
 
-        protected override void ManageReturn(ref ComPtr<ID3D12GraphicsCommandList> value)
+        protected override void ManageReturn(ref UniqueComPtr<ID3D12GraphicsCommandList> value)
         {
         }
     }

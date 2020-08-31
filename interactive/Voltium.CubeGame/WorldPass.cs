@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Numerics;
@@ -69,6 +70,7 @@ namespace Voltium.CubeGame
     internal struct ChunkMesh
     {
         public Buffer Constants;
+        public Buffer TexIndices;
 
         public Buffer Vertices;
         public Buffer Indices;
@@ -93,7 +95,6 @@ namespace Voltium.CubeGame
     {
         public Matrix4x4 World;
         public Matrix4x4 TexTransform;
-        public int TextureIndex;
     }
 
     internal sealed class WorldPass : GraphicsRenderPass
@@ -101,8 +102,9 @@ namespace Voltium.CubeGame
         private GraphicsDevice _device;
         private RenderChunk[] Chunks;
         private Buffer _frameConstants;
-        private DescriptorHandle _textures;
-        private Texture _bricks;
+        private DescriptorRange _texViews;
+        private Texture[] _textures;
+        private Camera _camera;
         private static readonly Rgba128 DefaultSkyColor = Rgba128.CornflowerBlue;
 
         public const int Width = 2, Height = 2, Depth = 2, NumChunkFaces = Width * Height * Depth * 6;
@@ -111,26 +113,21 @@ namespace Voltium.CubeGame
         {
             public const int FrameConstantsIndex = 0;
             public const int ObjectConstantsIndex = 1;
-            public const int TextureIndex = 2;
+            public const int ObjectTexIndicesIndex = 2;
+            public const int TextureIndex = 3;
         }
 
-        public WorldPass(GraphicsDevice device)
+        public WorldPass(GraphicsDevice device, Camera camera)
         {
             _device = device;
-            Chunks = new[] { new RenderChunk() };
-            Chunks[0].Chunk.Blocks = new Block?[Width * Height * Depth];
-            Chunks[0].Chunk.NeedsRebuild = true;
-
-            foreach (ref readonly var block in Chunks[0].Chunk.Blocks.Span)
-            {
-                Unsafe.AsRef(in block) = new Block { TextureId = 0 };
-            }
+            _camera = camera;
 
             var @params = new RootParameter[]
             {
                 RootParameter.CreateDescriptor(RootParameterType.ConstantBufferView, 0, 0),
                 RootParameter.CreateDescriptor(RootParameterType.ConstantBufferView, 1, 0),
-                RootParameter.CreateDescriptorTable(DescriptorRangeType.ShaderResourceView, 0, 1, 0)
+                RootParameter.CreateDescriptor(RootParameterType.ShaderResourceView, 1, 0, ShaderVisibility.Pixel),
+                RootParameter.CreateDescriptorTable(DescriptorRangeType.ShaderResourceView, 0, 1, 0, visibility: ShaderVisibility.Pixel)
             };
 
             var samplers = new StaticSampler[]
@@ -154,33 +151,57 @@ namespace Voltium.CubeGame
 
                 VertexShader = ShaderManager.CompileShader("Shaders/ChunkShader.hlsl", ShaderType.Vertex, shaderFlags, "VertexMain"),
                 PixelShader = ShaderManager.CompileShader("Shaders/ChunkShader.hlsl", ShaderType.Pixel, shaderFlags, "PixelMain"),
-                Inputs = InputLayout.FromType<BlockVertex>()
+                Inputs = InputLayout.FromType<BlockVertex>(),
+
+                Rasterizer = RasterizerDesc.Default,
+                DepthStencil = DepthStencilDesc.Default,
+                Blend = BlendDesc.Default
             };
 
+            RootSignature = rootSig;
             DefaultPipelineState = _device.PipelineManager.CreatePipelineStateObject(psoDesc, "ChunkPso");
-            Debugger.Break();
-
-
 
             UploadTextures();
             SetConstants();
+
+
+            Chunks = new[] { new RenderChunk() };
+            Chunks[0].Chunk.Blocks = new Block?[Width * Height * Depth];
+            Chunks[0].Chunk.NeedsRebuild = true;
+
+            var rng = new Random();
+            foreach (ref readonly var block in Chunks[0].Chunk.Blocks.Span)
+            {
+                Unsafe.AsRef(in block) = new Block { TextureId = (uint)rng.Next(0, _textures.Length) };
+            }
         }
 
+        private RootSignature RootSignature;
+
+        [MemberNotNull(nameof(_textures))]
         private void UploadTextures()
         {
             using var upload = _device.BeginUploadContext();
 
-            //_bricks = upload.UploadTexture(File.ReadAllBytes("Assets/Textures/bricks.dds"));
-            _bricks = upload.UploadTexture(File.ReadAllBytes("Assets/Textures/stone.dds"));
-            _textures = _device.CreateShaderResourceView(_bricks);
+            _textures = new Texture[2];
+
+            _textures[0] = upload.UploadTexture(File.ReadAllBytes("Assets/Textures/bricks.dds"));
+            _textures[1] = upload.UploadTexture(File.ReadAllBytes("Assets/Textures/stone.dds"));
+
+            _texViews = _device.CreateResourceDescriptorRange(_textures.Length);
+
+            for (var i = 0; i < _textures.Length; i++)
+            {
+                _device.CreateShaderResourceView(_texViews[i], _textures[i]);
+            }
         }
 
         private unsafe void SetConstants()
         {
             _frameConstants = _device.Allocator.AllocateUploadBuffer<FrameConstants>();
             Chunks[0].Mesh.Constants = _device.Allocator.AllocateUploadBuffer<ChunkConstants>();
-
-            FrameConstants* constants = _frameConstants.DataPointerAs<FrameConstants>();
+            
+            FrameConstants* constants = _frameConstants.As<FrameConstants>();
 
             constants->View = Matrix4x4.CreateLookAt(
                 new Vector3(0.0f, 0.7f, 1.5f),
@@ -190,12 +211,9 @@ namespace Voltium.CubeGame
             const float defaultFov = 70.0f * (float)Math.PI / 180.0f;
             constants->Projection = Matrix4x4.CreatePerspectiveFieldOfView(defaultFov, 1, 0.01f, 100f);
 
-
-
-            ChunkConstants* chunkConstants = Chunks[0].Mesh.Constants.DataPointerAs<ChunkConstants>();
+            ChunkConstants* chunkConstants = Chunks[0].Mesh.Constants.As<ChunkConstants>();
             chunkConstants->TexTransform = Matrix4x4.Identity;
             chunkConstants->World = Matrix4x4.CreateTranslation(0, 0, -5);
-            chunkConstants->TextureIndex = 0;
         }
 
         public override void Register(ref RenderPassBuilder builder, ref Resolver resolver)
@@ -215,17 +233,19 @@ namespace Voltium.CubeGame
             resolver.CreateComponent(resources);
         }
 
-        public override void Record(GraphicsContext context, ref Resolver resolver)
+        public override unsafe void Record(GraphicsContext context, ref Resolver resolver)
         {
             var resources = resolver.GetComponent<RenderResources>();
             var sceneColor = resolver.ResolveResource(resources.SceneColor);
             var sceneDepth = resolver.ResolveResource(resources.SceneDepth);
 
+            var frame = _frameConstants.As<FrameConstants>();
+            frame->View = _camera.View;
+            frame->Projection = _camera.Projection;
 
-
-
+            context.SetRootSignature(RootSignature);
             context.SetAndClearRenderTarget(_device.CreateRenderTargetView(sceneColor), DefaultSkyColor, _device.CreateDepthStencilView(sceneDepth));
-            context.SetRootDescriptorTable(RootSignatureConstants.TextureIndex, _textures);
+            context.SetRootDescriptorTable(RootSignatureConstants.TextureIndex, _texViews.Start);
             context.SetConstantBuffer<FrameConstants>(RootSignatureConstants.FrameConstantsIndex, _frameConstants);
             context.SetTopology(Topology.TriangeList);
             context.SetViewportAndScissor(sceneColor.Resolution);
@@ -240,41 +260,51 @@ namespace Voltium.CubeGame
                 }
 
                 context.SetConstantBuffer<ChunkConstants>(RootSignatureConstants.ObjectConstantsIndex, chunk.Mesh.Constants);
+                context.SetBuffer<uint>(RootSignatureConstants.ObjectTexIndicesIndex, chunk.Mesh.TexIndices);
 
-                context.SetVertexBuffers<BlockVertex>(chunk.Mesh.Vertices);
-                context.SetIndexBuffer<uint>(chunk.Mesh.Indices);
+                context.SetVertexBuffers<BlockVertex>(chunk.Mesh.Vertices, (uint)chunk.Mesh.VertexCount, 0);
+                context.SetIndexBuffer<uint>(chunk.Mesh.Indices, (uint)chunk.Mesh.IndexCount);
 
                 context.DrawIndexed(chunk.Mesh.IndexCount);
             }
         }
 
-        public void BuildMesh(ref RenderChunk chunkPair)
+        public unsafe void BuildMesh(ref RenderChunk chunkPair)
         {
             ref var chunk = ref chunkPair.Chunk;
             ref var mesh = ref chunkPair.Mesh;
 
+            var constants = mesh.Constants.As<ChunkConstants>();
+            constants->World = Matrix4x4.Identity;
+
+            var texIds = mesh.TexIndices.AsSpan<uint>();
+
             if (!mesh.Vertices.IsAllocated)
             {
-                mesh.Vertices = _device.Allocator.AllocateBuffer(FaceHelper.FaceVerticesSize * NumChunkFaces, MemoryAccess.CpuUpload);
+                mesh.Vertices = _device.Allocator.AllocateUploadBuffer(FaceHelper.FaceVerticesSize * NumChunkFaces);
             }
             if (!mesh.Indices.IsAllocated)
             {
-                mesh.Indices = _device.Allocator.AllocateBuffer(FaceHelper.FaceIndicesSize * NumChunkFaces, MemoryAccess.CpuUpload);
+                mesh.Indices = _device.Allocator.AllocateUploadBuffer(FaceHelper.FaceIndicesSize * NumChunkFaces);
+            }
+            if (!mesh.TexIndices.IsAllocated)
+            {
+                mesh.TexIndices = _device.Allocator.AllocateUploadBuffer(NumChunkFaces);
             }
 
             int numVertices = 0, numIndices = 0;
 
-            var vertexSpan = mesh.Vertices.DataAs<BlockVertex>();
-            var v2 = vertexSpan;
-            var indexSpan = mesh.Indices.DataAs<uint>();
+            var vertexSpan = mesh.Vertices.AsSpan<BlockVertex>();
+            var indexSpan = mesh.Indices.AsSpan<uint>();
 
+            var blocks = new ReadOnlySpan3D<Block?>(chunk.Blocks.Span, Width, Height, Depth);
             for (var i = 0; i < Width; i++)
             {
                 for (var j = 0; j < Height; j++)
                 {
                     for (var k = 0; k < Depth; k++)
                     {
-                        BuildVisibleFaces(ref chunk, ref vertexSpan, ref indexSpan, i, j, k, ref numVertices, ref numIndices);
+                        BuildVisibleFaces(ref blocks, ref vertexSpan, ref indexSpan, ref texIds, i, j, k, ref numVertices, ref numIndices);
                     }
                 }
             }
@@ -285,10 +315,8 @@ namespace Voltium.CubeGame
             chunk.NeedsRebuild = false;
         }
 
-        private void BuildVisibleFaces(ref Chunk chunk, ref Span<BlockVertex> vertices, ref Span<uint> indices, int x, int y, int z, ref int numGeneratedVertices, ref int numGeneratedIndices)
+        private void BuildVisibleFaces(ref ReadOnlySpan3D<Block?> blocks, ref Span<BlockVertex> vertices, ref Span<uint> indices, ref Span<uint> texIds, int x, int y, int z, ref int numGeneratedVertices, ref int numGeneratedIndices)
         {
-            var blocks = new ReadOnlySpan3D<Block?>(chunk.Blocks.Span, Width, Height, Depth);
-
             var maybeBlock = blocks[x, y, z];
 
             if (maybeBlock is null)
@@ -296,7 +324,10 @@ namespace Voltium.CubeGame
                 return;
             }
 
+            var block = maybeBlock.GetValueOrDefault();
+
             // Check for faces
+            // TODO clean this up
             var hasLeftFace = x == 0 || blocks[x - 1, y, z] is null;
             var hasRightFace = x == Width - 1 || blocks[x + 1, y, z] is null;
 
@@ -308,30 +339,30 @@ namespace Voltium.CubeGame
 
             if (hasLeftFace)
             {
-                AddFace(FaceHelper.LeftFace, ref vertices, ref indices, x, y, z, ref numGeneratedVertices, ref numGeneratedIndices);
+                AddFace(block, FaceHelper.LeftFace, ref vertices, ref indices, ref texIds, x, y, z, ref numGeneratedVertices, ref numGeneratedIndices);
             }
             if (hasRightFace)
             {
-                AddFace(FaceHelper.RightFace, ref vertices, ref indices, x, y, z, ref numGeneratedVertices, ref numGeneratedIndices);
+                AddFace(block, FaceHelper.RightFace, ref vertices, ref indices, ref texIds, x, y, z, ref numGeneratedVertices, ref numGeneratedIndices);
             }
             if (hasTopFace)
             {
-                AddFace(FaceHelper.TopFace, ref vertices, ref indices, x, y, z, ref numGeneratedVertices, ref numGeneratedIndices);
+                AddFace(block, FaceHelper.TopFace, ref vertices, ref indices, ref texIds, x, y, z, ref numGeneratedVertices, ref numGeneratedIndices);
             }
             if (hasBottomFace)
             {
-                AddFace(FaceHelper.BottomFace, ref vertices, ref indices, x, y, z, ref numGeneratedVertices, ref numGeneratedIndices);
+                AddFace(block, FaceHelper.BottomFace, ref vertices, ref indices, ref texIds, x, y, z, ref numGeneratedVertices, ref numGeneratedIndices);
             }
             if (hasFrontFace)
             {
-                AddFace(FaceHelper.FrontFace, ref vertices, ref indices, x, y, z, ref numGeneratedVertices, ref numGeneratedIndices);
+                AddFace(block, FaceHelper.FrontFace, ref vertices, ref indices, ref texIds, x, y, z, ref numGeneratedVertices, ref numGeneratedIndices);
             }
             if (hasBackFace)
             {
-                AddFace(FaceHelper.BackFace, ref vertices, ref indices, x, y, z, ref numGeneratedVertices, ref numGeneratedIndices);
+                AddFace(block, FaceHelper.BackFace, ref vertices, ref indices, ref texIds, x, y, z, ref numGeneratedVertices, ref numGeneratedIndices);
             }
 
-            static void AddFace(BlockVertex[] blockVertices, ref Span<BlockVertex> vertices, ref Span<uint> indices, int x, int y, int z, ref int numGeneratedVertices, ref int numGeneratedIndices)
+            static void AddFace(in Block block, BlockVertex[] blockVertices, ref Span<BlockVertex> vertices, ref Span<uint> indices, ref Span<uint> texIds, int x, int y, int z, ref int numGeneratedVertices, ref int numGeneratedIndices)
             {
                 for (int i = 0; i < 4; i++)
                 {
@@ -361,6 +392,9 @@ namespace Voltium.CubeGame
 
 
                 indices = indices[6..];
+
+                texIds[0] = block.TextureId;
+                texIds = texIds[1..];
 
                 numGeneratedVertices += 4;
                 numGeneratedIndices += 6;

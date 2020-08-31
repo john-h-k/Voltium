@@ -37,7 +37,7 @@ namespace Voltium.Core.Devices
 
         private DescriptorHeap _viewHeap;
 
-        private ComPtr<IDXGISwapChain3> _swapChain;
+        private UniqueComPtr<IDXGISwapChain3> _swapChain;
         private BackBufferBuffer8 _backBuffers;
         private DescriptorHandleBuffer8 _views;
         private uint _backBufferIndex;
@@ -104,11 +104,11 @@ namespace Voltium.Core.Devices
             throw new NotImplementedException();
         }
 
-        private Output(GraphicsDevice device, ComPtr<IDXGISwapChain1> swapChain, OutputConfiguration desc)
+        private Output(GraphicsDevice device, UniqueComPtr<IDXGISwapChain1> swapChain, OutputConfiguration desc)
         {
             _device = device;
 
-            if (!swapChain.TryQueryInterface(out ComPtr<IDXGISwapChain3> swapChain3))
+            if (!swapChain.TryQueryInterface(out UniqueComPtr<IDXGISwapChain3> swapChain3))
             {
                 ThrowHelper.ThrowPlatformNotSupportedException("Couldn't create IDXGISwapChain3, which is required");
             }
@@ -148,7 +148,7 @@ namespace Voltium.Core.Devices
         {
             for (var i = 0U; i < _desc.BackBufferCount; i++)
             {
-                using ComPtr<ID3D12Resource> buffer = default;
+                using UniqueComPtr<ID3D12Resource> buffer = default;
                 _device.ThrowIfFailed(_swapChain.Ptr->GetBuffer(i, buffer.Iid, (void**)&buffer));
                 DebugHelpers.SetName(buffer.Ptr, $"BackBuffer #{i}");
 
@@ -199,9 +199,9 @@ namespace Voltium.Core.Devices
         {
             var swapChainDesc = CreateDesc(desc, outputArea);
 
-            using ComPtr<IDXGIFactory2> factory = CreateFactory();
+            using UniqueComPtr<IDXGIFactory2> factory = CreateFactory();
 
-            using ComPtr<IDXGISwapChain1> swapChain = default;
+            using UniqueComPtr<IDXGISwapChain1> swapChain = default;
 
             device.ThrowIfFailed(factory.Ptr->CreateSwapChainForHwnd(
                 device.GetGraphicsQueue(),
@@ -241,9 +241,9 @@ namespace Voltium.Core.Devices
         {
             var swapChainDesc = CreateDesc(desc, outputArea);
 
-            using ComPtr<IDXGIFactory2> factory = CreateFactory();
+            using UniqueComPtr<IDXGIFactory2> factory = CreateFactory();
 
-            using ComPtr<IDXGISwapChain1> swapChain = default;
+            using UniqueComPtr<IDXGISwapChain1> swapChain = default;
 
             device.ThrowIfFailed(factory.Ptr->CreateSwapChainForCoreWindow(
                 device.GetGraphicsQueue(),
@@ -272,9 +272,9 @@ namespace Voltium.Core.Devices
         {
             var swapChainDesc = CreateDesc(desc, outputArea);
 
-            using ComPtr<IDXGIFactory2> factory = CreateFactory();
+            using UniqueComPtr<IDXGIFactory2> factory = CreateFactory();
 
-            using ComPtr<IDXGISwapChain1> swapChain = default;
+            using UniqueComPtr<IDXGISwapChain1> swapChain = default;
 
             device.ThrowIfFailed(factory.Ptr->CreateSwapChainForComposition(
                 device.GetGraphicsQueue(),
@@ -290,9 +290,9 @@ namespace Voltium.Core.Devices
             return output;
         }
 
-        private static ComPtr<IDXGIFactory2> CreateFactory()
+        private static UniqueComPtr<IDXGIFactory2> CreateFactory()
         {
-            using ComPtr<IDXGIFactory2> factory = default;
+            using UniqueComPtr<IDXGIFactory2> factory = default;
 
             int hr = CreateDXGIFactory2(DXGI_CREATE_FACTORY_DEBUG, factory.Iid, (void**)&factory);
             

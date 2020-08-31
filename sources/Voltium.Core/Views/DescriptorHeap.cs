@@ -13,7 +13,7 @@ namespace Voltium.Core
     public unsafe struct DescriptorHeap : IInternalD3D12Object, IEvictable
     {
         private ComputeDevice _device;
-        private ComPtr<ID3D12DescriptorHeap> _heap;
+        private UniqueComPtr<ID3D12DescriptorHeap> _heap;
 
         /// <summary>
         /// Whether this <see cref="DescriptorHeap"/> has been created
@@ -80,7 +80,7 @@ namespace Voltium.Core
         {
             _device = device;
 
-            ComPtr<ID3D12DescriptorHeap> heap = default;
+            UniqueComPtr<ID3D12DescriptorHeap> heap = default;
             _device.ThrowIfFailed(device.DevicePointer->CreateDescriptorHeap(&desc, heap.Iid, (void**)&heap));
 
             _heap = heap.Move();

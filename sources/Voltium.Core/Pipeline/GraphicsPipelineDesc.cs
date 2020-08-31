@@ -27,20 +27,20 @@ namespace Voltium.Core.Pipeline
         /// </summary>
         public CompiledShader PixelShader;
 
-        /// <summary>
-        /// The optional geometry shader for the pipeline
-        /// </summary>
-        public CompiledShader GeometryShader;
+        ///// <summary>
+        ///// The optional geometry shader for the pipeline
+        ///// </summary>
+        //public CompiledShader GeometryShader;
 
-        /// <summary>
-        /// The optional domain shader for the pipeline
-        /// </summary>
-        public CompiledShader DomainShader;
+        ///// <summary>
+        ///// The optional domain shader for the pipeline
+        ///// </summary>
+        //public CompiledShader DomainShader;
 
-        /// <summary>
-        /// The optional hull shader for the pipeline
-        /// </summary>
-        public CompiledShader HullShader;
+        ///// <summary>
+        ///// The optional hull shader for the pipeline
+        ///// </summary>
+        //public CompiledShader HullShader;
 
         /// <summary>
         /// The blend settings for the pipeline

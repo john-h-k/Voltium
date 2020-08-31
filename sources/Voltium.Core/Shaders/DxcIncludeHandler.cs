@@ -11,7 +11,7 @@ namespace Voltium.Core.Devices
     [NativeComType(implements: typeof(IDxcIncludeHandler))]
     internal unsafe partial struct DxcIncludeHandler : IDisposable
     {
-        private ComPtr<IDxcUtils> _utils;
+        private UniqueComPtr<IDxcUtils> _utils;
         private IncludeHandler _handler;
 
         public string AppDirectory
@@ -26,7 +26,7 @@ namespace Voltium.Core.Devices
             set => _handler.ShaderDirectory = value;
         }
 
-        public void Init(ComPtr<IDxcUtils> utils)
+        public void Init(UniqueComPtr<IDxcUtils> utils)
         {
             Init();
 
@@ -67,9 +67,9 @@ namespace Voltium.Core.Devices
         }
 
 
-        private ComPtr<IDxcBlob> CreateBlob(ReadOnlySpan<char> data)
+        private UniqueComPtr<IDxcBlob> CreateBlob(ReadOnlySpan<char> data)
         {
-            using ComPtr<IDxcBlobEncoding> encoding = default;
+            using UniqueComPtr<IDxcBlobEncoding> encoding = default;
             fixed (char* pData = data)
             {
                 Guard.ThrowIfFailed(_utils.Ptr->CreateBlob(pData, (uint)(data.Length * sizeof(char)), ShaderManager.DXC_CP_UTF16, ComPtr.GetAddressOf(&encoding)));

@@ -8,7 +8,7 @@ namespace Voltium.Core.Infrastructure
 {
     internal sealed unsafe class DxgiDeviceFactory : DeviceFactory
     {
-        private ComPtr<IDXGIFactory2> _factory;
+        private UniqueComPtr<IDXGIFactory2> _factory;
         private bool _enumByPreference;
         private DevicePreference _preference;
 
@@ -17,7 +17,7 @@ namespace Voltium.Core.Infrastructure
 
         public DxgiDeviceFactory()
         {
-            using ComPtr<IDXGIFactory2> factory = default;
+            using UniqueComPtr<IDXGIFactory2> factory = default;
             Guard.ThrowIfFailed(CreateDXGIFactory2(0, factory.Iid, (void**)&factory));
             _factory = factory.Move();
         }
@@ -30,7 +30,7 @@ namespace Voltium.Core.Infrastructure
             {
                 while (true)
                 {
-                    using ComPtr<IDXGIAdapter1> dxgiAdapter = default;
+                    using UniqueComPtr<IDXGIAdapter1> dxgiAdapter = default;
 
 
                     Guard.ThrowIfFailed(
@@ -74,7 +74,7 @@ namespace Voltium.Core.Infrastructure
             }
             else
             {
-                using ComPtr<IDXGIAdapter1> dxgiAdapter = default;
+                using UniqueComPtr<IDXGIAdapter1> dxgiAdapter = default;
 
                 Guard.ThrowIfFailed(_factory.Ptr->EnumAdapters1(index, ComPtr.GetAddressOf(&dxgiAdapter)));
                 adapter = CreateAdapter(dxgiAdapter.Move());
@@ -83,7 +83,7 @@ namespace Voltium.Core.Infrastructure
             }
         }
 
-        private static Adapter CreateAdapter(ComPtr<IDXGIAdapter1> dxgiAdapter)
+        private static Adapter CreateAdapter(UniqueComPtr<IDXGIAdapter1> dxgiAdapter)
         {
             var p = dxgiAdapter.Ptr;
             DXGI_ADAPTER_DESC1 desc;

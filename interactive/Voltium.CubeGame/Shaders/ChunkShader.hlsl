@@ -13,6 +13,7 @@ struct VertexOut
     float3 Normal : NORMAL;
     float3 Tangent : TANGENT;
     float2 TexC : TEXC;
+    int TexId : TEXID;
 };
 
 struct FrameConstants
@@ -30,8 +31,9 @@ struct ObjectConstants
 
 ConstantBuffer<FrameConstants> Frame : register(b0);
 ConstantBuffer<ObjectConstants> Object : register(b1);
+StructuredBuffer<uint> ChunkIndices : register(s1);
 
-VertexOut VertexMain(in VertexIn vertexIn)
+VertexOut VertexMain(in VertexIn vertexIn, in uint id : SV_PrimitiveID)
 {
     VertexOut vertexOut;
 
@@ -47,6 +49,8 @@ VertexOut VertexMain(in VertexIn vertexIn)
 
     vertexOut.TexC = mul(float4(vertexIn.TexCoord, 0, 1), Object.TexTransform).xy;
 
+    vertexOut.TexId = id / 2;
+
     return vertexOut;
 }
 
@@ -57,6 +61,5 @@ Texture2D Textures[] : register(t0);
 
 float4 PixelMain(VertexOut fragment) : SV_Target
 {
-    
-    return Textures[Object.TextureIndex].Sample(DefaultSampler, fragment.TexC);
+    return Textures[ChunkIndices[fragment.TexId]].Sample(DefaultSampler, fragment.TexC);
 }

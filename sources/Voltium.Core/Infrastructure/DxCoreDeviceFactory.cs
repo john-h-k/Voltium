@@ -9,15 +9,15 @@ namespace Voltium.Core.Infrastructure
 {
     internal sealed unsafe class DxCoreDeviceFactory : DeviceFactory
     {
-        private ComPtr<IDXCoreAdapterFactory> _factory;
-        private ComPtr<IDXCoreAdapterList> _list;
+        private UniqueComPtr<IDXCoreAdapterFactory> _factory;
+        private UniqueComPtr<IDXCoreAdapterList> _list;
         private uint _hardwareAdapterSkip;
         private bool _softwareOnly;
 
         public DxCoreDeviceFactory(DeviceType types = DeviceType.GraphicsAndCompute)
         {
-            using ComPtr<IDXCoreAdapterFactory> factory = default;
-            using ComPtr<IDXCoreAdapterList> list = default;
+            using UniqueComPtr<IDXCoreAdapterFactory> factory = default;
+            using UniqueComPtr<IDXCoreAdapterList> list = default;
 
             Guard.ThrowIfFailed(DXCoreCreateAdapterFactory(factory.Iid, (void**)&factory));
 
@@ -44,7 +44,7 @@ namespace Voltium.Core.Infrastructure
         {
             while (true)
             {
-                using ComPtr<IDXCoreAdapter> dxcoreAdapter = default;
+                using UniqueComPtr<IDXCoreAdapter> dxcoreAdapter = default;
 
                 // Reached end of list
                 if (_list.Ptr->GetAdapterCount() - (index + _hardwareAdapterSkip) == 0)
@@ -72,7 +72,7 @@ namespace Voltium.Core.Infrastructure
             }
         }
 
-        private static Adapter CreateAdapter(ComPtr<IDXCoreAdapter> adapter)
+        private static Adapter CreateAdapter(UniqueComPtr<IDXCoreAdapter> adapter)
         {
             nuint size;
             Guard.ThrowIfFailed(adapter.Ptr->GetPropertySize(DXCoreAdapterProperty.DriverDescription, &size));
