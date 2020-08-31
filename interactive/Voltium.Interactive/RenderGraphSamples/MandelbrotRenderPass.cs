@@ -82,7 +82,6 @@ namespace Voltium.Interactive.RenderGraphSamples
             };
 
             var rootSig = _device.CreateRootSignature(@params, null);
-            _device.PipelineManager.Reset();
 
             var flags = new ShaderCompileFlag[]
             {
@@ -98,12 +97,12 @@ namespace Voltium.Interactive.RenderGraphSamples
                 RootSignature = rootSig,
                 Topology = TopologyClass.Triangle,
                 DepthStencil = DepthStencilDesc.DisableDepthStencil,
-                RenderTargetFormats = new FormatBuffer8(BackBufferFormat.R8G8B8A8UnsignedNormalized),
+                RenderTargetFormats = BackBufferFormat.R8G8B8A8UnsignedNormalized,
                 VertexShader = ShaderManager.CompileShader("Shaders/Mandelbrot/EntireScreenCopyVS.hlsl", ShaderModel.Vs_5_0, flags),
                 PixelShader = ShaderManager.CompileShader("Shaders/Mandelbrot/Mandelbrot.hlsl", ShaderModel.Ps_5_0, flags)
             };
 
-            DefaultPipelineState = _device.PipelineManager.CreatePipelineStateObject("Mandelbrot", psoDesc);
+            DefaultPipelineState = _device.PipelineManager.CreatePipelineStateObject(psoDesc, "Mandelbrot");
 
             _constants = new MandelbrotConstants
             {

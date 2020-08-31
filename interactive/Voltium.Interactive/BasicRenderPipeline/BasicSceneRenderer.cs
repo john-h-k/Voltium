@@ -82,8 +82,6 @@ namespace Voltium.Interactive.BasicRenderPipeline
         {
             _device = device;
 
-            _device.PipelineManager.Reset();
-
             _texturedObjects = ModelLoader.LoadGl_Old("Assets/Gltf/Handgun_NoTangent.gltf");
             //_texturedObjects = new[] { GeometryGenerator.CreateCube(0.5f) };
 
@@ -172,17 +170,18 @@ namespace Voltium.Interactive.BasicRenderPipeline
                 DepthStencilFormat = DepthStencilFormat,
                 VertexShader = vertexShader,
                 PixelShader = pixelShader,
-                Topology = TopologyClass.Triangle
+                Topology = TopologyClass.Triangle,
+                Inputs = InputLayout.FromType<TexturedVertex>()
             };
 
-            _tex = _device.PipelineManager.CreatePipelineStateObject<TexturedVertex>(psoDesc, "Texture");
+            _tex = _device.PipelineManager.CreatePipelineStateObject(psoDesc, "Texture");
 
-            psoDesc.Msaa = MultisamplingDesc.X8;
-            _texMsaa8x = _device.PipelineManager.CreatePipelineStateObject<TexturedVertex>(psoDesc, "Texture_MSAA8X");
+            //psoDesc.Msaa = MultisamplingDesc.X8;
+            _texMsaa8x = _device.PipelineManager.CreatePipelineStateObject(psoDesc, "Texture_MSAA8X");
         }
 
-        private GraphicsPipelineStateObject _tex = null!;
-        private GraphicsPipelineStateObject _texMsaa8x = null!;
+        private PipelineStateObject _tex = null!;
+        private PipelineStateObject _texMsaa8x = null!;
 
         public void InitializeConstants()
         {

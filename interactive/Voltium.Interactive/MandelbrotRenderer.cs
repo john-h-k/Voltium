@@ -64,7 +64,6 @@ namespace Voltium.Interactive
             };
 
             var rootSig = _device.CreateRootSignature(@params, null);
-            _device.PipelineManager.Reset();
 
             var flags = new ShaderCompileFlag[]
             {
@@ -79,12 +78,12 @@ namespace Voltium.Interactive
                 RootSignature = rootSig,
                 Topology = TopologyClass.Triangle,
                 DepthStencil = DepthStencilDesc.DisableDepthStencil,
-                RenderTargetFormats = new FormatBuffer8(DataFormat.R16G16B16A16Single),
+                RenderTargetFormats = DataFormat.R16G16B16A16Single,
                 VertexShader = ShaderManager.CompileShader("Shaders/Mandelbrot/EntireScreenCopyVS.hlsl", ShaderType.Vertex, flags),
                 PixelShader = ShaderManager.CompileShader("Shaders/Mandelbrot/Mandelbrot.hlsl", ShaderType.Pixel, flags)
             };
 
-            _pso = _device.PipelineManager.CreatePipelineStateObject("Mandelbrot", psoDesc);
+            _pso = _device.PipelineManager.CreatePipelineStateObject(psoDesc, "Mandelbrot");
 
             _constants = new MandelbrotConstants
             {
@@ -126,7 +125,7 @@ namespace Voltium.Interactive
             _constants.ColorCount = 256 * 4 * 10;
         }
 
-        private GraphicsPipelineStateObject _pso = null!;
+        private PipelineStateObject _pso = null!;
 
         public override PipelineStateObject? GetInitialPso()
             => _pso;

@@ -49,6 +49,8 @@ namespace Voltium.Core.Devices
                 {
                     Guard.ThrowIfFailed(hr, "_device.DevicePointerAs<ID3D12Device2>()->CreatePipelineLibrary(pCache, (uint)cache.Length, psoLibrary.Iid, (void**)&psoLibrary);");
                 }
+
+                _psoLibrary = psoLibrary.Move();
             }
         }
 

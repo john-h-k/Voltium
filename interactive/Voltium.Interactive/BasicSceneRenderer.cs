@@ -87,8 +87,6 @@ namespace Voltium.Interactive
 
         public override void Init(GraphicsDevice device, in Size screen)
         {
-            _device.PipelineManager.Reset();
-
             _device = device;
             _allocator = _device.Allocator;
             _outputResolution = screen;
@@ -195,17 +193,18 @@ namespace Voltium.Interactive
             var psoDesc = new GraphicsPipelineDesc
             {
                 RootSignature = _rootSig,
-                RenderTargetFormats = new GraphicsPipelineDesc.FormatBuffer8(_renderTarget.Format),
+                RenderTargetFormats = _renderTarget.Format,
                 DepthStencilFormat = _depthStencil.Format,
                 VertexShader = vertexShader,
                 PixelShader = pixelShader,
-                Topology = TopologyClass.Triangle
+                Topology = TopologyClass.Triangle,
+                Inputs = InputLayout.FromType<TexturedVertex>()
             };
 
-            _pso = _device.PipelineManager.CreatePipelineStateObject<TexturedVertex>(psoDesc, "Texture");
+            _pso = _device.PipelineManager.CreatePipelineStateObject(psoDesc, "Texture");
 
-            psoDesc.Msaa = MultisamplingDesc.X8;
-            _msaaPso = _device.PipelineManager.CreatePipelineStateObject<TexturedVertex>(psoDesc, "TextureMSAA");
+           // psoDesc.Msaa = MultisamplingDesc.X8;
+            _msaaPso = _device.PipelineManager.CreatePipelineStateObject(psoDesc, "TextureMSAA");
         }
 
         public void InitializeConstants()
@@ -334,8 +333,8 @@ namespace Voltium.Interactive
         }
 
         private float[,] _hueMatrix = new float[3, 3];
-        private GraphicsPipelineStateObject _msaaPso = null!;
-        private GraphicsPipelineStateObject _pso = null!;
+        private PipelineStateObject _msaaPso = null!;
+        private PipelineStateObject _pso = null!;
 
         private Rgba128 ChangeHue(Rgba128 color)
         {
