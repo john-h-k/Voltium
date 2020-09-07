@@ -6,59 +6,59 @@ namespace Voltium.Core.Configuration.Graphics
     /// Describes the multi-sample anti-aliasing configuration
     /// </summary>
     [GenerateEquality]
-    public readonly partial struct MultisamplingDesc
+    public partial struct MsaaDesc
     {
         /// <summary>
         /// No multi-sampling. This is the default
         /// </summary>
-        public static MultisamplingDesc None => new MultisamplingDesc(1, 0);
+        public static MsaaDesc None => new MsaaDesc(1, 0);
 
         /// <summary>
         /// 2x multi-sampling at the default quality level
         /// </summary>
-        public static MultisamplingDesc X2 => new MultisamplingDesc(2, 0);
+        public static MsaaDesc X2 => new MsaaDesc(2, 0);
 
         /// <summary>
         /// 4x multi-sampling at the default quality level
         /// </summary>
-        public static MultisamplingDesc X4 => new MultisamplingDesc(4, 0);
+        public static MsaaDesc X4 => new MsaaDesc(4, 0);
 
         /// <summary>
         /// 8x multi-sampling at the default quality level
         /// </summary>
-        public static MultisamplingDesc X8 => new MultisamplingDesc(8, 0);
+        public static MsaaDesc X8 => new MsaaDesc(8, 0);
 
         /// <summary>
-        /// Determines whether this <see cref="MultisamplingDesc"/> means the resource is multisampled or singlesampled
+        /// Determines whether this <see cref="MsaaDesc"/> means the resource is multisampled or singlesampled
         /// </summary>
         public bool IsMultiSampled => SampleCount > 1;
 
         /// <summary>
-        /// Creates a new <see cref="MultisamplingDesc"/> with a new sample count
+        /// Creates a new <see cref="MsaaDesc"/> with a new sample count
         /// </summary>
         /// <param name="sampleCount">The sample count to ues</param>
-        public MultisamplingDesc WithSampleCount(uint sampleCount) => new MultisamplingDesc(sampleCount, QualityLevel);
+        public MsaaDesc WithSampleCount(uint sampleCount) => new MsaaDesc(sampleCount, QualityLevel);
 
         /// <summary>
-        /// Creates a new <see cref="MultisamplingDesc"/> with a new quality level
+        /// Creates a new <see cref="MsaaDesc"/> with a new quality level
         /// </summary>
         /// <param name="qualityLevel">The quality level to ues</param>
-        public MultisamplingDesc WithQualityLevel(uint qualityLevel) => new MultisamplingDesc(SampleCount, qualityLevel);
+        public MsaaDesc WithQualityLevel(uint qualityLevel) => new MsaaDesc(SampleCount, qualityLevel);
 
         /// <summary>
         /// The number of samples taken
         /// </summary>
-        public readonly uint SampleCount;
+        public uint SampleCount;
 
         /// <summary>
         /// The quality level, where 0 is the lowest level and the highest is determined by querying GPU data
         /// </summary>
-        public readonly uint QualityLevel;
+        public uint QualityLevel;
 
         /// <summary>
-        /// Creates a new <see cref="MultisamplingDesc"/>
+        /// Creates a new <see cref="MsaaDesc"/>
         /// </summary>
-        public MultisamplingDesc(uint sampleCount, uint qualityLevel)
+        public MsaaDesc(uint sampleCount, uint qualityLevel)
         {
             SampleCount = sampleCount;
             QualityLevel = qualityLevel;

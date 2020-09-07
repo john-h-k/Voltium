@@ -57,8 +57,8 @@ namespace Voltium.Interactive.RenderGraphSamples
             context.SetViewportAndScissor(_resolution);
             context.SetRenderTargets(renderTargetView);
             context.Discard(renderTarget);
-            context.SetTopology(Topology.TriangeList);
-            context.SetBuffer(0, _colors);
+            context.SetTopology(Topology.TriangleList);
+            context.SetShaderResourceBuffer(0, _colors);
             context.SetRoot32BitConstants(1, _constants);
             context.Draw(3);
         }

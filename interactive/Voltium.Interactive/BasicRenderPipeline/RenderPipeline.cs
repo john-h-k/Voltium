@@ -48,7 +48,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
 
             _settings = new PipelineSettings
             {
-                Msaa = MultisamplingDesc.None,
+                Msaa = MsaaDesc.None,
                 Resolution = _output.Dimensions,
                 AspectRatio = _output.AspectRatio
             };

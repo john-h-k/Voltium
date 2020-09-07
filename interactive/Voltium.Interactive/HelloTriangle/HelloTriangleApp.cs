@@ -100,7 +100,7 @@ namespace Voltium.Interactive.HelloTriangle
             context.SetViewportAndScissor(_output.Dimensions);
             context.SetAndClearRenderTarget(_output.OutputBufferView, Rgba128.CornflowerBlue);
             context.SetVertexBuffers<HelloWorldVertex>(_vertices);
-            context.SetTopology(Topology.TriangeList);
+            context.SetTopology(Topology.TriangleList);
             // Draw the 3 vertices
             context.Draw(3);
             // We need to transition the back buffer to ResourceState.Present so it can be presented

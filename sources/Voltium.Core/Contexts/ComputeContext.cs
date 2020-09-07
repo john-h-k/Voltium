@@ -101,8 +101,8 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
-        public void SetBuffer(uint paramIndex, in Buffer cbuffer)
-            => SetBuffer<byte>(paramIndex, cbuffer, 0);
+        public void SetShaderResourceBuffer(uint paramIndex, in Buffer cbuffer)
+            => SetShaderResourceBuffer<byte>(paramIndex, cbuffer, 0);
 
         /// <summary>
         /// Sets a directly-bound shader resource buffer view descriptor to the graphics pipeline
@@ -110,7 +110,7 @@ namespace Voltium.Core
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
         /// <param name="offset">The offset in elements of <typeparamref name="T"/> to start the view at</param>
-        public void SetBuffer<T>(uint paramIndex, in Buffer cbuffer, uint offset = 0) where T : unmanaged
+        public void SetShaderResourceBuffer<T>(uint paramIndex, in Buffer cbuffer, uint offset = 0) where T : unmanaged
         {
             List->SetComputeRootShaderResourceView(paramIndex, cbuffer.GpuAddress + (ulong)(sizeof(T) * offset));
         }
@@ -121,7 +121,7 @@ namespace Voltium.Core
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
         /// <param name="offset">The offset in bytes to start the view at</param>
-        public void SetBufferByteOffset(uint paramIndex, in Buffer cbuffer, uint offset = 0)
+        public void SetShaderResourceBufferByteOffset(uint paramIndex, in Buffer cbuffer, uint offset = 0)
         {
             List->SetComputeRootShaderResourceView(paramIndex, cbuffer.GpuAddress + offset);
         }

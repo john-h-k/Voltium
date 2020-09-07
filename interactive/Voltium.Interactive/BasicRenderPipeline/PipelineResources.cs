@@ -20,7 +20,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
 
     public struct PipelineSettings
     {
-        public MultisamplingDesc Msaa;
+        public MsaaDesc Msaa;
         public float AspectRatio;
         public Size Resolution;
     }

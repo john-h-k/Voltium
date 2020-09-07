@@ -78,8 +78,8 @@ namespace Voltium.Core.Devices
 
             Guid clsid = CLSID_DxcCompiler;
             Guard.ThrowIfFailed(DxcCreateInstance(&clsid, compiler.Iid, (void**)&compiler));
-            clsid = CLSID_DxcUtils;
-            //Guard.ThrowIfFailed(DxcCreateInstance(&clsid, utils.Iid, (void**)&utils));
+            clsid = CLSID_DxcLibrary;
+            Guard.ThrowIfFailed(DxcCreateInstance(&clsid, utils.Iid, (void**)&utils));
 
             Compiler = compiler.Move();
             Utils = utils.Move();
@@ -410,6 +410,9 @@ namespace Voltium.Core.Devices
             fixed (char* pText = shaderText)
             fixed (IDxcIncludeHandler* pInclude = DefaultDxcIncludeHandler)
             {
+                using UniqueComPtr<IDxcIncludeHandler> defaultInclude = default;
+                Guard.ThrowIfFailed(Utils.Ptr->CreateDefaultIncludeHandler(ComPtr.GetAddressOf(&defaultInclude)));
+
                 DxcBuffer text;
                 text.Ptr = pText;
                 text.Size = (nuint)(shaderText.Length * sizeof(char));
@@ -420,7 +423,7 @@ namespace Voltium.Core.Devices
                     &text,
                     (ushort**)ppFlags,
                     (uint)(flagPointerLength / sizeof(nuint)),
-                    pInclude,
+                    defaultInclude.Ptr,
                     compileResult.Iid,
                     (void**)&compileResult
                 ));
@@ -440,8 +443,8 @@ namespace Voltium.Core.Devices
                         var data = new ShaderCompilationData
                         {
                             Filename = name,
-                            Errors = AsString(errors.Ptr),
-                            Other = AsString(errorName.Ptr)
+                            Errors = errors.Ptr->GetString(encoding == OutputEncoding.Utf8 ? Encoding.UTF8 : null),
+                            Other = errorName.Ptr->GetString(),
                         };
                         throw new ShaderCompilationException(data);
                     }
@@ -458,7 +461,7 @@ namespace Voltium.Core.Devices
 
                 using UniqueComPtr<IDxcBlob> pBlob = default;
                 Guard.ThrowIfFailed(compileResult.Ptr->GetResult(ComPtr.GetAddressOf(&pBlob)));
-                var shaderBytes = FromBlob(pBlob.Ptr);
+                var shaderBytes = pBlob.Ptr->AsSpan();
 
                 var buff = Helpers.Alloc(shaderBytes.Length);
                 Helpers.Copy(pBlob.Ptr->GetBufferPointer(), buff, shaderBytes.Length);
@@ -533,12 +536,12 @@ namespace Voltium.Core.Devices
                     var data = new ShaderCompilationData
                     {
                         Filename = name,
-                        Errors = AsString(pError.Ptr)
+                        Errors = pError.Ptr->AsDxcBlob()->GetString(Encoding.ASCII)
                     };
                     throw new ShaderCompilationException(data);
                 }
 
-                var shaderBytes = FromBlob(pCode.Ptr);
+                var shaderBytes = pCode.Ptr->AsDxcBlob()->AsSpan();
                 var buff = Helpers.Alloc(shaderBytes.Length);
                 Helpers.Copy(pCode.Ptr->GetBufferPointer(), buff, shaderBytes.Length);
 
@@ -651,28 +654,19 @@ namespace Voltium.Core.Devices
 
         private static unsafe void HandlePdb(IDxcBlob* pdb, IDxcBlobUtf16* pdbName)
         {
-            using var file = File.OpenWrite(FromBlob(pdbName).ToString());
-            file.Write(FromBlob(pdb));
+            using var file = File.OpenWrite(Path.Join(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Temp", pdbName->GetString()));
+            file.Write(pdb->AsSpan());
         }
-
-
-        private static unsafe ReadOnlySpan<char> AsString(ID3DBlob* blob)
-            => blob == null ? null : new string((sbyte*)blob->GetBufferPointer(), 0, (int)blob->GetBufferSize());
-
-        private static unsafe ReadOnlySpan<char> AsString(IDxcBlobUtf16* utf16)
-            => utf16 == null ? null : new ReadOnlySpan<char>(utf16->GetStringPointer(), (int)utf16->GetStringLength());
-        private static unsafe ReadOnlySpan<char> AsString(IDxcBlobUtf8* utf8)
-            => Encoding.UTF8.GetString(new ReadOnlySpan<byte>(utf8->GetStringPointer(), (int)utf8->GetStringLength()));
 
         private static unsafe ReadOnlySpan<char> AsString(IDxcBlob* pBlob)
         {
             if (ComPtr.TryQueryInterface(pBlob, out IDxcBlobUtf8* utf8))
             {
-                return AsString(utf8);
+                return utf8->GetString();
             }
             if (ComPtr.TryQueryInterface(pBlob, out IDxcBlobUtf16* utf16))
             {
-                return AsString(utf16);
+                return utf16->GetString();
             }
 
             if (ComPtr.TryQueryInterface(pBlob, out IDxcBlobEncoding* _))
@@ -685,18 +679,7 @@ namespace Voltium.Core.Devices
             }
             return null;
         }
-        private static unsafe ReadOnlySpan<byte> FromBlob(ID3DBlob* pBlob)
-            => new ReadOnlySpan<byte>(pBlob->GetBufferPointer(), (int)pBlob->GetBufferSize());
-
-        private static unsafe ReadOnlySpan<byte> FromBlob(IDxcBlob* pBlob)
-            => new ReadOnlySpan<byte>(pBlob->GetBufferPointer(), (int)pBlob->GetBufferSize());
-
-        private static unsafe ReadOnlySpan<char> FromBlob(IDxcBlobUtf8* pBlob)
-            => Encoding.ASCII.GetString(new ReadOnlySpan<byte>(pBlob->GetStringPointer(), (int)pBlob->GetStringLength()));
-
-        private static unsafe ReadOnlySpan<char> FromBlob(IDxcBlobUtf16* pBlob)
-            => new ReadOnlySpan<char>(pBlob->GetStringPointer(), (int)pBlob->GetStringLength());
-
+        
         private static unsafe bool TryGetOutput(
             IDxcResult* result,
             DXC_OUT_KIND kind,
@@ -704,7 +687,7 @@ namespace Voltium.Core.Devices
             out UniqueComPtr<IDxcBlobUtf16> name
         )
         {
-            if (result->HasOutput(kind) == Windows.TRUE)
+            if (result->HasOutput(kind) == TRUE)
             {
                 fixed (UniqueComPtr<IDxcBlob>* pData = &data)
                 fixed (UniqueComPtr<IDxcBlobUtf16>* pName = &name)
@@ -712,7 +695,7 @@ namespace Voltium.Core.Devices
                     Guard.ThrowIfFailed(result->GetOutput(
                         kind,
                         pData->Iid,
-                        ComPtr.GetVoidAddressOf(pData),
+                        (void**)pData,
                         ComPtr.GetAddressOf(pName)
                     ));
 

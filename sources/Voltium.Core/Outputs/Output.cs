@@ -318,7 +318,7 @@ namespace Voltium.Core.Devices
             {
                 AlphaMode = DXGI_ALPHA_MODE.DXGI_ALPHA_MODE_IGNORE, // TODO document
                 BufferCount = desc.BackBufferCount,
-                BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT, // this is the output chain
+                BufferUsage = (uint)desc.Flags.UsageFlags(), // this is the output chain
                 Flags = 0,
                 Format = (DXGI_FORMAT)desc.BackBufferFormat,
                 Height = (uint)outputArea.Height,
@@ -326,7 +326,7 @@ namespace Voltium.Core.Devices
                 SampleDesc = new DXGI_SAMPLE_DESC(count: 1, quality: 0), // backbuffer MSAA is not supported in D3D12
                 Scaling = DXGI_SCALING.DXGI_SCALING_NONE,
                 Stereo =  FALSE, // stereoscopic rendering, 2 images, e.g VR or 3D holo
-                SwapEffect = DXGI_SWAP_EFFECT.DXGI_SWAP_EFFECT_FLIP_DISCARD
+                SwapEffect = desc.Flags.HasFlag(OutputFlags.PreserveBackBuffer) ? DXGI_SWAP_EFFECT.DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL : DXGI_SWAP_EFFECT.DXGI_SWAP_EFFECT_FLIP_DISCARD
             };
         }
 

@@ -1,5 +1,7 @@
 using System;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Configuration.Graphics;
 using Voltium.Core.Devices;
@@ -77,9 +79,64 @@ namespace Voltium.Core.Pipeline
         /// </summary>
         public DepthStencilFormat DepthStencilFormat;
 
+        /// <summary>
+        /// The <see cref="MsaaElement"/>
+        /// </summary>
+        public MsaaElement Msaa;
+
         /* public TODO: MULTI-GPU */
         //internal uint NodeMask;
 
         //public uint SampleMask;  do we need to expose this
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
+    [StructLayout(LayoutKind.Explicit)]
+    public struct MsaaElement : IPipelineStreamElement<MsaaElement>
+    {
+        [FieldOffset(0)]
+        private AlignedSubobjectType<MsaaDesc> Type;
+
+        [FieldOffset(0)]
+        private nuint _Pad;
+
+        /// <inheritdoc cref="MsaaDesc.SampleCount"/>
+        public uint SampleCount { get => Type.Inner.SampleCount; set => Type.Inner.SampleCount = value; }
+
+        /// <inheritdoc cref="MsaaDesc.QualityLevel"/>
+        public uint QualityLevel { get => Type.Inner.QualityLevel; set => Type.Inner.QualityLevel = value; }
+
+
+        /// <summary>
+        /// Creates a <see cref="MsaaElement"/>
+        /// </summary>
+        /// <param name="desc"></param>
+        public MsaaElement(MsaaDesc desc) : this(desc.SampleCount, desc.QualityLevel)
+        { }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="sampleCount"></param>
+        /// <param name="qualityLevel"></param>
+        public MsaaElement(uint sampleCount, uint qualityLevel)
+        {
+            Unsafe.SkipInit(out this);
+            SampleCount = sampleCount;
+            QualityLevel = qualityLevel;
+        }
+
+#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
+        public void _Initialize()
+        {
+            Type.Type = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE.D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_SAMPLE_DESC;
+            if (SampleCount == 0)
+            {
+                SampleCount = 1;
+            }
+        }
+#pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
     }
 }

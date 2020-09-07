@@ -108,7 +108,7 @@ namespace Voltium.Common
             return data;
         }
 
-        internal static unsafe string GetName<T>(T obj) where T : IInternalD3D12Object
+        internal static unsafe string GetName<T>(this T obj) where T : IInternalD3D12Object
             => GetName(obj.GetPointer());
     }
 }

@@ -287,7 +287,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
             recorder.SetConstantBuffer(2, _light);
             recorder.SetRootDescriptorTable(3, _texHandle);
 
-            recorder.SetTopology(Topology.TriangeList);
+            recorder.SetTopology(Topology.TriangleList);
 
             using (Profiler.BeginProfileBlock("Render Object"))
             using (recorder.BeginEvent(Argb32.AliceBlue, "Render Objects"))

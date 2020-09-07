@@ -111,7 +111,8 @@ namespace Voltium.Core.Contexts
         public void UploadTextureToPreexisting(ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, in Texture destination)
         {
             var upload = _transientAllocator.AllocateBuffer(
-                checked((uint)Windows.GetRequiredIntermediateSize(destination.GetResourcePointer(), 0, (uint)subresources.Length))
+                checked((uint)Windows.GetRequiredIntermediateSize(destination.GetResourcePointer(), 0, (uint)subresources.Length)),
+                Windows.D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT
             );
 
             upload.Buffer.SetName("Intermediate texture upload buffer");

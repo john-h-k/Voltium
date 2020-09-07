@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -61,6 +62,32 @@ namespace Voltium.TextureLoading
         public static Texture UploadTexture(this UploadContext upload, ReadOnlyMemory<byte> bytes, ResourceFlags flags)
         {
             var desc = TextureLoader.LoadTextureDesc(bytes);
+            return upload.UploadTexture(desc, flags);
+        }
+
+        /// <summary>
+        /// Uploads a texture
+        /// </summary>
+        /// <param name="upload">The <see cref="UploadContext"/> to use</param>
+        /// <param name="filepath">The filepath to the texture</param>
+        /// <returns>A new <see cref="Texture"/></returns>
+        public static Texture UploadTexture(this UploadContext upload, ReadOnlySpan<char> filepath)
+        {
+            var desc = TextureLoader.LoadTextureDesc(File.ReadAllBytes(filepath.ToString()));
+            return upload.UploadTexture(desc);
+        }
+
+
+        /// <summary>
+        /// Uploads a texture
+        /// </summary>
+        /// <param name="upload">The <see cref="UploadContext"/> to use</param>
+        /// <param name="filepath">The filepath to the texture</param>
+        /// <param name="flags">Any <see cref="ResourceFlags"/> to upload the texture with</param>
+        /// <returns>A new <see cref="Texture"/></returns>
+        public static Texture UploadTexture(this UploadContext upload, ReadOnlySpan<char> filepath, ResourceFlags flags)
+        {
+            var desc = TextureLoader.LoadTextureDesc(File.ReadAllBytes(filepath.ToString()));
             return upload.UploadTexture(desc, flags);
         }
     }

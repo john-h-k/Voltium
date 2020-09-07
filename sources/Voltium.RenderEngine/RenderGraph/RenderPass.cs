@@ -72,7 +72,7 @@ namespace Voltium.RenderEngine
         /// The <see cref="PipelineStateObject"/> that this pass expects at the start of
         /// <see cref="Record"/>
         /// </summary>
-        public PipelineStateObject? DefaultPipelineState { get; protected set; }
+        public virtual PipelineStateObject? DefaultPipelineState { get; protected set; }
 
     }
 }

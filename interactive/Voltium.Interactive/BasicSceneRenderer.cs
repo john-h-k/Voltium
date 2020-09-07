@@ -65,8 +65,8 @@ namespace Voltium.Interactive
         private Size _outputResolution;
 
         private RootSignature _rootSig = null!;
-        private MultisamplingDesc _msaaDesc = MultisamplingDesc.None;
-        private MultisamplingDesc _maxMsaaDesc = MultisamplingDesc.None;
+        private MsaaDesc _msaaDesc = MsaaDesc.None;
+        private MsaaDesc _maxMsaaDesc = MsaaDesc.None;
 
         private ObjectConstants[] _objectConstants = null!;
         private FrameConstants _frameConstants;
@@ -91,7 +91,7 @@ namespace Voltium.Interactive
             _allocator = _device.Allocator;
             _outputResolution = screen;
 
-            _maxMsaaDesc = MultisamplingDesc.None;
+            _maxMsaaDesc = MsaaDesc.None;
 
             _texturedObjects = ModelLoader.LoadGl_Old("Assets/Gltf/Handgun_Tangent.gltf");
             var texture = TextureLoader.LoadTextureDesc("Assets/Textures/handgun_c.dds");
@@ -268,7 +268,7 @@ namespace Voltium.Interactive
         public override void ToggleMsaa()
         {
             _msaa = !_msaa;
-            _msaaDesc = _msaa ? _maxMsaaDesc : MultisamplingDesc.None;
+            _msaaDesc = _msaa ? _maxMsaaDesc : MsaaDesc.None;
             Resize(_outputResolution);
         }
 
@@ -288,7 +288,7 @@ namespace Voltium.Interactive
             recorder.SetConstantBuffer(2, _light);
             recorder.SetRootDescriptorTable(3, _texHandle);
 
-            recorder.SetTopology(Topology.TriangeList);
+            recorder.SetTopology(Topology.TriangleList);
 
             using (recorder.BeginEvent(Argb32.AliceBlue, "Render Objects"))
             {

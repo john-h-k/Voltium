@@ -7,6 +7,8 @@ using Voltium.Core.Memory;
 
 namespace Voltium.Core.Memory
 {
+
+
     /// <summary>
     /// Represents a single-dimension untyped buffer of GPU data
     /// </summary>
@@ -19,7 +21,7 @@ namespace Voltium.Core.Memory
         private ulong _gpuAddress;
 
         /// <summary>
-        /// Whether this buffer has been allocated or is uninitialized
+        /// Whether this buffer has been allocated or is uninitialized or disposed
         /// </summary>
         public bool IsAllocated => _resource != null;
 
@@ -42,7 +44,7 @@ namespace Voltium.Core.Memory
         {
             if (_resource is null)
             {
-                ThrowHelper.ThrowObjectDisposedException("buffer");
+                ThrowHelper.ThrowObjectDisposedException(this.GetName());
             }
         }
 
@@ -55,7 +57,15 @@ namespace Voltium.Core.Memory
         /// <summary>
         /// The buffer data. This may be empty if the data is not CPU writable
         /// </summary>
-        public T* As<T>() where T : unmanaged => (T*)_cpuAddress;
+        public T* As<T>() where T : unmanaged
+        {
+            if (_cpuAddress == null)
+            {
+                _cpuAddress = _resource is null ? null : _resource.Map(0);
+            }
+
+            return (T*)_cpuAddress;
+        }
 
         /// <summary>
         /// The buffer data. This may be empty if the data is not CPU writable

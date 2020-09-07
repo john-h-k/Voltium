@@ -133,8 +133,9 @@ namespace Voltium.Core.Devices
                 }
                 else
                 {
+                    var ptr = state.Ptr;
                     pipeline = new PipelineStateObject(state.Move());
-                    ComIdentity.RegisterComObject(state.Ptr, pipeline);
+                    ComIdentity.RegisterComObject(ptr, pipeline);
                     return pipeline;
                 }
             }

@@ -35,7 +35,7 @@ namespace Voltium.Interactive.RenderGraphSamples
 
             _settings = new PipelineSettings
             {
-                Msaa = MultisamplingDesc.None
+                Msaa = MsaaDesc.None
             };
 
             _output = Output.Create(desc, _device, output);

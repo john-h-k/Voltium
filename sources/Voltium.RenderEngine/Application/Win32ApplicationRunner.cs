@@ -87,7 +87,7 @@ namespace Voltium.Core
                     _ = TranslateMessage(&msg);
                     _ = DispatchMessageW(&msg);
                 }
-                else if (!_isPaused)
+                else if (!_isPaused || true)
                 {
                     RunApp();
                 }

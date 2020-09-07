@@ -57,10 +57,13 @@ namespace Voltium.Core.Devices
             }
             else
             {
-                graphics.Block();
-                compute.Block();
-                copy.Block();
+                BetterDeviceNeeded();
             }
+        }
+
+        private void BetterDeviceNeeded()
+        {
+            throw new NotImplementedException();
         }
 
         /// <summary>

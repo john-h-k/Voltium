@@ -83,7 +83,7 @@ namespace Voltium.Core.Memory
         /// <summary>
         /// If applicable, the multisampling description for the resource
         /// </summary>
-        public MultisamplingDesc Msaa { get; internal set; }
+        public MsaaDesc Msaa { get; internal set; }
 
         internal Texture(in TextureDesc desc, GpuResource resource)
         {

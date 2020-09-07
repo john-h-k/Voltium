@@ -10,7 +10,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Voltium.Analyzers\Voltium.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="..\Voltium.Common\Voltium.Common.csproj" PrivateAssets="All" />
+    <ProjectReference Include="..\Voltium.Common\Voltium.Common.csproj" />
     <ProjectReference Include="..\Voltium.Core\Voltium.Core.csproj" />
     <ProjectReference Include="..\Voltium.Input\Voltium.Input.csproj" />
   </ItemGroup>

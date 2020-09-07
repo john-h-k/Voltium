@@ -11,10 +11,12 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.VisualBasic;
 using Voltium.Core;
+using Voltium.Core.Configuration.Graphics;
 using Voltium.Core.Devices;
 using Voltium.Core.Devices.Shaders;
 using Voltium.Core.Memory;
 using Voltium.Core.Pipeline;
+using Voltium.Core.Views;
 using Voltium.ModelLoading;
 using Voltium.RenderEngine;
 using Voltium.RenderEngine.EntityComponentSystem;
@@ -44,10 +46,10 @@ namespace Voltium.CubeGame
             float texCoordX, float texCoordY
         ) :
             this(
-            new Vector3(positionX, positionY, positionZ),
-            new Vector3(normalX, normalY, normalZ),
-            new Vector3(tangentX, tangentY, tangentZ),
-            new Vector2(texCoordX, texCoordY)
+                new Vector3(positionX, positionY, positionZ),
+                new Vector3(normalX, normalY, normalZ),
+                new Vector3(tangentX, tangentY, tangentZ),
+                new Vector2(texCoordX, texCoordY)
             )
         {
         }
@@ -65,6 +67,11 @@ namespace Voltium.CubeGame
     {
         public TextureHandle SceneColor;
         public TextureHandle SceneDepth;
+    }
+
+    internal struct RenderSettings
+    {
+        public MsaaDesc Msaa;
     }
 
     internal struct ChunkMesh
@@ -126,25 +133,28 @@ namespace Voltium.CubeGame
             {
                 RootParameter.CreateDescriptor(RootParameterType.ConstantBufferView, 0, 0),
                 RootParameter.CreateDescriptor(RootParameterType.ConstantBufferView, 1, 0),
-                RootParameter.CreateDescriptor(RootParameterType.ShaderResourceView, 1, 0, ShaderVisibility.Pixel),
-                RootParameter.CreateDescriptorTable(DescriptorRangeType.ShaderResourceView, 0, 1, 0, visibility: ShaderVisibility.Pixel)
+                RootParameter.CreateDescriptor(RootParameterType.ShaderResourceView, 0, 0, ShaderVisibility.Pixel),
+                RootParameter.CreateDescriptorTable(DescriptorRangeType.ShaderResourceView, 1, 2, 0, visibility: ShaderVisibility.Pixel)
             };
 
             var samplers = new StaticSampler[]
             {
-                new StaticSampler(TextureAddressMode.Clamp, SamplerFilterType.Point, 0, 0, ShaderVisibility.Pixel)
+                new StaticSampler(TextureAddressMode.Clamp, SamplerFilterType.MagPoint | SamplerFilterType.MinPoint | SamplerFilterType.MipLinear, 0, 0, ShaderVisibility.Pixel)
             };
 
-            var rootSig = _device.CreateRootSignature(@params, samplers);
+            RootSignature = _device.CreateRootSignature(@params, samplers);
 
             var shaderFlags = new[]
             {
-                ShaderCompileFlag.PackMatricesInRowMajorOrder
+                ShaderCompileFlag.PackMatricesInRowMajorOrder,
+                ShaderCompileFlag.DisableOptimizations,
+                ShaderCompileFlag.EnableDebugInformation,
+                ShaderCompileFlag.WriteDebugInformationToFile()
             };
 
             var psoDesc = new GraphicsPipelineDesc
             {
-                RootSignature = rootSig,
+                RootSignature = RootSignature,
                 Topology = TopologyClass.Triangle,
                 RenderTargetFormats = BackBufferFormat.R8G8B8A8UnsignedNormalized,
                 DepthStencilFormat = DataFormat.Depth32Single,
@@ -158,11 +168,13 @@ namespace Voltium.CubeGame
                 Blend = BlendDesc.Default
             };
 
-            RootSignature = rootSig;
-            DefaultPipelineState = _device.PipelineManager.CreatePipelineStateObject(psoDesc, "ChunkPso");
+            Pso = _device.PipelineManager.CreatePipelineStateObject(psoDesc, "ChunkPso");
+
+            psoDesc.Msaa = new MsaaElement(MsaaDesc.X8);
+
+            MsaaPso = _device.PipelineManager.CreatePipelineStateObject(psoDesc, "MsaaChunkPso");
 
             UploadTextures();
-            SetConstants();
 
 
             Chunks = new[] { new RenderChunk() };
@@ -174,9 +186,12 @@ namespace Voltium.CubeGame
             {
                 Unsafe.AsRef(in block) = new Block { TextureId = (uint)rng.Next(0, _textures.Length) };
             }
+
+            SetConstants();
         }
 
         private RootSignature RootSignature;
+        private PipelineStateObject Pso, MsaaPso;
 
         [MemberNotNull(nameof(_textures))]
         private void UploadTextures()
@@ -185,14 +200,15 @@ namespace Voltium.CubeGame
 
             _textures = new Texture[2];
 
-            _textures[0] = upload.UploadTexture(File.ReadAllBytes("Assets/Textures/bricks.dds"));
-            _textures[1] = upload.UploadTexture(File.ReadAllBytes("Assets/Textures/stone.dds"));
+            _textures[0] = upload.UploadTexture("Assets/Textures/bricks.dds");
+            _textures[1] = upload.UploadTexture("Assets/Textures/stone.dds");
 
             _texViews = _device.CreateResourceDescriptorRange(_textures.Length);
 
             for (var i = 0; i < _textures.Length; i++)
             {
-                _device.CreateShaderResourceView(_texViews[i], _textures[i]);
+                ref var texture = ref _textures[i];
+                _device.CreateShaderResourceView(_texViews[i], texture);
             }
         }
 
@@ -201,36 +217,40 @@ namespace Voltium.CubeGame
             _frameConstants = _device.Allocator.AllocateUploadBuffer<FrameConstants>();
             Chunks[0].Mesh.Constants = _device.Allocator.AllocateUploadBuffer<ChunkConstants>();
             
-            FrameConstants* constants = _frameConstants.As<FrameConstants>();
+            //FrameConstants* constants = _frameConstants.As<FrameConstants>();
 
-            constants->View = Matrix4x4.CreateLookAt(
-                new Vector3(0.0f, 0.7f, 1.5f),
-                new Vector3(0.0f, -0.1f, 0.0f),
-                new Vector3(0.0f, 1.0f, 0.0f)
-            );
-            const float defaultFov = 70.0f * (float)Math.PI / 180.0f;
-            constants->Projection = Matrix4x4.CreatePerspectiveFieldOfView(defaultFov, 1, 0.01f, 100f);
+            //constants->View = Matrix4x4.CreateLookAt(
+            //    new Vector3(0.0f, 0.7f, 1.5f),
+            //    new Vector3(0.0f, -0.1f, 0.0f),
+            //    new Vector3(0.0f, 1.0f, 0.0f)
+            //);
+            //const float defaultFov = 70.0f * (float)Math.PI / 180.0f;
+            //constants->Projection = Matrix4x4.CreatePerspectiveFieldOfView(defaultFov, 1, 0.01f, 100f);
 
-            ChunkConstants* chunkConstants = Chunks[0].Mesh.Constants.As<ChunkConstants>();
-            chunkConstants->TexTransform = Matrix4x4.Identity;
-            chunkConstants->World = Matrix4x4.CreateTranslation(0, 0, -5);
+            //ChunkConstants* chunkConstants = Chunks[0].Mesh.Constants.As<ChunkConstants>();
+            //chunkConstants->TexTransform = Matrix4x4.Identity;
+            //chunkConstants->World = Matrix4x4.CreateTranslation(0, 0, -5);
         }
 
         public override void Register(ref RenderPassBuilder builder, ref Resolver resolver)
         {
+            var settings = resolver.GetComponent<RenderSettings>();
+
             RenderResources resources;
 
             resources.SceneColor = builder.CreatePrimaryOutputRelativeTexture(
-                TextureDesc.CreateRenderTargetDesc(BackBufferFormat.R8G8B8A8UnsignedNormalized, DefaultSkyColor),
+                TextureDesc.CreateRenderTargetDesc(BackBufferFormat.R8G8B8A8UnsignedNormalized, DefaultSkyColor, settings.Msaa),
                 ResourceState.RenderTarget
             );
 
             resources.SceneDepth = builder.CreatePrimaryOutputRelativeTexture(
-                TextureDesc.CreateDepthStencilDesc(DataFormat.Depth32Single, 1, 0),
+                TextureDesc.CreateDepthStencilDesc(DataFormat.Depth32Single, 1, 0, false, settings.Msaa),
                 ResourceState.DepthWrite
             );
 
             resolver.CreateComponent(resources);
+
+            DefaultPipelineState = settings.Msaa.IsMultiSampled ? MsaaPso : Pso;
         }
 
         public override unsafe void Record(GraphicsContext context, ref Resolver resolver)
@@ -247,7 +267,7 @@ namespace Voltium.CubeGame
             context.SetAndClearRenderTarget(_device.CreateRenderTargetView(sceneColor), DefaultSkyColor, _device.CreateDepthStencilView(sceneDepth));
             context.SetRootDescriptorTable(RootSignatureConstants.TextureIndex, _texViews.Start);
             context.SetConstantBuffer<FrameConstants>(RootSignatureConstants.FrameConstantsIndex, _frameConstants);
-            context.SetTopology(Topology.TriangeList);
+            context.SetTopology(Topology.TriangleList);
             context.SetViewportAndScissor(sceneColor.Resolution);
 
             for (var i = 0; i < Chunks.Length; i++)
@@ -260,7 +280,7 @@ namespace Voltium.CubeGame
                 }
 
                 context.SetConstantBuffer<ChunkConstants>(RootSignatureConstants.ObjectConstantsIndex, chunk.Mesh.Constants);
-                context.SetBuffer<uint>(RootSignatureConstants.ObjectTexIndicesIndex, chunk.Mesh.TexIndices);
+                context.SetShaderResourceBuffer<uint>(RootSignatureConstants.ObjectTexIndicesIndex, chunk.Mesh.TexIndices);
 
                 context.SetVertexBuffers<BlockVertex>(chunk.Mesh.Vertices, (uint)chunk.Mesh.VertexCount, 0);
                 context.SetIndexBuffer<uint>(chunk.Mesh.Indices, (uint)chunk.Mesh.IndexCount);
@@ -275,9 +295,8 @@ namespace Voltium.CubeGame
             ref var mesh = ref chunkPair.Mesh;
 
             var constants = mesh.Constants.As<ChunkConstants>();
-            constants->World = Matrix4x4.Identity;
-
-            var texIds = mesh.TexIndices.AsSpan<uint>();
+            constants->World = Matrix4x4.CreateTranslation(0, 0, -5);
+            constants->TexTransform = Matrix4x4.Identity;
 
             if (!mesh.Vertices.IsAllocated)
             {
@@ -289,15 +308,17 @@ namespace Voltium.CubeGame
             }
             if (!mesh.TexIndices.IsAllocated)
             {
-                mesh.TexIndices = _device.Allocator.AllocateUploadBuffer(NumChunkFaces);
+                mesh.TexIndices = _device.Allocator.AllocateUploadBuffer<uint>(NumChunkFaces);
             }
 
             int numVertices = 0, numIndices = 0;
 
             var vertexSpan = mesh.Vertices.AsSpan<BlockVertex>();
             var indexSpan = mesh.Indices.AsSpan<uint>();
+            var texIds = mesh.TexIndices.AsSpan<uint>();
 
             var blocks = new ReadOnlySpan3D<Block?>(chunk.Blocks.Span, Width, Height, Depth);
+
             for (var i = 0; i < Width; i++)
             {
                 for (var j = 0; j < Height; j++)

@@ -13,20 +13,21 @@ namespace Voltium.CubeGame
 {
     internal class TonemapPass : GraphicsRenderPass
     {
-        public override OutputDesc Output { get; }
+        public override OutputDesc Output => OutputDesc.FromBackBuffer(OutputClass.Primary, _output);
 
         private Output _output;
 
         public TonemapPass(Output output)
         {
             _output = output;
-            Output = OutputDesc.FromBackBuffer(OutputClass.Primary, _output);
         }
 
         public override void Register(ref RenderPassBuilder builder, ref Resolver resolver)
         {
             var resources = resolver.GetComponent<RenderResources>();
-            builder.MarkUsage(resources.SceneColor, ResourceState.CopySource);
+            var settings = resolver.GetComponent<RenderSettings>();
+
+            builder.MarkUsage(resources.SceneColor, settings.Msaa.IsMultiSampled ? ResourceState.ResolveSource : ResourceState.CopySource);
         }
 
         public override void Record(GraphicsContext context, ref Resolver resolver)
@@ -34,10 +35,21 @@ namespace Voltium.CubeGame
             using var _ = context.BeginEvent(Argb32.Green, "Tonemap");
 
             var resources = resolver.GetComponent<RenderResources>();
+            var settings = resolver.GetComponent<RenderSettings>();
+
             var sampledOutput = resolver.ResolveResource(resources.SceneColor);
 
-            context.ResourceTransition(_output.OutputBuffer, ResourceState.CopyDestination);
-            context.CopyResource(sampledOutput, _output.OutputBuffer);
+            context.ResourceTransition(_output.OutputBuffer, settings.Msaa.IsMultiSampled ? ResourceState.ResolveDestination : ResourceState.CopyDestination);
+
+            if (settings.Msaa.IsMultiSampled)
+            {
+                context.ResolveSubresource(sampledOutput, _output.OutputBuffer);
+            }
+            else
+            {
+                context.CopyResource(sampledOutput, _output.OutputBuffer);
+            }
+
             context.ResourceTransition(_output.OutputBuffer, ResourceState.Present);
         }
     }

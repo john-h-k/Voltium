@@ -138,8 +138,8 @@ namespace Voltium.Interactive
             recorder.SetRenderTargets(_renderTargetView);
             //recorder.ClearRenderTarget(_renderTargetView, Rgba128.CornflowerBlue);
             recorder.Discard(_renderTarget);
-            recorder.SetTopology(Topology.TriangeList);
-            recorder.SetBuffer(0, _colors);
+            recorder.SetTopology(Topology.TriangleList);
+            recorder.SetShaderResourceBuffer(0, _colors);
             recorder.SetRoot32BitConstants(1, _constants);
             recorder.Draw(3);
 

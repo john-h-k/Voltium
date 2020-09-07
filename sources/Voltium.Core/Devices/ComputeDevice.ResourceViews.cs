@@ -130,14 +130,15 @@ namespace Voltium.Core.Devices
         /// <summary>
         /// Creates a shader resource view to a <see cref="Texture"/>
         /// </summary>
+        /// <param name="handle">The <see cref="DescriptorHandle"/> to create the view at</param>
         /// <param name="resource">The <see cref="Texture"/> resource to create the view for</param>
         /// <param name="desc">The <see cref="TextureShaderResourceViewDesc"/> describing the metadata used to create the view</param>
-        public DescriptorHandle CreateShaderResourceView(in Texture resource, in TextureShaderResourceViewDesc desc)
+        public void CreateShaderResourceView(DescriptorHandle handle, in Texture resource, in TextureShaderResourceViewDesc desc)
         {
             // multisampled textures can be created without a desc
             if (resource.Msaa.SampleCount > 1)
             {
-                return CreateShaderResourceView(resource);
+                CreateShaderResourceView(resource);
             }
 
             D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc;
@@ -170,11 +171,7 @@ namespace Voltium.Core.Devices
             srvDesc.Format = (DXGI_FORMAT)desc.Format;
             srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING; // TODO
 
-            var handle = UavCbvSrvs.GetNextHandle();
-
             DevicePointer->CreateShaderResourceView(resource.Resource.GetResourcePointer(), &srvDesc, handle.CpuHandle);
-
-            return handle;
         }
 
         /// <summary>

@@ -13,7 +13,6 @@ struct VertexOut
     float3 Normal : NORMAL;
     float3 Tangent : TANGENT;
     float2 TexC : TEXC;
-    int TexId : TEXID;
 };
 
 struct FrameConstants
@@ -29,11 +28,15 @@ struct ObjectConstants
     int TextureIndex;
 };
 
+struct TexId
+{
+    uint Id;
+};
+
 ConstantBuffer<FrameConstants> Frame : register(b0);
 ConstantBuffer<ObjectConstants> Object : register(b1);
-StructuredBuffer<uint> ChunkIndices : register(s1);
 
-VertexOut VertexMain(in VertexIn vertexIn, in uint id : SV_PrimitiveID)
+VertexOut VertexMain(in VertexIn vertexIn)
 {
     VertexOut vertexOut;
 
@@ -49,17 +52,18 @@ VertexOut VertexMain(in VertexIn vertexIn, in uint id : SV_PrimitiveID)
 
     vertexOut.TexC = mul(float4(vertexIn.TexCoord, 0, 1), Object.TexTransform).xy;
 
-    vertexOut.TexId = id / 2;
-
     return vertexOut;
 }
 
 
 SamplerState DefaultSampler : register(s0);
-Texture2D Textures[] : register(t0);
 
+StructuredBuffer<TexId> ChunkIndices : register(t0);
+Texture2D Textures[] : register(t1);
 
-float4 PixelMain(VertexOut fragment) : SV_Target
+float4 PixelMain(VertexOut fragment, in uint id : SV_PrimitiveID) : SV_Target
 {
-    return Textures[ChunkIndices[fragment.TexId]].Sample(DefaultSampler, fragment.TexC);
+    // we texture on a per quad basis. quad is 2 primitives
+    TexId i = ChunkIndices[id / 2];
+    return Textures[i.Id].Sample(DefaultSampler, fragment.TexC);
 }
