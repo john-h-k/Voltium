@@ -9,60 +9,48 @@ namespace Voltium.Core.Pipeline
     /// <summary>
     /// Describes the state and settings of a compute pipeline
     /// </summary>
-    public partial struct ComputePipelineDesc : IPipelineStreamType
+    public unsafe partial class ComputePipelineDesc
     {
         /// <summary>
         /// Creates a new <see cref="ComputePipelineDesc"/>
         /// </summary>
-        public ComputePipelineDesc(RootSignature shaderSignature, CompiledShader computeShader)
+        public ComputePipelineDesc()
         {
-            Unsafe.SkipInit(out this);
-            RootSignature = shaderSignature;
-            ComputeShader = computeShader;
+            Desc.RootSig.Type = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE.D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_ROOT_SIGNATURE;
+
+            Desc.Compute = new(null, 0, ShaderType.Compute);
         }
 
-        /// <summary>
-        /// The compute shader for the pipeline
-        /// </summary>
-        public CompiledShader ComputeShader;
-
-        /// <summary>
-        /// 
-        /// </summary>
-        public RootSignatureElement RootSignature;
-
-        // public uint NodeMask { get; set; } TODO: MULTI-GPU
-
-        // we could have a pipeline flags thing, but that is just used for WARP debugging. do i really need to support it
-    }
+        private _PsoDesc Desc;
 
 
-    /// <summary>
-    /// 
-    /// </summary>
-    [StructLayout(LayoutKind.Explicit)]
-    public struct RootSignatureElement : IPipelineStreamElement<RootSignatureElement>
-    {
-#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
-        public void _Initialize() => Type.Type = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE.D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_ROOT_SIGNATURE;
-#pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
+        internal ref byte GetPinnableReference() => ref Unsafe.As<_PsoDesc, byte>(ref Desc);
+        internal nuint DescSize => (nuint)sizeof(_PsoDesc);
 
-        [FieldOffset(0)]
-        internal AlignedSubobjectType<nuint> Type;
+        private struct _PsoDesc
+        {
+            public _RootSig RootSig;
 
-        [FieldOffset(0)]
-        private nuint _Pad;
+            public CompiledShader Compute;
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="rootSignature"></param>
-        public static implicit operator RootSignatureElement(RootSignature rootSignature) => new RootSignatureElement() { RootSignature = rootSignature };
+
+            public struct _RootSig
+            {
+                public D3D12_PIPELINE_STATE_SUBOBJECT_TYPE Type;
+                public ID3D12RootSignature* Pointer;
+            }
+        }
 
         /// <summary>
         /// The root signature for the pipeline
         /// </summary>
-        public unsafe RootSignature RootSignature { get => RootSignature.GetRootSig((ID3D12RootSignature*)Type.Inner); set => Type.Inner = (nuint)value.Value; }
+        public RootSignature RootSignature { get => RootSignature.GetRootSig(Desc.RootSig.Pointer); set => Desc.RootSig.Pointer = value.Value; }
 
+        /// <summary>
+        /// The compute shader for the pipeline
+        /// </summary>
+        public ref CompiledShader ComputeShader => ref Desc.Compute;
+
+        // public uint NodeMask { get; set; } TODO: MULTI-GPU
     }
 }

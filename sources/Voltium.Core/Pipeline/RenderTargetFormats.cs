@@ -11,12 +11,11 @@ namespace Voltium.Core.Pipeline
     /// 
     /// </summary>
     /// <typeparam name="TShaderInput"></typeparam>
-    public struct InputLayout<TShaderInput> : IPipelineStreamElement<InputLayout<TShaderInput>> where TShaderInput : unmanaged, IBindableShaderType
+    public struct InputLayout<TShaderInput> where TShaderInput : unmanaged, IBindableShaderType
     {
         /// <inheritdoc/>
-        public unsafe void _Initialize()
+        internal unsafe void _Initialize()
         {
-            Layout._Initialize();
             var inputs = default(TShaderInput).GetShaderInputs();
 
             var handle = inputs.Pin();
@@ -35,14 +34,8 @@ namespace Voltium.Core.Pipeline
     /// 
     /// </summary>
     [StructLayout(LayoutKind.Explicit)]
-    public struct InputLayout : IPipelineStreamElement<InputLayout>
+    public struct InputLayout
     {
-        /// <inheritdoc/>
-        public unsafe void _Initialize()
-        {
-            Type.Type  = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE.D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_INPUT_LAYOUT;
-        }
-
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
         public unsafe InputLayout(ReadOnlySpan<ShaderInput> inputs)
         {
@@ -73,14 +66,8 @@ namespace Voltium.Core.Pipeline
     /// </summary>
 
     [StructLayout(LayoutKind.Explicit)]
-    public partial struct DepthStencilFormat : IPipelineStreamElement<DepthStencilFormat>
+    public partial struct DepthStencilFormat
     {
-        /// <inheritdoc/>
-        public void _Initialize()
-        {
-            Type.Type = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE.D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_DEPTH_STENCIL_FORMAT;
-        }
-
         public static implicit operator DataFormat(DepthStencilFormat format) => format.Type.Inner;
         public static implicit operator DepthStencilFormat(DataFormat format) => new() { Type = new() { Inner = format } };
 #pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
@@ -97,10 +84,10 @@ namespace Voltium.Core.Pipeline
     /// </summary>
 
     [StructLayout(LayoutKind.Explicit)]
-    public partial struct RenderTargetFormats : IPipelineStreamElement<RenderTargetFormats>
+    public partial struct RenderTargetFormats
     {
         /// <inheritdoc/>
-        public void _Initialize()
+        internal void _Initialize()
         {
             Type.Type = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE.D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_RENDER_TARGET_FORMATS;
 
@@ -177,11 +164,13 @@ namespace Voltium.Core.Pipeline
         }
 
 
-        /// <inheritdoc cref="FormatBuffer8.this[uint]"/>
+        /// <inheritdoc cref="this[int]"/>
         public ref DataFormat this[uint index]
             => ref Type.Inner.Formats[index];
 
-        /// <inheritdoc cref="FormatBuffer8.this[int]"/>
+        /// <summary>
+        /// Returns a reference to the <see cref="DataFormat"/> at position <paramref name="index"/>
+        /// </summary>
         public ref DataFormat this[int index]
             => ref Type.Inner.Formats[index];
 

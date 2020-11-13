@@ -32,6 +32,13 @@ namespace Voltium.Core.Devices
         public static unsafe IOutputOwner FromICoreWindow(void* window)
             => new CoreWindowOwner(window);
 
+
+        /// <summary>
+        /// Creates a new <see cref="IOutputOwner"/> to a XAML SwapChainPanel
+        /// </summary>
+        public static unsafe IOutputOwner FromSwapChainPanel(void* swapChainPanel)
+            => new SwapChainPanelOwner(swapChainPanel);
+
         private sealed class HwndOwner : IOutputOwner
         {
             private IntPtr _hwnd;
@@ -54,6 +61,18 @@ namespace Voltium.Core.Devices
             public OutputType Type => OutputType.ICoreWindow;
 
             public IntPtr GetOutput() => (IntPtr)_coreWindow;
+        }
+
+        private sealed unsafe class SwapChainPanelOwner : IOutputOwner
+        {
+            private void* _panel;
+
+            public SwapChainPanelOwner(void* panel)
+                => _panel = panel;
+
+            public OutputType Type => OutputType.SwapChainPanel;
+
+            public IntPtr GetOutput() => (IntPtr)_panel;
         }
     }
 }

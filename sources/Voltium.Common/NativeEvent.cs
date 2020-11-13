@@ -65,15 +65,14 @@ namespace Voltium.Common
             }
         }
 
-        private struct CallbackData
-        {
-            public delegate*<object?, void> FnPtr;
-            public IntPtr ObjectHandle;
-        }
+        //private struct CallbackData
+        //{
+        //    public delegate*<object?, void> FnPtr;
+        //    public IntPtr ObjectHandle;
+        //}
 
         internal bool CheckIsCompleted()
         {
-
             if (PlatformInfo.IsLinux)
             {
                 const int fdRead = Linux.POLLIN | Linux.POLLRDNORM;
@@ -134,5 +133,3 @@ namespace Voltium.Common
         //    }
         }
     }
-}
-}

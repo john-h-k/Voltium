@@ -14,6 +14,8 @@ namespace Voltium.Core.Infrastructure
         private uint _hardwareAdapterSkip;
         private bool _softwareOnly;
 
+        public override Adapter SoftwareAdapter => throw new NotSupportedException("Can't enum WARP on DxCore");  
+
         public DxCoreDeviceFactory(DeviceType types = DeviceType.GraphicsAndCompute)
         {
             using UniqueComPtr<IDXCoreAdapterFactory> factory = default;
@@ -114,7 +116,7 @@ namespace Voltium.Core.Infrastructure
             }
 
             return new Adapter(
-                adapter.AsIUnknown(),
+                adapter.AsIUnknown().Move(),
                 Encoding.UTF8.GetString(buff.Value),
                 (AdapterVendor)vendor.vendorID,
                 vendor.deviceID,
@@ -125,7 +127,7 @@ namespace Voltium.Core.Infrastructure
                 sharedSystemMemory,
                 luid,
                 driverVersion,
-                !isHardware,
+                isSoftware: !isHardware,
                 type
             );
 

@@ -1,6 +1,8 @@
 using System;
 using System.Diagnostics;
 using System.Drawing;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Configuration.Graphics;
@@ -105,7 +107,8 @@ namespace Voltium.Core.Memory
         internal static Texture FromResource(ComputeDevice device, UniqueComPtr<ID3D12Resource> buffer)
         {
             var resDesc = buffer.Ptr->GetDesc();
-            var res = new GpuResource(device, buffer.Move(), new InternalAllocDesc { Desc = resDesc, InitialState = D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_COMMON }, null, -1);
+            var desc = new InternalAllocDesc { Desc = resDesc, InitialState = D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_COMMON };
+            var res = new GpuResource(device, buffer.Move(), &desc, null, -1);
 
             Debug.Assert(resDesc.Dimension == D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_TEXTURE2D);
 
@@ -127,6 +130,21 @@ namespace Voltium.Core.Memory
 
 
         /// <inheritdoc/>
-        public void Dispose() => _resource?.Dispose();
+        public void Dispose()
+        {
+            _resource?.Dispose();
+            _resource = null!;
+        }
+
+
+        /// <inheritdoc/>
+        public void Dispose(in GpuTask disposeAfter)
+        {
+            static void _Dispose(GpuResource resource) => resource.Dispose();
+
+            disposeAfter.RegisterCallback(_resource, &_Dispose);
+
+            _resource = null!;
+        }
     }
 }

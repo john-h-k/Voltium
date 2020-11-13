@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 
 using System.Runtime.CompilerServices;
@@ -44,7 +45,7 @@ namespace Voltium.Core.Devices
             var newValue = Interlocked.Increment(ref _lastFenceSignal);
             var pageable = evicted.GetPageable();
 
-            ThrowIfFailed(DevicePointerAs<ID3D12Device3>()->EnqueueMakeResident(
+            ThrowIfFailed(As<ID3D12Device3>()->EnqueueMakeResident(
                 D3D12_RESIDENCY_FLAGS.D3D12_RESIDENCY_FLAG_DENY_OVERBUDGET,
                 1,
                 &pageable,
@@ -74,7 +75,7 @@ namespace Voltium.Core.Devices
             {
                 fixed (void* pEvictables = &Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(evicted)))
                 {
-                    ThrowIfFailed(DevicePointerAs<ID3D12Device3>()->EnqueueMakeResident(
+                    ThrowIfFailed(As<ID3D12Device3>()->EnqueueMakeResident(
                         D3D12_RESIDENCY_FLAGS.D3D12_RESIDENCY_FLAG_DENY_OVERBUDGET,
                         (uint)evicted.Length,
                         (ID3D12Pageable**)pEvictables,
@@ -94,7 +95,7 @@ namespace Voltium.Core.Devices
                         pEvictables[i] = evicted[i].GetPageable();
                     }
 
-                    ThrowIfFailed(DevicePointerAs<ID3D12Device3>()->EnqueueMakeResident(
+                    ThrowIfFailed(As<ID3D12Device3>()->EnqueueMakeResident(
                         D3D12_RESIDENCY_FLAGS.D3D12_RESIDENCY_FLAG_DENY_OVERBUDGET,
                         (uint)evicted.Length,
                         pEvictables,
@@ -111,7 +112,7 @@ namespace Voltium.Core.Devices
                         pool.Value[i] = (nuint)evicted[i].GetPageable();
                     }
 
-                    ThrowIfFailed(DevicePointerAs<ID3D12Device3>()->EnqueueMakeResident(
+                    ThrowIfFailed(As<ID3D12Device3>()->EnqueueMakeResident(
                         D3D12_RESIDENCY_FLAGS.D3D12_RESIDENCY_FLAG_DENY_OVERBUDGET,
                         (uint)evicted.Length,
                         (ID3D12Pageable**)Unsafe.AsPointer(ref MemoryMarshal.GetArrayDataReference(pool.Value)),
@@ -126,8 +127,8 @@ namespace Voltium.Core.Devices
 
         // MakeResident is 34th member of vtable
         // Evict is 35th
-        private delegate* stdcall<uint, ID3D12Pageable**, int> MakeResidentFunc => (delegate* stdcall<uint, ID3D12Pageable**, int>)DevicePointer->lpVtbl[34];
-        private delegate* stdcall<uint, ID3D12Pageable**, int> EvictFunc => (delegate* stdcall<uint, ID3D12Pageable**, int>)DevicePointer->lpVtbl[35];
+        private delegate* unmanaged<uint, ID3D12Pageable**, int> MakeResidentFunc => (delegate* unmanaged<uint, ID3D12Pageable**, int>)DevicePointer->lpVtbl[34];
+        private delegate* unmanaged<uint, ID3D12Pageable**, int> EvictFunc => (delegate* unmanaged<uint, ID3D12Pageable**, int>)DevicePointer->lpVtbl[35];
 
         // take advantage of the fact make resident and evict have same sig to reduce code duplication
 
@@ -163,13 +164,13 @@ namespace Voltium.Core.Devices
         public void Evict<T>(ReadOnlySpan<T> evicted) where T : IEvictable
             => ChangeResidency(EvictFunc, evicted);
 
-        private void ChangeResidency<T>(delegate* stdcall<uint, ID3D12Pageable**, int> changeFunc, T evictable) where T : IEvictable
+        private void ChangeResidency<T>(delegate* unmanaged<uint, ID3D12Pageable**, int> changeFunc, T evictable) where T : IEvictable
         {
             var pageable = evictable.GetPageable();
             ThrowIfFailed(changeFunc(1, &pageable));
         }
 
-        private void ChangeResidency<T>(delegate* stdcall<uint, ID3D12Pageable**, int> changeFunc, ReadOnlySpan<T> evictables) where T : IEvictable
+        private void ChangeResidency<T>(delegate* unmanaged<uint, ID3D12Pageable**, int> changeFunc, ReadOnlySpan<T> evictables) where T : IEvictable
         {
             // classes will never be blittable to pointer, so this handles that
             if (default(T)?.IsBlittableToPointer ?? false)
@@ -194,16 +195,44 @@ namespace Voltium.Core.Devices
                 }
                 else
                 {
-                    using var pool = RentedArray<nuint>.Create(evictables.Length, PinnedArrayPool<nuint>.Default);
+                    using var pool = RentedArray<nuint>.Create(evictables.Length);
 
                     for (int i = 0; i < evictables.Length; i++)
                     {
                         pool.Value[i] = (nuint)evictables[i].GetPageable();
                     }
 
-                    ThrowIfFailed(changeFunc((uint)evictables.Length, (ID3D12Pageable**)Unsafe.AsPointer(ref MemoryMarshal.GetArrayDataReference(pool.Value))));
+                    fixed (nuint* pEvictable = pool.Value)
+                    {
+                        ThrowIfFailed(changeFunc((uint)evictables.Length, (ID3D12Pageable**)pEvictable));
+                    }
                 }
             }
+        }
+    }
+
+    internal unsafe ref struct StackallocOrRent<T> where T : unmanaged
+    {
+        private Span<T> _span;
+        private RentedArray<T> _array;
+
+        public Span<T> Value => _array.Value is null ? _span : _array.Value;
+
+        private StackallocOrRent(Span<T> span)
+        {
+            _array = default;
+            _span = span;
+        }
+
+        private StackallocOrRent(in RentedArray<T> array)
+        {
+            _span = default;
+            _array = array;
+        }
+
+        public void Dispose()
+        {
+            _array.Dispose();
         }
     }
 }

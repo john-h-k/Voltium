@@ -86,6 +86,43 @@ namespace Voltium.Core
         //SetPredication
 
 
+        /// <summary>
+        /// Insert a UAV barrier
+        /// </summary>
+        /// <param name="buffer"></param>
+        public void UavBarrier(in Buffer buffer)
+        {
+            D3D12_RESOURCE_BARRIER barrier = new()
+            {
+                Type = D3D12_RESOURCE_BARRIER_TYPE.D3D12_RESOURCE_BARRIER_TYPE_UAV,
+                UAV = new D3D12_RESOURCE_UAV_BARRIER
+                {
+                    pResource = buffer.GetResourcePointer()
+                }
+            };
+
+            AddBarrier(barrier);
+        }
+
+
+
+        /// <summary>
+        /// Insert a UAV barrier
+        /// </summary>
+        /// <param name="texture"></param>
+        public void UavBarrier(in Texture texture)
+        {
+            D3D12_RESOURCE_BARRIER barrier = new()
+            {
+                Type = D3D12_RESOURCE_BARRIER_TYPE.D3D12_RESOURCE_BARRIER_TYPE_UAV,
+                UAV = new D3D12_RESOURCE_UAV_BARRIER
+                {
+                    pResource = texture.GetResourcePointer()
+                }
+            };
+
+            AddBarrier(barrier);
+        }
 
         /// <summary>
         /// Sets the current pipeline state
@@ -93,7 +130,15 @@ namespace Voltium.Core
         /// <param name="pso">The <see cref="PipelineStateObject"/> to set</param>
         public void SetPipelineState(PipelineStateObject pso)
         {
-            List->SetPipelineState(pso.GetPso());
+            if (pso.Pointer.TryQueryInterface<ID3D12PipelineState>(out var pState))
+            {
+                List->SetPipelineState(pState.Ptr);
+                pState.Dispose();
+            }
+            else
+            {
+                List->SetPipelineState1(pso.Pointer.As<ID3D12StateObject>().Ptr);
+            }
         }
 
         /// <summary>
@@ -123,7 +168,39 @@ namespace Voltium.Core
         /// <param name="offset">The offset in bytes to start the view at</param>
         public void SetShaderResourceBufferByteOffset(uint paramIndex, in Buffer cbuffer, uint offset = 0)
         {
-            List->SetComputeRootShaderResourceView(paramIndex, cbuffer.GpuAddress + offset);
+            List->SetComputeRootUnorderedAccessView(paramIndex, cbuffer.GpuAddress + offset);
+        }
+
+
+
+        /// <summary>
+        /// Sets a directly-bound unordered access buffer view descriptor to the graphics pipeline
+        /// </summary>
+        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
+        /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
+        public void SetUnorderedAccessBuffer(uint paramIndex, in Buffer cbuffer)
+            => SetUnorderedAccessBuffer<byte>(paramIndex, cbuffer, 0);
+
+        /// <summary>
+        /// Sets a directly-bound unordered access buffer view descriptor to the graphics pipeline
+        /// </summary>
+        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
+        /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
+        /// <param name="offset">The offset in elements of <typeparamref name="T"/> to start the view at</param>
+        public void SetUnorderedAccessBuffer<T>(uint paramIndex, in Buffer cbuffer, uint offset = 0) where T : unmanaged
+        {
+            List->SetComputeRootUnorderedAccessView(paramIndex, cbuffer.GpuAddress + (ulong)(sizeof(T) * offset));
+        }
+
+        /// <summary>
+        /// Sets a directly-bound unordered access view descriptor to the graphics pipeline
+        /// </summary>
+        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
+        /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
+        /// <param name="offset">The offset in bytes to start the view at</param>
+        public void SetUnorderedAccessBuffer(uint paramIndex, in Buffer cbuffer, uint offset = 0)
+        {
+            List->SetComputeRootUnorderedAccessView(paramIndex, cbuffer.GpuAddress + offset);
         }
 
         /// <summary>
@@ -247,7 +324,7 @@ namespace Voltium.Core
         /// <param name="x">How many thread groups should be dispatched in the X direction</param>
         /// <param name="y">How many thread groups should be dispatched in the Y direction</param>
         /// <param name="z">How many thread groups should be dispatched in the Z direction</param>
-        public void Dispatch(uint x, uint y, uint z)
+        public void Dispatch(uint x, uint y = 1, uint z = 1)
         {
             FlushBarriers();
             List->Dispatch(x, y, z);

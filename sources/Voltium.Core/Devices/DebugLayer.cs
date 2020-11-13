@@ -171,7 +171,7 @@ namespace Voltium.Common
         {
             if (_supportedLayer == SupportedDebugLayer.Debug3)
             {
-                _debug.AsBase<ID3D12Debug3>().Ptr->SetEnableGPUBasedValidation(TRUE);
+                _debug.As<ID3D12Debug3>().Ptr->SetEnableGPUBasedValidation(TRUE);
             }
             else
             {

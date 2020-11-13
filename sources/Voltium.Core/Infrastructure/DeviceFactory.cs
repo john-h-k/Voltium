@@ -10,8 +10,10 @@ namespace Voltium.Core.Infrastructure
     /// </summary>
     public unsafe abstract class DeviceFactory : IEnumerable<Adapter>, IDisposable
     {
-        // DXGI only supported on windows
-        private static bool IsNonWindowsOs => !RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+        /// <summary>
+        /// The default software adapter
+        /// </summary>
+        public abstract Adapter SoftwareAdapter { get; }
 
         /// <summary>
         /// Creates a new <see cref="DeviceFactory"/>

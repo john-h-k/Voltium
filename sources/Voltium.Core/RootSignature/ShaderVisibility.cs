@@ -36,5 +36,15 @@ namespace Voltium.Core
         /// The resource is visible to the geometry shader, or GS
         /// </summary>
         Geometry = D3D12_SHADER_VISIBILITY_GEOMETRY,
+
+        /// <summary>
+        /// The resource is visible to the amplification shader, or AS
+        /// </summary>
+        Amplification = D3D12_SHADER_VISIBILITY_AMPLIFICATION,
+
+        /// <summary>
+        /// The resource is visible to the mesh shader, or MS
+        /// </summary>
+        Mesh = D3D12_SHADER_VISIBILITY_MESH
     }
 }

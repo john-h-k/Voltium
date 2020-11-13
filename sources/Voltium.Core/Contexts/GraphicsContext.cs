@@ -14,12 +14,12 @@ using Buffer = Voltium.Core.Memory.Buffer;
 
 namespace Voltium.Core
 {
+
     /// <summary>
     /// Represents a context on which GPU commands can be recorded
     /// </summary>
     public unsafe partial class GraphicsContext : ComputeContext
     {
-
         internal GraphicsContext(in ContextParams @params) : base(@params)
         {
 
@@ -35,6 +35,27 @@ namespace Voltium.Core
                    && srcDesc.DepthOrArraySize == destDesc.DepthOrArraySize
                    && srcDesc.Dimension == destDesc.Dimension;
         }
+
+        // TODO: Raytracing
+        ///// <summary>
+        ///// Dispatches a raytracing operation
+        ///// </summary>
+        ///// <param name="desc">The <see cref="RayDispatchDesc"/> which describes the raytracing operation</param>
+        //public void DispatchRays(in RayDispatchDesc desc)
+        //{
+        //    fixed (D3D12_DISPATCH_RAYS_DESC* pDesc = &desc.Desc)
+        //    {
+        //        List->DispatchRays(pDesc);
+        //    }
+        //}
+
+        /// <summary>
+        /// If depth bounds testing is enabled, sets the depth bounds
+        /// </summary>
+        /// <param name="min">The <see cref="float"/> which indicates the minimum depth value which won't be discarded</param>
+        /// <param name="max">The <see cref="float"/> which indicates the maximum depth value which won't be discarded</param>
+        public void SetDepthsBounds(float min, float max)
+            => List->OMSetDepthBounds(min, max);
 
         /// <summary>
         /// Discard the entire resource value
@@ -52,6 +73,15 @@ namespace Voltium.Core
         {
             FlushBarriers();
             List->DiscardResource(resource.GetResourcePointer(), null);
+        }
+
+        /// <summary>
+        /// Executes a <see cref="GraphicsContext"/>
+        /// </summary>
+        /// <param name="bundle"></param>
+        public void ExecuteBundle(GraphicsContext bundle)
+        {
+            List->ExecuteBundle(bundle.GetListPointer());
         }
 
         /// <summary>
@@ -199,9 +229,16 @@ namespace Voltium.Core
                 );
             }
 
-            fixed (void* pValue = &value)
+            if (sizeof(T) == 4)
             {
-                List->SetGraphicsRoot32BitConstants(paramIndex, (uint)sizeof(T) / 4, pValue, offset);
+                SetRoot32BitConstant(paramIndex, value, offset);
+            }
+            else
+            {
+                fixed (void* pValue = &value)
+                {
+                    List->SetGraphicsRoot32BitConstants(paramIndex, (uint)sizeof(T) / 4, pValue, offset);
+                }
             }
         }
 
@@ -348,7 +385,6 @@ namespace Voltium.Core
             var rtv = renderTargetHandle.GetValueOrDefault().CpuHandle;
             var dsv = depthStencilHandle.GetValueOrDefault().CpuHandle;
 
-            var depthStencil = depthStencilHandle.GetValueOrDefault();
             FlushBarriers();
             List->OMSetRenderTargets(
                 renderTargetHandle is null ? 0 : renderTargetCount,
@@ -375,7 +411,7 @@ namespace Voltium.Core
         public void SetControlPatchPointCount(byte count)
         {
             Guard.InRangeInclusive(1, 32, count);
-            List->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_1_CONTROL_POINT_PATCHLIST + (count - 1));
+            List->IASetPrimitiveTopology((D3D_PRIMITIVE_TOPOLOGY_1_CONTROL_POINT_PATCHLIST - 1) + count);
         }
 
         /// <summary>
@@ -735,6 +771,15 @@ namespace Voltium.Core
                 startInstanceLocation
             );
         }
+
+        /// <summary>
+        /// Dispatches a mesh or amplification shader
+        /// </summary>
+        /// <param name="x">The number of thread groups to execute in the x direction</param>
+        /// <param name="y">The number of thread groups to execute in the y direction</param>
+        /// <param name="z">The number of thread groups to execute in the z direction</param>
+        public void DispatchMeshes(uint x, uint y, uint z)
+            => List->DispatchMesh(x, y, z);
     }
 
     /// <summary>

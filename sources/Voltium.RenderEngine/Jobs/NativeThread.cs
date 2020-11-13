@@ -22,7 +22,7 @@ namespace Voltium.RenderEngine.Jobs
 
         private const uint CREATE_SUSPENDED = 0x00000004;
 
-        public static NativeThread Create(nuint stackSize, delegate* stdcall<void*, uint> pThreadStart, void* pThreadData, bool start = false)
+        public static NativeThread Create(nuint stackSize, delegate* unmanaged<void*, uint> pThreadStart, void* pThreadData, bool start = false)
         {
             uint id;
 

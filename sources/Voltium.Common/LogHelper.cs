@@ -73,10 +73,10 @@ namespace Voltium.Common
 
         private const int BufferSize = 4096;
 
-        private static LockedList<FixedSizeArrayBufferWriter<string>?, MonitorLock> ThreadBuffers = new(MonitorLock.Create());
+        private static LockedList<FixedSizeArrayBufferWriter<char>?, MonitorLock> ThreadBuffers = new(MonitorLock.Create());
 
         [ThreadStatic]
-        private static FixedSizeArrayBufferWriter<string>? TextBuffer;
+        private static FixedSizeArrayBufferWriter<char>? TextBuffer;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         [MemberNotNull(nameof(TextBuffer))]
@@ -93,7 +93,7 @@ namespace Voltium.Common
             [MemberNotNull(nameof(TextBuffer))]
             static void InitializeTextBuffer()
             {
-                TextBuffer = new FixedSizeArrayBufferWriter<string>(BufferSize);
+                TextBuffer = new FixedSizeArrayBufferWriter<char>(BufferSize);
 
                 ThreadBuffers.Add(TextBuffer);
             }
@@ -127,20 +127,20 @@ namespace Voltium.Common
 
             while (true)
             {
-               // if (val.TryCopyTo(TextBuffer.GetSpan()))
+                if (val.TryCopyTo(TextBuffer.GetSpan()))
                 {
                     TextBuffer.Advance(val.Length);
                     break;
                 }
-                //else
-                //{
-                //    if (val.Length > TextBuffer.Capacity)
-                //    {
-                //        DirectWriteData(val);
-                //        break;
-                //    }
-                //    FlushBuffer();
-                //}
+                else
+                {
+                    if (val.Length > TextBuffer.Capacity)
+                    {
+                        DirectWriteData(val);
+                        break;
+                    }
+                    FlushBuffer();
+                }
             }
         }
 
@@ -153,7 +153,7 @@ namespace Voltium.Common
                 FlushBuffer();
             }
 
-           // TextBuffer.GetSpan()[0] = val;
+            TextBuffer.GetSpan()[0] = val;
             TextBuffer.Advance(1);
         }
 

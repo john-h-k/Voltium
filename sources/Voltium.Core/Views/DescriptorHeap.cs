@@ -105,7 +105,7 @@ namespace Voltium.Core
         /// <summary>
         /// The description of the heap
         /// </summary>
-        public D3D12_DESCRIPTOR_HEAP_DESC Desc => _heap.Ptr->GetDesc();
+        internal D3D12_DESCRIPTOR_HEAP_DESC Desc => _heap.Ptr->GetDesc();
 
         private uint _count;
         private uint _offset;

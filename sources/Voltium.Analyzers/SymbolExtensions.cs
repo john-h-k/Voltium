@@ -92,7 +92,7 @@ namespace Voltium.Analyzers
 
             foreach (var type in Enumerable.Reverse(types))
             {
-                var s = type.RemoveNodes(type.ChildNodes().OfType<AttributeListSyntax>(), SyntaxRemoveOptions.KeepDirectives).ToFullString();
+                var s = type.RemoveNodes(type.ChildNodes().OfType<AttributeListSyntax>(), SyntaxRemoveOptions.KeepDirectives)?.ToFullString() ?? string.Empty;
                 builder.Append(s.Substring(0, s.IndexOf('{')));
                 builder.Append("\n{\n");
             }

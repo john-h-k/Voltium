@@ -10,6 +10,7 @@ using Voltium.Core.Infrastructure;
 using Voltium.Core.Pipeline;
 using static TerraFX.Interop.Windows;
 using Voltium.Core.Pool;
+using Voltium.Core.Contexts;
 
 namespace Voltium.Core.Devices
 {
@@ -47,7 +48,7 @@ namespace Voltium.Core.Devices
                 compute.GetFenceAndMarker(out fences[1], out fenceValues[1]);
                 copy.GetFenceAndMarker(out fences[2], out fenceValues[2]);
 
-                ThrowIfFailed(DevicePointerAs<ID3D12Device1>()->SetEventOnMultipleFenceCompletion(
+                ThrowIfFailed(As<ID3D12Device1>()->SetEventOnMultipleFenceCompletion(
                     fences,
                     fenceValues,
                     3,
@@ -60,6 +61,17 @@ namespace Voltium.Core.Devices
                 BetterDeviceNeeded();
             }
         }
+
+        //public BundleContext CreateBundle(PipelineStateObject pso)
+        //{
+        //    const ExecutionContext bundleContext = (ExecutionContext)D3D12_COMMAND_LIST_TYPE.D3D12_COMMAND_LIST_TYPE_BUNDLE;
+        //    var allocator = CreateAllocator(bundleContext);
+
+        //    _ = pso.Pointer.TryQueryInterface<ID3D12PipelineState>(out var pPipeline);
+        //    var list = CreateList(bundleContext, allocator.Ptr, pPipeline.Ptr);
+
+        //    return new BundleContext(new ContextParams(this, list, allocator, pso, bundleContext, ContextFlags.None));
+        //}
 
         private void BetterDeviceNeeded()
         {
@@ -100,9 +112,9 @@ namespace Voltium.Core.Devices
         /// Returns a <see cref="GraphicsContext"/> used for recording graphical commands
         /// </summary>
         /// <returns>A new <see cref="GraphicsContext"/></returns>
-        public GraphicsContext BeginGraphicsContext(PipelineStateObject? pso = null, bool executeOnClose = false)
+        public GraphicsContext BeginGraphicsContext(PipelineStateObject? pso = null, ContextFlags flags = ContextFlags.None)
         {
-            var @params = ContextPool.Rent(ExecutionContext.Graphics, pso, executeOnClose: executeOnClose);
+            var @params = ContextPool.Rent(ExecutionContext.Graphics, pso, flags);
 
             var context = new GraphicsContext(@params);
             SetDefaultState(context, pso);
@@ -116,7 +128,7 @@ namespace Voltium.Core.Devices
             {
                 context.List->SetComputeRootSignature(rootSig);
             }
-            else if (pso is GraphicsPipelineStateObject)
+            else if (pso is GraphicsPipelineStateObject or MeshPipelineStateObject)
             {
                 context.List->SetGraphicsRootSignature(rootSig);
             }

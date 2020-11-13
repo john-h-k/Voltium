@@ -9,17 +9,13 @@ namespace Voltium.Core.Pipeline
     /// Represents the state of the rasterization stage
     /// </summary>
     [StructLayout(LayoutKind.Explicit)]
-    public struct RasterizerDesc : IPipelineStreamElement<RasterizerDesc>
+    public struct RasterizerDesc
     {
         [FieldOffset(0)]
         internal AlignedSubobjectType<D3D12_RASTERIZER_DESC> Type;
 
         [FieldOffset(0)]
         internal nuint _Pad;
-
-#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
-        public void _Initialize() => Type.Type = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE.D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_RASTERIZER;
-#pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
 
         /// <summary>
         /// The default <see cref="RasterizerDesc"/>. This correspends

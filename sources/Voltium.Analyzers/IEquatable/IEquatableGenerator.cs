@@ -11,7 +11,7 @@ namespace Voltium.Analyzers.IEquatable
     internal sealed class IEquatableGenerator : PredicatedTypeGenerator
     {
         // BUG: does not work with nested types
-        protected override void GenerateFromSymbol(SourceGeneratorContext context, INamedTypeSymbol symbol)
+        protected override void GenerateFromSymbol(GeneratorExecutionContext context, INamedTypeSymbol symbol)
         {
             var equalsCandidates = symbol.GetMembers(nameof(Equals))
                                         .Where(member => member is IMethodSymbol method
@@ -64,7 +64,7 @@ namespace Voltium.Analyzers.IEquatable
             context.AddSource($"{symbol.Name}.EqualityMembers.cs", SourceText.From(source, Encoding.UTF8));
         }
 
-        private object GenerateHashCodeOfAllFields(SourceGeneratorContext context, INamedTypeSymbol symbol)
+        private object GenerateHashCodeOfAllFields(GeneratorExecutionContext context, INamedTypeSymbol symbol)
         {
             var comparisons = new List<string>();
 
@@ -76,7 +76,7 @@ namespace Voltium.Analyzers.IEquatable
             return "HashCode.Combine(" + string.Join(", ", comparisons) + ")";
         }
 
-        private string GenerateComparisonOfAllFields(SourceGeneratorContext context, INamedTypeSymbol symbol)
+        private string GenerateComparisonOfAllFields(GeneratorExecutionContext context, INamedTypeSymbol symbol)
         {
             var comparisons = new List<string>();
 
@@ -97,7 +97,7 @@ namespace Voltium.Analyzers.IEquatable
 
         private const string GenerateEqualityAttributeName = "Voltium.Common.GenerateEqualityAttribute";
 
-        protected override bool Predicate(SourceGeneratorContext context, INamedTypeSymbol decl)
+        protected override bool Predicate(GeneratorExecutionContext context, INamedTypeSymbol decl)
             => decl.HasAttribute(GenerateEqualityAttributeName, context.Compilation);
 
         private const string TypeTemplate = @"

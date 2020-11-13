@@ -15,7 +15,7 @@ namespace Voltium.Analyzers.PipelineStreamInitializer
         private const string IPipelineStreamElement = "Voltium.Core.Pipeline.IPipelineStreamElement`1";
         private const string IPipelineStreamType = "Voltium.Core.Pipeline.IPipelineStreamType";
 
-        protected override void GenerateFromSymbol(SourceGeneratorContext context, INamedTypeSymbol decl)
+        protected override void GenerateFromSymbol(GeneratorExecutionContext context, INamedTypeSymbol decl)
         {
             var builder = new StringBuilder();
             foreach (var field in decl.GetMembers().OfType<IFieldSymbol>())
@@ -45,13 +45,13 @@ namespace Voltium.Analyzers.PipelineStreamInitializer
  ";
 
 
-        private bool IsElement(SourceGeneratorContext context, INamedTypeSymbol decl)
+        private bool IsElement(GeneratorExecutionContext context, INamedTypeSymbol decl)
         {
             var elementType = context.Compilation.GetTypeByMetadataName(IPipelineStreamElement)!.ConstructUnboundGenericType();
             return decl.AllInterfaces.Select(@interface => @interface.IsGenericType ? @interface.ConstructUnboundGenericType() : @interface).Contains(elementType, SymbolEqualityComparer.Default);
         }
 
-        protected override bool Predicate(SourceGeneratorContext context, INamedTypeSymbol decl)
+        protected override bool Predicate(GeneratorExecutionContext context, INamedTypeSymbol decl)
             => decl.AllInterfaces.Contains(context.Compilation.GetTypeByMetadataName(IPipelineStreamType), SymbolEqualityComparer.Default);
     }
 }

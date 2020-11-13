@@ -15,8 +15,7 @@ namespace Voltium.Core
     /// </summary>
     internal unsafe static class Win32ApplicationRunner
     {
-        private static readonly delegate* stdcall<IntPtr, uint, nuint, nint, nint> WindowProcHandle =
-            (delegate* stdcall<IntPtr, uint, nuint, nint, nint>)(delegate*<IntPtr, uint, nuint, nint, nint>)&WindowProc;
+        private static readonly delegate* unmanaged<IntPtr, uint, nuint, nint, nint> WindowProcHandle = &WindowProc;
 
         private static bool _isResizing = false;
         private static bool _isPaused = false;
@@ -139,8 +138,7 @@ namespace Voltium.Core
         private const int ScrollResolution = 120;
 
         // Main message handler
-        // Uncomment when JIT bug is fixed
-        //[UnmanagedCallersOnly(CallingConvention = CallingConvention.StdCall)]
+        [UnmanagedCallersOnly]
         private static nint WindowProc(IntPtr hWnd, uint message, nuint wParam, nint lParam)
         {
             switch (message)

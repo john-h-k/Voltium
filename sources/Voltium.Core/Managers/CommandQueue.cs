@@ -11,7 +11,7 @@ using static TerraFX.Interop.Windows;
 
 namespace Voltium.Core.Devices
 {
-    internal unsafe struct CommandQueue : IDisposable, IInternalD3D12Object
+    internal unsafe class CommandQueue : IDisposable, IInternalD3D12Object
     {
         private ComputeDevice _device;
         private UniqueComPtr<ID3D12CommandQueue> _queue;
@@ -23,14 +23,14 @@ namespace Voltium.Core.Devices
 
         public ID3D12CommandQueue* GetQueue() => _queue.Ptr;
 
-        private static ulong StartingFenceForContext(ExecutionContext context) => context switch
-        {
-            // we do this to prevent conflicts when comparing markers
-            ExecutionContext.Copy => ulong.MaxValue / 4 * 0,
-            ExecutionContext.Compute => ulong.MaxValue / 4 * 1,
-            ExecutionContext.Graphics => ulong.MaxValue / 4 * 2,
-            _ => 0xFFFFFFFFFFFFFFFF
-        };
+        private static ulong StartingFenceForContext(ExecutionContext context) => 0; // context switch
+        //{
+        //    // we do this to prevent conflicts when comparing markers
+        //    ExecutionContext.Copy => ulong.MaxValue / 4 * 0,
+        //    ExecutionContext.Compute => ulong.MaxValue / 4 * 1,
+        //    ExecutionContext.Graphics => ulong.MaxValue / 4 * 2,
+        //    _ => 0xFFFFFFFFFFFFFFFF
+        //};
 
         public CommandQueue(
             ComputeDevice device,
@@ -71,6 +71,15 @@ namespace Voltium.Core.Devices
             return Signal();
         }
 
+        public bool TryQueryTimestamps(out ulong gpu, out ulong cpu)
+        {
+            fixed (ulong* pGpu = &gpu)
+            fixed (ulong* pCpu = &cpu)
+            {
+                return TryQueryTimestamps(pGpu, pCpu);
+            }
+        }
+
         public bool TryQueryTimestamps(ulong* gpu, ulong* cpu) => SUCCEEDED(_queue.Ptr->GetClockCalibration(gpu, cpu));
 
         private static string GetListTypeName(ExecutionContext type) => type switch
@@ -82,11 +91,10 @@ namespace Voltium.Core.Devices
         };
 
         internal GpuTask GetSynchronizerForIdle() => Signal();
+        internal void Idle() => GetSynchronizerForIdle().Block();
 
         public void Wait(in GpuTask waitable)
         {
-            _queue.Ptr->Wait(waitable);
-
             waitable.GetFenceAndMarker(out var fence, out var marker);
             _device.ThrowIfFailed(_queue.Ptr->Wait(fence, marker));
         }

@@ -19,11 +19,14 @@ namespace Voltium.RenderEngine
     {
         private RenderGraph _graph;
 
+        internal RenderGraph Graph => _graph; // we use this to avoid capturing in the Execute method where we sort passes
+
         private int _passIndex;
 
         internal RenderPass Pass;
         internal int Depth;
 
+        internal GpuContext Context; // this is set by the scheduler and used when multi-threading the recording
 
         internal RenderPassBuilder(RenderGraph graph, int passIndex, RenderPass pass) : this()
         {
@@ -121,21 +124,22 @@ namespace Voltium.RenderEngine
         internal static bool IsPersistent(ResourceHandle handle) => (handle.Index & PersistentResourceMask) != 0;
         internal static ResourceHandle NormalizeHandle(ResourceHandle handle) => new (handle.Index & ~PersistentResourceMask);
 
+#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
+        public BufferHandle CreatePersistentBuffer(string name, in BufferDesc desc, MemoryAccess memoryAccess, ResourceState initialState = ResourceState.CopyDestination, string? debugName = null)
+#pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
+        {
+            ThrowForUnnamedPersistent(name);
 
-        //public BufferHandle CreatePersistentBuffer(string name, in BufferDesc desc, MemoryAccess memoryAccess, ResourceState initialState = ResourceState.CopyDestination, string? debugName = null)
-        //{
-        //    ThrowForUnnamedPersistent(name);
-
-        //    return _graph.AddResource(new ResourceDesc
-        //    {
-        //        Name = name,
-        //        Type = ResourceType.Buffer,
-        //        BufferDesc = desc,
-        //        MemoryAccess = memoryAccess,
-        //        InitialState = initialState,
-        //        DebugName = debugName
-        //    }, _passIndex).AsBufferHandle();
-        //}
+            return _graph.AddResource(new ResourceDesc
+            {
+                //Name = name,
+                Type = ResourceType.Buffer,
+                BufferDesc = desc,
+                MemoryAccess = memoryAccess,
+                InitialState = initialState,
+                DebugName = debugName
+            }, _passIndex).AsBufferHandle();
+        }
 
         private static void ThrowForUnnamedPersistent(string name)
         {
@@ -144,7 +148,7 @@ namespace Voltium.RenderEngine
                 return;
             }
             // We specifically validate this, because not doing so would cause the graph to think this resource is transient
-            // And shit would explode
+            // And shit would explode (use-after-free on the resource likely. or weird unclear "resource dispose" errors)
             ThrowHelper.ThrowArgumentNullException(nameof(name), "Persistent resources must have a name");
         }
 

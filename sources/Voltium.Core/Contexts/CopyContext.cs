@@ -19,6 +19,63 @@ namespace Voltium.Core
     /// </summary>
     public unsafe partial class CopyContext : GpuContext
     {
+        [FixedBufferType(typeof(D3D12_RESOURCE_BARRIER), 16)]
+        private partial struct BarrierBuffer16 { }
+
+        private BarrierBuffer16 Barriers;
+        private uint NumBarriers;
+
+
+        internal void AddBarrier(in D3D12_RESOURCE_BARRIER barrier)
+        {
+            if (NumBarriers == BarrierBuffer16.BufferLength)
+            {
+                FlushBarriers();
+            }
+
+            Barriers[NumBarriers++] = barrier;
+        }
+
+        internal void AddBarriers(ReadOnlySpan<D3D12_RESOURCE_BARRIER> barriers)
+        {
+            if (barriers.Length == 0)
+            {
+                return;
+            }
+
+            if (barriers.Length > BarrierBuffer16.BufferLength)
+            {
+                FlushBarriers();
+                fixed (D3D12_RESOURCE_BARRIER* pBarriers = barriers)
+                {
+                    List->ResourceBarrier((uint)barriers.Length, pBarriers);
+                }
+                return;
+            }
+
+            if (NumBarriers + barriers.Length >= BarrierBuffer16.BufferLength)
+            {
+                FlushBarriers();
+            }
+
+            barriers.CopyTo(Barriers.AsSpan((int)NumBarriers));
+            NumBarriers += (uint)barriers.Length;
+        }
+
+        internal void FlushBarriers()
+        {
+            if (NumBarriers == 0)
+            {
+                return;
+            }
+
+            fixed (D3D12_RESOURCE_BARRIER* pBarriers = Barriers)
+            {
+                List->ResourceBarrier(NumBarriers, pBarriers);
+            }
+
+            NumBarriers = 0;
+        }
 
         internal CopyContext(in ContextParams @params) : base(@params)
         {
@@ -128,7 +185,7 @@ namespace Voltium.Core
         /// <param name="subresourceIndex">The index of the subresource to copy from</param>
         /// <param name="dest"></param>
         /// <param name="layout"></param>
-        public void ReadbackSubresource(in Texture source, uint subresourceIndex, out Buffer dest, out SubresourceLayout layout)
+        public void CopySubresource(in Texture source, uint subresourceIndex, out Buffer dest, out SubresourceLayout layout)
         {
             Device.GetCopyableFootprint(source, subresourceIndex, 1, out var d3d12Layout, out var numRows, out var rowSize, out var size);
             dest = Device.Allocator.AllocateBuffer((long)size, MemoryAccess.CpuReadback, ResourceState.CopyDestination);
@@ -148,7 +205,7 @@ namespace Voltium.Core
         /// <param name="source">The resource to copy from</param>
         /// <param name="subresourceIndex">The index of the subresource to copy from</param>
         /// <param name="data"></param>
-        public void ReadbackSubresourceToPreexisting(in Texture source, uint subresourceIndex, in Buffer data)
+        public void CopySubresource(in Texture source, uint subresourceIndex, in Buffer data)
         {
             //ResourceTransition(source, ResourceState.CopySource, subresourceIndex);
             //ResourceTransition(data, ResourceState.CopyDestination, 0);
@@ -377,6 +434,13 @@ namespace Voltium.Core
             resource.TransitionBegan = false;
 
             AddBarrier(barrier);
+        }
+
+        /// <inheritdoc/>
+        public override void Dispose()
+        {
+            FlushBarriers();
+            base.Dispose();
         }
     }
 }

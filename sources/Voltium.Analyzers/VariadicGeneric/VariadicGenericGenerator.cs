@@ -15,7 +15,7 @@ namespace Voltium.Analyzers
     {
         private const string AttributeName = "Voltium.Common.VariadicGenericAttribute";
         private const string TargetExpressionName = "InsertExpressionsHere";
-        protected override void Generate(SourceGeneratorContext context, ISymbol symbol, MethodDeclarationSyntax syntax)
+        protected override void Generate(GeneratorExecutionContext context, ISymbol symbol, MethodDeclarationSyntax syntax)
         {
             Debug.Assert(symbol is IMethodSymbol);
 
@@ -43,7 +43,7 @@ namespace Voltium.Analyzers
             context.AddSource($"{symbol.Name}.Variadics.cs", SourceText.From(source, Encoding.UTF8));
         }
 
-        private void WriteMethod(StringBuilder builder, SourceGeneratorContext context, IMethodSymbol symbol, MethodDeclarationSyntax syntax, string template, int argCount)
+        private void WriteMethod(StringBuilder builder, GeneratorExecutionContext context, IMethodSymbol symbol, MethodDeclarationSyntax syntax, string template, int argCount)
         {
             var targetAttribute = context.Compilation.GetTypeByMetadataName(AttributeName);
             var targetSymbol = targetAttribute!.GetMembers(TargetExpressionName).First();
@@ -108,7 +108,7 @@ namespace Voltium.Analyzers
             builder.Append("{" + string.Join(";\n", stmts) + ";\n" + "}");
         }
 
-        private void WriteMethodDecl(StringBuilder builder, SourceGeneratorContext context, IMethodSymbol symbol, MethodDeclarationSyntax syntax, int argCount)
+        private void WriteMethodDecl(StringBuilder builder, GeneratorExecutionContext context, IMethodSymbol symbol, MethodDeclarationSyntax syntax, int argCount)
         {
             if (argCount > 0)
             {
@@ -137,7 +137,7 @@ namespace {0}
     }}
 }}";
 
-        protected override bool Predicate(SourceGeneratorContext context, ISymbol decl)
+        protected override bool Predicate(GeneratorExecutionContext context, ISymbol decl)
             => decl.HasAttribute(AttributeName, context.Compilation);
     }
 }

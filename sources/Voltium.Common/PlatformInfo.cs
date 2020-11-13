@@ -11,5 +11,6 @@ namespace Voltium.Common
     {
         public static readonly bool IsLinux = RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
         public static readonly bool IsWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+        public static readonly bool IsWindows7 = IsWindows && Environment.OSVersion.Version.Major == 7;
     }
 }

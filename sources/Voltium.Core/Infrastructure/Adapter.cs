@@ -13,11 +13,35 @@ namespace Voltium.Core.Infrastructure
     public partial struct Adapter : IEquatable<Adapter>, IDisposable
     {
         /// <summary>
+        /// Whether the <see cref="Adapter"/> is made by AMD
+        /// </summary>
+        public bool IsAmd => VendorId == AdapterVendor.Amd;
+
+
+        /// <summary>
+        /// Whether the <see cref="Adapter"/> is made by NVidia
+        /// </summary>
+        public bool IsNVidia => VendorId == AdapterVendor.NVidia;
+
+
+        /// <summary>
+        /// Whether the <see cref="Adapter"/> is made by Intel
+        /// </summary>
+        public bool IsIntel => VendorId == AdapterVendor.Intel;
+
+
+        /// <summary>
+        /// Whether the <see cref="Adapter"/> is a discrete (seperate) rather than integrated GPU
+        /// </summary>
+        public bool IsDiscrete => DedicatedVideoMemory > 0;
+
+
+        /// <summary>
         /// The value of the <see cref="IDXGIAdapter1"/>
         /// </summary>
         internal unsafe IUnknown* GetAdapterPointer() => _adapter.Ptr;
 
-        private UniqueComPtr<IUnknown> _adapter;
+        internal UniqueComPtr<IUnknown> _adapter;
 
         /// <summary>
         /// A string that contains the adapter description
@@ -143,5 +167,54 @@ namespace Voltium.Core.Infrastructure
 
         /// <inheritdoc cref="IDisposable"/>
         public void Dispose() => _adapter.Dispose();
+    }
+
+    /// <summary>
+    /// The memory info for an adapter
+    /// </summary>
+    public readonly struct AdapterMemoryInfo
+    {
+        /// <summary>
+        /// Specifies the OS-provided video memory budget, in bytes,
+        /// that the application should target.
+        /// If CurrentUsage is greater than Budget,
+        /// the application may incur stuttering or performance penalties due to background activity by the OS to provide other applications with a fair usage of video memory
+        /// </summary>
+        public ulong Budget { get; init; }
+
+        /// <summary>
+        /// Specifies the application’s current video memory usage, in bytes
+        /// </summary>
+        public ulong CurrentUsage { get; init; }
+
+        /// <summary>
+        /// The amount of video memory, in bytes, that the application has available for reservation
+        /// </summary>
+        public ulong AvailableForReservation { get; init; }
+
+        /// <summary>
+        /// The amount of video memory, in bytes, that is reserved by the application.
+        /// The OS uses the reservation as a hint to determine the application’s minimum working set.
+        /// Applications should attempt to ensure that their video memory usage can be trimmed to meet this requirement
+        /// </summary>
+        public ulong CurrentReservation { get; init; }
+    }
+
+
+    /// <summary>
+    /// Defines the memory segment for an adapter
+    /// </summary>
+    public enum MemorySegment : uint
+    {
+        /// <summary>
+        /// The local memory segment, which is closest to the adapter and fastest to work with
+        /// </summary>
+        Local = DXCoreSegmentGroup.Local,
+
+
+        /// <summary>
+        /// The nonlocal memory segment, which is CPU accessible and slower to access from the adapter
+        /// </summary>
+        NonLocal = DXCoreSegmentGroup.NonLocal,
     }
 }

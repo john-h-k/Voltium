@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Text;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Devices;
@@ -92,7 +93,8 @@ namespace Voltium.Core
 
                 if (Windows.FAILED(hr))
                 {
-                    ThrowHelper.ErrorWithBlob(hr, pError);
+                    var message = pError is null ? string.Empty : pError->AsDxcBlob()->GetString(Encoding.ASCII);
+                    ThrowHelper.ThrowExternalException(hr, message);
                 }
 
                 using UniqueComPtr<ID3D12RootSignature> rootSig = device.CreateRootSignature(

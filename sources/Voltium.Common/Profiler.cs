@@ -177,7 +177,6 @@ namespace Voltium.Common
 
                 flags |= OverrideFlags;
 
-                // this contrived pattern generates better asm when no flags are set (the most common case)
                 if (data.Flags.HasFlag(ProfilerBlockFlags.CaptureGCMemoryInfo))
                 {
                     data.StartMemoryInfo = GC.GetGCMemoryInfo();

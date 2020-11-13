@@ -75,7 +75,7 @@ namespace Voltium.Core.Memory
         private PageManager _manager;
         private List<Buffer> _usedPages;
         private List<Buffer> _usedLargePages;
-        private MemoryAccess _access;
+        private readonly MemoryAccess _access;
 
         /// <summary>
         /// Create a new <see cref="DynamicAllocator"/>
@@ -232,12 +232,13 @@ namespace Voltium.Core.Memory
                         Alignment = 0
                     },
                     HeapType = (D3D12_HEAP_TYPE)_access,
+                    HeapProperties = new D3D12_HEAP_PROPERTIES((D3D12_HEAP_TYPE)_access),
                     InitialState = _access == MemoryAccess.CpuUpload ? D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_GENERIC_READ : D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_COPY_DEST,
                 };
 
                 using UniqueComPtr<ID3D12Resource> page = _device.CreateCommittedResource(&desc);
 
-                var buff = new Buffer(size, new GpuResource(_device, page.Move(), desc, null));
+                var buff = new Buffer(size, 0, new GpuResource(_device, page.Move(), &desc, null));
 
                 if (_access == MemoryAccess.CpuUpload)
                 {

@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.InteropServices;
 using System.Threading;
 
 namespace Voltium.RenderEngine.Jobs
@@ -25,7 +26,7 @@ namespace Voltium.RenderEngine.Jobs
                 var thread = NativeThread.Create(
                     StackSize,
                     // TODO mark method as UnmanagedCallback or whatever
-                    (delegate* stdcall<void*, uint>)(delegate*<void*, uint>)&NativeThreadEntryPoint,
+                    &NativeThreadEntryPoint,
                     null,
                     false
                 );
@@ -43,7 +44,7 @@ namespace Voltium.RenderEngine.Jobs
                 var thread = NativeThread.Create(
                     IoStackSize,
                     // TODO mark method as UnmanagedCallback or whatever
-                    (delegate* stdcall<void*, uint>)(delegate*<void*, uint>)&NativeIoThreadEntryPoint,
+                    &NativeIoThreadEntryPoint,
                     null,
                     false
                 );
@@ -52,11 +53,14 @@ namespace Voltium.RenderEngine.Jobs
             }
         }
 
+        [UnmanagedCallersOnly]
         private static uint NativeThreadEntryPoint(void* pData)
         {
             // non-zero == success, so we choose the least zero value possible
             return 0xFFFFFFFF;
         }
+
+        [UnmanagedCallersOnly]
         private static uint NativeIoThreadEntryPoint(void* pData)
         {
             // non-zero == success, so we choose the least zero value possible

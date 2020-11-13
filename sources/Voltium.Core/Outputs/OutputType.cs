@@ -1,4 +1,4 @@
-﻿namespace Voltium.Core.Devices
+namespace Voltium.Core.Devices
 {
     /// <summary>
     /// The type of an output
@@ -13,6 +13,11 @@
         /// <summary>
         /// A WinRT ICoreWIndow
         /// </summary>
-        ICoreWindow
+        ICoreWindow,
+
+        /// <summary>
+        /// A WinRT ISwapChainPanelNative
+        /// </summary>
+        SwapChainPanel,
     }
 }

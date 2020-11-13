@@ -18,6 +18,6 @@ namespace Voltium.Common
         }
 
         public static Span<T> AsSpan<T>(this List<T> list) => CollectionsMarshal.AsSpan(list);
-        public static ReadOnlySpan<T> AsROSpan<T>(this List<T> list) => CollectionsMarshal.AsSpan(list);
+        public static ReadOnlySpan<T> AsReadOnlySpan<T>(this List<T> list) => CollectionsMarshal.AsSpan(list);
     }
 }

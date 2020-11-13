@@ -26,6 +26,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="GalaxyRenderer\Fullscreen.hlsl" />
     <Content Include="Shaders\Mandelbrot\EntireScreenCopyVS.hlsl" />
   </ItemGroup>
 
@@ -41,6 +42,11 @@
     <None Include="Assets\cube.obj" />
     <None Include="Assets\logo.mtl" />
     <None Include="Assets\logo.obj" />
+    <None Include="ComputeSharpBlur\HorizontalConvolutionAndAccumulatePartialsProcessor.hlsl" />
+    <None Include="ComputeSharpBlur\VerticalConvolutionProcessor.hlsl" />
+    <None Include="GalaxyRenderer\Density.hlsl" />
+    <None Include="GalaxyRenderer\Render.hlsl" />
+    <None Include="HelloTriangleRaytracing\HelloTriangleRaytracingShader.hlsl" />
     <None Include="ImageBlur\ImageBlur.hlsl">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

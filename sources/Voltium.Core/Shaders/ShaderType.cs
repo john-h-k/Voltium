@@ -38,6 +38,16 @@ namespace Voltium.Core.Devices
         Compute = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_CS,
 
         /// <summary>
+        /// A mesh shader, or MS
+        /// </summary>
+        Mesh = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_MS,
+
+        /// <summary>
+        /// An amplification shader, or AS
+        /// </summary>
+        Amplification = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_AS,
+
+        /// <summary>
         /// A set of shaders that can have any and all types
         /// </summary>
         Library,
@@ -57,6 +67,8 @@ namespace Voltium.Core.Devices
                     or ShaderType.Hull
                     or ShaderType.Geometry
                     or ShaderType.Compute
+                    or ShaderType.Mesh
+                    or ShaderType.Amplification
                     or ShaderType.Library
                     or ShaderType.Unspecified;
     }

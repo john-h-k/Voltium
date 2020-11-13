@@ -129,7 +129,7 @@ namespace Voltium.Core.Contexts
 
                 FlushBarriers();
                 _ = Windows.UpdateSubresources(
-                   List,
+                    (ID3D12GraphicsCommandList*)List,
                     destination.GetResourcePointer(),
                     upload.Buffer.GetResourcePointer(),
                     upload.Offset,
@@ -152,7 +152,7 @@ namespace Voltium.Core.Contexts
         public override void Dispose()
         {
             // we execute list so we need to stop GpuContext.Dispose doing so
-            Params.ExecuteOnClose = false;
+            Params.Flags = Devices.ContextFlags.None;
             base.Dispose();
             var task = Device.Execute(this);
             _transientAllocator.Dispose(task);

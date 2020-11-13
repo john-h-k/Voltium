@@ -1,3 +1,4 @@
+using System;
 using TerraFX.Interop;
 
 namespace Voltium.Core.Devices
@@ -27,22 +28,46 @@ namespace Voltium.Core.Devices
         /// </summary>
         public uint SyncInterval;
 
+        /// <summary>
+        /// The <see cref="OutputFlags"/> to use
+        /// </summary>
         public OutputFlags Flags;
     }
 
+    /// <summary>
+    /// Defines flags used for <see cref="OutputConfiguration"/>
+    /// </summary>
+    [Flags]
     public enum OutputFlags : uint
     {
+        /// <summary>
+        /// Allow render-target access to the back buffer. This is the same as <see cref="Default"/>
+        /// </summary>
         AllowRenderTarget = Windows.DXGI_USAGE_RENDER_TARGET_OUTPUT,
-        AllowUnorderedAccess = Windows.DXGI_USAGE_UNORDERED_ACCESS,
+
+        ///// <summary>
+        ///// Allow unordered-access to the back buffer
+        ///// </summary>
+        //AllowUnorderedAccess = Windows.DXGI_USAGE_UNORDERED_ACCESS,
+
+        /// <summary>
+        /// Allow shader-resoure access to the back buffer
+        /// </summary>
         AllowShaderResorce = Windows.DXGI_USAGE_SHADER_INPUT,
 
-        PreserveBackBuffer,
+        /// <summary>
+        /// Preserve the back buffer, so that every n frames it is reused
+        /// </summary>
+        PreserveBackBuffer = 64,
 
+        /// <summary>W
+        /// The default flags. This is the same as <see cref="AllowRenderTarget"/>
+        /// </summary>
         Default = AllowRenderTarget
     }
 
     internal static class OutputFlagExtensions
     {
-        public static OutputFlags UsageFlags(this OutputFlags flags) => flags & (OutputFlags.AllowRenderTarget | OutputFlags.AllowShaderResorce | OutputFlags.AllowUnorderedAccess);
+        public static OutputFlags UsageFlags(this OutputFlags flags) => flags & (OutputFlags.AllowRenderTarget | OutputFlags.AllowShaderResorce);
     }
 }

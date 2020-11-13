@@ -157,6 +157,7 @@ namespace Voltium.CubeGame
                 RootSignature = RootSignature,
                 Topology = TopologyClass.Triangle,
                 RenderTargetFormats = BackBufferFormat.R8G8B8A8UnsignedNormalized,
+                
                 DepthStencilFormat = DataFormat.Depth32Single,
 
                 VertexShader = ShaderManager.CompileShader("Shaders/ChunkShader.hlsl", ShaderType.Vertex, shaderFlags, "VertexMain"),
@@ -170,12 +171,11 @@ namespace Voltium.CubeGame
 
             Pso = _device.PipelineManager.CreatePipelineStateObject(psoDesc, "ChunkPso");
 
-            psoDesc.Msaa = new MsaaElement(MsaaDesc.X8);
+            psoDesc.Msaa = MsaaDesc.X8;
 
             MsaaPso = _device.PipelineManager.CreatePipelineStateObject(psoDesc, "MsaaChunkPso");
 
             UploadTextures();
-
 
             Chunks = new[] { new RenderChunk() };
             Chunks[0].Chunk.Blocks = new Block?[Width * Height * Depth];
@@ -216,20 +216,20 @@ namespace Voltium.CubeGame
         {
             _frameConstants = _device.Allocator.AllocateUploadBuffer<FrameConstants>();
             Chunks[0].Mesh.Constants = _device.Allocator.AllocateUploadBuffer<ChunkConstants>();
-            
-            //FrameConstants* constants = _frameConstants.As<FrameConstants>();
 
-            //constants->View = Matrix4x4.CreateLookAt(
-            //    new Vector3(0.0f, 0.7f, 1.5f),
-            //    new Vector3(0.0f, -0.1f, 0.0f),
-            //    new Vector3(0.0f, 1.0f, 0.0f)
-            //);
-            //const float defaultFov = 70.0f * (float)Math.PI / 180.0f;
-            //constants->Projection = Matrix4x4.CreatePerspectiveFieldOfView(defaultFov, 1, 0.01f, 100f);
+            FrameConstants* constants = _frameConstants.As<FrameConstants>();
 
-            //ChunkConstants* chunkConstants = Chunks[0].Mesh.Constants.As<ChunkConstants>();
-            //chunkConstants->TexTransform = Matrix4x4.Identity;
-            //chunkConstants->World = Matrix4x4.CreateTranslation(0, 0, -5);
+            constants->View = Matrix4x4.CreateLookAt(
+                new Vector3(0.0f, 0.7f, 1.5f),
+                new Vector3(0.0f, -0.1f, 0.0f),
+                new Vector3(0.0f, 1.0f, 0.0f)
+            );
+            const float defaultFov = 70.0f * (float)Math.PI / 180.0f;
+            constants->Projection = Matrix4x4.CreatePerspectiveFieldOfView(defaultFov, 1, 0.01f, 100f);
+
+            ChunkConstants* chunkConstants = Chunks[0].Mesh.Constants.As<ChunkConstants>();
+            chunkConstants->TexTransform = Matrix4x4.Identity;
+            chunkConstants->World = Matrix4x4.CreateTranslation(0, 0, -5);
         }
 
         public override void Register(ref RenderPassBuilder builder, ref Resolver resolver)
@@ -265,28 +265,28 @@ namespace Voltium.CubeGame
 
             context.SetRootSignature(RootSignature);
             context.SetAndClearRenderTarget(_device.CreateRenderTargetView(sceneColor), DefaultSkyColor, _device.CreateDepthStencilView(sceneDepth));
-            context.SetRootDescriptorTable(RootSignatureConstants.TextureIndex, _texViews.Start);
-            context.SetConstantBuffer<FrameConstants>(RootSignatureConstants.FrameConstantsIndex, _frameConstants);
-            context.SetTopology(Topology.TriangleList);
-            context.SetViewportAndScissor(sceneColor.Resolution);
+            //context.SetRootDescriptorTable(RootSignatureConstants.TextureIndex, _texViews.Start);
+            //context.SetConstantBuffer<FrameConstants>(RootSignatureConstants.FrameConstantsIndex, _frameConstants);
+            //context.SetTopology(Topology.TriangleList);
+            //context.SetViewportAndScissor(sceneColor.Resolution);
 
-            for (var i = 0; i < Chunks.Length; i++)
-            {
-                ref var chunk = ref Chunks[i];
+            //for (var i = 0; i < Chunks.Length; i++)
+            //{
+            //    ref var chunk = ref Chunks[i];
 
-                if (chunk.Chunk.NeedsRebuild)
-                {
-                    BuildMesh(ref chunk);
-                }
+            //    if (chunk.Chunk.NeedsRebuild)
+            //    {
+            //        BuildMesh(ref chunk);
+            //    }
 
-                context.SetConstantBuffer<ChunkConstants>(RootSignatureConstants.ObjectConstantsIndex, chunk.Mesh.Constants);
-                context.SetShaderResourceBuffer<uint>(RootSignatureConstants.ObjectTexIndicesIndex, chunk.Mesh.TexIndices);
+            //    context.SetConstantBuffer<ChunkConstants>(RootSignatureConstants.ObjectConstantsIndex, chunk.Mesh.Constants);
+            //    context.SetShaderResourceBuffer<uint>(RootSignatureConstants.ObjectTexIndicesIndex, chunk.Mesh.TexIndices);
 
-                context.SetVertexBuffers<BlockVertex>(chunk.Mesh.Vertices, (uint)chunk.Mesh.VertexCount, 0);
-                context.SetIndexBuffer<uint>(chunk.Mesh.Indices, (uint)chunk.Mesh.IndexCount);
+            //    context.SetVertexBuffers<BlockVertex>(chunk.Mesh.Vertices, (uint)chunk.Mesh.VertexCount, 0);
+            //    context.SetIndexBuffer<uint>(chunk.Mesh.Indices, (uint)chunk.Mesh.IndexCount);
 
-                context.DrawIndexed(chunk.Mesh.IndexCount);
-            }
+            //    context.DrawIndexed(chunk.Mesh.IndexCount);
+            //}
         }
 
         public unsafe void BuildMesh(ref RenderChunk chunkPair)

@@ -17,6 +17,7 @@ namespace Voltium.Core.Memory
         ID3D12Object* IInternalD3D12Object.GetPointer() => _resource.GetPointer();
 
         private GpuResource _resource;
+        private uint _offset;
         private void* _cpuAddress;
         private ulong _gpuAddress;
 
@@ -30,14 +31,15 @@ namespace Voltium.Core.Memory
         /// </summary>
         public readonly uint Length;
 
-        internal Buffer(ulong length, GpuResource resource)
+        internal Buffer(ulong length, ulong offset, GpuResource resource)
         {
             _resource = resource;
+            _offset = (uint)offset;
 
             Length = (uint)length;
             _cpuAddress = null;
 
-            _gpuAddress = _resource.GetResourcePointer()->GetGPUVirtualAddress();
+            _gpuAddress = _resource.GetResourcePointer()->GetGPUVirtualAddress() + _offset;
         }
 
         private void ThrowIfDead()
@@ -59,12 +61,22 @@ namespace Voltium.Core.Memory
         /// </summary>
         public T* As<T>() where T : unmanaged
         {
-            if (_cpuAddress == null)
-            {
-                _cpuAddress = _resource is null ? null : _resource.Map(0);
-            }
+            Map();
 
             return (T*)_cpuAddress;
+        }
+
+        /// <summary>
+        /// The buffer data. This may be <see langword="null"/> if the data is not CPU writable
+        /// </summary>
+        public void* Pointer
+        {
+            get
+            {
+                Map();
+
+                return _cpuAddress;
+            }
         }
 
         /// <summary>
@@ -74,10 +86,7 @@ namespace Voltium.Core.Memory
         {
             get
             {
-                if (_cpuAddress == null)
-                {
-                    _cpuAddress = _resource is null ? null : _resource.Map(0);
-                }
+                Map();
 
                 return new Span<byte>(_cpuAddress, (int)Length);
             }
@@ -92,7 +101,7 @@ namespace Voltium.Core.Memory
             {
                 return;
             }
-            _cpuAddress = _resource.Map(0);
+            _cpuAddress = (byte*)_resource.Map(0) + _offset;
         }
 
         /// <summary>
@@ -166,6 +175,20 @@ namespace Voltium.Core.Memory
         public void Dispose()
         {
             _resource?.Dispose();
+            _resource = null!;
+            _cpuAddress = null;
+            _gpuAddress = 0;
+        }
+
+
+
+        /// <inheritdoc/>
+        public void Dispose(in GpuTask disposeAfter)
+        {
+            static void _Dispose(GpuResource resource) => resource.Dispose();
+
+            disposeAfter.RegisterCallback(_resource, &_Dispose);
+
             _resource = null!;
             _cpuAddress = null;
             _gpuAddress = 0;

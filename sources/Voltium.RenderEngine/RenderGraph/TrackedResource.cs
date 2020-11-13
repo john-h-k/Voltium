@@ -8,7 +8,7 @@ using Voltium.Core.Memory;
 
 namespace Voltium.RenderEngine
 {
-    internal struct TrackedResource : IDisposable
+    internal struct TrackedResource
     {
         public const int NoWritePass = -1;
 
@@ -63,15 +63,15 @@ namespace Voltium.RenderEngine
             }
         }
 
-        public void Dispose()
+        public void Dispose(in GpuTask free = default)
         {
             if (Desc.Type == ResourceType.Buffer)
             {
-                Desc.Buffer.Dispose();
+                Desc.Buffer.Dispose(free);
             }
             else
             {
-                Desc.Texture.Dispose();
+                Desc.Texture.Dispose(free);
             }
         }
 

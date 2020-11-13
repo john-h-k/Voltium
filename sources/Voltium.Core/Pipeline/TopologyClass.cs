@@ -9,13 +9,10 @@ namespace Voltium.Core.Pipeline
     /// The class of topology (either Point, Line, Triangle, or Patch)
     /// </summary>
     [StructLayout(LayoutKind.Explicit)]
-    public struct TopologyClass : IPipelineStreamElement<TopologyClass>
+    public struct TopologyClass
     {
         [FieldOffset(0)]
-        internal D3D12_PIPELINE_STATE_SUBOBJECT_TYPE Type;
-
-        [FieldOffset(sizeof(D3D12_PIPELINE_STATE_SUBOBJECT_TYPE))]
-        internal D3D12_PRIMITIVE_TOPOLOGY_TYPE Class;
+        internal AlignedSubobjectType<D3D12_PRIMITIVE_TOPOLOGY_TYPE> Type;
 
         [FieldOffset(0)]
         internal nuint _Pad;
@@ -23,8 +20,8 @@ namespace Voltium.Core.Pipeline
         internal TopologyClass(D3D12_PRIMITIVE_TOPOLOGY_TYPE type)
         {
             _Pad = default;
-            Type = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_PRIMITIVE_TOPOLOGY;
-            Class = type;
+            Type.Type = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_PRIMITIVE_TOPOLOGY;
+            Type.Inner = type;
         }
 
         /// <summary>
@@ -46,10 +43,6 @@ namespace Voltium.Core.Pipeline
         /// Primitives are control patches used in tesselation
         /// </summary>
         public static TopologyClass Patch => new(D3D12_PRIMITIVE_TOPOLOGY_TYPE_PATCH);
-
-#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
-        public void _Initialize() => Type = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_PRIMITIVE_TOPOLOGY;
-#pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
     }
 
     internal struct AlignedSubobjectType<T> where T : unmanaged

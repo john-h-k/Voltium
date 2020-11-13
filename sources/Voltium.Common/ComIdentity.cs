@@ -22,7 +22,7 @@ namespace Voltium.Common
             }
         }
 
-        public static bool TryGetManagedObject<TCom, TManaged>(TCom* com, [MaybeNullWhen(false)] out TManaged managed) where TCom : unmanaged where TManaged : class
+        public static bool TryGetManagedObject<TCom, TManaged>(TCom* com, [NotNullWhen(true)] out TManaged managed) where TCom : unmanaged where TManaged : class?
         {
             object? val;
             lock (_identity)
@@ -30,15 +30,16 @@ namespace Voltium.Common
                 val = _identity.TryGetValue((nuint)com, out var obj) ? obj : null;
             }
             Debug.Assert(val is null or TManaged);
-            managed = (TManaged?)val;
+            managed = (TManaged)val!;
             return managed is not null;
         }
 
         public static TManaged GetManagedObject<TCom, TManaged>(TCom* com) where TCom : unmanaged where TManaged : class
         {
-            var val = _identity.TryGetValue((nuint)com, out var obj) ? obj : null;
-            Debug.Assert(val is TManaged);
-            return (TManaged)val;
+            lock (_identity)
+            {
+                return (TManaged)_identity[(nuint)com];
+            }
         }
     }
 }

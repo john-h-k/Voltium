@@ -19,10 +19,10 @@ namespace Voltium.Common.Debugging
             return (int)ptr->Release();
         }
 
-        public static void RegisterForDeletionCallback<T>(in T ptr, delegate* stdcall<void*, void> callback, object? data = null) where T : unmanaged, IInternalD3D12Object
+        public static void RegisterForDeletionCallback<T>(in T ptr, delegate* unmanaged<void*, void> callback, object? data = null) where T : unmanaged, IInternalD3D12Object
             => RegisterForDeletionCallback(ptr.GetPointer(), callback, data);
 
-        internal static void RegisterForDeletionCallback<T>(T* ptr, delegate* stdcall<void*, void> callback, object? data = null) where T : unmanaged
+        internal static void RegisterForDeletionCallback<T>(T* ptr, delegate* unmanaged<void*, void> callback, object? data = null) where T : unmanaged
 
         {
             if (!ComPtr.TryQueryInterface<T, ID3DDestructionNotifier>(ptr, out var notifier))
@@ -62,16 +62,16 @@ namespace Voltium.Common.Debugging
                     + $" with name '{DebugHelpers.GetName(ptr)}' is being deleted";
             }
 
-            RegisterForDeletionCallback(ptr, (delegate* stdcall<void*, void>)(delegate*<IntPtr, void>)&BreakOnDeletion, data);
+            RegisterForDeletionCallback(ptr, &BreakOnDeletion, data);
         }
 
         [UnmanagedCallersOnly]
-        private static void BreakOnDeletion(IntPtr data)
+        private static void BreakOnDeletion(void* data)
         {
             string? text = null;
             if (data != default)
             {
-                object obj = GCHandle.FromIntPtr(data);
+                object obj = GCHandle.FromIntPtr((IntPtr)data);
                 text = obj as string;
             }
 

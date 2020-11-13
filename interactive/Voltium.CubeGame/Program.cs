@@ -44,7 +44,7 @@ namespace Voltium.CubeGame
 
             _camera = new();
 
-            _graph = new RenderGraph(_device, 3);
+            _graph = new RenderGraph(_device, 1);
             _worldPass = new WorldPass(_device, _camera);
             _outputPass = new TonemapPass(_output);
         }

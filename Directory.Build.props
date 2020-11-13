@@ -54,7 +54,7 @@
     <Features>strict</Features>
     <HighEntropyVA>true</HighEntropyVA>
     <LangVersion>preview</LangVersion>
-    <NeutralLanguage>en-US</NeutralLanguage>
+    <NeutralLanguage>en-GB</NeutralLanguage>
     <OverwriteReadOnlyFiles>true</OverwriteReadOnlyFiles>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>$(RepositoryUrl)</PackageProjectUrl>

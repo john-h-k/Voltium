@@ -10,6 +10,7 @@ using System.Threading;
 using TerraFX.Interop;
 using Voltium.Allocators;
 using Voltium.Common.HashHelper;
+using Voltium.Extensions;
 
 namespace Voltium.Common
 {
@@ -82,18 +83,24 @@ namespace Voltium.Common
         }
 
         public unsafe static int StringLength(sbyte* p) => new Span<byte>(p, int.MaxValue).IndexOf((byte)0);
+        public unsafe static int StringLength(char* p) => new Span<char>(p, int.MaxValue).IndexOf((char)0);
         public unsafe static Span<byte> ToSpan(sbyte* p) => new Span<byte>(p, StringLength(p));
 
+        public unsafe static Span<char> ToSpan(char* p) => new Span<char>(p, StringLength(p));
+
         public static int FastHash(string str)
-            => str is object
+            => str is not null
                 ? ArbitraryHash.HashBytes(
                     ref Unsafe.As<char, byte>(
                         ref Unsafe.Add(
-                            ref Unsafe.AsRef(in str.GetPinnableReference()), -(sizeof(int) / sizeof(char)))),
-                            (nuint)(str.Length * sizeof(char)))
+                            ref Unsafe.AsRef(in str.GetPinnableReference()), -(sizeof(int) / sizeof(char)
+                        ))),
+
+                        (nuint)(sizeof(int) + (str.Length * sizeof(char)))
+                )
                 : 0;
 
-        public static unsafe MemoryHandle MarshalToPinnedAscii(string str)
+        public static unsafe MemoryHandle MarshalToPinnedAscii(ReadOnlySpan<char> str)
         {
             var arr = RentedArray<byte>.Create(Encoding.ASCII.GetMaxByteCount(str.Length) + 1, PinnedArrayPool<byte>.Default);
 
@@ -103,14 +110,24 @@ namespace Voltium.Common
             return arr.CreatePinnable(underlyingArrayIsPrePinned: true).Pin();
         }
 
-        public static unsafe sbyte* MarshalToUnmanagedAscii(string str)
+        public static unsafe sbyte* MarshalToUnmanagedAscii(ReadOnlySpan<char> str)
         {
             var len = Encoding.ASCII.GetMaxByteCount(str.Length) + 1;
-            void* buff = Helpers.Alloc(len);
+            var buff = Helpers.Alloc<byte>(len);
             var encoded = Encoding.ASCII.GetBytes(str, new Span<byte>(buff, len));
-            ((byte*)buff)[encoded] = 0; // null terminate
+            buff[encoded] = 0; // null terminate
 
             return (sbyte*)buff;
+        }
+
+        public static unsafe char* MarshalToUnmanaged(ReadOnlySpan<char> str)
+        {
+            var buff = Helpers.AllocSpan<char>(str.Length + 1);
+
+            str.CopyTo(buff);
+            buff[^1] = '\0';
+
+            return Helpers.AddressOf(buff);
         }
 
         public static unsafe void FreeUnmanagedAscii(sbyte* str)

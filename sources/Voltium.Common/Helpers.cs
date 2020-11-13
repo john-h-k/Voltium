@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -7,10 +8,78 @@ using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Collections.Extensions;
 using TerraFX.Interop;
 
 namespace Voltium.Common
 {
+    internal unsafe static class PinManager
+    {
+
+        private static Dictionary<nuint, Disposable> _map = new();
+
+        public static void RegisterPin(void* p, in Disposable handle) => _map.Add((nuint)p, handle);
+        public static void RegisterPin(void* p, delegate*<void> dispose) => RegisterPin(p, new Disposable(dispose));
+        public static void RegisterPin(void* p, Action dispose) => RegisterPin(p, new Disposable(dispose));
+        public static void RegisterPin(MemoryHandle handle) => _map.Add((nuint)handle.Pointer, new Disposable(handle));
+
+        public static void RegisterPin(void* p, GCHandle handle)
+            => RegisterPin(new MemoryHandle(p, handle: handle));
+
+        public static void RegisterPin(void* p, IPinnable pinnable)
+            => RegisterPin(new MemoryHandle(p, pinnable: pinnable));
+
+        public static Disposable GetDisposable(void* p)
+        {
+            var h = _map[(nuint)p];
+            _map.Remove((nuint)p);
+
+            return h;
+        }
+    }
+    internal unsafe struct Disposable
+    {
+        private MemoryHandle Handle;
+        private delegate*<void> DisposePtr;
+        private Action? DisposeFn;
+
+        public void Dispose()
+        {
+            if (DisposePtr != null)
+            {
+                DisposePtr();
+            }
+            else if (DisposeFn != null)
+            {
+                DisposeFn();
+            }
+            else 
+            {
+                Handle.Dispose();
+            }
+        }
+        public Disposable(MemoryHandle handle)
+        {
+            DisposePtr = null;
+            DisposeFn = null;
+            Handle = handle;
+        }
+
+        public Disposable(Action dispose)
+        {
+            DisposePtr = null;
+            DisposeFn = dispose;
+            Handle = default;
+        }
+
+        public Disposable(delegate*<void> dispose)
+        {
+            DisposePtr = dispose;
+            DisposeFn = null;
+            Handle = default;
+        }
+    }
+
     internal unsafe static class Helpers
     {
         public static IntPtr Heap { get; } = Windows.GetProcessHeap();
@@ -65,20 +134,17 @@ namespace Voltium.Common
 
         public static void Free(void* data) => Windows.HeapFree(Heap, 0, data);
 
-        public static bool IsNullRef<T>(ref T val)
-          => Unsafe.AreSame(ref val, ref NullRef<T>());
+        //public static bool IsNullRef<T>(ref T val)
+        //  => Unsafe.AreSame(ref val, ref NullRef<T>());
 
         public static bool IsNullIn<T>(in T val)
-            => IsNullRef(ref Unsafe.AsRef(in val));
+            => Unsafe.IsNullRef(ref Unsafe.AsRef(in val));
 
         public static bool IsNullOut<T>(out T val)
         {
             Unsafe.SkipInit(out val);
-            return IsNullRef(ref val);
+            return Unsafe.IsNullRef(ref val);
         }
-
-        public static ref T NullRef<T>()
-            => ref Unsafe.AsRef<T>(null);
 
         public static bool IsGuidEqual(Guid* lhs, Guid* rhs)
             => IsGuidEqual(in *lhs, in *rhs);
@@ -99,7 +165,24 @@ namespace Voltium.Common
                 return Sse2.MoveMask(comp) == 0xFFFF;
             }
 
-            return lhs.Equals(rhs);
+            return Unsafe.As<Guid, ulong>(ref Unsafe.AsRef(in lhs)) == Unsafe.As<Guid, ulong>(ref Unsafe.AsRef(in rhs)) &&
+                   Unsafe.As<Guid, ulong>(ref Unsafe.AddByteOffset(ref Unsafe.AsRef(in lhs), (nint)8)) == Unsafe.As<Guid, ulong>(ref Unsafe.AddByteOffset(ref Unsafe.AsRef(in rhs), (nint)8));
+        }
+
+
+        public static uint SizeOf<T>() => (uint)Unsafe.SizeOf<T>();
+
+        // for type inference
+        public static uint SizeOf<T>(T val) => (uint)Unsafe.SizeOf<T>();
+
+
+        public static unsafe T* MarshalToUnmanaged<T>(ReadOnlySpan<T> str) where T : unmanaged
+        {
+            var buff = AllocSpan<T>(str.Length + 1);
+
+            str.CopyTo(buff);
+
+            return AddressOf(buff);
         }
 
         public static bool Int32ToBool(int val) => val != 0;

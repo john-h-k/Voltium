@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using Microsoft.CodeAnalysis;
@@ -7,7 +8,7 @@ namespace Voltium.Analyzers
 {
     internal abstract class PredicatedTypeGenerator : ISourceGenerator
     {
-        public void Execute(SourceGeneratorContext context)
+        public void Execute(GeneratorExecutionContext context)
         {
             // if you wanna debug this method, uncomment this
             // ugly but works. blame roslyn devs not me
@@ -37,21 +38,21 @@ namespace Voltium.Analyzers
             }
         }
 
-        protected virtual void OnExecute(SourceGeneratorContext context) { }
+        protected virtual void OnExecute(GeneratorExecutionContext context) { }
 
-        protected abstract bool Predicate(SourceGeneratorContext context, INamedTypeSymbol decl);
+        protected abstract bool Predicate(GeneratorExecutionContext context, INamedTypeSymbol decl);
 
 
-        protected virtual void GenerateFromSyntax(SourceGeneratorContext context, TypeDeclarationSyntax syntax, SyntaxTree tree) { }
-        protected virtual void GenerateFromSymbol(SourceGeneratorContext context, INamedTypeSymbol symbol) {  }
+        protected virtual void GenerateFromSyntax(GeneratorExecutionContext context, TypeDeclarationSyntax syntax, SyntaxTree tree) { }
+        protected virtual void GenerateFromSymbol(GeneratorExecutionContext context, INamedTypeSymbol symbol) {  }
 
-        public void Initialize(InitializationContext context)
+        public void Initialize(GeneratorInitializationContext context)
             => context.RegisterForSyntaxNotifications(() => new SyntaxTypeReceiver<TypeDeclarationSyntax>());
     }
 
     internal abstract class PredicatedGenerator<T> : ISourceGenerator where T : SyntaxNode
     {
-        public void Execute(SourceGeneratorContext context)
+        public void Execute(GeneratorExecutionContext context)
         {
             // if you wanna debug this method, uncomment this
             // ugly but works. blame roslyn devs not me
@@ -69,7 +70,9 @@ namespace Voltium.Analyzers
             foreach (var (tree, node) in nodes)
             {
                 var semantics = comp.GetSemanticModel(tree);
-                var symbol = semantics.GetDeclaredSymbol(node);
+                var symbol = semantics.GetDeclaredSymbol(node)!;
+
+                Helpers.Assert(symbol is not null);
 
                 if (!Predicate(context, symbol) || visited.Contains(symbol))
                 {
@@ -81,13 +84,13 @@ namespace Voltium.Analyzers
             }
         }
 
-        protected virtual void OnExecute(SourceGeneratorContext context) { }
+        protected virtual void OnExecute(GeneratorExecutionContext context) { }
 
-        protected abstract bool Predicate(SourceGeneratorContext context, ISymbol decl);
+        protected abstract bool Predicate(GeneratorExecutionContext context, ISymbol decl);
 
-        protected abstract void Generate(SourceGeneratorContext context, ISymbol symbol, T syntax);
+        protected abstract void Generate(GeneratorExecutionContext context, ISymbol symbol, T syntax);
 
-        public void Initialize(InitializationContext context)
+        public void Initialize(GeneratorInitializationContext context)
             => context.RegisterForSyntaxNotifications(() => new SyntaxTypeReceiver<T>());
     }
 }

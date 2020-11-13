@@ -124,7 +124,7 @@ namespace Voltium.Common
         /// <typeparam name="TInterface">The type to cast to</typeparam>
         /// <returns>An HRESULT representing the cast operation</returns>
         [RaiiCopy]
-        public readonly int As<TInterface>(out UniqueComPtr<TInterface> result) where TInterface : unmanaged
+        public readonly int Cast<TInterface>(out UniqueComPtr<TInterface> result) where TInterface : unmanaged
         {
             var p = (IUnknown*)_ptr;
             TInterface* pResult;
@@ -149,7 +149,17 @@ namespace Voltium.Common
         /// <returns><code>true</code> if the cast succeeded, else <code>false</code></returns>
         [RaiiCopy]
         public readonly bool TryQueryInterface<TInterface>(out UniqueComPtr<TInterface> result) where TInterface : unmanaged
-            => Windows.SUCCEEDED(As(out result));
+            => Windows.SUCCEEDED(Cast(out result));
+
+        /// <summary>
+        /// Try and cast <typeparamref name="T"/> to <typeparamref name="TInterface"/>
+        /// </summary>
+        /// <param name="result">A <see cref="UniqueComPtr{T}"/> that encapsulates the casted pointer, if succeeded</param>
+        /// <typeparam name="TInterface">The type to cast to</typeparam>
+        /// <returns><code>true</code> if the cast succeeded, else <code>false</code></returns>
+        [RaiiCopy]
+        public readonly bool TryQueryInterface<TInterface>(UniqueComPtr<TInterface>* result) where TInterface : unmanaged
+            => TryQueryInterface(out *result);
 
         /// <summary>
         /// Determine if the current pointer supports a given interface, so that <see cref="TryQueryInterface{T}(out UniqueComPtr{T})"/>
@@ -222,7 +232,7 @@ namespace Voltium.Common
         /// </summary>
         /// <typeparam name="TBase">The desired type of the pointer</typeparam>
         /// <returns>The casted pointer</returns>
-        public UniqueComPtr<TBase> AsBase<TBase>() where TBase : unmanaged
+        public UniqueComPtr<TBase> As<TBase>() where TBase : unmanaged
             => ComPtr.UpCast<T, TBase>(this);
 
         /// <summary>
@@ -230,7 +240,7 @@ namespace Voltium.Common
         /// </summary>
         /// <returns>The casted pointer</returns>
         public UniqueComPtr<IUnknown> AsIUnknown()
-            => AsBase<IUnknown>();
+            => As<IUnknown>();
 
         /// <inheritdoc cref="object.GetHashCode"/>
         // ReSharper disable once NonReadonlyMemberInGetHashCode

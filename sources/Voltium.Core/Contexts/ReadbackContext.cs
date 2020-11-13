@@ -103,7 +103,7 @@ namespace Voltium.Core.Contexts
         public override void Dispose()
         {
             // we execute list so we need to stop GpuContext.Dispose doing so
-            Params.ExecuteOnClose = false;
+            Params.Flags = ContextFlags.None;
             base.Dispose();
             var task = Device.Execute(this);
 

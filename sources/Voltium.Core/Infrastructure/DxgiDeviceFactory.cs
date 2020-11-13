@@ -8,23 +8,34 @@ namespace Voltium.Core.Infrastructure
 {
     internal sealed unsafe class DxgiDeviceFactory : DeviceFactory
     {
-        private UniqueComPtr<IDXGIFactory2> _factory;
+        private UniqueComPtr<IDXGIFactory6> _factory;
         private bool _enumByPreference;
         private DevicePreference _preference;
 
         // used to skip software adapters, by adding to the index everytime we encounter one
         private uint _skipAdapterOffset;
 
+
+        private Lazy<Adapter> _softwareAdapter;
+
+        public override Adapter SoftwareAdapter => _softwareAdapter.Value;
+
         public DxgiDeviceFactory()
         {
-            using UniqueComPtr<IDXGIFactory2> factory = default;
+            using UniqueComPtr<IDXGIFactory6> factory = default;
             Guard.ThrowIfFailed(CreateDXGIFactory2(0, factory.Iid, (void**)&factory));
             _factory = factory.Move();
+
+            _softwareAdapter = new(() =>
+            {
+                using UniqueComPtr<IDXGIAdapter1> adapter = default;
+                Guard.ThrowIfFailed(_factory.Ptr->EnumWarpAdapter(adapter.Iid, (void**)&adapter));
+                return CreateAdapter(adapter.Move());
+            });
         }
 
         internal override bool TryGetAdapterByIndex(uint index, out Adapter adapter)
         {
-
             // We only set this to true in TryOrderByPreference which checks we have IDXGIFactory6 so we can hard cast _factory
             if (_enumByPreference)
             {
@@ -34,8 +45,7 @@ namespace Voltium.Core.Infrastructure
 
 
                     Guard.ThrowIfFailed(
-                        _factory.AsBase<IDXGIFactory6>()
-                        .Ptr->EnumAdapterByGpuPreference(
+                        _factory.Ptr->EnumAdapterByGpuPreference(
                                 index + _skipAdapterOffset,
                                 // DXGI preference doesn't allow preferring hardware/software adapters, so we do that manually after filtering out the other hardware types
                                 // We remove the hardware and software flag so DXGI doesn't complain
@@ -114,11 +124,9 @@ namespace Voltium.Core.Infrastructure
 
         public override bool TryEnablePreferentialOrdering(DevicePreference preference)
         {
+            _enumByPreference = true;
             _preference = preference;
-            // Can only enum by preference if we have IDXGIFactory6 
-            _enumByPreference = _factory.TryQueryInterface<IDXGIFactory6>(out var factory);
-            factory.Dispose();
-            return _enumByPreference;
+            return true;
         }
 
         public override void Dispose()

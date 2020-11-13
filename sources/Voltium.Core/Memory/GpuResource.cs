@@ -21,7 +21,7 @@ namespace Voltium.Core.Memory
         internal GpuResource(
             ComputeDevice device,
             UniqueComPtr<ID3D12Resource> resource,
-            in InternalAllocDesc desc,
+            InternalAllocDesc* desc,
             GpuAllocator? allocator,
             int heapIndex = -1 /* no relevant heap block */,
             HeapBlock block = default
@@ -29,34 +29,22 @@ namespace Voltium.Core.Memory
         {
             _device = device;
             _value = resource.Move();
-            State = (ResourceState)desc.InitialState;
-            ResourceFormat = (DataFormat)desc.Desc.Format;
+            Desc = *desc;
+            State = (ResourceState)desc->InitialState;
             HeapIndex = heapIndex;
-            Flags = desc.Desc.Flags;
             Block = block;
             _allocator = allocator;
+            MemoryKind = (MemoryAccess)desc->HeapType;
         }
 
         private GpuResource() { }
 
-        // this is a hack. TODO make it right
-        internal static GpuResource FromBackBuffer(
-            UniqueComPtr<ID3D12Resource> resource
-        )
-        {
-            var desc = resource.Ptr->GetDesc();
-            return new GpuResource
-            {
-                _value = resource.Move(),
-                ResourceFormat = (DataFormat)desc.Format,
-                State = (ResourceState)D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_COMMON
-            };
-        }
-
         /// <summary>
         /// The format of the buffer, if typed, else <see cref="DataFormat.Unknown"/>
         /// </summary>
-        public DataFormat ResourceFormat;
+        public DataFormat ResourceFormat => (DataFormat)Desc.Desc.Format;
+
+        internal InternalAllocDesc Desc;
 
         public unsafe ID3D12Resource* GetResourcePointer() => _value.Ptr;
 
@@ -67,7 +55,7 @@ namespace Voltium.Core.Memory
         public bool TransitionBegan;
 
         private UniqueComPtr<ID3D12Resource> _value;
-        public D3D12_RESOURCE_FLAGS Flags;
+        internal AllocFlags AllocFlags => Desc.AllocFlags;
 
         // Null if the resource is unmapped or not CPU accessible (default heap)
         public unsafe void* CpuAddress;
@@ -75,6 +63,7 @@ namespace Voltium.Core.Memory
 
         private ComputeDevice _device = null!;
 
+        public MemoryAccess MemoryKind;
         private GpuAllocator? _allocator;
         public int HeapIndex;
         public HeapBlock Block;

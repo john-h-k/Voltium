@@ -9,7 +9,7 @@ namespace Voltium.Core.Pipeline
     /// Describes the settings and state of the depth stencil of the pipeline
     /// </summary>
     [StructLayout(LayoutKind.Explicit)]
-    public struct DepthStencilDesc : IPipelineStreamElement<DepthStencilDesc>
+    public struct DepthStencilDesc
     {
         /// <summary>
         /// The default <see cref="DepthStencilDesc"/>. This correspends
@@ -88,9 +88,5 @@ namespace Voltium.Core.Pipeline
         /// The <see cref="StencilFuncDesc"/> describing the operations to occur during stenciling for the back face
         /// </summary>
         public ref StencilFuncDesc BackFace => ref Unsafe.As<D3D12_DEPTH_STENCILOP_DESC, StencilFuncDesc>(ref MemoryMarshal.GetReference(MemoryMarshal.CreateSpan(ref Type.Inner.BackFace, 0)));
-
-#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
-        public void _Initialize() => Type.Type = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE.D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_DEPTH_STENCIL1;
-#pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
     }
 }

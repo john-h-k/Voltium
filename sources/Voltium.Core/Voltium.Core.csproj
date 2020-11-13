@@ -14,6 +14,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="RayTracing\**" />
+    <EmbeddedResource Remove="RayTracing\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Include="Text\FontPixelShader.hlsl" />
   </ItemGroup>
 
@@ -21,5 +26,9 @@
     <!--PrivateAssets="All"-->
     <ProjectReference Include="..\Voltium.Analyzers\Voltium.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\Voltium.Common\Voltium.Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="RayTracing\" />
   </ItemGroup>
 </Project>

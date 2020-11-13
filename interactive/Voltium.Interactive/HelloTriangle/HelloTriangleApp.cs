@@ -24,18 +24,6 @@ namespace Voltium.Interactive.HelloTriangle
         public Vector4 Color;
     }
 
-    internal partial struct PsoStream : IPipelineStreamType
-    {
-        public TopologyClass Topology;
-        public CompiledShader VertexShader;
-        public CompiledShader PixelShader;
-        public RasterizerDesc Rasterizer;
-        public RootSignatureElement RootSignature;
-        public RenderTargetFormats RenderTargetFormats;
-        public DepthStencilDesc DepthStencil;
-        public InputLayout<HelloWorldVertex> InputLayout;
-    }
-
     public sealed class HelloTriangleApp : Application
     {
         private GraphicsDevice _device = null!;
@@ -70,17 +58,14 @@ namespace Voltium.Interactive.HelloTriangle
             _vertices = _device.Allocator.AllocateUploadBuffer(vertices);
 
             // The pipeline description. We compile shaders at runtime here, which is simpler but less efficient
-            //var psoDesc = new GraphicsPipelineDesc
-            var psoDesc = new PsoStream
+            var psoDesc = new GraphicsPipelineDesc
             {
                 Topology = TopologyClass.Triangle,
                 VertexShader = ShaderManager.CompileShader("HelloTriangle/Shader.hlsl", ShaderType.Vertex, entrypoint: "VertexMain"),
                 PixelShader = ShaderManager.CompileShader("HelloTriangle/Shader.hlsl", ShaderType.Pixel, entrypoint: "PixelMain"),
-                RootSignature = _device.EmptyRootSignature,
                 RenderTargetFormats = _output.Configuration.BackBufferFormat,
-                Rasterizer = RasterizerDesc.Default,
                 DepthStencil = DepthStencilDesc.DisableDepthStencil,
-                InputLayout = default,
+                Inputs = InputLayout.FromType<HelloWorldVertex>(),
             };
 
             _pso = _device.PipelineManager.CreatePipelineStateObject(psoDesc, nameof(_pso));
@@ -97,7 +82,7 @@ namespace Voltium.Interactive.HelloTriangle
             // We need to transition the back buffer to ResourceState.RenderTarget so we can draw to it
             context.ResourceTransition(_output.OutputBuffer, ResourceState.RenderTarget);
             // Set that we render to the entire screen, clear the render target, set the vertex buffer, and set the topology we will use
-            context.SetViewportAndScissor(_output.Dimensions);
+            context.SetViewportAndScissor(_output.Resolution);
             context.SetAndClearRenderTarget(_output.OutputBufferView, Rgba128.CornflowerBlue);
             context.SetVertexBuffers<HelloWorldVertex>(_vertices);
             context.SetTopology(Topology.TriangleList);

@@ -53,7 +53,7 @@ namespace Voltium.Common
 
         [MethodImpl(MethodTypes.Validates)]
         public static void InRangeInclusive(int value, int lo, int hi,
-            [CallerArgumentExpression("val")] string name = null!,
+            [CallerArgumentExpression("value")] string name = null!,
             [CallerMemberName] string member = null!,
             [CallerLineNumber] int line = default,
             [CallerFilePath] string filePath = null!

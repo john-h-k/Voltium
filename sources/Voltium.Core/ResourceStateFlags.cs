@@ -123,6 +123,11 @@ namespace Voltium.Core
         VariableShadeRateSource = D3D12_RESOURCE_STATE_SHADING_RATE_SOURCE,
 
         /// <summary>
+        /// The resource is being used as a raytracing acceleration structure. This state can't be moved into or out from, and must persist across the resource's lifetime
+        /// </summary>
+        RayTracingAccelerationStructure = D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,
+
+        /// <summary>
         /// A bitwise-or of all read-only resource states
         /// </summary>
         AllReadOnlyFlags =

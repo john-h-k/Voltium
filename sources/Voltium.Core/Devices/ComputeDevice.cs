@@ -19,6 +19,8 @@ using static TerraFX.Interop.D3D_FEATURE_LEVEL;
 using static TerraFX.Interop.Windows;
 using Buffer = Voltium.Core.Memory.Buffer;
 
+using SysDebug = System.Diagnostics.Debug;
+
 namespace Voltium.Core.Devices
 {
     internal struct TextureLayout
@@ -27,7 +29,11 @@ namespace Voltium.Core.Devices
         public uint[] NumRows;
         public ulong[] RowSizes;
         public ulong TotalSize;
+
     }
+
+
+
 
     /// <summary>
     /// Describes the layout of a CPU-side subresource
@@ -45,6 +51,38 @@ namespace Voltium.Core.Devices
         public uint NumRows;
     }
     internal enum SupportedGraphicsCommandList { Unknown, GraphicsCommandList, GraphicsCommandList1, GraphicsCommandList2, GraphicsCommandList3, GraphicsCommandList4, GraphicsCommandList5, GraphicsCommandList6 }
+
+    internal struct DeviceArchitecture
+    {
+        public int AddressSpaceBits { init; get; } 
+        public int ResourceAddressBits { init; get; }
+
+        public bool IsCacheCoherentUma { init; get; }
+
+        public ulong VirtualAddressSpaceSize { init; get; }
+
+    }
+
+    /// <summary>
+    /// Flags used when creating a <see cref="GpuContext"/>
+    /// </summary>
+    public enum ContextFlags
+    {
+        /// <summary>
+        /// None
+        /// </summary>
+        None,
+
+        /// <summary>
+        /// Immediately begin executing the context when it is closed or disposed
+        /// </summary>
+        ExecuteOnClose,
+
+        /// <summary>
+        /// Immediately begin executing, and synchronously block until the end, when it is closed or disposed
+        /// </summary>
+        BlockOnClose
+    }
 
     /// <summary>
     /// 
@@ -81,17 +119,247 @@ namespace Voltium.Core.Devices
         private protected DebugLayer? Debug;
         private protected ContextPool ContextPool;
 
-        private protected CommandQueue CopyQueue;
-        private protected CommandQueue ComputeQueue;
+        private protected UniqueComPtr<ID3D12DeviceDownlevel> _deviceDownlevel;
 
-        private protected CommandQueue GraphicsQueue;
+        /// <summary>
+        /// Reserve video memory for a given node and <see cref="MemorySegment"/>. Set this to the minimum required value for your app to run,
+        /// to allow the OS to minimise interruptions caused by sudden high memory pressure.
+        /// </summary>
+        /// <param name="reservation">The reservation, in bytes</param>
+        /// <param name="segment">The <see cref="MemorySegment"/> to reserve for</param>
+        /// <param name="node">The node to reserve for</param>
+        public unsafe void ReserveVideoMemory(ulong reservation, MemorySegment segment, uint node = 0)
+        {
+            if (Adapter._adapter.TryQueryInterface<IDXGIAdapter3>(out var adapter3))
+            {
+                using (adapter3)
+                {
+                    Guard.ThrowIfFailed(adapter3.Ptr->SetVideoMemoryReservation(node, (DXGI_MEMORY_SEGMENT_GROUP)segment, reservation));
+                }
+            }
+            else
+            {
+                ThrowHelper.ThrowPlatformNotSupportedException("Can't reserve video memory on WSL/Win7");
+            }
+        }
+
+        /// <summary>
+        /// Queries the <see cref="AdapterMemoryInfo"/> for a given <see cref="MemorySegment"/> and node
+        /// </summary>
+        /// <param name="segment">The <see cref="MemorySegment"/> to query for</param>
+        /// <param name="node">The index of the node to query for</param>
+        /// <returns></returns>
+        public unsafe AdapterMemoryInfo QueryMemory(MemorySegment segment, uint node = 0)
+        {
+            DXGI_QUERY_VIDEO_MEMORY_INFO info;
+
+            if (Adapter._adapter.TryQueryInterface<IDXGIAdapter3>(out var adapter3))
+            {
+                using (adapter3)
+                {
+                    Guard.ThrowIfFailed(adapter3.Ptr->QueryVideoMemoryInfo(node, (DXGI_MEMORY_SEGMENT_GROUP)segment, &info));
+                }
+
+            }
+            else if (Adapter._adapter.TryQueryInterface<IDXCoreAdapter>(out var adapter))
+            {
+                using (adapter)
+                {
+                    var input = new DXCoreAdapterMemoryBudgetNodeSegmentGroup { nodeIndex = node, segmentGroup = (DXCoreSegmentGroup)segment };
+                    Unsafe.SkipInit(out DXCoreAdapterMemoryBudget dxcInfo);
+                    Guard.ThrowIfFailed(adapter.Ptr->QueryState(
+                        DXCoreAdapterState.AdapterMemoryBudget,
+                        Helpers.SizeOf(input),
+                        &input,
+                        Helpers.SizeOf(dxcInfo),
+                        &dxcInfo
+                    ));
+
+                    // DXCoreAdapterMemoryBudget has identical layout :)
+                    info = *(DXGI_QUERY_VIDEO_MEMORY_INFO*)&dxcInfo;
+                }
+            }
+            else
+            {
+                // win7
+                Guard.ThrowIfFailed(_deviceDownlevel.Ptr->QueryVideoMemoryInfo(node, (DXGI_MEMORY_SEGMENT_GROUP)segment, &info));
+            }
+
+            return CreateInfo(info);
+
+            static AdapterMemoryInfo CreateInfo(in DXGI_QUERY_VIDEO_MEMORY_INFO info)
+            {
+                return new AdapterMemoryInfo
+                {
+                    Budget = info.Budget,
+                    AvailableForReservation = info.AvailableForReservation,
+                    CurrentReservation = info.CurrentReservation,
+                    CurrentUsage = info.CurrentUsage
+                };
+            }
+        }
+
+        /// <summary>
+        /// The callback used when the adapter memory budget changes
+        /// </summary>
+        /// <param name="sender">The <see cref="ComputeDevice"/> which had an adapter budget change</param>
+        public delegate void AdapterMemoryInfoChanged(ComputeDevice sender);
+
+
+        private uint _vidMemCookie;
+        private bool _registered;
+        private AdapterMemoryInfoChanged? _onAdapterMemoryInfoChanged = (_) => { };
+        private object _eventLock = new();
+
+        /// <summary>
+        /// The event fired when the adapter memory budget changes
+        /// </summary>
+        public event AdapterMemoryInfoChanged OnAdapterMemoryInfoChanged
+        {
+            add
+            {
+                lock (_eventLock)
+                {
+                    if (_onAdapterMemoryInfoChanged is null)
+                    {
+                        RegisterMemoryEventDelegate();
+                    }
+                    _onAdapterMemoryInfoChanged += value;
+                }
+            }
+
+            remove
+            {
+                lock (_eventLock)
+                {
+                    _onAdapterMemoryInfoChanged -= value;
+
+                    if (_onAdapterMemoryInfoChanged is null)
+                    {
+                        UnregisterMemoryEventDelegate();
+                    }
+                }
+            }
+        }
+
+        [UnmanagedCallersOnly]
+        private static void DxCoreMemoryInfoChangedCallback(DXCoreNotificationType type, IUnknown* pAdapter, void* context)
+        {
+            SysDebug.Assert(type == DXCoreNotificationType.AdapterBudgetChange);
+            MemoryInfoInvokeFromContext(context);
+        }
+
+        [UnmanagedCallersOnly]
+        private static void DxgiMemoryInfoChangedCallback(void* context, byte /* timeout or wait, irrelevant */ _)
+        {
+            MemoryInfoInvokeFromContext(context);
+        }
+
+        private static void MemoryInfoInvokeFromContext(void* context)
+        {
+            var handle = GCHandle.FromIntPtr((IntPtr)context);
+            var device = (ComputeDevice)handle.Target!;
+            handle.Free();
+
+            device._onAdapterMemoryInfoChanged?.Invoke(device);
+        }
+
+        private void RegisterMemoryEventDelegate()
+        {
+            if (_registered)
+            {
+                return;
+            }
+            _registered = true;
+            var gcHandle = GCHandle.Alloc(this);
+            var context = (void*)GCHandle.ToIntPtr(gcHandle);
+
+            fixed (uint* pCookie = &_vidMemCookie)
+            {
+                if (Adapter._adapter.TryQueryInterface<IDXGIAdapter3>(out var adapter3))
+                {
+                    using (adapter3)
+                    {
+                        IntPtr handle = CreateEventW(null, FALSE, FALSE, null);
+
+                        Guard.ThrowIfFailed(adapter3.Ptr->RegisterVideoMemoryBudgetChangeNotificationEvent(handle, pCookie));
+
+                        IntPtr newHandle;
+
+                        int err = RegisterWaitForSingleObject(
+                            &newHandle,
+                            handle,
+                            &DxgiMemoryInfoChangedCallback,
+                            context,
+                            INFINITE,
+                            0
+                        );
+
+                        if (err == 0)
+                        {
+                            ThrowHelper.ThrowWin32Exception("RegisterWaitForSingleObject failed");
+                        }
+                    }
+                }
+                else if (Adapter._adapter.TryQueryInterface<IDXCoreAdapter>(out var adapter))
+                {
+                    using (adapter)
+                    {
+                        using UniqueComPtr<IDXCoreAdapterFactory> factory = default;
+                        Guard.ThrowIfFailed(adapter.Ptr->GetFactory(factory.Iid, (void**)&factory));
+
+                        Guard.ThrowIfFailed(factory.Ptr->RegisterEventNotification(
+                            Adapter.GetAdapterPointer(),
+                            DXCoreNotificationType.AdapterBudgetChange,
+                            &DxCoreMemoryInfoChangedCallback,
+                            context,
+                            pCookie
+                        ));
+                    }
+                }
+            }
+        }
+
+
+        private void UnregisterMemoryEventDelegate()
+        {
+            if (!_registered)
+            {
+                return;
+            }
+            _registered = false;
+
+            if (Adapter._adapter.TryQueryInterface<IDXGIAdapter3>(out var adapter3))
+            {
+                using (adapter3)
+                {
+                    adapter3.Ptr->UnregisterVideoMemoryBudgetChangeNotification(_vidMemCookie);
+                }
+            }
+            else if (Adapter._adapter.TryQueryInterface<IDXCoreAdapter>(out var adapter))
+            {
+                using (adapter)
+                {
+                    using UniqueComPtr<IDXCoreAdapterFactory> factory = default;
+                    Guard.ThrowIfFailed(adapter.Ptr->GetFactory(factory.Iid, (void**)&factory));
+
+                    Guard.ThrowIfFailed(factory.Ptr->UnregisterEventNotification(_vidMemCookie));
+                }
+            }
+        }
+
+        internal CommandQueue CopyQueue;
+        internal CommandQueue ComputeQueue;
+        internal CommandQueue GraphicsQueue;
 
         private protected ulong CpuFrequency;
 
         private protected SupportedGraphicsCommandList SupportedList;
 
-        internal ID3D12Device* DevicePointer => Device.Ptr;
-        internal TDevice* DevicePointerAs<TDevice>() where TDevice : unmanaged => Device.AsBase<TDevice>().Ptr;
+        internal DeviceArchitecture Architecture { get; private set; }
+
+        internal ID3D12Device5* DevicePointer => (ID3D12Device5*)Device.Ptr;
+        internal TDevice* As<TDevice>() where TDevice : unmanaged => Device.As<TDevice>().Ptr;
 
         /// <summary>
         /// The number of physical adapters, referred to as nodes, that the device uses
@@ -111,7 +379,7 @@ namespace Voltium.Core.Devices
         /// </summary>
         public ShaderModel HighestSupportedShaderModel { get; private set; }
 
-        /// <summary>
+        /// <summary> 
         /// Whether DXIL is supported, rather than the old DXBC bytecode form.
         /// This is equivalent to cheking if <see cref="HighestSupportedShaderModel"/> supports shader model 6
         /// </summary>
@@ -169,6 +437,7 @@ namespace Voltium.Core.Devices
 
         private protected ComputeDevice(FeatureLevel level, in Adapter? adapter, DebugLayerConfiguration? config = null)
         {
+            GraphicsQueue = null!;
             if (config is not null)
             {
                 if (config.DebugFlags.HasFlag(DebugFlags.DebugLayer))
@@ -232,9 +501,9 @@ namespace Voltium.Core.Devices
                     return ref GraphicsQueue;
             }
 
-            return ref Helpers.NullRef<CommandQueue>();
+            return ref Unsafe.NullRef<CommandQueue>();
         }
-        
+
 
         /// <summary>
         /// Throws if a given HR is a fail code. Also properly handles device-removed error codes, unlike Guard.ThrowIfFailed
@@ -324,6 +593,8 @@ namespace Voltium.Core.Devices
                     (void**)&device
                 ));
 
+                _ = device.TryQueryInterface(out _deviceDownlevel);
+
                 Device = device.Move();
 
                 LogHelper.LogInformation("New D3D12 device created from adapter: \n{0}", adapter);
@@ -352,15 +623,7 @@ namespace Voltium.Core.Devices
         /// </summary>
         public void RemoveDevice()
         {
-            if (DeviceLevel >= SupportedDevice.Device5)
-            {
-                DevicePointerAs<ID3D12Device5>()->RemoveDevice();
-            }
-            else
-            {
-                // Guaranteed to remove the device, but more risky (might AV)
-                DevicePointer->CreateRenderTargetView(null, null, new D3D12_CPU_DESCRIPTOR_HANDLE { ptr = unchecked((nuint)(-1)) });
-            }
+            DevicePointer->RemoveDevice();
         }
 
         internal void QueryFeatureSupport<T>(D3D12_FEATURE feature, T* pVal) where T : unmanaged
@@ -389,6 +652,17 @@ namespace Voltium.Core.Devices
 
             QueryFeatureSupport<D3D12_FEATURE_DATA_D3D12_OPTIONS>(D3D12_FEATURE_D3D12_OPTIONS, out var options);
             ResourceCount = options.ResourceBindingTier == D3D12_RESOURCE_BINDING_TIER.D3D12_RESOURCE_BINDING_TIER_3 ? 1_000_000 : 1_000_000;
+
+            QueryFeatureSupport(D3D12_FEATURE_ARCHITECTURE1, out D3D12_FEATURE_DATA_ARCHITECTURE1 arch1);
+            QueryFeatureSupport(D3D12_FEATURE_GPU_VIRTUAL_ADDRESS_SUPPORT, out D3D12_FEATURE_DATA_GPU_VIRTUAL_ADDRESS_SUPPORT va);
+
+            Architecture = new()
+            {
+                IsCacheCoherentUma = Helpers.Int32ToBool(arch1.CacheCoherentUMA),
+                AddressSpaceBits = (int)va.MaxGPUVirtualAddressBitsPerProcess,
+                ResourceAddressBits = (int)va.MaxGPUVirtualAddressBitsPerResource,
+                VirtualAddressSpaceSize = 2UL << (int)va.MaxGPUVirtualAddressBitsPerProcess
+            };
         }
 
         private static void GetMajorMinorForShaderModel(D3D_SHADER_MODEL model, out int major, out int minor)
@@ -448,9 +722,9 @@ namespace Voltium.Core.Devices
         /// <summary>
         /// Returns a <see cref="CopyContext"/> used for recording copy commands
         /// </summary>
-        public CopyContext BeginCopyContext(bool executeOnClose = false)
+        public CopyContext BeginCopyContext(ContextFlags flags = ContextFlags.None)
         {
-            var context = ContextPool.Rent(ExecutionContext.Copy, null, executeOnClose: executeOnClose);
+            var context = ContextPool.Rent(ExecutionContext.Copy, null, flags);
             return new CopyContext(context);
         }
 
@@ -460,7 +734,7 @@ namespace Voltium.Core.Devices
         /// <returns>A new <see cref="UploadContext"/></returns>
         public UploadContext BeginUploadContext()
         {
-            var context = ContextPool.Rent(ExecutionContext.Copy, null, false);
+            var context = ContextPool.Rent(ExecutionContext.Copy, null, 0);
 
             return new UploadContext(context);
         }
@@ -472,16 +746,17 @@ namespace Voltium.Core.Devices
         /// <returns>A new <see cref="ReadbackContext"/></returns>
         public ReadbackContext BeginReadbackContext()
         {
-            var context = ContextPool.Rent(ExecutionContext.Copy, null, false);
+            var context = ContextPool.Rent(ExecutionContext.Copy, null, 0);
 
             return new ReadbackContext(context);
         }
+
         /// <summary>
         /// Returns a <see cref="ComputeContext"/> used for recording compute commands
         /// </summary>
-        public ComputeContext BeginComputeContext(PipelineStateObject? pso = null, bool executeOnClose = false)
+        public ComputeContext BeginComputeContext(PipelineStateObject? pso = null, ContextFlags flags = 0)
         {
-            var @params = ContextPool.Rent(ExecutionContext.Compute, pso, executeOnClose: executeOnClose);
+            var @params = ContextPool.Rent(ExecutionContext.Compute, pso, flags);
 
             var context = new ComputeContext(@params);
             SetDefaultState(context, pso);
@@ -494,10 +769,10 @@ namespace Voltium.Core.Devices
         /// <param name="context">The commands to submit for execution</param>
         public GpuTask Execute(GpuContext context)
         {
-            ID3D12GraphicsCommandList* list = context.List;
+            ID3D12GraphicsCommandList6* list = context.List;
 
             ref var queue = ref GetQueueForContext(context.Context);
-            if (Helpers.IsNullRef(ref queue))
+            if (Unsafe.IsNullRef(ref queue))
             {
                 ThrowHelper.ThrowInvalidOperationException("Invalid to try and execute a GpuContext that is not a CopyContext or ComputeContext on a ComputeDevice");
             }
@@ -543,7 +818,7 @@ namespace Voltium.Core.Devices
                 ThrowHelper.ThrowArgumentException("Invalid execution context type provided in param contexts");
             }
             ref var queue = ref GetQueueForContext(requiredContext);
-            if (Helpers.IsNullRef(ref queue))
+            if (Unsafe.IsNullRef(ref queue))
             {
                 ThrowHelper.ThrowInvalidOperationException("Invalid to try and execute a GpuContext that is not a CopyContext or ComputeContext on a ComputeDevice");
             }
@@ -646,7 +921,7 @@ namespace Voltium.Core.Devices
 
         //CreatePipelineLibrary
         //SetEventOnMultipleFenceCompletion
-        //SetResidencySetEventOnMultipleFenceCompletionPriority
+        //SetResidencyPriority
 
         //CreatePipelineState
 

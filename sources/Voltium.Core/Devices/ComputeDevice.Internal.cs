@@ -28,9 +28,9 @@ namespace Voltium.Core.Devices
             return allocator.Move();
         }
 
-        internal UniqueComPtr<ID3D12GraphicsCommandList> CreateList(ExecutionContext context, ID3D12CommandAllocator* allocator, ID3D12PipelineState* pso)
+        internal UniqueComPtr<ID3D12GraphicsCommandList6> CreateList(ExecutionContext context, ID3D12CommandAllocator* allocator, ID3D12PipelineState* pso)
         {
-            using UniqueComPtr<ID3D12GraphicsCommandList> list = default;
+            using UniqueComPtr<ID3D12GraphicsCommandList6> list = default;
             ThrowIfFailed(DevicePointer->CreateCommandList(
                 0, // TODO: MULTI-GPU
                 (D3D12_COMMAND_LIST_TYPE)context,
@@ -52,16 +52,16 @@ namespace Voltium.Core.Devices
 
         internal UniqueComPtr<ID3D12Resource> CreatePlacedResource(ID3D12Heap* heap, ulong offset, InternalAllocDesc* desc)
         {
-            var clearVal = desc->ClearValue.GetValueOrDefault();
-
             using UniqueComPtr<ID3D12Resource> resource = default;
+
+            bool hasClearVal = desc->Desc.Dimension != D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_BUFFER && GpuAllocator.IsRenderTargetOrDepthStencil(desc->Desc.Flags);
 
             ThrowIfFailed(DevicePointer->CreatePlacedResource(
                  heap,
                  offset,
                  &desc->Desc,
                  desc->InitialState,
-                 desc->ClearValue is null ? null : &clearVal,
+                 hasClearVal ? &desc->ClearValue : null,
                  resource.Iid,
                  (void**)&resource
              ));
@@ -71,27 +71,24 @@ namespace Voltium.Core.Devices
 
         internal UniqueComPtr<ID3D12Resource> CreateCommittedResource(InternalAllocDesc* desc)
         {
-            var heapProperties = GetHeapProperties(desc);
-            var clearVal = desc->ClearValue.GetValueOrDefault();
-
             using UniqueComPtr<ID3D12Resource> resource = default;
 
             ThrowIfFailed(DevicePointer->CreateCommittedResource(
-                    &heapProperties,
+                    &desc->HeapProperties,
                     D3D12_HEAP_FLAGS.D3D12_HEAP_FLAG_NONE,
                     &desc->Desc,
                     desc->InitialState,
-                    desc->ClearValue is null ? null : &clearVal,
+                    desc->Desc.Dimension == D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_BUFFER ? null : &desc->ClearValue,
                     resource.Iid,
                     (void**)&resource
             ));
 
             return resource.Move();
+        }
 
-            static D3D12_HEAP_PROPERTIES GetHeapProperties(InternalAllocDesc* desc)
-            {
-                return new D3D12_HEAP_PROPERTIES(desc->HeapType);
-            }
+        internal void GetAccelerationStructuredPrebuildInfo(D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS* pInputs, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO* pInfo)
+        {
+            DevicePointer->GetRaytracingAccelerationStructurePrebuildInfo(pInputs, pInfo);
         }
 
         internal UniqueComPtr<ID3D12Heap> CreateHeap(D3D12_HEAP_DESC* desc)
@@ -140,8 +137,6 @@ namespace Voltium.Core.Devices
 
             return rootSig.Move();
         }
-
-
 
         internal void GetCopyableFootprint(
             in Texture tex,
@@ -217,6 +212,21 @@ namespace Voltium.Core.Devices
         )
         {
             var desc = tex.GetResourcePointer()->GetDesc();
+            return GetRequiredSize(&desc, numSubresources);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="tex"></param>
+        /// <param name="numSubresources"></param>
+        /// <returns></returns>
+        public ulong GetRequiredSize(
+            in TextureDesc tex,
+            uint numSubresources
+        )
+        {
+            GpuAllocator.CreateDesc(tex, out var desc);
             return GetRequiredSize(&desc, numSubresources);
         }
 
