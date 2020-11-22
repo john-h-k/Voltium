@@ -32,11 +32,18 @@ namespace Voltium.Core.Memory
         ShaderResource = 1 << 2,
     }
 
+    internal interface IGpuDisposable
+    {
+        public void Dispose(in GpuTask disposeAfterTask);
+    }
+
     /// <summary>
     /// Represents an in-memory texture
     /// </summary>
-    public unsafe struct Texture : IInternalD3D12Object, IDisposable
+    public unsafe struct Texture : IEvictable, IInternalD3D12Object, IDisposable, IGpuDisposable
     {
+        bool IEvictable.IsBlittableToPointer => false;
+        ID3D12Pageable* IEvictable.GetPageable() => ((IEvictable)_resource).GetPageable();
         ID3D12Object* IInternalD3D12Object.GetPointer() => _resource.GetPointer();
         private GpuResource _resource;
 
@@ -58,7 +65,6 @@ namespace Voltium.Core.Memory
 
         // Tex size is not necessarily Width * Height * DepthOrArraySize. ID3D12Device::GetAllocationInfo must be called
         // to understand the real size and alignment of a given texture
-        private void* _cpuAddress;
         private readonly ulong _length;
 
         /// <summary>
@@ -99,7 +105,6 @@ namespace Voltium.Core.Memory
             DepthOrArraySize = desc.DepthOrArraySize;
             _length = resource.Block.Size;
             _resource = resource;
-            _cpuAddress = null;
             Msaa = desc.Msaa;
         }
 
@@ -121,8 +126,24 @@ namespace Voltium.Core.Memory
                 DepthOrArraySize = resDesc.DepthOrArraySize,
             };
 
-            return new Texture(texDesc, res);
+            return new Texture(texDesc, res); 
         }
+
+        //public void WriteToSubresource<T>(ReadOnlySpan<T> data, uint rowPitch, uint subresource = 0) where T : unmanaged
+        //{
+        //    fixed (T* pData = data)
+        //    {
+        //        Guard.ThrowIfFailed(_resource.GetResourcePointer()->WriteToSubresource(subresource, null, pData, rowPitch, (uint)data.Length));
+        //    }
+        //}
+
+        //public void ReadFromSubresource<T>(Span<T> data, uint rowPitch, uint subresource = 0) where T : unmanaged
+        //{
+        //    fixed (T* pData = data)
+        //    {
+        //        Guard.ThrowIfFailed(_resource.GetResourcePointer()->ReadFromSubresource(pData, rowPitch, (uint)data.Length, subresource, null));
+        //    }
+        //}
 
         internal GpuResource Resource => _resource;
 
@@ -146,5 +167,6 @@ namespace Voltium.Core.Memory
 
             _resource = null!;
         }
+
     }
 }

@@ -102,10 +102,7 @@ namespace Voltium.Core
             this.SetName(nameof(ID3D12DescriptorHeap) + " " + desc.Type.ToString());
         }
 
-        /// <summary>
-        /// The description of the heap
-        /// </summary>
-        internal D3D12_DESCRIPTOR_HEAP_DESC Desc => _heap.Ptr->GetDesc();
+        private void ThrowIfShaderVisible() => ThrowHelper.ThrowInvalidOperationException("Can't copy from shader-visible descriptor heap");
 
         private uint _count;
         private uint _offset;

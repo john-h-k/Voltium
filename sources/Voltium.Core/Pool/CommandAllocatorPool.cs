@@ -40,7 +40,6 @@ namespace Voltium.Core.Devices
         protected sealed override void InternalDispose()
         {
             base.InternalDispose();
-            _device.Dispose();
         }
 
         protected override void ManageRent(ref UniqueComPtr<ID3D12CommandAllocator> value, ExecutionContext context)

@@ -239,7 +239,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
             _light.WriteConstantBufferData(ref _sceneLight, 0);
         }
 
-        public override void Register(ref RenderPassBuilder builder, ref Resolver resolver)
+        public override bool Register(ref RenderPassBuilder builder, ref Resolver resolver)
         {
             var resources = new PipelineResources();
             var settings = resolver.GetComponent<PipelineSettings>();
@@ -262,6 +262,8 @@ namespace Voltium.Interactive.BasicRenderPipeline
 
             var fovAngleY = 70.0f * MathF.PI / 180.0f;
             _frameConstants.Projection = Matrix4x4.CreatePerspectiveFieldOfView(fovAngleY, settings.AspectRatio, 0.001f, 100f);
+
+            return true;
         }
 
         public override void Record(GraphicsContext recorder, ref Resolver resolver)

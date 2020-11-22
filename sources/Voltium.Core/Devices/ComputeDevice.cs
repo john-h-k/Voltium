@@ -54,7 +54,7 @@ namespace Voltium.Core.Devices
 
     internal struct DeviceArchitecture
     {
-        public int AddressSpaceBits { init; get; } 
+        public int AddressSpaceBits { init; get; }
         public int ResourceAddressBits { init; get; }
 
         public bool IsCacheCoherentUma { init; get; }
@@ -82,6 +82,12 @@ namespace Voltium.Core.Devices
         /// Immediately begin executing, and synchronously block until the end, when it is closed or disposed
         /// </summary>
         BlockOnClose
+    }
+
+    public enum DeviceFeature
+    {
+        Raytracing,
+        InlineRaytracing
     }
 
     /// <summary>
@@ -197,6 +203,16 @@ namespace Voltium.Core.Devices
                     CurrentUsage = info.CurrentUsage
                 };
             }
+        }
+
+        public bool Supports(DeviceFeature feature)
+        {
+            return feature switch
+            {
+                DeviceFeature.Raytracing => QueryFeatureSupport<D3D12_FEATURE_DATA_D3D12_OPTIONS5>(D3D12_FEATURE_D3D12_OPTIONS5).RaytracingTier >= D3D12_RAYTRACING_TIER.D3D12_RAYTRACING_TIER_1_0,
+                DeviceFeature.InlineRaytracing => QueryFeatureSupport<D3D12_FEATURE_DATA_D3D12_OPTIONS5>(D3D12_FEATURE_D3D12_OPTIONS5).RaytracingTier >= D3D12_RAYTRACING_TIER.D3D12_RAYTRACING_TIER_1_1,
+                _ => ThrowHelper.ThrowArgumentException<bool>(nameof(feature))
+            };
         }
 
         /// <summary>
@@ -480,7 +496,7 @@ namespace Voltium.Core.Devices
             ComputeQueue = new CommandQueue(this, ExecutionContext.Compute, true);
             Allocator = new GpuAllocator(this);
             PipelineManager = new PipelineManager(this);
-            EmptyRootSignature = RootSignature.Create(this, ReadOnlyMemory<RootParameter>.Empty, ReadOnlyMemory<StaticSampler>.Empty);
+            EmptyRootSignature = RootSignature.Create(this, ReadOnlyMemory<RootParameter>.Empty, ReadOnlyMemory<StaticSampler>.Empty, D3D12_ROOT_SIGNATURE_FLAGS.D3D12_ROOT_SIGNATURE_FLAG_NONE);
             CreateDescriptorHeaps();
 
             if (DeviceCreationSettings.AreMetaCommandsEnabled)
@@ -626,6 +642,13 @@ namespace Voltium.Core.Devices
             DevicePointer->RemoveDevice();
         }
 
+        internal T QueryFeatureSupport<T>(D3D12_FEATURE feature) where T : unmanaged
+        {
+            T val;
+            QueryFeatureSupport(feature, &val);
+            return val;
+        }
+
         internal void QueryFeatureSupport<T>(D3D12_FEATURE feature, T* pVal) where T : unmanaged
         {
             ThrowIfFailed(DevicePointer->CheckFeatureSupport(feature, pVal, (uint)sizeof(T)));
@@ -768,10 +791,24 @@ namespace Voltium.Core.Devices
         /// </summary>
         /// <param name="context">The commands to submit for execution</param>
         public GpuTask Execute(GpuContext context)
+            => Execute(context, context switch
+            {
+                GraphicsContext => ExecutionContext.Graphics,
+                ComputeContext => ExecutionContext.Compute,
+                CopyContext => ExecutionContext.Copy,
+                _ => ThrowHelper.ThrowArgumentException<ExecutionContext>(nameof(context)),
+            });
+
+        /// <summary>
+        /// Submit a set of recorded commands to the list
+        /// </summary>
+        /// <param name="context">The commands to submit for execution</param>
+        /// <param name="targetQueue">The <see cref="ExecutionContext"/> which indicates which GPU work queue this should be executed on</param>
+        public GpuTask Execute(GpuContext context, ExecutionContext targetQueue)
         {
             ID3D12GraphicsCommandList6* list = context.List;
 
-            ref var queue = ref GetQueueForContext(context.Context);
+            ref var queue = ref GetQueueForContext(targetQueue);
             if (Unsafe.IsNullRef(ref queue))
             {
                 ThrowHelper.ThrowInvalidOperationException("Invalid to try and execute a GpuContext that is not a CopyContext or ComputeContext on a ComputeDevice");
@@ -787,7 +824,7 @@ namespace Voltium.Core.Devices
         /// <summary>
         /// Execute all provided command lists
         /// </summary>
-        public GpuTask Execute(Span<GpuContext> contexts)
+        public GpuTask Execute(Span<GpuContext> contexts, ExecutionContext targetQueue)
         {
             if (contexts.IsEmpty)
             {
@@ -798,26 +835,12 @@ namespace Voltium.Core.Devices
 
             ID3D12CommandList** ppLists = stackalloc ID3D12CommandList*[contexts.Length];
 
-            ExecutionContext requiredContext = ExecutionContext.Copy;
             for (var i = 0; i < contexts.Length; i++)
             {
                 ppLists[i] = (ID3D12CommandList*)contexts[i].List;
-
-
-                requiredContext = contexts[i].Context switch
-                {
-                    ExecutionContext.Copy => requiredContext,
-                    ExecutionContext.Compute when requiredContext is ExecutionContext.Copy => ExecutionContext.Compute,
-                    ExecutionContext.Graphics when requiredContext is ExecutionContext.Copy or ExecutionContext.Compute => ExecutionContext.Graphics,
-                    _ => requiredContext
-                };
             }
 
-            if (requiredContext == (ExecutionContext)(0xFFFFFFFF))
-            {
-                ThrowHelper.ThrowArgumentException("Invalid execution context type provided in param contexts");
-            }
-            ref var queue = ref GetQueueForContext(requiredContext);
+            ref var queue = ref GetQueueForContext(targetQueue);
             if (Unsafe.IsNullRef(ref queue))
             {
                 ThrowHelper.ThrowInvalidOperationException("Invalid to try and execute a GpuContext that is not a CopyContext or ComputeContext on a ComputeDevice");
@@ -880,9 +903,9 @@ namespace Voltium.Core.Devices
         /// <inheritdoc/>
         public virtual void Dispose()
         {
-            Device.Dispose();
             Allocator.Dispose();
             PipelineManager.Dispose();
+            Device.Dispose();
         }
 
         ID3D12Object* IInternalD3D12Object.GetPointer() => (ID3D12Object*)DevicePointer;

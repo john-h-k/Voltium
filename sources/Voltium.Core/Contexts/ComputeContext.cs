@@ -87,44 +87,6 @@ namespace Voltium.Core
 
 
         /// <summary>
-        /// Insert a UAV barrier
-        /// </summary>
-        /// <param name="buffer"></param>
-        public void UavBarrier(in Buffer buffer)
-        {
-            D3D12_RESOURCE_BARRIER barrier = new()
-            {
-                Type = D3D12_RESOURCE_BARRIER_TYPE.D3D12_RESOURCE_BARRIER_TYPE_UAV,
-                UAV = new D3D12_RESOURCE_UAV_BARRIER
-                {
-                    pResource = buffer.GetResourcePointer()
-                }
-            };
-
-            AddBarrier(barrier);
-        }
-
-
-
-        /// <summary>
-        /// Insert a UAV barrier
-        /// </summary>
-        /// <param name="texture"></param>
-        public void UavBarrier(in Texture texture)
-        {
-            D3D12_RESOURCE_BARRIER barrier = new()
-            {
-                Type = D3D12_RESOURCE_BARRIER_TYPE.D3D12_RESOURCE_BARRIER_TYPE_UAV,
-                UAV = new D3D12_RESOURCE_UAV_BARRIER
-                {
-                    pResource = texture.GetResourcePointer()
-                }
-            };
-
-            AddBarrier(barrier);
-        }
-
-        /// <summary>
         /// Sets the current pipeline state
         /// </summary>
         /// <param name="pso">The <see cref="PipelineStateObject"/> to set</param>

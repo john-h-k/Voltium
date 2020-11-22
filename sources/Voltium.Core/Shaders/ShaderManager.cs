@@ -657,28 +657,6 @@ namespace Voltium.Core.Devices
             using var file = File.OpenWrite(Path.Join(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Temp", pdbName->GetString()));
             file.Write(pdb->AsSpan());
         }
-
-        private static unsafe ReadOnlySpan<char> AsString(IDxcBlob* pBlob)
-        {
-            if (ComPtr.TryQueryInterface(pBlob, out IDxcBlobUtf8* utf8))
-            {
-                return utf8->GetString();
-            }
-            if (ComPtr.TryQueryInterface(pBlob, out IDxcBlobUtf16* utf16))
-            {
-                return utf16->GetString();
-            }
-
-            if (ComPtr.TryQueryInterface(pBlob, out IDxcBlobEncoding* _))
-            {
-                ThrowHelper.ThrowNotSupportedException("Unsupported encoding");
-            }
-            else
-            {
-                ThrowHelper.ThrowNotSupportedException("Cannot decode binary data");
-            }
-            return null;
-        }
         
         private static unsafe bool TryGetOutput(
             IDxcResult* result,

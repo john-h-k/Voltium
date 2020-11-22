@@ -10,16 +10,21 @@
 
 using System;
 using System.Buffers;
+using System.Collections;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Timers;
 using Microsoft.Extensions.Logging;
 using Microsoft.Toolkit.HighPerformance.Extensions;
 using TerraFX.Interop;
 using Voltium.Common.Threading;
+
+using Timer = System.Timers.Timer;
 
 namespace Voltium.Common
 {
@@ -52,6 +57,17 @@ namespace Voltium.Common
 #endif
             }
         }
+
+
+        public struct Context
+        {
+            public Context(int value) => Value = value;
+
+            private static int _lastLogContext;
+            private int Value;
+            public static Context Create() => new Context(Interlocked.Increment(ref _lastLogContext));
+        }
+
 
         private static readonly Timer AsyncFlush = GetAsyncFlushTimer();
 

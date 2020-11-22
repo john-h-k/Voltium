@@ -18,6 +18,27 @@ namespace Voltium.Common
 
 
         public static string GetString(this ref IDxcBlob blob, Encoding? encoding) => encoding is null ? blob.AsSpan<char>().ToString() : encoding.GetString(blob.AsSpan());
+        public static string GetString(this ref IDxcBlob blob)
+        {
+            var pBlob = new UniqueComPtr<IDxcBlob>((IDxcBlob*)Unsafe.AsPointer(ref blob));
+            if (pBlob.TryQueryInterface<IDxcBlobUtf8>(out var utf8))
+            {
+                using (utf8)
+                {
+                    return utf8.Ptr->GetString();
+                }
+            }
+            else if (pBlob.TryQueryInterface<IDxcBlobUtf16>(out var utf16))
+            {
+                using (utf16)
+                {
+                    return utf16.Ptr->GetString();
+                }
+            }
+
+            return blob.GetString(null);
+        }
+
         public static string GetString(this ref IDxcBlobUtf8 blob) => new string(blob.GetStringPointer(), 0, checked((int)blob.GetStringLength()));
         public static string GetString(this ref IDxcBlobUtf16 blob) => new string((char*)blob.GetStringPointer(), 0, checked((int)blob.GetStringLength()));
     }

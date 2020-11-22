@@ -13,6 +13,7 @@ using Voltium.ModelLoading;
 using Voltium.TextureLoading;
 using Voltium.Common.Pix;
 using Buffer = Voltium.Core.Memory.Buffer;
+using Voltium.Core.Contexts;
 
 namespace Voltium.Interactive
 {
@@ -280,7 +281,7 @@ namespace Voltium.Interactive
         public override void Render(GraphicsContext recorder, out Texture render)
         {
             recorder.SetViewportAndScissor(_outputResolution);
-            recorder.ResourceTransition(_renderTarget, ResourceState.RenderTarget);
+            recorder.Barrier(ResourceBarrier.Transition(_renderTarget, ResourceState.CopySource, ResourceState.RenderTarget));
 
             recorder.SetAndClearRenderTarget(_renderTargetView, Rgba128.CornflowerBlue, _depthStencilView);
 

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.CompilerServices;
@@ -94,23 +95,90 @@ namespace Voltium.Core
         //SetProtectedResourceSession
         //WriteBufferImmediate
 
+
+        //public record WriteBufferParams(uint Value, ulong Address);
+
+        /// <summary>
+        /// The mode used for <see cref="WriteBufferImmediate(ulong, uint, WriteBufferImmediateMode)"/> or <see cref="WriteBufferImmediate(ReadOnlySpan{ValueTuple{ulong, uint}}, ReadOnlySpan{WriteBufferImmediateMode})"/>
+        /// </summary>
+        public enum WriteBufferImmediateMode
+        {
+            /// <summary>
+            /// The same ordering occurs as with a standard copy operation
+            /// </summary>
+            Default = D3D12_WRITEBUFFERIMMEDIATE_MODE.D3D12_WRITEBUFFERIMMEDIATE_MODE_DEFAULT,
+
+            /// <summary>
+            /// The write is guaranteed to occur after all previous commands have BEGAN execution on the GPU
+            /// </summary>
+            In = D3D12_WRITEBUFFERIMMEDIATE_MODE.D3D12_WRITEBUFFERIMMEDIATE_MODE_MARKER_IN,
+
+            /// <summary>
+            /// The write is guaranteed to occur after all previous commands have COMPLETED execution on the GPU
+            /// </summary>
+            Out = D3D12_WRITEBUFFERIMMEDIATE_MODE.D3D12_WRITEBUFFERIMMEDIATE_MODE_MARKER_OUT
+        }
+
+        /// <summary>
+        /// Writes a 32-bit value to GPU accessible memory
+        /// </summary>
+        /// <param name="address">The GPU address to write to</param>
+        /// <param name="value">The 32 bit value to write to memory</param>
+        /// <param name="mode">The <see cref="WriteBufferImmediateMode"/> mode to write with. By default, this is <see cref="WriteBufferImmediateMode.Default"/></param>
+        public void WriteBufferImmediate(ulong address, uint value, WriteBufferImmediateMode mode = WriteBufferImmediateMode.Default)
+        {
+            var param = new D3D12_WRITEBUFFERIMMEDIATE_PARAMETER
+            {
+                Dest = address,
+                Value = value
+            };
+
+            FlushBarriers();
+            List->WriteBufferImmediate(1, &param, (D3D12_WRITEBUFFERIMMEDIATE_MODE*)&mode);
+        }
+
+
+        /// <summary>
+        /// Writes a 32-bit value to GPU accessible memory
+        /// </summary>
+        /// <param name="pairs">The GPU address and value pairs to write</param>
+        /// <param name="modes">The <see cref="WriteBufferImmediateMode"/> modes to write with. By default, this is <see cref="WriteBufferImmediateMode.Default"/>.
+        /// If <see cref="ReadOnlySpan{T}.Empty"/> is passed, <see cref="WriteBufferImmediateMode.Default"/> is used.</param>
+        public void WriteBufferImmediate(ReadOnlySpan<(ulong Address, uint Value)> pairs, ReadOnlySpan<WriteBufferImmediateMode> modes = default)
+        {
+            if (!modes.IsEmpty && modes.Length != pairs.Length)
+            {
+                ThrowHelper.ThrowArgumentException(nameof(modes));
+            }
+
+
+            fixed (void* pParams = pairs)
+            fixed (void* pModes = modes)
+            {
+                FlushBarriers();
+                List->WriteBufferImmediate((uint)modes.Length, (D3D12_WRITEBUFFERIMMEDIATE_PARAMETER*)pParams, (D3D12_WRITEBUFFERIMMEDIATE_MODE*)pModes);
+            }
+        }
+
         /// <summary>
         /// Transitions a <see cref="Texture"/> for use on a different <see cref="ExecutionContext"/>
         /// </summary>
         /// <param name="tex">The <see cref="Texture"/> to transition</param>
+        /// <param name="current">The current <see cref="ResourceState"/> of <paramref name="tex"/></param>
         /// <param name="subresource">The subresource to transition, by default, all subresources</param>
-        public void TransitionForCrossContextAccess(in Texture tex, uint subresource = uint.MaxValue)
+        public void TransitionForCrossContextAccess(in Texture tex, ResourceState current, uint subresource = uint.MaxValue)
         {
-            ResourceTransition(tex, ResourceState.Common, subresource);
+            Barrier(ResourceBarrier.Transition(tex, current, ResourceState.Common, subresource));
         }
 
         /// <summary>
         /// Transitions a <see cref="Buffer"/> for use on a different <see cref="ExecutionContext"/>
         /// </summary>
-        /// <param name="tex">The <see cref="Buffer"/> to transition</param>
-        public void TransitionForCrossContextAccess(in Buffer tex)
+        /// <param name="buffer">The <see cref="Buffer"/> to transition</param>
+        /// <param name="current">The current <see cref="ResourceState"/> of <paramref name="buffer"/></param>
+        public void TransitionForCrossContextAccess(in Buffer buffer, ResourceState current)
         {
-            ResourceTransition(tex, ResourceState.Common);
+            Barrier(ResourceBarrier.Transition(buffer, current, ResourceState.Common));
         }
 
         /// <summary>
@@ -122,9 +190,6 @@ namespace Voltium.Core
         /// <param name="destSubresource">The index of the subresource to copy to</param>
         public void CopySubresource(in Texture source, in Texture dest, uint sourceSubresource, uint destSubresource)
         {
-            ResourceTransition(source, ResourceState.CopySource, sourceSubresource);
-            ResourceTransition(dest, ResourceState.CopyDestination, destSubresource);
-
             Unsafe.SkipInit(out D3D12_TEXTURE_COPY_LOCATION sourceDesc);
             Unsafe.SkipInit(out D3D12_TEXTURE_COPY_LOCATION destDesc);
 
@@ -136,6 +201,7 @@ namespace Voltium.Core
             destDesc.Type = D3D12_TEXTURE_COPY_TYPE.D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
             destDesc.Anonymous.SubresourceIndex = destSubresource;
 
+            FlushBarriers();
             List->CopyTextureRegion(&destDesc, 0, 0, 0, &sourceDesc, null);
         }
 
@@ -154,7 +220,10 @@ namespace Voltium.Core
             => CopyBufferRegion(source.Buffer, source.Offset, dest, 0, source.Length);
 
         public void CopyBufferRegion(in Buffer source, uint sourceOffset, in Buffer dest, uint destOffset, uint numBytes)
-            => List->CopyBufferRegion(dest.GetResourcePointer(), destOffset, source.GetResourcePointer(), sourceOffset, numBytes);
+        {
+            FlushBarriers();
+            List->CopyBufferRegion(dest.GetResourcePointer(), destOffset, source.GetResourcePointer(), sourceOffset, numBytes);
+        }
 #pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
 
         /// <summary>
@@ -165,8 +234,6 @@ namespace Voltium.Core
         /// <param name="subresourceIndex">The index of the subresource to copy from</param>
         public void CopySubresource(in Texture source, in Buffer dest, uint subresourceIndex = 0)
         {
-            ResourceTransition(source, ResourceState.CopySource, subresourceIndex);
-            ResourceTransition(dest, ResourceState.CopyDestination, 0);
             Device.GetCopyableFootprint(source, subresourceIndex, 1, out var layout, out var row, out var numRow, out var size);
 
             Debug.Assert(dest.Length >= size);
@@ -207,9 +274,6 @@ namespace Voltium.Core
         /// <param name="data"></param>
         public void CopySubresource(in Texture source, uint subresourceIndex, in Buffer data)
         {
-            //ResourceTransition(source, ResourceState.CopySource, subresourceIndex);
-            //ResourceTransition(data, ResourceState.CopyDestination, 0);
-
             Device.GetCopyableFootprint(source, subresourceIndex, 1, out _, out _, out var rowSize, out var size);
 
             var alignedRowSizes = MathHelpers.AlignUp(rowSize, 256);
@@ -268,7 +332,7 @@ namespace Voltium.Core
         /// Mark a resource barrierson the command list
         /// </summary>
         /// <param name="barrier">The barrier</param>
-        public void ResourceBarrier(in ResourceBarrier barrier)
+        public void Barrier(in ResourceBarrier barrier)
         {
             AddBarrier(barrier.Barrier);
         }
@@ -277,163 +341,9 @@ namespace Voltium.Core
         /// Mark a set of resource barriers on the command list
         /// </summary>
         /// <param name="barriers">The barriers</param>
-        public void ResourceBarrier(ReadOnlySpan<ResourceBarrier> barriers)
+        public void Barrier(ReadOnlySpan<ResourceBarrier> barriers)
         {
             AddBarriers(MemoryMarshal.Cast<ResourceBarrier, D3D12_RESOURCE_BARRIER>(barriers));
-        }
-
-        /// <summary>
-        /// Mark a resource barrier on the command list
-        /// </summary>
-        /// <param name="resource">The resource to transition</param>
-        /// <param name="transition">The transition</param>
-        /// <param name="subresource">The subresource to transition</param>
-        public void ResourceTransition(in Buffer resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
-            => ResourceTransition(resource.Resource, transition, subresource);
-
-        /// <summary>
-        /// Mark a resource barrier on the command list
-        /// </summary>
-        /// <param name="resource">The resource to transition</param>
-        /// <param name="transition">The transition</param>
-        /// <param name="subresource">The subresource to transition</param>
-        public void ResourceTransition(in Texture resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
-            => ResourceTransition(resource.Resource, transition, subresource);
-
-
-        /// <summary>
-        /// Mark a resource barrier on the command list
-        /// </summary>
-        /// <param name="resource">The resource to transition</param>
-        /// <param name="transition">The transition</param>
-        /// <param name="subresource">The subresource to transition</param>
-        public void BeginResourceTransition(in Buffer resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
-            => BeginResourceTransition(resource.Resource, transition, subresource);
-
-        /// <summary>
-        /// Mark a resource barrier on the command list
-        /// </summary>
-        /// <param name="resource">The resource to transition</param>
-        /// <param name="transition">The transition</param>
-        /// <param name="subresource">The subresource to transition</param>
-        public void BeginResourceTransition(in Texture resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
-            => BeginResourceTransition(resource.Resource, transition, subresource);
-
-
-        /// <summary>
-        /// Mark a resource barrier on the command list
-        /// </summary>
-        /// <param name="resource">The resource to transition</param>
-        /// <param name="transition">The transition</param>
-        /// <param name="subresource">The subresource to transition</param>
-        public void EndResourceTransition(in Buffer resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
-            => EndResourceTransition(resource.Resource, transition, subresource);
-
-        /// <summary>
-        /// Mark a resource barrier on the command list
-        /// </summary>
-        /// <param name="resource">The resource to transition</param>
-        /// <param name="transition">The transition</param>
-        /// <param name="subresource">The subresource to transition</param>
-        public void EndResourceTransition(in Texture resource, ResourceState transition, uint subresource = 0xFFFFFFFF)
-            => EndResourceTransition(resource.Resource, transition, subresource);
-
-        private static bool IsTransitionNecessary(ResourceState state, ResourceState transition)
-            => transition == ResourceState.Common || (state & transition) != transition;
-
-        private void ResourceTransition(GpuResource resource, ResourceState transition, uint subresource)
-        {
-            // demote a full resource transition to an end-only where applicable because it is more efficient
-            if (resource.TransitionBegan)
-            {
-                EndResourceTransition(resource, transition, subresource);
-                return;
-            }
-
-            var state = resource.State;
-
-            // don't do unnecessary work
-            if (!IsTransitionNecessary(state, transition))
-            {
-                return;
-            }
-
-            Unsafe.SkipInit(out D3D12_RESOURCE_BARRIER barrier);
-            {
-                barrier.Type = D3D12_RESOURCE_BARRIER_TYPE.D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-                // If the state isn't flushed, we need to end the previous barrier
-                barrier.Flags = 0;
-                barrier.Anonymous.Transition = new D3D12_RESOURCE_TRANSITION_BARRIER
-                {
-                    pResource = resource.GetResourcePointer(),
-                    StateBefore = (D3D12_RESOURCE_STATES)state,
-                    StateAfter = (D3D12_RESOURCE_STATES)transition,
-                    Subresource = subresource
-                };
-            };
-
-            resource.State = transition;
-
-            AddBarrier(barrier);
-        }
-
-        private void BeginResourceTransition(GpuResource resource, ResourceState transition, uint subresource)
-        {
-            var state = resource.State;
-
-            // don't do unnecessary work
-            // end barrier must be dropped if begin barrier is dropped (resource.TransitionBegan tracks this)
-            if (!IsTransitionNecessary(state, transition))
-            {
-                return;
-            }
-
-            Unsafe.SkipInit(out D3D12_RESOURCE_BARRIER barrier);
-            {
-                barrier.Type = D3D12_RESOURCE_BARRIER_TYPE.D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-                barrier.Flags = D3D12_RESOURCE_BARRIER_FLAGS.D3D12_RESOURCE_BARRIER_FLAG_BEGIN_ONLY;
-                barrier.Anonymous.Transition = new D3D12_RESOURCE_TRANSITION_BARRIER
-                {
-                    pResource = resource.GetResourcePointer(),
-                    StateBefore = (D3D12_RESOURCE_STATES)state,
-                    StateAfter = (D3D12_RESOURCE_STATES)transition,
-                    Subresource = subresource
-                };
-            };
-
-            resource.TransitionBegan = true;
-
-            AddBarrier(barrier);
-        }
-
-        private void EndResourceTransition(GpuResource resource, ResourceState transition, uint subresource)
-        {
-            var state = resource.State;
-
-            // drop ends with no beginnings, which occurs when a begin resource transition is marked as unnecessary
-            // it also happens with invalid end resources (where no begin call has ever been made), but hopefully the debug layer will catch these
-            if (!resource.TransitionBegan)
-            {
-                return;
-            }
-
-            Unsafe.SkipInit(out D3D12_RESOURCE_BARRIER barrier);
-            {
-                barrier.Type = D3D12_RESOURCE_BARRIER_TYPE.D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-                barrier.Flags = D3D12_RESOURCE_BARRIER_FLAGS.D3D12_RESOURCE_BARRIER_FLAG_END_ONLY;
-                barrier.Anonymous.Transition = new D3D12_RESOURCE_TRANSITION_BARRIER
-                {
-                    pResource = resource.GetResourcePointer(),
-                    StateBefore = (D3D12_RESOURCE_STATES)state,
-                    StateAfter = (D3D12_RESOURCE_STATES)transition,
-                    Subresource = subresource
-                };
-            };
-
-            resource.State = transition;
-            resource.TransitionBegan = false;
-
-            AddBarrier(barrier);
         }
 
         /// <inheritdoc/>

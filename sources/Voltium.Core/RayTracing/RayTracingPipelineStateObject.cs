@@ -6,17 +6,17 @@ namespace Voltium.Core.Pipeline
     /// <summary>
     /// A <see cref="PipelineStateObject"/> for a grpahics pipeline
     /// </summary>
-    public unsafe sealed class RayTracingPipelineStateObject : PipelineStateObject
+    public unsafe sealed class RaytracingPipelineStateObject : PipelineStateObject
     {
         /// <summary>
-        /// The <see cref="RayTracingPipelineDesc"/> for this pipeline
+        /// The <see cref="RaytracingPipelineDesc"/> for this pipeline
         /// </summary>
-        public readonly RayTracingPipelineDesc Desc;
+        public readonly RaytracingPipelineDesc Desc;
 
         internal override unsafe ID3D12RootSignature* GetRootSig()
-            => Desc.GlobalRootSignature.Value;
+            => Desc.GlobalRootSignature is null ? null : Desc.GlobalRootSignature.Value;
 
-        internal RayTracingPipelineStateObject(UniqueComPtr<ID3D12StateObject> pso, RayTracingPipelineDesc desc) : base(pso.As<ID3D12Object>())
+        internal RaytracingPipelineStateObject(UniqueComPtr<ID3D12StateObject> pso, RaytracingPipelineDesc desc) : base(pso.As<ID3D12Object>())
         {
             Desc = desc;
         }

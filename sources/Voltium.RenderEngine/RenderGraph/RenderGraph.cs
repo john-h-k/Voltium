@@ -9,6 +9,7 @@ using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Microsoft.Collections.Extensions;
 using Microsoft.Toolkit.HighPerformance.Extensions;
+using Microsoft.Toolkit.HighPerformance.Helpers;
 using Voltium.Common;
 using Voltium.Core;
 using Voltium.Core.Contexts;
@@ -132,7 +133,11 @@ namespace Voltium.RenderEngine
             var passIndex = _frame.RenderPasses.Count;
             var builder = new RenderPassBuilder(this, passIndex, pass);
 
-            pass.Register(ref builder, ref _frame.Resolver);
+            // Register returning false means "discard pass from graph"
+            if (!pass.Register(ref builder, ref _frame.Resolver))
+            {
+                return;
+            }
 
             // anything with no dependencies is a top level input node implicity
             if ((builder.FrameDependencies?.Count ?? 0) == 0)
@@ -411,8 +416,6 @@ namespace Voltium.RenderEngine
 
         private void RecordWithHeuristics()
         {
-            throw new NotImplementedException();
-
 #pragma warning disable CS0162 // Unreachable code detected
             _frame.RenderPasses.AsSpan().Sort(static (a, b) =>
 #pragma warning restore CS0162 // Unreachable code detected
@@ -423,9 +426,12 @@ namespace Voltium.RenderEngine
                 return heuristicsA.CompareTo(heuristicsB);
             });
 
-            for (var i = 0; i < _frame.RenderPasses.Count + Environment.ProcessorCount - 1; i += Environment.ProcessorCount)
+
+            using var tasks = RentedArray<Task>.Create(Environment.ProcessorCount);
+
+            for (int i = 0, offset = 0; i < _frame.RenderPasses.Count + Environment.ProcessorCount - 1; i += Environment.ProcessorCount, offset++)
             {
-                Task.Run(() =>
+                tasks.Value[offset] = Task.Run(() =>
                 {
                     for (var j = 0; j < Environment.ProcessorCount; j++)
                     {
@@ -451,6 +457,16 @@ namespace Voltium.RenderEngine
                         heuristics.LastPassRecordTime = recordLength;
                     }
                 });
+            }
+
+            Task.WhenAll(tasks.Value).RunSynchronously();
+        }
+
+        private struct PassExecution : IAction
+        {
+            public void Invoke(int i)
+            {
+
             }
         }
 
@@ -500,7 +516,7 @@ namespace Voltium.RenderEngine
                 {
                     using (var barrierCtx = _device.BeginGraphicsContext())
                     {
-                        barrierCtx.ResourceBarrier(barriers);
+                        barrierCtx.Barrier(barriers);
                         contexts.Value[offset++] = barrierCtx;
                     }
                 }
@@ -511,7 +527,7 @@ namespace Voltium.RenderEngine
                 }
             }
 
-            var task = _device.Execute(contexts.AsSpan());
+            var task = _device.Execute(contexts.AsSpan(), ExecutionContext.Graphics);
             return task;
         }
 

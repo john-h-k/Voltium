@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 using System.Runtime.CompilerServices;
 using static TerraFX.Interop.Windows;
 
@@ -173,7 +174,7 @@ namespace Voltium.Common
         )
         {
             //if (hr == DXGI_ERROR_DEVICE_REMOVED)
-                //return;
+            //return;
 
             var nativeMessage = $"Native code threw an exception with HR '0x{hr:X8}', message '{ResolveErrorCode(hr)}'.";
 
@@ -195,7 +196,7 @@ namespace Voltium.Common
                 additionalInfo
             );
 
-            
+
             Exception ex = hr switch
             {
                 E_INVALIDARG => new ArgumentException(inner.Message, inner),
@@ -208,6 +209,22 @@ namespace Voltium.Common
             };
 
             throw ex;
+        }
+
+        public static int HrForException(Exception e)
+        {
+            return e switch
+            {
+                ArgumentNullException => E_POINTER,
+                InvalidCastException => E_NOINTERFACE,
+                ArgumentException => E_INVALIDARG,
+                OutOfMemoryException => E_OUTOFMEMORY,
+                NotImplementedException => E_NOTIMPL,
+                InvalidOperationException => E_FAIL,
+                FileNotFoundException  => HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND),
+                //DeviceDisconnectedException => MAKE_HRESULT(1, FACILITY_DXGI, DXGI_ERROR_DEVICE_REMOVED),
+                _ => E_FAIL
+            };
         }
 
         private enum ErrorContext

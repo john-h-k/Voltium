@@ -132,7 +132,7 @@ namespace Voltium.Interactive
 
         public override void Render(GraphicsContext recorder, out Texture render)
         {
-            recorder.ResourceTransition(_renderTarget, ResourceState.RenderTarget);
+            //recorder.ResourceTransition(_renderTarget, ResourceState.RenderTarget);
 
             recorder.SetViewportAndScissor(_outputResolution);
             recorder.SetRenderTargets(_renderTargetView);

@@ -32,6 +32,7 @@ namespace Voltium.CubeGame
 
         private Camera _camera = null!;
         private WorldPass _worldPass = null!;
+        private FxaaPass _fxaaPass = null!;
         private TonemapPass _outputPass = null!;
 
         private MsaaDesc _msaa;
@@ -39,13 +40,14 @@ namespace Voltium.CubeGame
         [MemberNotNull(nameof(_worldPass))]
         public override void Initialize(Size outputSize, IOutputOwner outputOwner)
         {
-            _device = GraphicsDevice.Create(FeatureLevel.GraphicsLevel11_0, null, DebugLayerConfiguration.Debug.WithDebugFlags(DebugFlags.DebugLayer));
+            _device = GraphicsDevice.Create(FeatureLevel.GraphicsLevel11_0, null, DebugLayerConfiguration.Debug.WithDebugFlags(DebugFlags.DebugLayer | DebugFlags.GpuBasedValidation));
             _output = Output.Create(OutputConfiguration.Default, _device, outputOwner);
 
             _camera = new();
 
             _graph = new RenderGraph(_device, 1);
             _worldPass = new WorldPass(_device, _camera);
+            _fxaaPass = new FxaaPass(_device);
             _outputPass = new TonemapPass(_output);
         }
 
@@ -112,6 +114,7 @@ namespace Voltium.CubeGame
             _graph.CreateComponent(new RenderSettings { Msaa = _msaa });
 
             _graph.AddPass(_worldPass);
+            _graph.AddPass(_fxaaPass);
             _graph.AddPass(_outputPass);
 
             _graph.ExecuteGraph();

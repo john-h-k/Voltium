@@ -1,8 +1,10 @@
 using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Threading;
 using TerraFX.Interop;
 using Voltium.Common;
+using Voltium.Core.Devices;
 using Voltium.Core.Memory;
 
 namespace Voltium.Core.Memory
@@ -31,15 +33,27 @@ namespace Voltium.Core.Memory
         /// </summary>
         public readonly uint Length;
 
-        internal Buffer(ulong length, ulong offset, GpuResource resource)
+        internal Buffer(ComputeDevice device, GpuResource resource, ulong offset, InternalAllocDesc* pDesc)
         {
             _resource = resource;
             _offset = (uint)offset;
 
-            Length = (uint)length;
-            _cpuAddress = null;
+            Length = (uint)pDesc->Desc.Width;
 
             _gpuAddress = _resource.GetResourcePointer()->GetGPUVirtualAddress() + _offset;
+
+            // Don't map CPU-opaque buffers or raytracing acceleration buffers
+            if (pDesc->HeapProperties.IsCPUAccessible && pDesc->InitialState != D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE)
+            {
+                void* pData;
+                device.ThrowIfFailed(_resource.GetResourcePointer()->Map(0, null, &pData));
+
+                _cpuAddress = pData;
+            }
+            else
+            {
+                _cpuAddress = null;
+            }
         }
 
         private void ThrowIfDead()
@@ -59,79 +73,70 @@ namespace Voltium.Core.Memory
         /// <summary>
         /// The buffer data. This may be empty if the data is not CPU writable
         /// </summary>
-        public T* As<T>() where T : unmanaged
-        {
-            Map();
+        public T* As<T>() where T : unmanaged => (T*)_cpuAddress;
 
-            return (T*)_cpuAddress;
-        }
 
-        /// <summary>
-        /// The buffer data. This may be <see langword="null"/> if the data is not CPU writable
-        /// </summary>
-        public void* Pointer
-        {
-            get
-            {
-                Map();
-
-                return _cpuAddress;
-            }
-        }
 
         /// <summary>
         /// The buffer data. This may be empty if the data is not CPU writable
         /// </summary>
-        public Span<byte> Span
-        {
-            get
-            {
-                Map();
-
-                return new Span<byte>(_cpuAddress, (int)Length);
-            }
-        }
+        public ref T AsRef<T>() where T : unmanaged => ref *As<T>();
 
         /// <summary>
-        /// Maps the resource
+        /// The buffer data. This may be <see langword="null"/> if the data is not CPU writable
         /// </summary>
-        public void Map()
-        {
-            if (_cpuAddress != null)
-            {
-                return;
-            }
-            _cpuAddress = (byte*)_resource.Map(0) + _offset;
-        }
+        public void* Pointer => _cpuAddress;
 
         /// <summary>
-        /// Unmaps the resource
+        /// The GPU address
         /// </summary>
-        public void Unmap()
-        {
-            if (_cpuAddress == null)
-            {
-                return;
-            }
-            _resource.Unmap(0);
-            _cpuAddress = null;
-        }
+        public ulong GpuAddress => _gpuAddress;
 
-        internal struct ScopedMap : IDisposable
-        {
-            internal ScopedMap(GpuResource resource) => _resource = resource;
+        /// <summary>
+        /// The buffer data. This may be empty if the data is not CPU writable
+        /// </summary>
+        public Span<byte> Span => new Span<byte>(_cpuAddress, _cpuAddress is null ? 0 : (int)Length);
 
-            public void Dispose() => _resource.Unmap(0);
+        ///// <summary>
+        ///// Maps the resource
+        ///// </summary>
+        //public void Map()
+        //{
+        //    if (_cpuAddress != null)
+        //    {
+        //        return;
+        //    }
+        //    _cpuAddress = (byte*)_resource.Map(0) + _offset;
+        //}
 
-            private GpuResource _resource;
-        }
+        ///// <summary>
+        ///// Unmaps the resource
+        ///// </summary>
+        //public void Unmap()
+        //{
+        //    if (_cpuAddress == null)
+        //    {
+        //        return;
+        //    }
+        //    _resource.Unmap(0);
+        //    _cpuAddress = null;
+        //}
 
-        // internal because it allows use-after-free
-        internal ScopedMap MapScoped()
-        {
-            Map();
-            return new ScopedMap(_resource);
-        }
+        //internal struct ScopedMap : IDisposable
+        //{
+        //    internal ScopedMap(GpuResource resource) => _resource = resource;
+
+        //    public void Dispose() => _resource.Unmap(0);
+
+        //    private GpuResource _resource;
+        //}
+
+        //// internal because it allows use-after-free
+        //internal ScopedMap MapScoped()
+        //{
+        //    Map();
+        //    return new ScopedMap(_resource);
+        //}
 
         /// <summary>
         /// Writes the <typeparamref name="T"/> to the buffer
@@ -174,8 +179,8 @@ namespace Voltium.Core.Memory
         /// <inheritdoc/>
         public void Dispose()
         {
-            _resource?.Dispose();
-            _resource = null!;
+            Interlocked.Exchange(ref _resource, null!)?.Dispose();
+
             _cpuAddress = null;
             _gpuAddress = 0;
         }
@@ -194,16 +199,6 @@ namespace Voltium.Core.Memory
             _gpuAddress = 0;
         }
 
-        // required for binding directly without desc heap
-        internal ulong GpuAddress
-        {
-            get
-            {
-                ThrowIfDead();
-                return _gpuAddress;
-            }
-        }
-
         internal void* CpuAddress
         {
             get
@@ -219,7 +214,7 @@ namespace Voltium.Core.Memory
         /// blah
         /// </summary>
         /// <returns></returns>
-        public ID3D12Resource* GetResourcePointer() => _resource.GetResourcePointer();
+        internal ID3D12Resource* GetResourcePointer() => _resource.GetResourcePointer();
 
     }
 

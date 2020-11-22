@@ -8,13 +8,11 @@ using Voltium.Core.Pipeline;
 
 namespace Voltium.Core.Devices
 {
-    //public unsafe struct ShaderExport
-    //{
-    //    private D3D12_EXPORT_DESC Desc;
-
-    //    public ReadOnlySpan<char> Name { get => StringHelpers.ToSpan((char*)Desc.Name); set => Desc.Name = (ushort*)StringHelpers.MarshalToUnmanaged(value); }
-    //    public ReadOnlySpan<char> ExportRename { get => StringHelpers.ToSpan((char*)Desc.ExportToRename); set => Desc.ExportToRename = (ushort*)StringHelpers.MarshalToUnmanaged(value); }
-    //}
+    public unsafe struct ShaderExport
+    {
+        public ReadOnlyMemory<char> Name { get; set; }
+        public ReadOnlyMemory<char> ExportRename { get; set; }
+    }
 
     /// <summary>
     /// Represents a compiled shader

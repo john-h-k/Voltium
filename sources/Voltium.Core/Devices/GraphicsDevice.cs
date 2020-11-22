@@ -124,11 +124,11 @@ namespace Voltium.Core.Devices
         private void SetDefaultState(GpuContext context, PipelineStateObject? pso)
         {
             var rootSig = pso is null ? null : pso.GetRootSig();
-            if (pso is ComputePipelineStateObject)
+            if (pso is ComputePipelineStateObject or RaytracingPipelineStateObject)
             {
                 context.List->SetComputeRootSignature(rootSig);
             }
-            else if (pso is GraphicsPipelineStateObject or MeshPipelineStateObject)
+            if (pso is GraphicsPipelineStateObject or MeshPipelineStateObject or RaytracingPipelineStateObject)
             {
                 context.List->SetGraphicsRootSignature(rootSig);
             }

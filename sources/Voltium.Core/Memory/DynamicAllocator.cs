@@ -21,11 +21,6 @@ namespace Voltium.Core.Memory
 
         internal ID3D12Resource* GetResourcePointer() => Buffer.GetResourcePointer();
 
-        // internal because it allows use-after-free
-        internal Buffer.ScopedMap MapScoped() => Buffer.MapScoped();
-        internal void Map() => Buffer.Map();
-        internal void Unmap() => Buffer.Unmap();
-
         /// <summary>
         /// Writes the <typeparamref name="T"/> to the buffer
         /// </summary>
@@ -238,13 +233,8 @@ namespace Voltium.Core.Memory
 
                 using UniqueComPtr<ID3D12Resource> page = _device.CreateCommittedResource(&desc);
 
-                var buff = new Buffer(size, 0, new GpuResource(_device, page.Move(), &desc, null));
+                var buff = new Buffer(_device, new GpuResource(_device, page.Move(), &desc, null), 0, &desc);
 
-                if (_access == MemoryAccess.CpuUpload)
-                {
-                    // we persistently map upload resources
-                    buff.Map();
-                }
                 return buff;
             }
 

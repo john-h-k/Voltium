@@ -134,6 +134,13 @@ namespace Voltium.Common
         {
             Helpers.Free(str);
         }
+
+        public static unsafe GCHandle Pin(this string s, out char* p)
+        {
+            var handle = GCHandle.Alloc(s, GCHandleType.Pinned);
+            p = (char*)handle.AddrOfPinnedObject();
+            return handle;
+        }
     }
 
     internal unsafe struct FreeHelperAlloc : IPinnable

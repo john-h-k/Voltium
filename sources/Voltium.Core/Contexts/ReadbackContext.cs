@@ -127,8 +127,6 @@ namespace Voltium.Core.Contexts
             {
                 var (buffer, dest, layout) = bufferList[i];
 
-                buffer.Map();
-
                 if (layout is null) // buffer
                 {
                     buffer.Data.CopyTo(dest.Span);
@@ -137,8 +135,6 @@ namespace Voltium.Core.Contexts
                 {
                     CopyTexture(buffer, dest, layout.GetValueOrDefault());
                 }
-
-                buffer.Unmap();
             }
 
             allocator.Dispose(GpuTask.Completed);

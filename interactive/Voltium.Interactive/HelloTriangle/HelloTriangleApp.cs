@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core;
+using Voltium.Core.Contexts;
 using Voltium.Core.Devices;
 using Voltium.Core.Devices.Shaders;
 using Voltium.Core.Pipeline;
@@ -80,7 +81,7 @@ namespace Voltium.Interactive.HelloTriangle
 
             context.SetRootSignature(_device.EmptyRootSignature);
             // We need to transition the back buffer to ResourceState.RenderTarget so we can draw to it
-            context.ResourceTransition(_output.OutputBuffer, ResourceState.RenderTarget);
+            context.Barrier(ResourceBarrier.Transition(_output.OutputBuffer, ResourceState.Present, ResourceState.RenderTarget));
             // Set that we render to the entire screen, clear the render target, set the vertex buffer, and set the topology we will use
             context.SetViewportAndScissor(_output.Resolution);
             context.SetAndClearRenderTarget(_output.OutputBufferView, Rgba128.CornflowerBlue);
@@ -89,7 +90,7 @@ namespace Voltium.Interactive.HelloTriangle
             // Draw the 3 vertices
             context.Draw(3);
             // We need to transition the back buffer to ResourceState.Present so it can be presented
-            context.ResourceTransition(_output.OutputBuffer, ResourceState.Present);
+            context.Barrier(ResourceBarrier.Transition(_output.OutputBuffer, ResourceState.RenderTarget, ResourceState.Present));
 
             context.Close();
 

@@ -14,6 +14,7 @@ using Voltium.Interactive.BasicRenderPipeline;
 using Voltium.Interactive.RenderGraphSamples;
 using Voltium.RenderEngine;
 using Voltium.Interactive.HelloTriangle;
+using Voltium.Interactive.HelloTriangleRaytracing;
 using Voltium.Interactive.FloatMultiplySample;
 using TerraFX.Interop;
 using Voltium.Common;
@@ -26,12 +27,10 @@ namespace Voltium.Interactive
     {
         private static int Main(string[] args)
         {
-            var application = new HelloTriangleApp();
+            var application = new HelloTriangleRaytracingApp();
             return ApplicationRunner.RunWin32(application);
         }
     }
-
-
 
     public class LogBenchmark
     {

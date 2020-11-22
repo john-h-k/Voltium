@@ -46,7 +46,9 @@
     <None Include="ComputeSharpBlur\VerticalConvolutionProcessor.hlsl" />
     <None Include="GalaxyRenderer\Density.hlsl" />
     <None Include="GalaxyRenderer\Render.hlsl" />
-    <None Include="HelloTriangleRaytracing\HelloTriangleRaytracingShader.hlsl" />
+    <None Include="HelloTriangleRaytracing\HelloTriangleRaytracingShader.hlsl">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include="ImageBlur\ImageBlur.hlsl">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

@@ -46,9 +46,10 @@ namespace Voltium.Core
         /// <param name="device">The <see cref="GraphicsDevice"/> used to create the root signature</param>
         /// <param name="rootParameters">The <see cref="RootParameter"/>s in the signature</param>
         /// <param name="staticSampler">The <see cref="StaticSampler"/> in the signature</param>
+        /// <param name="flags"></param>
         /// <returns>A new <see cref="RootSignature"/></returns>
-        internal static RootSignature Create(ComputeDevice device, ReadOnlyMemory<RootParameter> rootParameters, in StaticSampler staticSampler)
-            => Create(device, rootParameters, new[] { staticSampler });
+        internal static RootSignature Create(ComputeDevice device, ReadOnlyMemory<RootParameter> rootParameters, in StaticSampler staticSampler, D3D12_ROOT_SIGNATURE_FLAGS flags)
+            => Create(device, rootParameters, new[] { staticSampler }, flags);
 
         /// <summary>
         /// Creates a new <see cref="RootSignature"/>
@@ -56,8 +57,9 @@ namespace Voltium.Core
         /// <param name="device">The <see cref="GraphicsDevice"/> used to create the root signature</param>
         /// <param name="rootParameters">The <see cref="RootParameter"/>s in the signature</param>
         /// <param name="staticSamplers">The <see cref="StaticSampler"/>s in the signature</param>
+        /// <param name="flags"></param>
         /// <returns>A new <see cref="RootSignature"/></returns>
-        internal static RootSignature Create(ComputeDevice device, ReadOnlyMemory<RootParameter> rootParameters, ReadOnlyMemory<StaticSampler> staticSamplers)
+        internal static RootSignature Create(ComputeDevice device, ReadOnlyMemory<RootParameter> rootParameters, ReadOnlyMemory<StaticSampler> staticSamplers, D3D12_ROOT_SIGNATURE_FLAGS flags)
         {
             using var rootParams = RentedArray<D3D12_ROOT_PARAMETER1>.Create(rootParameters.Length);
             using var samplers = RentedArray<D3D12_STATIC_SAMPLER_DESC>.Create(staticSamplers.Length);
@@ -74,7 +76,7 @@ namespace Voltium.Core
                     pParameters = pRootParams,
                     NumStaticSamplers = (uint)staticSamplers.Length,
                     pStaticSamplers = pSamplerDesc,
-                    Flags = D3D12_ROOT_SIGNATURE_FLAGS.D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT // TODO provide finer grained control
+                    Flags = flags
                 };
 
                 var versionedDesc = new D3D12_VERSIONED_ROOT_SIGNATURE_DESC
@@ -229,8 +231,8 @@ namespace Voltium.Core
 
         // TODO root sig flags (when exposed)
 
-        internal static RootSignature GetRootSig(ID3D12RootSignature* rootSig)
-            => ComIdentity.GetManagedObject<ID3D12RootSignature, RootSignature>(rootSig);
+        internal static RootSignature? GetRootSig(ID3D12RootSignature* rootSig)
+            => rootSig is null ? null : ComIdentity.GetManagedObject<ID3D12RootSignature, RootSignature>(rootSig);
 
         private RootSignature(
             UniqueComPtr<ID3D12RootSignature> value,

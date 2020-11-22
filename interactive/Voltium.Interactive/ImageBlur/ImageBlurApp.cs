@@ -11,6 +11,7 @@ using SixLabors.ImageSharp.Advanced;
 using SixLabors.ImageSharp.Formats;
 using SixLabors.ImageSharp.PixelFormats;
 using Voltium.Core;
+using Voltium.Core.Contexts;
 using Voltium.Core.Devices;
 using Voltium.Core.Memory;
 using Voltium.Core.Pipeline;
@@ -162,9 +163,6 @@ namespace Voltium.Interactive.FloatMultiplySample
 
             var context = _device.BeginComputeContext(_horizontalBlurPso);
 
-            context.ResourceTransition(dest, ResourceState.NonPixelShaderResource);
-            context.ResourceTransition(source, ResourceState.UnorderedAccess);
-
             context.SetRoot32BitConstants(0, _settings);
             context.SetRootDescriptorTable(1, srcView);
             context.SetRootDescriptorTable(2, destView);
@@ -177,7 +175,7 @@ namespace Voltium.Interactive.FloatMultiplySample
             uint y = (uint)MathF.Ceiling(source.Height / 256.0f);
             context.Dispatch((uint)source.Width, y, 1);
 
-            context.TransitionForCrossContextAccess(source);
+            context.TransitionForCrossContextAccess(source, ResourceState.UnorderedAccess);
 
             context.Close();
 

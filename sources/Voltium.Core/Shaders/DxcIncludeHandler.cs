@@ -74,6 +74,7 @@ namespace Voltium.Core.Devices
             {
                 Guard.ThrowIfFailed(_utils.Ptr->CreateBlob(pData, (uint)(data.Length * sizeof(char)), ShaderManager.DXC_CP_UTF16, ComPtr.GetAddressOf(&encoding)));
             }
+
             return ComPtr.UpCast<IDxcBlobEncoding, IDxcBlob>(encoding.Move());
         }
 

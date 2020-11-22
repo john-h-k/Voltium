@@ -18,6 +18,7 @@ using Buffer = Voltium.Core.Memory.Buffer;
 
 using static Voltium.Core.Pipeline.GraphicsPipelineDesc;
 using TerraFX.Interop;
+using Voltium.Core.Contexts;
 
 #if DOUBLE
 using FloatType = System.Double;
@@ -33,7 +34,7 @@ namespace Voltium.Interactive.RenderGraphSamples
         private GraphicsDevice _device;
         private Size _resolution;
 
-        public override void Register(ref RenderPassBuilder builder, ref Resolver resolver)
+        public override bool Register(ref RenderPassBuilder builder, ref Resolver resolver)
         {
             var settings = resolver.GetComponent<PipelineSettings>();
 
@@ -45,6 +46,8 @@ namespace Voltium.Interactive.RenderGraphSamples
             );
 
             resolver.CreateComponent(resources);
+
+            return true;
         }
 
         public override void Record(GraphicsContext context, ref Resolver resolver)
@@ -52,7 +55,7 @@ namespace Voltium.Interactive.RenderGraphSamples
             var renderTarget = resolver.ResolveResource(resolver.GetComponent<PipelineResources>().SceneColor);
             var renderTargetView = _device.CreateRenderTargetView(renderTarget);
 
-            context.ResourceTransition(renderTarget, ResourceState.RenderTarget);
+            context.Barrier(ResourceBarrier.Transition(renderTarget, ResourceState.PixelShaderResource, ResourceState.RenderTarget));
 
             context.SetViewportAndScissor(_resolution);
             context.SetRenderTargets(renderTargetView);

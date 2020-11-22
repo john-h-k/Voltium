@@ -57,7 +57,7 @@ namespace Voltium.Interactive
                 {
                     recorder.CopyResource(render, _output.OutputBuffer);
                 }
-                recorder.ResourceTransition(_output.OutputBuffer, ResourceState.Present);
+                //recorder.ResourceTransition(_output.OutputBuffer, ResourceState.Present);
             }
 
             _output.Present();

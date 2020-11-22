@@ -67,11 +67,16 @@ namespace Voltium.Core.Pipeline
             Desc.DepthStencil = DepthStencilDesc.Default;
             Desc.Msaa.Type.Inner = MsaaDesc.None;
 
-            SetMarkers();
+            SetMarkers(null);
         }
 
-        internal void SetMarkers()
+        internal void SetMarkers(ComputeDevice? device)
         {
+            if (RootSignature is null && device is not null)
+            {
+                RootSignature = device.EmptyRootSignature;
+            }
+
             Desc.RootSig.Type = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE.D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_ROOT_SIGNATURE;
 
             FixupShader(ref VertexShader, ShaderType.Vertex);
@@ -114,7 +119,7 @@ namespace Voltium.Core.Pipeline
         /// <summary>
         /// The root signature for the pipeline
         /// </summary>
-        public RootSignature RootSignature { get => RootSignature.GetRootSig(Desc.RootSig.Pointer); set => Desc.RootSig.Pointer = value.Value; }
+        public RootSignature? RootSignature { get => RootSignature.GetRootSig(Desc.RootSig.Pointer); set => Desc.RootSig.Pointer = value is null ? null : value.Value; }
 
         /// <summary>
         /// The optional vertex shader for the pipeline
@@ -262,7 +267,7 @@ namespace Voltium.Core.Pipeline
         /// <summary>
         /// The root signature for the pipeline
         /// </summary>
-        public RootSignature RootSignature { get => RootSignature.GetRootSig(Desc.RootSig.Pointer); set => Desc.RootSig.Pointer = value.Value; }
+        public RootSignature? RootSignature { get => RootSignature.GetRootSig(Desc.RootSig.Pointer); set => Desc.RootSig.Pointer = value is null ? null : value.Value; }
 
         /// <summary>
         /// The optional mesh shader for the pipeline

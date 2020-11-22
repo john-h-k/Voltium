@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Text.Json.Serialization;
 using System.Runtime.CompilerServices;
 using TerraFX.Interop;
+using static TerraFX.Interop.Windows;
 using Voltium.Common;
 using Voltium.Core.Devices;
 using Voltium.Core.Memory;
@@ -11,10 +12,13 @@ using Buffer = Voltium.Core.Memory.Buffer;
 
 using Voltium.Extensions;
 using System.Buffers;
+using System.IO;
+using System.Runtime.InteropServices;
+using Voltium.Annotations;
+using System.Threading;
 
 namespace Voltium.Core.Memory
 {
-
     // This type is "semi lowered". It needs high level alloc flags because they don't necessarily have a D3D12 equivalent
     // So we just lower most of it
     internal struct InternalAllocDesc
@@ -27,6 +31,7 @@ namespace Voltium.Core.Memory
 
         // Can't immediately lower this. It contains other flags
         public AllocFlags AllocFlags;
+        public bool IsBufferSuballocationCandidate;
     }
 
     /// <summary>
@@ -34,6 +39,8 @@ namespace Voltium.Core.Memory
     /// </summary>
     public unsafe sealed class GpuAllocator : IDisposable
     {
+        private static readonly LogHelper.Context LogContext = LogHelper.Context.Create();
+
         private List<AllocatorHeap> _readback = new();
         private List<AllocatorHeap> _upload = new();
 
@@ -42,8 +49,16 @@ namespace Voltium.Core.Memory
 
         // 3 seperate heaps when merged heap isn't supported
         private List<AllocatorHeap> _buffer = null!;
+
+        // Used when the buffer is a render target, uav, or stream out target
+        // Because resource barriers can't be used on regions of a suballocated buffer 
+        private List<AllocatorHeap> _noSubAllocationBuffer = null!;
+
+
         private List<AllocatorHeap> _texture = null!;
         private List<AllocatorHeap> _rtOrDs = null!;
+
+        private List<AllocatorHeap> _accelerationStructureHeap = null!;
 
         private ComputeDevice _device;
         private const ulong HighestRequiredAlign = 1024 * 1024 * 4; // 4mb
@@ -53,6 +68,7 @@ namespace Voltium.Core.Memory
 
         // useful for debugging
         private static bool ForceAllAllocationsCommitted => false;
+        private static bool ForceNoBufferSuballocations => false;
 
         internal static void CreateDesc(in TextureDesc desc, out D3D12_RESOURCE_DESC resDesc)
         {
@@ -77,6 +93,90 @@ namespace Voltium.Core.Memory
                 SampleDesc = sample
             };
         }
+
+
+        //private UniqueComPtr<ID3D12Heap> GetHeapForArray<T>(T[] array, MemoryAccess access) where T : unmanaged
+        //{
+        //    // god forgive my damn'ed soul
+        //    var manager = _COMArrayDisposal.Create(array);
+
+        //    var heap = OpenHeapFromAddress(manager.Pointer);
+
+        //    Guard.ThrowIfFailed(heap.Ptr->SetPrivateDataInterface(_COMArrayDisposal.RID, (IUnknown*)&manager));
+
+        //    return heap;
+        //}
+
+        //[NativeComType(implements: typeof(IUnknown))]
+        //private struct _COMArrayDisposal
+        //{
+        //    private readonly void** lpVtbl;
+
+        //    public static readonly Guid* RID = InitGuid();
+
+        //    private static readonly Guid Guid = // {B7D81026-6DBF-4A61-BEA5-F08D0AAF371F}
+        //            new(0xb7d81026, 0x6dbf, 0x4a61, 0xbe, 0xa5, 0xf0, 0x8d, 0xa, 0xaf, 0x37, 0x1f);
+        //    private static Guid* InitGuid()
+        //    {
+        //        var p = (Guid*)RuntimeHelpers.AllocateTypeAssociatedMemory(typeof(_COMArrayDisposal), sizeof(Guid));
+
+        //        *p = Guid;
+
+        //        return p;
+        //    }
+
+        //    private uint _refCount;
+        //    private IntPtr _handle;
+
+        //    public void* Pointer => (void*)GCHandle.FromIntPtr(_handle).AddrOfPinnedObject();
+
+        //    private _COMArrayDisposal(GCHandle handle)
+        //    {
+        //        _lpVtbl = Init();
+        //        _refCount = 1;
+        //        _handle = GCHandle.ToIntPtr(handle);
+        //    }
+
+        //    public static _COMArrayDisposal Create<T>(T[] arr)
+        //    {
+        //        var handle = GCHandle.Alloc(arr, GCHandleType.Pinned);
+
+        //        return Create(handle);
+        //    }
+
+        //    public static _COMArrayDisposal Create(GCHandle handle)
+        //    {
+        //        return new(handle);
+        //    }
+
+        //    [NativeComMethod]
+        //    public int QueryInterface(Guid* riid, void** ppvObject)
+        //    {
+        //        *ppvObject = null;
+        //        return E_NOINTERFACE;
+        //    }
+
+        //    [NativeComMethod]
+        //    public uint AddRef()
+        //    {
+        //        return Interlocked.Increment(ref _refCount);
+        //    }
+
+        //    [NativeComMethod]
+        //    public uint Release()
+        //    {
+        //        var val = Interlocked.Decrement(ref _refCount);
+
+        //        if (val < 0)
+        //        {
+        //            var gc = GCHandle.FromIntPtr(_handle);
+
+        //            gc.Free();
+        //        }
+
+        //        return val;
+        //    }
+        //}
 
 
         private const D3D12_RESOURCE_FLAGS RenderTargetOrDepthStencilFlags =
@@ -111,36 +211,39 @@ namespace Voltium.Core.Memory
                 _texture = new();
                 _rtOrDs = new();
             }
+
+            _accelerationStructureHeap = new();
         }
 
-        ///// <summary>
-        ///// Allocates a buffer for use as a raytr
-        ///// </summary>
-        ///// <param name="length"></param>
-        ///// <param name="allocFlags"></param>
-        ///// <returns></returns>
-        //public Buffer AllocateRayTracingAccelerationBuffer(AccelerationStructureBuildInfo info, out Buffer scratch)
-        //    => AllocateRayTracingAccelerationBuffer(info, AllocFlags.None, out scratch);
-
-        ///// <summary>
-        ///// Allocates a buffer for use as a raytr
-        ///// </summary>
-        ///// <param name="length"></param>
-        ///// <param name="allocFlags"></param>
-        ///// <returns></returns>
-        //public Buffer AllocateRayTracingAccelerationBuffer(AccelerationStructureBuildInfo info, AllocFlags allocFlags, out Buffer scratch)
-        //{
-        //    scratch = AllocateRayTracingAccelerationBuffer(info.ScratchSize, allocFlags);
-        //    return AllocateRayTracingAccelerationBuffer(info.DestSize, allocFlags);
-        //}
+        /// <summary>
+        /// Allocates a buffer for use as a raytracing acceleration structure
+        /// </summary>
+        /// <param name="info">The <see cref="AccelerationStructureBuildInfo"/> containing the required sizes of the buffers</param>
+        /// <param name="scratch">On return, this is filled with a <see cref="Buffer"/> with a large anough size to be used as the scratch buffer in a raytracing acceleration structure build</param>
+        /// <returns>A <see cref="Buffer"/> with a large anough size to be used as the destination in a raytracing acceleration structure build</returns>
+        public Buffer AllocateRaytracingAccelerationBuffer(AccelerationStructureBuildInfo info, out Buffer scratch)
+            => AllocateRaytracingAccelerationBuffer(info, AllocFlags.None, out scratch);
 
         /// <summary>
-        /// Allocates a buffer for use as a raytr
+        /// Allocates a buffer for use as a raytracing acceleration structure
         /// </summary>
-        /// <param name="length"></param>
-        /// <param name="allocFlags"></param>
-        /// <returns></returns>
-        public Buffer AllocateRayTracingAccelerationBuffer(long length, AllocFlags allocFlags = AllocFlags.None)
+        /// <param name="info">The <see cref="AccelerationStructureBuildInfo"/> containing the required sizes of the buffers</param>
+        /// <param name="scratch">On return, this is filled with a <see cref="Buffer"/> with a large anough size to be used as the scratch buffer in a raytracing acceleration structure build</param>
+        /// <param name="allocFlags">Any additional allocation flags</param>
+        /// <returns>A <see cref="Buffer"/> with a large anough size to be used as the destination in a raytracing acceleration structure build</returns>
+        public Buffer AllocateRaytracingAccelerationBuffer(AccelerationStructureBuildInfo info, AllocFlags allocFlags, out Buffer scratch)
+        {
+            scratch = AllocateBuffer(info.ScratchSize, MemoryAccess.GpuOnly, ResourceState.UnorderedAccess, ResourceFlags.AllowUnorderedAccess | ResourceFlags.DenyShaderResource, allocFlags);
+            return AllocateRaytracingAccelerationBuffer(info.DestSize, allocFlags);
+        }
+
+        /// <summary>
+        /// Allocates a buffer for use as a raytracing acceleration structure or scratch buffer for a raytracing acceleration structure build
+        /// </summary>
+        /// <param name="length">The length, in bytes, to allocate</param>
+        /// <param name="allocFlags">Any additional allocation flags</param>
+        /// <returns>A <see cref="Buffer"/></returns>
+        public Buffer AllocateRaytracingAccelerationBuffer(ulong length, AllocFlags allocFlags = AllocFlags.None)
         {
             return AllocateBuffer(length, MemoryAccess.GpuOnly, ResourceState.RayTracingAccelerationStructure, ResourceFlags.AllowUnorderedAccess, allocFlags);
         }
@@ -192,6 +295,22 @@ namespace Voltium.Core.Memory
             return buff;
         }
 
+
+        /// <summary>
+        /// Allocates a <see cref="MemoryAccess.CpuUpload"/> buffer and copy initial data to it
+        /// </summary>
+        /// <param name="count">The number of bytes to allocate</param>
+        /// <param name="allocFlags">Any additional allocation flags</param>
+        /// <returns>A new <see cref="Buffer"/></returns>
+        public Buffer AllocateUploadBuffer(
+            uint count = 1,
+            AllocFlags allocFlags = AllocFlags.None
+        )
+        {
+            var buff = AllocateBuffer(count, MemoryAccess.CpuUpload, allocFlags: allocFlags);
+            return buff;
+        }
+
         /// <summary>
         /// Allocates a <see cref="MemoryAccess.CpuUpload"/> buffer and copy initial data to it
         /// </summary>
@@ -220,7 +339,9 @@ namespace Voltium.Core.Memory
         ) where T : unmanaged
         {
             var buff = AllocateBuffer(data.ByteLength(), MemoryAccess.CpuUpload, allocFlags: allocFlags);
-            buff.WriteData(data);
+
+            data.CopyTo(buff.AsSpan<T>());
+
             return buff;
         }
 
@@ -237,7 +358,9 @@ namespace Voltium.Core.Memory
         ) where T : unmanaged
         {
             var buff = AllocateBuffer(sizeof(T), MemoryAccess.CpuUpload, allocFlags: allocFlags);
-            buff.WriteData(ref data);
+
+            buff.AsRef<T>() = data;
+
             return buff;
         }
 
@@ -259,13 +382,20 @@ namespace Voltium.Core.Memory
             InternalAllocDesc allocDesc = default;
             CreateAllocDesc(desc, &allocDesc, memoryKind, initialResourceState, allocFlags);
 
-            var buffer = new Buffer((ulong)desc.Length, 0, Allocate(&allocDesc));
-            if (memoryKind == MemoryAccess.CpuUpload)
-            {
-                buffer.Map(); // we persisitently map upload buffers
-            }
+            var buffer = new Buffer(_device, Allocate(&allocDesc), 0, &allocDesc);
+
             return buffer;
         }
+
+        /// <inheritdoc cref="AllocateBuffer(long, MemoryAccess, ResourceState, ResourceFlags, AllocFlags)"/>
+        public Buffer AllocateBuffer(
+            ulong length,
+            MemoryAccess memoryKind,
+            ResourceState initialResourceState = ResourceState.Common,
+            ResourceFlags resourceFlags = ResourceFlags.None,
+            AllocFlags allocFlags = AllocFlags.None
+        )
+            => AllocateBuffer((long)length, memoryKind, initialResourceState, resourceFlags, allocFlags);
 
         /// <summary>
         /// Allocates a buffer
@@ -304,7 +434,7 @@ namespace Voltium.Core.Memory
             InternalAllocDesc allocDesc = default;
             CreateAllocDesc(desc, &allocDesc, alias.Resource.MemoryKind, initialResourceState, allocFlags);
 
-            return new Buffer(0, (ulong)desc.Length, AllocateAliasing(alias.Resource, &allocDesc));
+            return new Buffer(_device, AllocateAliasing(alias.Resource, &allocDesc), 0, &allocDesc);
         }
 
 
@@ -326,7 +456,7 @@ namespace Voltium.Core.Memory
             InternalAllocDesc allocDesc = default;
             CreateAllocDesc(desc, &allocDesc, alias.Resource.MemoryKind, initialResourceState, allocFlags);
 
-            return new Buffer(0, (ulong)desc.Length, AllocateAliasing(alias.Resource, &allocDesc));
+            return new Buffer(_device, AllocateAliasing(alias.Resource, &allocDesc), 0, &allocDesc);
         }
 
         /// <summary>
@@ -388,7 +518,18 @@ namespace Voltium.Core.Memory
             InternalAllocDesc allocDesc = default;
             CreateAllocDesc(desc, &allocDesc, initialResourceState, allocFlags);
 
-            return new Texture(desc, Allocate(&allocDesc));
+            var texture = new Texture(desc, Allocate(&allocDesc));
+
+            if (GpuOnlyResourcesAreWritable)
+            {
+                var numSubresources = texture.GetResourcePointer()->GetDesc().GetSubresources((ID3D12Device*)_device.DevicePointer);
+                for (var i = 0u; i < numSubresources; i++)
+                {
+                    _device.ThrowIfFailed(texture.GetResourcePointer()->Map(i, null, null));
+                }
+            }
+
+            return texture;
         }
 
         private const int BufferAlignment = /* 64kb */ 64 * 1024;
@@ -424,7 +565,8 @@ namespace Voltium.Core.Memory
                 AllocFlags = allocFlags,
                 HeapType = (D3D12_HEAP_TYPE)memoryKind,
                 HeapProperties = GetHeapProperties((D3D12_HEAP_TYPE)memoryKind),
-                InitialState = (D3D12_RESOURCE_STATES)initialResourceState
+                InitialState = (D3D12_RESOURCE_STATES)initialResourceState,
+                IsBufferSuballocationCandidate = !ForceNoBufferSuballocations && !desc.ResourceFlags.IsShaderWritable()
             };
         }
         private void CreateAllocDesc(in TextureDesc desc, InternalAllocDesc* pDesc, ResourceState initialResourceState, AllocFlags allocFlags)
@@ -470,7 +612,7 @@ namespace Voltium.Core.Memory
                 InitialState = (D3D12_RESOURCE_STATES)initialResourceState,
                 AllocFlags = allocFlags,
                 HeapType = D3D12_HEAP_TYPE.D3D12_HEAP_TYPE_DEFAULT,
-                HeapProperties = GetHeapProperties(D3D12_HEAP_TYPE.D3D12_HEAP_TYPE_DEFAULT)
+                HeapProperties = GetHeapProperties(D3D12_HEAP_TYPE.D3D12_HEAP_TYPE_DEFAULT),
             };
         }
 
@@ -488,7 +630,7 @@ namespace Voltium.Core.Memory
         {
             if (desc->AllocFlags.HasFlag(AllocFlags.ForceAllocateComitted))
             {
-                ThrowHelper.ThrowArgumentException("allocFlags", "Can't commit an aliased resource");
+                ThrowHelper.ThrowArgumentException(nameof(InternalAllocDesc.AllocFlags), "Can't commit an aliased resource");
             }
             if (alias.HeapIndex == CommittedResourceHeapIndex)
             {
@@ -545,7 +687,6 @@ namespace Voltium.Core.Memory
             {
                 info = _device.GetAllocationInfo(desc);
 
-
                 // Write the required alignment, which is still relevant even for committed resources
                 // as it can allow us to get 4kb small alignment for textures when valid
                 desc->Desc.Alignment = info.Alignment;
@@ -580,11 +721,17 @@ namespace Voltium.Core.Memory
         private ref List<AllocatorHeap> GetHeap(GpuResource allocation)
         {
             ref readonly InternalAllocDesc desc = ref allocation.Desc;
-            return ref GetHeapPool(desc.HeapProperties.Type, GetResType(desc.Desc.Dimension, desc.Desc.Flags));
+            return ref GetHeapPool(desc, GetResType(desc.Desc.Dimension, desc.Desc.Flags));
         }
 
-        private ref List<AllocatorHeap> GetHeapPool(D3D12_HEAP_TYPE mem, GpuResourceType res)
+        private ref List<AllocatorHeap> GetHeapPool(in InternalAllocDesc desc, GpuResourceType res)
         {
+            if (desc.InitialState == D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE)
+            {
+                return ref _accelerationStructureHeap;
+            }
+
+            var mem = desc.HeapType;
             switch (mem)
             {
                 case D3D12_HEAP_TYPE.D3D12_HEAP_TYPE_READBACK:
@@ -620,7 +767,7 @@ namespace Voltium.Core.Memory
                 {
                     Type = D3D12_HEAP_TYPE.D3D12_HEAP_TYPE_CUSTOM,
                     MemoryPoolPreference = D3D12_MEMORY_POOL.D3D12_MEMORY_POOL_L0,
-                    CPUPageProperty = D3D12_CPU_PAGE_PROPERTY.D3D12_CPU_PAGE_PROPERTY_WRITE_COMBINE, // as they are shared caches, cache coherent UMA
+                    CPUPageProperty = D3D12_CPU_PAGE_PROPERTY.D3D12_CPU_PAGE_PROPERTY_WRITE_BACK, // as they are shared caches, cache coherent UMA
                     CreationNodeMask = 0,
                     VisibleNodeMask = 0
                 };
@@ -634,8 +781,9 @@ namespace Voltium.Core.Memory
         }
 
         private const ulong DefaultHeapAlignment = Windows.D3D12_DEFAULT_MSAA_RESOURCE_PLACEMENT_ALIGNMENT; // 4mb for MSAA textures
-        private ref AllocatorHeap CreateNewHeap(D3D12_HEAP_TYPE mem, GpuResourceType res, out int index)
+        private ref AllocatorHeap CreateNewHeap(InternalAllocDesc* allocDesc, GpuResourceType res, out int index)
         {
+            var mem = allocDesc->HeapType;
             D3D12_HEAP_FLAGS flags = default;
             ulong alignment = DefaultHeapAlignment;
 
@@ -653,16 +801,14 @@ namespace Voltium.Core.Memory
                 alignment = res switch
                 {
                     GpuResourceType.Meaningless => 0, // shouldn't be reached
-                    GpuResourceType.Tex => Windows.D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT,
-                    GpuResourceType.RenderTargetOrDepthStencilTexture => Windows.D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT,
+                    GpuResourceType.Tex => Windows.D3D12_DEFAULT_MSAA_RESOURCE_PLACEMENT_ALIGNMENT,
+                    GpuResourceType.RenderTargetOrDepthStencilTexture => Windows.D3D12_DEFAULT_MSAA_RESOURCE_PLACEMENT_ALIGNMENT,
                     GpuResourceType.Buffer => Windows.D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT,
                     _ => 0, // shouldn't be reached
                 };
             }
 
             flags |= D3D12_HEAP_FLAGS.D3D12_HEAP_FLAG_CREATE_NOT_ZEROED;
-
-
 
             var desc = new D3D12_HEAP_DESC
             {
@@ -677,7 +823,7 @@ namespace Voltium.Core.Memory
             var allocatorHeap = new AllocatorHeap { Heap = heap.Move(), FreeBlocks = new() };
             AddFreeBlock(ref allocatorHeap, new HeapBlock { Offset = 0, Size = desc.SizeInBytes });
 
-            ref var pool = ref GetHeapPool(mem, res);
+            ref var pool = ref GetHeapPool(*allocDesc, res);
             pool.Add(allocatorHeap);
 
             index = pool.Count - 1;
@@ -690,6 +836,11 @@ namespace Voltium.Core.Memory
             const ulong megabyte = 1024 * 1024;
             //const ulong kilobyte = 1024;
 
+            if (mem is D3D12_HEAP_TYPE.D3D12_HEAP_TYPE_UPLOAD or D3D12_HEAP_TYPE.D3D12_HEAP_TYPE_READBACK)
+            {
+                return 32 * megabyte;
+            }
+
             var guess = res switch
             {
                 GpuResourceType.Meaningless => 256 * megabyte,
@@ -700,6 +851,25 @@ namespace Voltium.Core.Memory
             };
 
             return guess;
+        }
+
+        private UniqueComPtr<ID3D12Heap> OpenHeapFromAddress(void* address)
+        {
+            using UniqueComPtr<ID3D12Heap> heap = default;
+            _device.ThrowIfFailed(_device.DevicePointer->OpenExistingHeapFromAddress(address, heap.Iid, (void**)&heap));
+
+            return heap.Move();
+        }
+
+        private UniqueComPtr<ID3D12Heap> OpenHeapFromFile(FileStream file)
+            => OpenHeapFromFile(file.SafeFileHandle.DangerousGetHandle());
+
+        private UniqueComPtr<ID3D12Heap> OpenHeapFromFile(IntPtr file)
+        {
+            using UniqueComPtr<ID3D12Heap> heap = default;
+            _device.ThrowIfFailed(_device.DevicePointer->OpenExistingHeapFromFileMapping(file, heap.Iid, (void**)&heap));
+
+            return heap.Move();
         }
 
         private const int CommittedResourceHeapIndex = -1;
@@ -774,7 +944,7 @@ namespace Voltium.Core.Memory
         {
             var resType = GetResType(desc->Desc.Dimension, desc->Desc.Flags);
             GpuResource allocation;
-            ref var heapList = ref GetHeapPool(desc->HeapType, resType);
+            ref var heapList = ref GetHeapPool(*desc, resType);
             for (var i = 0; i < heapList.Count; i++)
             {
                 if (TryAllocateFromHeap(desc, info, ref ListExtensions.GetRef(heapList, i), i, out allocation))
@@ -784,7 +954,7 @@ namespace Voltium.Core.Memory
             }
 
             // No free blocks available anywhere. Create a new heap
-            ref var newHeap = ref CreateNewHeap(desc->HeapType, resType, out int index);
+            ref var newHeap = ref CreateNewHeap(desc, resType, out int index);
             var result = TryAllocateFromHeap(desc, info, ref newHeap, index, out allocation);
             if (!result) // too big to fit in heap, realloc as comitted
             {
@@ -951,7 +1121,6 @@ namespace Voltium.Core.Memory
         /// <inheritdoc/>
         public void Dispose()
         {
-            _device.Dispose();
         }
     }
 }

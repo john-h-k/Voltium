@@ -22,12 +22,14 @@ namespace Voltium.CubeGame
             _output = output;
         }
 
-        public override void Register(ref RenderPassBuilder builder, ref Resolver resolver)
+        public override bool Register(ref RenderPassBuilder builder, ref Resolver resolver)
         {
             var resources = resolver.GetComponent<RenderResources>();
             var settings = resolver.GetComponent<RenderSettings>();
 
             builder.MarkUsage(resources.SceneColor, settings.Msaa.IsMultiSampled ? ResourceState.ResolveSource : ResourceState.CopySource);
+
+            return true;
         }
 
         public override void Record(GraphicsContext context, ref Resolver resolver)

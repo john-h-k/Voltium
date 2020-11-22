@@ -17,7 +17,9 @@ namespace Voltium.Common
 #endif
         }
 
-        public static Span<T> AsSpan<T>(this List<T> list) => CollectionsMarshal.AsSpan(list);
-        public static ReadOnlySpan<T> AsReadOnlySpan<T>(this List<T> list) => CollectionsMarshal.AsSpan(list);
+        public static ref T GetPinnableReference<T>(this List<T>? list) => ref list.AsSpan().GetPinnableReference();
+
+        public static Span<T> AsSpan<T>(this List<T>? list) => CollectionsMarshal.AsSpan(list);
+        public static ReadOnlySpan<T> AsReadOnlySpan<T>(this List<T>? list) => CollectionsMarshal.AsSpan(list);
     }
 }

@@ -388,6 +388,13 @@ namespace Voltium.Common
             }
         }
 
+
+        private static readonly D3D12_MESSAGE_ID[] BannedMessages = new D3D12_MESSAGE_ID[]
+        {
+            D3D12_MESSAGE_ID.D3D12_MESSAGE_ID_LOADPIPELINE_NAMENOTFOUND,
+            D3D12_MESSAGE_ID.D3D12_MESSAGE_ID_CREATEPIPELINELIBRARY_INVALIDLIBRARYBLOB,
+        };
+
         private void InitializeD3D12()
         {
             void CreateAndAssert<T>(out UniqueComPtr<T> result) where T : unmanaged
@@ -404,16 +411,24 @@ namespace Voltium.Common
 
             GetSeveritiesForLogLevel(_config.ValidationLogLevel, allowedSeverities, out int numAllowed);
 
-            var filter = new D3D12_INFO_QUEUE_FILTER
+            fixed (D3D12_MESSAGE_ID* pBanned = BannedMessages)
             {
-                AllowList = new D3D12_INFO_QUEUE_FILTER_DESC
+                var filter = new D3D12_INFO_QUEUE_FILTER
                 {
-                    NumSeverities = (uint)numAllowed,
-                    pSeverityList = (D3D12_MESSAGE_SEVERITY*)Unsafe.AsPointer(ref MemoryMarshal.GetReference(allowedSeverities))
-                }
-            };
+                    AllowList = new D3D12_INFO_QUEUE_FILTER_DESC
+                    {
+                        NumSeverities = (uint)numAllowed,
+                        pSeverityList = (D3D12_MESSAGE_SEVERITY*)Unsafe.AsPointer(ref MemoryMarshal.GetReference(allowedSeverities))
+                    },
+                    DenyList = new D3D12_INFO_QUEUE_FILTER_DESC
+                    {
+                        pIDList = pBanned,
+                        NumIDs = (uint)BannedMessages.Length
+                    }
+                };
 
-            _device.ThrowIfFailed(_d3d12InfoQueue.Ptr->AddRetrievalFilterEntries(&filter));
+                _device.ThrowIfFailed(_d3d12InfoQueue.Ptr->AddStorageFilterEntries(&filter));
+            }
 
             GetSeveritiesForLogLevel(_config.BreakpointLogLevel, allowedSeverities, out int numBreakOn);
 

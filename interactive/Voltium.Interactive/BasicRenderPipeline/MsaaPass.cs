@@ -14,7 +14,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
 {
     public sealed class MsaaPass : GraphicsRenderPass
     {
-        public override void Register(ref RenderPassBuilder builder, ref Resolver resolver)
+        public override bool Register(ref RenderPassBuilder builder, ref Resolver resolver)
         {
             var resources = resolver.GetComponent<PipelineResources>();
             var settings = resolver.GetComponent<PipelineSettings>();
@@ -27,14 +27,18 @@ namespace Voltium.Interactive.BasicRenderPipeline
                     debugName: nameof(resources.SampledOutput)
                 );
 
+                resolver.SetComponent(resources);
                 builder.MarkUsage(resources.SceneColor, ResourceState.ResolveSource);
+                return true;
             }
             else
             {
+                resolver.SetComponent(resources);
                 resources.SampledOutput = resources.SceneColor;
+                return false;
             }
 
-            resolver.SetComponent(resources);
+
         }
 
         public override void Record(GraphicsContext context, ref Resolver resolver)

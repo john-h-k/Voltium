@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -53,7 +54,7 @@ namespace Voltium.Core.Devices
 
                 }
 
-                if (hr is D3D12_ERROR_DRIVER_VERSION_MISMATCH or D3D12_ERROR_ADAPTER_NOT_FOUND)
+                if (hr is E_INVALIDARG or D3D12_ERROR_DRIVER_VERSION_MISMATCH or D3D12_ERROR_ADAPTER_NOT_FOUND)
                 {
                     // cache invalidated
                     Guard.ThrowIfFailed(_device.As<ID3D12Device2>()->CreatePipelineLibrary(null, 0, psoLibrary.Iid, (void**)&psoLibrary));
@@ -67,7 +68,7 @@ namespace Voltium.Core.Devices
                 _psoLibrary = psoLibrary.Move();
             }
 
-            AppDomain.CurrentDomain.ProcessExit += (_, _) => Cache();
+            AppDomain.CurrentDomain.ProcessExit += (_, _) => Cache(dispose: true);
         }
 
         private static Span<byte> GetCache()
@@ -124,7 +125,7 @@ namespace Voltium.Core.Devices
         ///
         public GraphicsPipelineStateObject CreatePipelineStateObject(GraphicsPipelineDesc desc, string name)
         {
-            desc.SetMarkers();
+            desc.SetMarkers(_device);
 
             fixed (void* p = desc)
             fixed (char* pName = name)
@@ -203,32 +204,25 @@ namespace Voltium.Core.Devices
         }
 
 
-        // TODO: Raytracing
-        ///// <summary>
-        ///// Creates a new named pipeline state object and registers it in the library for retrieval
-        ///// </summary>
-        ///// <param name="desc">The descriptor for the pipeline state</param>
-        ///// <param name="name">The name of the pipeline state</param>
-        /////
-        //public RayTracingPipelineStateObject CreatePipelineStateObject(RayTracingPipelineDesc desc, string name)
-        //{
-        //    fixed (D3D12_STATE_SUBOBJECT* p = desc)
-        //    fixed (char* pName = name)
-        //    {
-        //        var pso = new D3D12_STATE_OBJECT_DESC
-        //        {
-        //            Type = D3D12_STATE_OBJECT_TYPE.D3D12_STATE_OBJECT_TYPE_RAYTRACING_PIPELINE,
-        //            pSubobjects = p,
-        //            NumSubobjects = desc.SubobjectCount,
-        //        };
+        /// <summary>
+        /// Creates a new named pipeline state object and registers it in the library for retrieval
+        /// </summary>
+        /// <param name="desc">The descriptor for the pipeline state</param>
+        /// <param name="name">The name of the pipeline state</param>
+        ///
+        public RaytracingPipelineStateObject CreatePipelineStateObject(RaytracingPipelineDesc desc, string name)
+        {
+            fixed (char* pName = name)
+            {
+                var serialized = desc.Serialize();
+                var psoDesc = serialized.Desc;
 
+                using UniqueComPtr<ID3D12StateObject> state = default;
+                _device.ThrowIfFailed(_device.As<ID3D12Device5>()->CreateStateObject(&psoDesc, state.Iid, (void**)&state));
 
-        //        using UniqueComPtr<ID3D12StateObject> state = default;
-        //        _device.ThrowIfFailed(_device.As<ID3D12Device5>()->CreateStateObject(&pso, state.Iid, (void**)&state));
-
-        //        return new RayTracingPipelineStateObject(state.Move(), desc);
-        //    }
-        //}
+                return new RaytracingPipelineStateObject(state.Move(), desc);
+            }
+        }
 
         private UniqueComPtr<ID3D12PipelineState> GetOrCreatePso(D3D12_PIPELINE_STATE_STREAM_DESC* pso, char* pName)
         {
@@ -288,32 +282,61 @@ namespace Voltium.Core.Devices
         private const string CacheExtension = ".cpsolib";
         private static readonly string CachePsoLibLocation = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), Assembly.GetEntryAssembly()!.GetName().Name!, "Voltium.Core.PipelineManagerCache") + CacheExtension;
 
-        private void Cache()
+        private void Cache(bool dispose)
         {
-            var size = (long)_psoLibrary.Ptr->GetSerializedSize();
-
-            Directory.CreateDirectory(Path.GetDirectoryName(CachePsoLibLocation)!);
-
-            using var mmf = MemoryMappedFile.CreateFromFile(CachePsoLibLocation, FileMode.Create, null, size);
-            using var accessor = mmf.CreateViewAccessor(0, size);
-
             try
             {
-                byte* pBuff = null;
-                accessor.SafeMemoryMappedViewHandle.AcquirePointer(ref pBuff);
+                var size = (long)_psoLibrary.Ptr->GetSerializedSize();
 
-                _device.ThrowIfFailed(_psoLibrary.Ptr->Serialize(pBuff, (nuint)size));
+                Directory.CreateDirectory(Path.GetDirectoryName(CachePsoLibLocation)!);
+
+                using var mmf = MemoryMappedFile.CreateFromFile(CachePsoLibLocation, FileMode.Create, null, size);
+                using var accessor = mmf.CreateViewAccessor(0, size);
+
+
+                using var buff = RentedArray<byte>.Create(checked((int)size));
+
+                try
+                {
+                    byte* pBuff = null;
+                    accessor.SafeMemoryMappedViewHandle.AcquirePointer(ref pBuff);
+
+                    fixed (byte* pIntermediate = buff)
+                    {
+                        try
+                        {
+                            _device.ThrowIfFailed(_psoLibrary.Ptr->Serialize(pIntermediate, (nuint)size));
+                        }
+                        catch (SEHException)
+                        {
+                            // debug layer throws
+                        }
+                        catch (DeviceDisconnectedException e) when (e.Reason == DeviceDisconnectReason.InternalDriverError)
+                        {
+                            // buggy 460 nvidia driver
+                        }
+                    }
+                    accessor.WriteArray(0, buff.Value, 0, checked((int)size));
+                    //_device.ThrowIfFailed(_psoLibrary.Ptr->Serialize(pBuff, (nuint)size));
+                }
+                finally
+                {
+                    accessor.SafeMemoryMappedViewHandle.ReleasePointer();
+                }
             }
             finally
             {
-                accessor.SafeMemoryMappedViewHandle.ReleasePointer();
+
+                if (dispose)
+                {
+                    _psoLibrary.Dispose();
+                }
             }
         }
 
         /// <inheritdoc/>
         public void Dispose()
         {
-            _psoLibrary.Dispose();
         }
     }
 }

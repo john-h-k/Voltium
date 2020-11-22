@@ -36,19 +36,6 @@ namespace Voltium.Core
                    && srcDesc.Dimension == destDesc.Dimension;
         }
 
-        // TODO: Raytracing
-        ///// <summary>
-        ///// Dispatches a raytracing operation
-        ///// </summary>
-        ///// <param name="desc">The <see cref="RayDispatchDesc"/> which describes the raytracing operation</param>
-        //public void DispatchRays(in RayDispatchDesc desc)
-        //{
-        //    fixed (D3D12_DISPATCH_RAYS_DESC* pDesc = &desc.Desc)
-        //    {
-        //        List->DispatchRays(pDesc);
-        //    }
-        //}
-
         /// <summary>
         /// If depth bounds testing is enabled, sets the depth bounds
         /// </summary>
@@ -422,6 +409,7 @@ namespace Voltium.Core
         /// <param name="rect">The rectangle representing the section to clear</param>
         public void ClearRenderTarget(DescriptorHandle rtv, Rgba128 color, Rectangle rect)
         {
+            FlushBarriers();
             List->ClearRenderTargetView(rtv.CpuHandle, &color.R, 1, (RECT*)&rect);
         }
 
@@ -448,10 +436,7 @@ namespace Voltium.Core
             fixed (Rectangle* pDs = depthRects)
             {
                 FlushBarriers();
-
                 List->ClearRenderTargetView(rtv.CpuHandle, &color.R, (uint)renderTargetRects.Length, (RECT*)pRt);
-
-
                 List->ClearDepthStencilView(
                     dsv.CpuHandle,
                     D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_STENCIL,

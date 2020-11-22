@@ -84,7 +84,7 @@ namespace Voltium.Core.Contexts
         /// <param name="tex"></param>
         public Texture UploadTexture(ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, in TextureDesc tex)
         {
-            var destination = Device.Allocator.AllocateTexture(tex, ResourceState.CopyDestination);
+            var destination = Device.Allocator.AllocateTexture(tex, ResourceState.Common);
             UploadTextureToPreexisting(texture, subresources, destination);
             return destination;
         }

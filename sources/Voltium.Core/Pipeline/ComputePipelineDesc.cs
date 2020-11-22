@@ -44,7 +44,7 @@ namespace Voltium.Core.Pipeline
         /// <summary>
         /// The root signature for the pipeline
         /// </summary>
-        public RootSignature RootSignature { get => RootSignature.GetRootSig(Desc.RootSig.Pointer); set => Desc.RootSig.Pointer = value.Value; }
+        public RootSignature? RootSignature { get => RootSignature.GetRootSig(Desc.RootSig.Pointer); set => Desc.RootSig.Pointer = value is null ? null : value.Value; }
 
         /// <summary>
         /// The compute shader for the pipeline

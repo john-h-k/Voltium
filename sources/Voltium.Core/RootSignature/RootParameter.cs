@@ -85,7 +85,7 @@ namespace Voltium.Core
                     range.DescriptorCount,
                     range.BaseShaderRegister,
                     range.RegisterSpace,
-                    D3D12_DESCRIPTOR_RANGE_FLAGS.D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC,
+                    D3D12_DESCRIPTOR_RANGE_FLAGS.D3D12_DESCRIPTOR_RANGE_FLAG_NONE,
                     range.DescriptorOffset
                 );
             }

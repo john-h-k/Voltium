@@ -1,151 +1,293 @@
 
-//using System;
-//using System.Diagnostics;
-//using System.Drawing;
-//using System.Numerics;
-//using System.Runtime.CompilerServices;
-//using System.Runtime.InteropServices;
-//using Microsoft.Extensions.Logging;
-//using TerraFX.Interop;
-//using Voltium.Common;
-//using Voltium.Core;
-//using Voltium.Core.Contexts;
-//using Voltium.Core.Devices;
-//using Voltium.Core.Devices.Shaders;
-//using Voltium.Core.Pipeline;
-//using Voltium.Core.Memory;
-//using Buffer = Voltium.Core.Memory.Buffer;
+using System;
+using System.Diagnostics;
+using System.Drawing;
+using System.Numerics;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using Microsoft.Extensions.Logging;
+using TerraFX.Interop;
+using Voltium.Common;
+using Voltium.Core;
+using Voltium.Core.Contexts;
+using Voltium.Core.Devices;
+using Voltium.Core.Devices.Shaders;
+using Voltium.Core.Pipeline;
+using Voltium.Core.Memory;
+using Buffer = Voltium.Core.Memory.Buffer;
+using Voltium.Extensions;
+using Voltium.Core.Raytracing;
 
-//namespace Voltium.Interactive.HelloTriangleRaytracing
-//{
-//    // This is our vertex type used in the shader
-//    // [ShaderInput] triggers a source generator to create a shader input description which we need later
-//    [ShaderInput]
-//    internal partial struct HelloWorldVertex
-//    {
-//        public Vector3 Position;
-//        public Vector4 Color;
-//    }
+namespace Voltium.Interactive.HelloTriangleRaytracing
+{
+    // This is our vertex type used in the shader
+    // [ShaderInput] triggers a source generator to create a shader input description which we need later
+    [ShaderInput]
+    internal partial struct HelloWorldVertex
+    {
+        public Vector3 Position;
+        public Vector4 Color;
+    }
 
-//    public sealed class HelloTriangleApp : Application
-//    {
-//        private GraphicsDevice _device = null!;
-//        private Output _output = null!;
-//        private PipelineStateObject _pso = null!;
-//        private RootSignature _rootSig = null!;
-//        private Buffer _tlas;
-//        private Texture _renderTarget;
+    internal struct HelloTriangleViewport
+    {
+        public float Left, Top, Right, Bottom;
+    }
 
-//        public override string Name => nameof(HelloTriangleApp);
+    internal struct RayGenConstantBuffer
+    {
+        public HelloTriangleViewport Viewport, Stencil;
+    }
 
-//        public unsafe override void Initialize(Size outputSize, IOutputOwner output)
-//        {
-//            // Create the device and output
-//            var debug = new DebugLayerConfiguration()
-//                .WithDebugFlags(DebugFlags.DebugLayer)
-//                .WithDredFlags(DredFlags.All)
-//                .WithBreakpointLogLevel(LogLevel.None);
+    public sealed class HelloTriangleRaytracingApp : Application
+    {
+        private GraphicsDevice _device = null!;
+        private Output _output = null!;
+        private RaytracingPipelineStateObject _pso = null!;
+        private RootSignature _globalRootSig = null!, _localRootSig = null!;
+        private Buffer _blas, _tlas;
+        private Texture _renderTarget;
+        private DescriptorHandle _target;
 
-//            _device = GraphicsDevice.Create(FeatureLevel.GraphicsLevel12_1, null, debug);
+        private Buffer _raygenBuffer, _missBuffer, _hitGroupBuffer;
 
-//            _output = Output.Create(OutputConfiguration.Default, _device, output);
+        private ShaderRecord _raygen;
+        private ShaderRecordTable _miss, _hitGroup;
 
-//            OnResize(outputSize);
+        private RayGenConstantBuffer _cb = new()
+        {
+            Viewport = new() { Left = -1.0f, Top = -1.0f, Right = 1.0f, Bottom = 1.0f }
+        };
 
-//            // The vertices for our triangle
-//            ReadOnlySpan<HelloWorldVertex> vertices = stackalloc HelloWorldVertex[3]
-//            {
-//                new HelloWorldVertex { Position = new Vector3(+0.25f, -0.25f, +0.0f), Color = (Vector4)Rgba128.Blue },
-//                new HelloWorldVertex { Position = new Vector3(-0.25f, -0.25f, +0.0f), Color = (Vector4)Rgba128.Green },
-//                new HelloWorldVertex { Position = new Vector3(+0.0f, +0.25f, +0.0f), Color = (Vector4)Rgba128.Red },
-//            };
+        private const string RayGenerationShaderName = "MyRaygenShader", MissShaderName = "MyMissShader", ClosestHitShaderName = "MyClosestHitShader", HitGroupName = "MyHitGroup";
 
-//            // Allocate the vertices, using the overload which takes some initial data
-//            var vertexBuffer = _device.Allocator.AllocateUploadBuffer(vertices);
+        public override string Name => nameof(HelloTriangleRaytracingApp);
 
-//            TriangleGeometryDesc triangles = new TriangleGeometryDesc()
-//            {
-//                VertexBuffer = vertexBuffer,
-//                VertexFormat = VertexFormat.R32G32B32Single,
-//                VertexCount = (uint)vertices.Length,
-//                VertexStride = (uint)sizeof(HelloWorldVertex)
-//            };
+        public unsafe override void Initialize(Size outputSize, IOutputOwner output)
+        {
+            // Create the device and output
+            var debug = new DebugLayerConfiguration()
+                .WithDebugFlags(DebugFlags.DebugLayer)
+                .WithDredFlags(DredFlags.All)
+                .WithBreakpointLogLevel(LogLevel.None);
 
-//            GeometryDesc desc = new GeometryDesc()
-//            {
-//                Type = GeometryType.Triangles,
-//                Flags = GeometryFlags.None,
-//                Triangles = triangles
-//            };
+            _device = GraphicsDevice.Create(FeatureLevel.GraphicsLevel12_1, null, debug);
 
-//            _renderTarget = _device.Allocator.AllocateTexture(
-//                TextureDesc.CreateUnorderedAccessResourceDesc(
-//                    (DataFormat)_output.Configuration.BackBufferFormat,
-//                    TextureDimension.Tex2D,
-//                    _output.OutputBuffer.Width,
-//                    _output.OutputBuffer.Height
-//                ),
-//                ResourceState.CopySource
-//            );
+            if (!_device.Supports(DeviceFeature.Raytracing))
+            {
+                throw new PlatformNotSupportedException("Platform does not support Raytracing Tier 1");
+            }
 
-//            using (var context = _device.BeginComputeContext(flags: ContextFlags.BlockOnClose))
-//            {
-//                var blasDest = _device.Allocator.AllocateRayTracingAccelerationBuffer(_device.GetBuildInfo(desc), out var blasScratch);
-//                var tlasDest = _device.Allocator.AllocateRayTracingAccelerationBuffer(_device.GetBuildInfo(Layout.Array, 1), out var tlasScratch);
+            _output = Output.Create(OutputConfiguration.Default, _device, output);
 
-//                context.BuildAccelerationStructure(desc, blasScratch, blasDest);
-//                context.UavBarrier(blasDest);
-//                context.BuildAccelerationStructure(blasDest, Layout.Array, 1, tlasScratch, _tlas);
-//                context.UavBarrier(_tlas);
-//            }
-//        }
+            OnResize(outputSize);
 
-//        public override void OnResize(Size newOutputSize) => _output.Resize(newOutputSize);
+            ReadOnlySpan<ushort> indices = stackalloc ushort[3] { 0, 1, 2 };
 
-//        public override void Update(ApplicationTimer timer) { /* This app doesn't do any updating */ }
-//        public override void Render()
-//        {
-//            var context = _device.BeginGraphicsContext(_pso);
 
-//            context.SetRootSignature(_rootSig);
+            float depthValue = 1.0f;
+            float offset = 0.7f;
+            // The vertices for our triangle
+            ReadOnlySpan<HelloWorldVertex> vertices = stackalloc HelloWorldVertex[3]
+            {
+                new HelloWorldVertex { Position = new Vector3(0, -offset, depthValue), Color = (Vector4)Rgba128.Blue },
+                new HelloWorldVertex { Position = new Vector3(-offset, offset, depthValue), Color = (Vector4)Rgba128.Green },
+                new HelloWorldVertex { Position = new Vector3(offset, offset, depthValue), Color = (Vector4)Rgba128.Red },
+            };
 
-//            context.ResourceBarrier(ResourceBarrier.Transition(_renderTarget, ResourceState.CopySource, ResourceState.UnorderedAccess));
-//            context.SetShaderResourceBuffer(0, _tlas);
+            // Allocate the vertices, using the overload which takes some initial data
+            var vertexBuffer = _device.Allocator.AllocateUploadBuffer(vertices);
+            var indexBuffer = _device.Allocator.AllocateUploadBuffer(indices);
 
-//            context.DispatchRays(new RayDispatchDesc
-//            {
-//                Width = (uint)_output.Resolution.Width,
-//                Height = (uint)_output.Resolution.Height,
-//                Depth = 1
-//            });
+            var triangles = new TriangleGeometryDesc()
+            {
+                VertexBuffer = vertexBuffer,
+                VertexFormat = VertexFormat.R32G32B32Single,
+                VertexCount = (uint)vertices.Length,
+                VertexStride = (uint)sizeof(HelloWorldVertex),
+                IndexBuffer = indexBuffer,
+                IndexFormat = IndexFormat.R16UInt,
+                IndexCount = (uint)indices.Length
+            };
 
-//            context.ResourceBarrier(ResourceBarrier.Uav(_renderTarget));
+            var desc = new GeometryDesc()
+            {
+                Type = GeometryType.Triangles,
+                Flags = GeometryFlags.None,
+                Triangles = triangles
+            };
 
-//            context.ResourceBarrier(ResourceBarrier.Transition(_renderTarget, ResourceState.UnorderedAccess, ResourceState.CopySource));
-//            context.ResourceBarrier(ResourceBarrier.Transition(_output.OutputBuffer, ResourceState.Present, ResourceState.CopyDestination));
+            CreatePso();
+            CreateShaderTables();
 
-//            context.CopyResource(_renderTarget, _output.OutputBuffer);
+            using (var context = _device.BeginComputeContext(flags: ContextFlags.BlockOnClose))
+            {
+                _blas = _device.Allocator.AllocateRaytracingAccelerationBuffer(_device.GetBuildInfo(desc), out var blasScratch);
 
-//            // We need to transition the back buffer to ResourceState.Present so it can be presented
-//            context.ResourceBarrier(ResourceBarrier.Transition(_output.OutputBuffer, ResourceState.CopyDestination, ResourceState.Present));
+                var instances = _device.Allocator.AllocateUploadBuffer<GeometryInstance>();
 
-//            context.Close();
+                var pInstance = instances.As<GeometryInstance>();
+                pInstance->InstanceMask = 1;
+                pInstance->AccelerationStructure = _blas.GpuAddress;
+                pInstance->Transform = Matrix4x4.Identity;
 
-//            // Execute the context and wait for it to finish
-//            var task = _device.Execute(context);
+                _tlas = _device.Allocator.AllocateRaytracingAccelerationBuffer(_device.GetBuildInfo(Layout.Array, 1), out var tlasScratch);
 
-//            task.Block();
+                context.BuildAccelerationStructure(desc, blasScratch, _blas);
+                context.Barrier(ResourceBarrier.UnorderedAcccess(_blas));
+                context.BuildAccelerationStructure(instances, Layout.Array, 1, tlasScratch, _tlas);
+                context.Barrier(ResourceBarrier.UnorderedAcccess(_tlas));
+            }
+        }
 
-//            // Present the rendered frame to the output
-//            _output.Present();
-//        }
+        private unsafe void CreatePso()
+        {
+            _globalRootSig = _device.CreateRootSignature(
+                new RootParameter[]
+                {
+                    RootParameter.CreateDescriptor(RootParameterType.ShaderResourceView, 0, 0),
+                    RootParameter.CreateDescriptorTable(DescriptorRangeType.UnorderedAccessView, 0, 1, 0)
+                }
+            );
 
-//        public override void Dispose()
-//        {
-//            _pso.Dispose();
-//            _tlas.Dispose();
-//            _output.Dispose();
-//            _device.Dispose();
-//        }
-//    }
-//}
+            _localRootSig = _device.CreateLocalRootSignature(
+                new RootParameter[]
+                {
+                    RootParameter.CreateConstants<RayDispatchDesc>(0, 0)
+                }
+            );
+
+            var desc = new RaytracingPipelineDesc
+            {
+                GlobalRootSignature = _globalRootSig,
+                MaxRecursionDepth = 1,
+                MaxPayloadSize = sizeof(float) * 4,
+                MaxAttributeSize = sizeof(float) * 2
+            };
+
+            desc.AddLibrary(ShaderManager.CompileShader("HelloTriangleRaytracing\\HelloTriangleRaytracingShader.hlsl", ShaderType.Library));
+            desc.AddTriangleHitGroup(HitGroupName, ClosestHitShaderName, null);
+            desc.AddLocalRootSignature(_localRootSig, RayGenerationShaderName);
+
+            _pso = _device.PipelineManager.CreatePipelineStateObject(desc, nameof(HelloTriangleRaytracingApp));
+        }
+
+        private unsafe void CreateShaderTables()
+        {
+            _raygenBuffer = _device.Allocator.AllocateUploadBuffer(ShaderRecord.ShaderIdentifierSize + (uint)sizeof(RayGenConstantBuffer));
+            _missBuffer = _device.Allocator.AllocateUploadBuffer(ShaderRecord.ShaderIdentifierSize);
+            _hitGroupBuffer = _device.Allocator.AllocateUploadBuffer(ShaderRecord.ShaderIdentifierSize);
+
+            _raygen = new ShaderRecord(_pso, _raygenBuffer, ShaderRecord.ShaderIdentifierSize + (uint)sizeof(RayGenConstantBuffer));
+            _miss = new ShaderRecordTable(_pso, _missBuffer, 1, ShaderRecord.ShaderIdentifierSize);
+            _hitGroup = new ShaderRecordTable(_pso, _hitGroupBuffer, 1, ShaderRecord.ShaderIdentifierSize);
+
+            // MyRaygenShader
+            // MyClosestHitShader
+            // MyMissShader
+            _raygen.SetShaderName(RayGenerationShaderName);
+            _miss[0].SetShaderName(MissShaderName);
+            _hitGroup[0].SetShaderName(HitGroupName);
+
+            _raygen.WriteConstants(0, _cb);
+        }
+
+        public override void OnResize(Size newOutputSize)
+        {
+            _output.Resize(newOutputSize);
+
+            var aspectRatio = newOutputSize.AspectRatio();
+            float border = 0.1f;
+            if (newOutputSize.Width <= newOutputSize.Height)
+            {
+                _cb.Stencil = new HelloTriangleViewport
+                {
+                    Left = -1 + border,
+                    Top = -1 + (border * aspectRatio),
+                    Right = 1.0f - border,
+                    Bottom = 1 - (border * aspectRatio)
+                };
+            }
+            else
+            {
+                _cb.Stencil = new HelloTriangleViewport
+                {
+                    Left = -1 + (border / aspectRatio),
+                    Top = -1 + border,
+                    Right = 1 - (border / aspectRatio),
+                    Bottom = 1.0f - border
+                };
+
+            }
+
+
+            _renderTarget.Dispose();
+            var desc = TextureDesc.CreateUnorderedAccessResourceDesc(
+                    (DataFormat)_output.Configuration.BackBufferFormat,
+                    TextureDimension.Tex2D,
+                    (uint)newOutputSize.Width,
+                    (uint)newOutputSize.Height
+            );
+
+            desc.MipCount = 1;
+
+            _renderTarget = _device.Allocator.AllocateTexture(
+                desc,
+                ResourceState.UnorderedAccess
+            );
+
+            _target = _device.CreateUnorderedAccessView(_renderTarget);
+        }
+
+        public override void Update(ApplicationTimer timer) { /* This app doesn't do any updating */ }
+        public override void Render()
+        {
+            var context = (ComputeContext)_device.BeginGraphicsContext(_pso);
+
+            context.SetShaderResourceBuffer(0, _tlas);
+            context.SetRootDescriptorTable(1, _target);
+
+            context.DispatchRays(new RayDispatchDesc
+            {
+                RayGenerationShaderRecord = _raygen,
+                MissShaderTable = _miss,
+                HitGroupTable = _hitGroup,
+                Width = (uint)_output.Resolution.Width,
+                Height = (uint)_output.Resolution.Height,
+                Depth = 1
+            });
+
+            context.Barrier(stackalloc[] {
+                //ResourceBarrier.UnorderedAccess(_renderTarget),
+                ResourceBarrier.Transition(_renderTarget, ResourceState.UnorderedAccess, ResourceState.CopySource),
+                ResourceBarrier.Transition(_output.OutputBuffer, ResourceState.Present, ResourceState.CopyDestination)
+            });
+
+            context.CopyResource(_renderTarget, _output.OutputBuffer);
+
+            // We need to transition the back buffer to ResourceState.Present so it can be presented
+            context.Barrier(stackalloc[] {
+                ResourceBarrier.Transition(_renderTarget, ResourceState.CopySource, ResourceState.UnorderedAccess),
+                ResourceBarrier.Transition(_output.OutputBuffer, ResourceState.CopyDestination, ResourceState.Present)
+            });
+
+            context.Close();
+
+            // Execute the context and wait for it to finish
+            var task = _device.Execute(context);
+
+            task.Block();
+
+            // Present the rendered frame to the output
+            _output.Present();
+        }
+
+        public override void Dispose()
+        {
+            _pso.Dispose();
+            _tlas.Dispose();
+            _output.Dispose();
+            _device.Dispose();
+        }
+    }
+}

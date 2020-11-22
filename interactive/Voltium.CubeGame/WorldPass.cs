@@ -232,7 +232,7 @@ namespace Voltium.CubeGame
             chunkConstants->World = Matrix4x4.CreateTranslation(0, 0, -5);
         }
 
-        public override void Register(ref RenderPassBuilder builder, ref Resolver resolver)
+        public override bool Register(ref RenderPassBuilder builder, ref Resolver resolver)
         {
             var settings = resolver.GetComponent<RenderSettings>();
 
@@ -251,6 +251,8 @@ namespace Voltium.CubeGame
             resolver.CreateComponent(resources);
 
             DefaultPipelineState = settings.Msaa.IsMultiSampled ? MsaaPso : Pso;
+
+            return true;
         }
 
         public override unsafe void Record(GraphicsContext context, ref Resolver resolver)
@@ -263,30 +265,36 @@ namespace Voltium.CubeGame
             frame->View = _camera.View;
             frame->Projection = _camera.Projection;
 
+            var progressBuffer = _device.Allocator.AllocateBuffer(1024, MemoryAccess.GpuOnly);
+
             context.SetRootSignature(RootSignature);
             context.SetAndClearRenderTarget(_device.CreateRenderTargetView(sceneColor), DefaultSkyColor, _device.CreateDepthStencilView(sceneDepth));
-            //context.SetRootDescriptorTable(RootSignatureConstants.TextureIndex, _texViews.Start);
-            //context.SetConstantBuffer<FrameConstants>(RootSignatureConstants.FrameConstantsIndex, _frameConstants);
-            //context.SetTopology(Topology.TriangleList);
-            //context.SetViewportAndScissor(sceneColor.Resolution);
+            context.SetRootDescriptorTable(RootSignatureConstants.TextureIndex, _texViews.Start);
+            context.SetConstantBuffer<FrameConstants>(RootSignatureConstants.FrameConstantsIndex, _frameConstants);
+            context.SetTopology(Topology.TriangleList);
+            context.SetViewportAndScissor(sceneColor.Resolution);
 
-            //for (var i = 0; i < Chunks.Length; i++)
-            //{
-            //    ref var chunk = ref Chunks[i];
+            for (var i = 0u; i < Chunks.Length; i++)
+            {
+                ref var chunk = ref Chunks[i];
 
-            //    if (chunk.Chunk.NeedsRebuild)
-            //    {
-            //        BuildMesh(ref chunk);
-            //    }
+                if (chunk.Chunk.NeedsRebuild)
+                {
+                    BuildMesh(ref chunk);
+                }
 
-            //    context.SetConstantBuffer<ChunkConstants>(RootSignatureConstants.ObjectConstantsIndex, chunk.Mesh.Constants);
-            //    context.SetShaderResourceBuffer<uint>(RootSignatureConstants.ObjectTexIndicesIndex, chunk.Mesh.TexIndices);
+                context.SetConstantBuffer<ChunkConstants>(RootSignatureConstants.ObjectConstantsIndex, chunk.Mesh.Constants);
+                context.SetShaderResourceBuffer<uint>(RootSignatureConstants.ObjectTexIndicesIndex, chunk.Mesh.TexIndices);
 
-            //    context.SetVertexBuffers<BlockVertex>(chunk.Mesh.Vertices, (uint)chunk.Mesh.VertexCount, 0);
-            //    context.SetIndexBuffer<uint>(chunk.Mesh.Indices, (uint)chunk.Mesh.IndexCount);
+                context.SetVertexBuffers<BlockVertex>(chunk.Mesh.Vertices, (uint)chunk.Mesh.VertexCount, 0);
+                context.SetIndexBuffer<uint>(chunk.Mesh.Indices, (uint)chunk.Mesh.IndexCount);
 
-            //    context.DrawIndexed(chunk.Mesh.IndexCount);
-            //}
+                context.WriteBufferImmediate(progressBuffer.GpuAddress + (sizeof(int) * i), GetDrawIndex(i), CopyContext.WriteBufferImmediateMode.In);
+                context.DrawIndexed(chunk.Mesh.IndexCount);
+
+
+                static uint GetDrawIndex(uint i) => i;
+            }
         }
 
         public unsafe void BuildMesh(ref RenderChunk chunkPair)

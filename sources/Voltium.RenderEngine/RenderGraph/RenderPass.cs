@@ -19,7 +19,8 @@ namespace Voltium.RenderEngine
         /// </summary>
         /// <param name="builder">The <see cref="RenderPassBuilder"/> used to build the pass</param>
         /// <param name="resolver"></param>
-        public abstract void Register(ref RenderPassBuilder builder, ref Resolver resolver);
+        /// <returns>Whether the pass is to be registered or not. This allows passes to reject themselves from execution during registration. </returns>
+        public abstract bool Register(ref RenderPassBuilder builder, ref Resolver resolver);
 
         /// <inheritdoc/>
         public bool Equals([AllowNull] RenderPass other) => this == other;

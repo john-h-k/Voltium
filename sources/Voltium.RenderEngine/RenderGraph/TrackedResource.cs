@@ -31,7 +31,7 @@ namespace Voltium.RenderEngine
             }
             else
             {
-                barrier = ResourceBarrier.Transition(Desc.Texture, CurrentTrackedState, state, options);
+                barrier = ResourceBarrier.Transition(Desc.Texture, CurrentTrackedState, state, uint.MaxValue, options);
             }
 
             CurrentTrackedState = state;
@@ -42,11 +42,11 @@ namespace Voltium.RenderEngine
         {
             if (Desc.Type == ResourceType.Buffer)
             {
-                return ResourceBarrier.Uav(Desc.Buffer, options);
+                return ResourceBarrier.UnorderedAcccess(Desc.Buffer, options);
             }
             else
             {
-                return ResourceBarrier.Uav(Desc.Texture, options);
+                return ResourceBarrier.UnorderedAccess(Desc.Texture, options);
             }
         }
 

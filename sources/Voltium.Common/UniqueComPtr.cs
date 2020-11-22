@@ -15,6 +15,19 @@ namespace Voltium.Common
     [RaiiOwnershipType]
     public unsafe struct UniqueComPtr<T> : IDisposable, IEquatable<UniqueComPtr<T>> /*, IComType*/ where T : unmanaged
     {
+
+        /// <summary>
+        /// The IID (Interface ID) of the underlying COM type
+        /// </summary>
+        // https://github.com/dotnet/runtime/issues/36272
+        public readonly Guid* Iid => StaticIid;
+
+        /// <summary>
+        /// The IID (Interface ID) of the underlying COM type
+        /// </summary>
+        public static Guid* StaticIid { get; } = Initialize();
+
+
         private static Guid* Initialize()
         {
             UniqueComPtr<IUnknown> p = default;
@@ -22,7 +35,7 @@ namespace Voltium.Common
 
             // *probably* not a valid COM type without a GUID
 #if REFLECTION
-            Debug.Assert(typeof(T).GetCustomAttribute(typeof(GuidAttribute)) != null);
+            Debug.Assert(typeof(T).GetCustomAttribute<GuidAttribute>() is not null);
 #endif
 
             var ptr = (Guid*)RuntimeHelpers.AllocateTypeAssociatedMemory(typeof(T), sizeof(Guid));
@@ -48,17 +61,6 @@ namespace Voltium.Common
         // and because ComPtr.GetAddressOf/GetVoidAddressOf expects this to be first elem
         // i believe some other code in the engine relies on it being blittable to void* too
         private T* _ptr;
-
-        /// <summary>
-        /// The IID (Interface ID) of the underlying COM type
-        /// </summary>
-        // https://github.com/dotnet/runtime/issues/36272
-        public readonly Guid* Iid => StaticIid;
-
-        /// <summary>
-        /// The IID (Interface ID) of the underlying COM type
-        /// </summary>
-        public static Guid* StaticIid { get; } = Initialize();
 
         /// <summary>
         /// Retrieves the underlying pointer
