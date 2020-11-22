@@ -39,7 +39,7 @@ namespace Voltium.Core
                 Inputs = new D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS
                 {
                     Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE.D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL,
-                    Flags = ((D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS)flags) | D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS.D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PERFORM_UPDATE,
+                    Flags = ((D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS)flags.RemoveFlags()) | D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS.D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PERFORM_UPDATE,
                     DescsLayout = (D3D12_ELEMENTS_LAYOUT)layout,
                     InstanceDescs = bottomLevelGpuPointer,
                     NumDescs = numBottomLevelStructures
@@ -47,6 +47,7 @@ namespace Voltium.Core
             };
 
             FlushBarriers();
+            InsertBarrierIfNecessary(dest, flags);
             List->BuildRaytracingAccelerationStructure(&build, 0, null);
         }
 
@@ -75,13 +76,14 @@ namespace Voltium.Core
                 Inputs = new D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS
                 {
                     Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE.D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL,
-                    Flags = (D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS)flags,
+                    Flags = (D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS)flags.RemoveFlags(),
                     DescsLayout = (D3D12_ELEMENTS_LAYOUT)layout,
                     InstanceDescs = bottomLevelGpuPointer.GpuAddress,
                     NumDescs = numBottomLevelStructures
                 }
             };
 
+            InsertBarrierIfNecessary(dest, flags);
             List->BuildRaytracingAccelerationStructure(&build, 0, null);
         }
 
@@ -117,7 +119,7 @@ namespace Voltium.Core
                     Inputs = new D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS
                     {
                         Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE.D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL,
-                        Flags = (D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS)flags,
+                        Flags = (D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS)flags.RemoveFlags(),
                         DescsLayout = D3D12_ELEMENTS_LAYOUT.D3D12_ELEMENTS_LAYOUT_ARRAY,
                         pGeometryDescs = (D3D12_RAYTRACING_GEOMETRY_DESC*)pGeo,
                         NumDescs = (uint)geometry.Length
@@ -125,6 +127,7 @@ namespace Voltium.Core
                 };
 
                 FlushBarriers();
+                InsertBarrierIfNecessary(dest, flags);
                 List->BuildRaytracingAccelerationStructure(&build, 0, null);
             }
         }
@@ -166,7 +169,7 @@ namespace Voltium.Core
                     Inputs = new D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS
                     {
                         Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE.D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL,
-                        Flags = ((D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS)flags) | D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS.D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PERFORM_UPDATE,
+                        Flags = ((D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS)flags.RemoveFlags()) | D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS.D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PERFORM_UPDATE,
                         DescsLayout = D3D12_ELEMENTS_LAYOUT.D3D12_ELEMENTS_LAYOUT_ARRAY,
                         pGeometryDescs = (D3D12_RAYTRACING_GEOMETRY_DESC*)pGeo,
                         NumDescs = (uint)geometry.Length
@@ -174,6 +177,7 @@ namespace Voltium.Core
                 };
 
                 FlushBarriers();
+                InsertBarrierIfNecessary(dest, flags);
                 List->BuildRaytracingAccelerationStructure(&build, 0, null);
             }
         }
@@ -248,6 +252,15 @@ namespace Voltium.Core
             fixed (D3D12_DISPATCH_RAYS_DESC* pDesc = &desc.Desc)
             {
                 List->DispatchRays(pDesc);
+            }
+        }
+
+
+        private void InsertBarrierIfNecessary(in Buffer dest, BuildAccelerationStructureFlags flags)
+        {
+            if (flags.HasFlag(BuildAccelerationStructureFlags.InsertUavBarrier))
+            {
+                Barrier(ResourceBarrier.UnorderedAcccess(dest));
             }
         }
     }

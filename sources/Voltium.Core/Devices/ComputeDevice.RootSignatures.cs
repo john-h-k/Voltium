@@ -15,6 +15,15 @@ namespace Voltium.Core.Devices
         /// </summary>
         public RootSignature EmptyRootSignature { get; }
 
+
+        /// <summary>
+        /// Creates a new <see cref="RootSignature"/>
+        /// </summary>
+        /// <param name="rootParameter">The <see cref="RootParameter"/> in the signature</param>
+        /// <returns>A new <see cref="RootSignature"/></returns>
+        public RootSignature CreateRootSignature(in RootParameter rootParameter)
+            => CreateRootSignature(new[] { rootParameter }, Array.Empty<StaticSampler>());
+
         /// <summary>
         /// Creates a new <see cref="RootSignature"/>
         /// </summary>
@@ -42,6 +51,13 @@ namespace Voltium.Core.Devices
         public RootSignature CreateRootSignature(ReadOnlyMemory<RootParameter> rootParameters, ReadOnlyMemory<StaticSampler> staticSamplers = default)
             => RootSignature.Create(this, rootParameters, staticSamplers, /* TODO */ D3D12_ROOT_SIGNATURE_FLAGS.D3D12_ROOT_SIGNATURE_FLAG_NONE);
 
+        /// <summary>
+        /// Creates a new <see cref="RootSignature"/> for use as a raytracing local root signature
+        /// </summary>
+        /// <param name="rootParameter">The <see cref="RootParameter"/> in the signature</param>
+        /// <returns>A new <see cref="RootSignature"/></returns>
+        public RootSignature CreateLocalRootSignature(in RootParameter rootParameter)
+            => CreateLocalRootSignature(new[] { rootParameter }, Array.Empty<StaticSampler>());
 
         /// <summary>
         /// Creates a new <see cref="RootSignature"/> for use as a raytracing local root signature

@@ -328,6 +328,49 @@ namespace Voltium.Core
         }
 
 
+        public ref struct ScopedBarrierSet
+        {
+            private CopyContext _context;
+            private ReadOnlySpan<ResourceBarrier> _barriers;
+
+            internal ScopedBarrierSet(CopyContext context, ReadOnlySpan<ResourceBarrier> barriers)
+            {
+                _context = context;
+                _barriers = barriers;
+            }
+
+            public void Dispose()
+            {
+                int newBarrierCount = 0;
+
+                if (StackSentinel.SafeToStackalloc<D3D12_RESOURCE_BARRIER>(_barriers.Length))
+                {
+                    Span<D3D12_RESOURCE_BARRIER> newBarriers = stackalloc D3D12_RESOURCE_BARRIER[_barriers.Length];
+
+                    foreach (ref readonly var barrier in _barriers)
+                    {
+                        if (barrier.Barrier.Type == D3D12_RESOURCE_BARRIER_TYPE.D3D12_RESOURCE_BARRIER_TYPE_TRANSITION)
+                        {
+                            ref readonly var transition = ref barrier.Barrier.Transition;
+                            newBarriers[newBarrierCount++] = D3D12_RESOURCE_BARRIER.InitTransition(transition.pResource, transition.StateAfter, transition.StateBefore);
+                        }
+                    }
+
+                    _context.AddBarriers(newBarriers[0..newBarrierCount]);
+                }
+            }
+        }
+
+        public ScopedBarrierSet ScopedBarrier(in ResourceBarrier barrier)
+            => ScopedBarrier(MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(in barrier), 1));
+
+
+        public ScopedBarrierSet ScopedBarrier(ReadOnlySpan<ResourceBarrier> barriers)
+        {
+            Barrier(barriers);
+            return new(this, barriers);
+        }
+
         /// <summary>
         /// Mark a resource barrierson the command list
         /// </summary>

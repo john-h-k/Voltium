@@ -125,18 +125,16 @@ namespace Voltium.Interactive.HelloTriangleRaytracing
                 _blas = _device.Allocator.AllocateRaytracingAccelerationBuffer(_device.GetBuildInfo(desc), out var blasScratch);
 
                 var instances = _device.Allocator.AllocateUploadBuffer<GeometryInstance>();
-
                 var pInstance = instances.As<GeometryInstance>();
+                *pInstance = default; // zero-init
                 pInstance->InstanceMask = 1;
                 pInstance->AccelerationStructure = _blas.GpuAddress;
                 pInstance->Transform = Matrix4x4.Identity;
 
                 _tlas = _device.Allocator.AllocateRaytracingAccelerationBuffer(_device.GetBuildInfo(Layout.Array, 1), out var tlasScratch);
 
-                context.BuildAccelerationStructure(desc, blasScratch, _blas);
-                context.Barrier(ResourceBarrier.UnorderedAcccess(_blas));
-                context.BuildAccelerationStructure(instances, Layout.Array, 1, tlasScratch, _tlas);
-                context.Barrier(ResourceBarrier.UnorderedAcccess(_tlas));
+                context.BuildAccelerationStructure(desc, blasScratch, _blas, BuildAccelerationStructureFlags.InsertUavBarrier);
+                context.BuildAccelerationStructure(instances, Layout.Array, 1, tlasScratch, _tlas, BuildAccelerationStructureFlags.InsertUavBarrier);
             }
         }
 
@@ -150,12 +148,7 @@ namespace Voltium.Interactive.HelloTriangleRaytracing
                 }
             );
 
-            _localRootSig = _device.CreateLocalRootSignature(
-                new RootParameter[]
-                {
-                    RootParameter.CreateConstants<RayDispatchDesc>(0, 0)
-                }
-            );
+            _localRootSig = _device.CreateLocalRootSignature(RootParameter.CreateConstants<RayDispatchDesc>(0, 0));
 
             var desc = new RaytracingPipelineDesc
             {
@@ -200,39 +193,25 @@ namespace Voltium.Interactive.HelloTriangleRaytracing
             float border = 0.1f;
             if (newOutputSize.Width <= newOutputSize.Height)
             {
-                _cb.Stencil = new HelloTriangleViewport
-                {
-                    Left = -1 + border,
-                    Top = -1 + (border * aspectRatio),
-                    Right = 1.0f - border,
-                    Bottom = 1 - (border * aspectRatio)
-                };
+                _cb.Stencil = new HelloTriangleViewport { Left = -1 + border, Top = -1 + (border * aspectRatio), Right = 1.0f - border, Bottom = 1 - (border * aspectRatio) };
             }
             else
             {
-                _cb.Stencil = new HelloTriangleViewport
-                {
-                    Left = -1 + (border / aspectRatio),
-                    Top = -1 + border,
-                    Right = 1 - (border / aspectRatio),
-                    Bottom = 1.0f - border
-                };
+                _cb.Stencil = new HelloTriangleViewport { Left = -1 + (border / aspectRatio), Top = -1 + border, Right = 1 - (border / aspectRatio), Bottom = 1.0f - border };
 
             }
 
-
             _renderTarget.Dispose();
-            var desc = TextureDesc.CreateUnorderedAccessResourceDesc(
-                    (DataFormat)_output.Configuration.BackBufferFormat,
-                    TextureDimension.Tex2D,
-                    (uint)newOutputSize.Width,
-                    (uint)newOutputSize.Height
-            );
-
-            desc.MipCount = 1;
-
             _renderTarget = _device.Allocator.AllocateTexture(
-                desc,
+                new TextureDesc
+                {
+                    Dimension = TextureDimension.Tex2D,
+                    Format = (DataFormat)_output.Configuration.BackBufferFormat,
+                    Height = (uint)newOutputSize.Height,
+                    Width = (uint)newOutputSize.Width,
+                    MipCount = 1,
+                    ResourceFlags = ResourceFlags.AllowUnorderedAccess | ResourceFlags.DenyShaderResource
+                },
                 ResourceState.UnorderedAccess
             );
 
@@ -257,19 +236,13 @@ namespace Voltium.Interactive.HelloTriangleRaytracing
                 Depth = 1
             });
 
-            context.Barrier(stackalloc[] {
-                //ResourceBarrier.UnorderedAccess(_renderTarget),
+            using (context.ScopedBarrier(stackalloc[] {
                 ResourceBarrier.Transition(_renderTarget, ResourceState.UnorderedAccess, ResourceState.CopySource),
                 ResourceBarrier.Transition(_output.OutputBuffer, ResourceState.Present, ResourceState.CopyDestination)
-            });
-
-            context.CopyResource(_renderTarget, _output.OutputBuffer);
-
-            // We need to transition the back buffer to ResourceState.Present so it can be presented
-            context.Barrier(stackalloc[] {
-                ResourceBarrier.Transition(_renderTarget, ResourceState.CopySource, ResourceState.UnorderedAccess),
-                ResourceBarrier.Transition(_output.OutputBuffer, ResourceState.CopyDestination, ResourceState.Present)
-            });
+            }))
+            {
+                context.CopyResource(_renderTarget, _output.OutputBuffer);
+            }
 
             context.Close();
 
