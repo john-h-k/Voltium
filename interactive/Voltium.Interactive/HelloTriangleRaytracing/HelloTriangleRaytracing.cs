@@ -34,7 +34,7 @@ namespace Voltium.Interactive.HelloTriangleRaytracing
         public float Left, Top, Right, Bottom;
     }
 
-    internal struct RayGenConstantBuffer
+    internal struct HelloTriangleConstantBuffer
     {
         public HelloTriangleViewport Viewport, Stencil;
     }
@@ -54,7 +54,7 @@ namespace Voltium.Interactive.HelloTriangleRaytracing
         private ShaderRecord _raygen;
         private ShaderRecordTable _miss, _hitGroup;
 
-        private RayGenConstantBuffer _cb = new()
+        private HelloTriangleConstantBuffer _cb = new()
         {
             Viewport = new() { Left = -1.0f, Top = -1.0f, Right = 1.0f, Bottom = 1.0f }
         };
@@ -66,10 +66,11 @@ namespace Voltium.Interactive.HelloTriangleRaytracing
         public unsafe override void Initialize(Size outputSize, IOutputOwner output)
         {
             // Create the device and output
-            var debug = new DebugLayerConfiguration()
-                .WithDebugFlags(DebugFlags.DebugLayer)
-                .WithDredFlags(DredFlags.All)
-                .WithBreakpointLogLevel(LogLevel.None);
+#if DEBUG
+            var debug = DebugLayerConfiguration.Debug;
+#else
+            var debug = DebugLayerConfiguration.None;
+#endif
 
             _device = GraphicsDevice.Create(FeatureLevel.GraphicsLevel12_1, null, debug);
 
@@ -84,9 +85,8 @@ namespace Voltium.Interactive.HelloTriangleRaytracing
 
             ReadOnlySpan<ushort> indices = stackalloc ushort[3] { 0, 1, 2 };
 
-
             float depthValue = 1.0f;
-            float offset = 0.7f;
+            float offset = 0.5f;
             // The vertices for our triangle
             ReadOnlySpan<HelloWorldVertex> vertices = stackalloc HelloWorldVertex[3]
             {
@@ -125,11 +125,12 @@ namespace Voltium.Interactive.HelloTriangleRaytracing
                 _blas = _device.Allocator.AllocateRaytracingAccelerationBuffer(_device.GetBuildInfo(desc), out var blasScratch);
 
                 var instances = _device.Allocator.AllocateUploadBuffer<GeometryInstance>();
-                var pInstance = instances.As<GeometryInstance>();
-                *pInstance = default; // zero-init
-                pInstance->InstanceMask = 1;
-                pInstance->AccelerationStructure = _blas.GpuAddress;
-                pInstance->Transform = Matrix4x4.Identity;
+                *instances.As<GeometryInstance>() = new()
+                {
+                    InstanceMask = 1,
+                    AccelerationStructure = _blas.GpuAddress,
+                    Transform = Matrix4x4.Identity
+                };
 
                 _tlas = _device.Allocator.AllocateRaytracingAccelerationBuffer(_device.GetBuildInfo(Layout.Array, 1), out var tlasScratch);
 
@@ -148,7 +149,7 @@ namespace Voltium.Interactive.HelloTriangleRaytracing
                 }
             );
 
-            _localRootSig = _device.CreateLocalRootSignature(RootParameter.CreateConstants<RayDispatchDesc>(0, 0));
+            _localRootSig = _device.CreateLocalRootSignature(RootParameter.CreateConstants<HelloTriangleConstantBuffer>(0, 0));
 
             var desc = new RaytracingPipelineDesc
             {
@@ -167,20 +168,17 @@ namespace Voltium.Interactive.HelloTriangleRaytracing
 
         private unsafe void CreateShaderTables()
         {
-            _raygenBuffer = _device.Allocator.AllocateUploadBuffer(ShaderRecord.ShaderIdentifierSize + (uint)sizeof(RayGenConstantBuffer));
+            _raygenBuffer = _device.Allocator.AllocateUploadBuffer(ShaderRecord.ShaderIdentifierSize + (uint)sizeof(HelloTriangleConstantBuffer));
             _missBuffer = _device.Allocator.AllocateUploadBuffer(ShaderRecord.ShaderIdentifierSize);
             _hitGroupBuffer = _device.Allocator.AllocateUploadBuffer(ShaderRecord.ShaderIdentifierSize);
 
-            _raygen = new ShaderRecord(_pso, _raygenBuffer, ShaderRecord.ShaderIdentifierSize + (uint)sizeof(RayGenConstantBuffer));
+            _raygen = new ShaderRecord(_pso, _raygenBuffer, ShaderRecord.ShaderIdentifierSize + (uint)sizeof(HelloTriangleConstantBuffer));
             _miss = new ShaderRecordTable(_pso, _missBuffer, 1, ShaderRecord.ShaderIdentifierSize);
             _hitGroup = new ShaderRecordTable(_pso, _hitGroupBuffer, 1, ShaderRecord.ShaderIdentifierSize);
-
-            // MyRaygenShader
-            // MyClosestHitShader
-            // MyMissShader
-            _raygen.SetShaderName(RayGenerationShaderName);
-            _miss[0].SetShaderName(MissShaderName);
-            _hitGroup[0].SetShaderName(HitGroupName);
+            
+            _raygen.SetShaderName(RayGenerationShaderName); // MyRaygenShader
+            _miss[0].SetShaderName(MissShaderName); // MyMissShader
+            _hitGroup[0].SetShaderName(HitGroupName); // MyClosestHitShader
 
             _raygen.WriteConstants(0, _cb);
         }
@@ -210,7 +208,7 @@ namespace Voltium.Interactive.HelloTriangleRaytracing
                     Height = (uint)newOutputSize.Height,
                     Width = (uint)newOutputSize.Width,
                     MipCount = 1,
-                    ResourceFlags = ResourceFlags.AllowUnorderedAccess | ResourceFlags.DenyShaderResource
+                    ResourceFlags = ResourceFlags.AllowUnorderedAccess
                 },
                 ResourceState.UnorderedAccess
             );
@@ -236,7 +234,8 @@ namespace Voltium.Interactive.HelloTriangleRaytracing
                 Depth = 1
             });
 
-            using (context.ScopedBarrier(stackalloc[] {
+            using (context.ScopedBarrier(stackalloc[]
+            {
                 ResourceBarrier.Transition(_renderTarget, ResourceState.UnorderedAccess, ResourceState.CopySource),
                 ResourceBarrier.Transition(_output.OutputBuffer, ResourceState.Present, ResourceState.CopyDestination)
             }))

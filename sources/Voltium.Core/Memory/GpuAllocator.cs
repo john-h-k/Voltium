@@ -585,7 +585,7 @@ namespace Voltium.Core.Memory
                 Alignment = 0,
                 Width = desc.Width,
                 Height = Math.Max(1, desc.Height),
-                DepthOrArraySize = Math.Max(1, desc.DepthOrArraySize),
+                DepthOrArraySize = Math.Max((ushort)1, desc.DepthOrArraySize),
                 MipLevels = desc.MipCount,
                 Format = (DXGI_FORMAT)desc.Format,
                 Flags = (D3D12_RESOURCE_FLAGS)desc.ResourceFlags,
