@@ -20,13 +20,10 @@ using Voltium.Core.Raytracing;
 
 namespace Voltium.Interactive.HelloTriangleRaytracing
 {
-    // This is our vertex type used in the shader
-    // [ShaderInput] triggers a source generator to create a shader input description which we need later
-    [ShaderInput]
     internal partial struct HelloWorldVertex
     {
+        public HelloWorldVertex(float x, float y, float z) => Position = new(x, y, z);
         public Vector3 Position;
-        public Vector4 Color;
     }
 
     internal struct HelloTriangleViewport
@@ -83,37 +80,24 @@ namespace Voltium.Interactive.HelloTriangleRaytracing
 
             OnResize(outputSize);
 
+            // The vertices and indices for our triangle
             ReadOnlySpan<ushort> indices = stackalloc ushort[3] { 0, 1, 2 };
-
-            float depthValue = 1.0f;
-            float offset = 0.5f;
-            // The vertices for our triangle
             ReadOnlySpan<HelloWorldVertex> vertices = stackalloc HelloWorldVertex[3]
             {
-                new HelloWorldVertex { Position = new Vector3(0, -offset, depthValue), Color = (Vector4)Rgba128.Blue },
-                new HelloWorldVertex { Position = new Vector3(-offset, offset, depthValue), Color = (Vector4)Rgba128.Green },
-                new HelloWorldVertex { Position = new Vector3(offset, offset, depthValue), Color = (Vector4)Rgba128.Red },
+                new HelloWorldVertex(+0.0f, -0.5f, +1.0f),
+                new HelloWorldVertex(-0.5f, +0.5f, +1.0f),
+                new HelloWorldVertex(+0.5f, +0.5f, +1.0f),
             };
 
             // Allocate the vertices, using the overload which takes some initial data
             var vertexBuffer = _device.Allocator.AllocateUploadBuffer(vertices);
             var indexBuffer = _device.Allocator.AllocateUploadBuffer(indices);
 
-            var triangles = new TriangleGeometryDesc()
-            {
-                VertexBuffer = vertexBuffer,
-                VertexFormat = VertexFormat.R32G32B32Single,
-                VertexCount = (uint)vertices.Length,
-                VertexStride = (uint)sizeof(HelloWorldVertex),
-                IndexBuffer = indexBuffer,
-                IndexFormat = IndexFormat.R16UInt,
-                IndexCount = (uint)indices.Length
-            };
+            var triangles = TriangleGeometryDesc.FromTypes<HelloWorldVertex, ushort>(VertexFormat.R32G32B32Single, vertexBuffer, indexBuffer);
 
             var desc = new GeometryDesc()
             {
                 Type = GeometryType.Triangles,
-                Flags = GeometryFlags.None,
                 Triangles = triangles
             };
 
@@ -175,7 +159,7 @@ namespace Voltium.Interactive.HelloTriangleRaytracing
             _raygen = new ShaderRecord(_pso, _raygenBuffer, ShaderRecord.ShaderIdentifierSize + (uint)sizeof(HelloTriangleConstantBuffer));
             _miss = new ShaderRecordTable(_pso, _missBuffer, 1, ShaderRecord.ShaderIdentifierSize);
             _hitGroup = new ShaderRecordTable(_pso, _hitGroupBuffer, 1, ShaderRecord.ShaderIdentifierSize);
-            
+
             _raygen.SetShaderName(RayGenerationShaderName); // MyRaygenShader
             _miss[0].SetShaderName(MissShaderName); // MyMissShader
             _hitGroup[0].SetShaderName(HitGroupName); // MyClosestHitShader
@@ -234,8 +218,7 @@ namespace Voltium.Interactive.HelloTriangleRaytracing
                 Depth = 1
             });
 
-            using (context.ScopedBarrier(stackalloc[]
-            {
+            using (context.ScopedBarrier(stackalloc[] {
                 ResourceBarrier.Transition(_renderTarget, ResourceState.UnorderedAccess, ResourceState.CopySource),
                 ResourceBarrier.Transition(_output.OutputBuffer, ResourceState.Present, ResourceState.CopyDestination)
             }))
@@ -245,12 +228,8 @@ namespace Voltium.Interactive.HelloTriangleRaytracing
 
             context.Close();
 
-            // Execute the context and wait for it to finish
-            var task = _device.Execute(context);
-
-            task.Block();
-
-            // Present the rendered frame to the output
+            // Execute the context and wait for it to finish, then present the rendered frame to the output
+            _device.Execute(context).Block();
             _output.Present();
         }
 
