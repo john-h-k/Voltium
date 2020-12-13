@@ -24,6 +24,7 @@ namespace Voltium.Core
             else
             {
                 ThrowHelper.ThrowArgumentException(nameof(TIndex));
+                throw null;
             }
 
             return new TriangleGeometryDesc

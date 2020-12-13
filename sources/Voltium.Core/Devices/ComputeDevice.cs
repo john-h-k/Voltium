@@ -20,78 +20,12 @@ using static TerraFX.Interop.Windows;
 using Buffer = Voltium.Core.Memory.Buffer;
 
 using SysDebug = System.Diagnostics.Debug;
+using Voltium.Core.Queries;
 
 namespace Voltium.Core.Devices
 {
-    internal struct TextureLayout
-    {
-        public D3D12_PLACED_SUBRESOURCE_FOOTPRINT[] Layouts;
-        public uint[] NumRows;
-        public ulong[] RowSizes;
-        public ulong TotalSize;
-
-    }
-
-
-
-
     /// <summary>
-    /// Describes the layout of a CPU-side subresource
-    /// </summary>
-    public struct SubresourceLayout
-    {
-        /// <summary>
-        /// The size of the rows, in bytes
-        /// </summary>
-        public ulong RowSize;
-
-        /// <summary>
-        /// The number of rows
-        /// </summary>
-        public uint NumRows;
-    }
-    internal enum SupportedGraphicsCommandList { Unknown, GraphicsCommandList, GraphicsCommandList1, GraphicsCommandList2, GraphicsCommandList3, GraphicsCommandList4, GraphicsCommandList5, GraphicsCommandList6 }
-
-    internal struct DeviceArchitecture
-    {
-        public int AddressSpaceBits { init; get; }
-        public int ResourceAddressBits { init; get; }
-
-        public bool IsCacheCoherentUma { init; get; }
-
-        public ulong VirtualAddressSpaceSize { init; get; }
-
-    }
-
-    /// <summary>
-    /// Flags used when creating a <see cref="GpuContext"/>
-    /// </summary>
-    public enum ContextFlags
-    {
-        /// <summary>
-        /// None
-        /// </summary>
-        None,
-
-        /// <summary>
-        /// Immediately begin executing the context when it is closed or disposed
-        /// </summary>
-        ExecuteOnClose,
-
-        /// <summary>
-        /// Immediately begin executing, and synchronously block until the end, when it is closed or disposed
-        /// </summary>
-        BlockOnClose
-    }
-
-    public enum DeviceFeature
-    {
-        Raytracing,
-        InlineRaytracing
-    }
-
-    /// <summary>
-    /// 
+    ///
     /// </summary>
     public unsafe partial class ComputeDevice : IDisposable, IInternalD3D12Object
     {
@@ -115,8 +49,8 @@ namespace Voltium.Core.Devices
         // But also may be implemented by fixed-function hardware like ClearRenderTargetView which require a CPU descriptor
         // Because shader visible heaps are created in UPLOAD/WRITE_BACK memory, they are very slow to read from, so a non-shader visible CPU descriptor is required for perf
         // This is the heap for that
-        private protected DescriptorHeap OpaqueUavs;
-        private protected DescriptorHeap UavCbvSrvs;
+        private protected DescriptorHeap OpaqueUavs = null!;
+        private protected DescriptorHeap UavCbvSrvs = null!;
 
         private protected UniqueComPtr<ID3D12Device> Device;
         internal SupportedDevice DeviceLevel;
@@ -126,6 +60,24 @@ namespace Voltium.Core.Devices
         private protected ContextPool ContextPool;
 
         private protected UniqueComPtr<ID3D12DeviceDownlevel> _deviceDownlevel;
+
+        public ulong QueueFrequency(ExecutionContext context) => GetQueueForContext(context).Frequency;
+
+        public QueryHeap CreateQueryHeap(QueryHeapType type, int numQueries)
+            => new QueryHeap(this, type, numQueries);
+
+
+        public DescriptorHeap CreateDescriptorHeap(DescriptorHeapType type, uint descriptorCount, bool shaderVisible = false)
+            => new DescriptorHeap(this, type, descriptorCount, shaderVisible);
+
+        public void GetTextureInformation(in TextureDesc desc, out ulong sizeInBytes, out ulong alignment)
+        {
+            var alloc = new InternalAllocDesc();
+            GpuAllocator.CreateDesc(desc, out alloc.Desc);
+            var info = GetAllocationInfo(&alloc);
+            sizeInBytes = info.SizeInBytes;
+            alignment = info.Alignment;
+        }
 
         /// <summary>
         /// Reserve video memory for a given node and <see cref="MemorySegment"/>. Set this to the minimum required value for your app to run,
@@ -205,22 +157,21 @@ namespace Voltium.Core.Devices
             }
         }
 
-        public bool Supports(DeviceFeature feature)
-        {
-            return feature switch
+        public bool Supports(DeviceFeature feature) =>
+            feature switch
             {
                 DeviceFeature.Raytracing => QueryFeatureSupport<D3D12_FEATURE_DATA_D3D12_OPTIONS5>(D3D12_FEATURE_D3D12_OPTIONS5).RaytracingTier >= D3D12_RAYTRACING_TIER.D3D12_RAYTRACING_TIER_1_0,
                 DeviceFeature.InlineRaytracing => QueryFeatureSupport<D3D12_FEATURE_DATA_D3D12_OPTIONS5>(D3D12_FEATURE_D3D12_OPTIONS5).RaytracingTier >= D3D12_RAYTRACING_TIER.D3D12_RAYTRACING_TIER_1_1,
+                DeviceFeature.VariableRateShading => QueryFeatureSupport<D3D12_FEATURE_DATA_D3D12_OPTIONS6>(D3D12_FEATURE_D3D12_OPTIONS6).VariableShadingRateTier >= D3D12_VARIABLE_SHADING_RATE_TIER.D3D12_VARIABLE_SHADING_RATE_TIER_1,
+                DeviceFeature.ExtendedVariableRateShading => QueryFeatureSupport<D3D12_FEATURE_DATA_D3D12_OPTIONS6>(D3D12_FEATURE_D3D12_OPTIONS6).VariableShadingRateTier >= D3D12_VARIABLE_SHADING_RATE_TIER.D3D12_VARIABLE_SHADING_RATE_TIER_2,
                 _ => ThrowHelper.ThrowArgumentException<bool>(nameof(feature))
             };
-        }
 
         /// <summary>
         /// The callback used when the adapter memory budget changes
         /// </summary>
         /// <param name="sender">The <see cref="ComputeDevice"/> which had an adapter budget change</param>
         public delegate void AdapterMemoryInfoChanged(ComputeDevice sender);
-
 
         private uint _vidMemCookie;
         private bool _registered;
@@ -266,10 +217,7 @@ namespace Voltium.Core.Devices
         }
 
         [UnmanagedCallersOnly]
-        private static void DxgiMemoryInfoChangedCallback(void* context, byte /* timeout or wait, irrelevant */ _)
-        {
-            MemoryInfoInvokeFromContext(context);
-        }
+        private static void DxgiMemoryInfoChangedCallback(void* context, byte /* timeout or wait, irrelevant */ _) => MemoryInfoInvokeFromContext(context);
 
         private static void MemoryInfoInvokeFromContext(void* context)
         {
@@ -395,7 +343,7 @@ namespace Voltium.Core.Devices
         /// </summary>
         public ShaderModel HighestSupportedShaderModel { get; private set; }
 
-        /// <summary> 
+        /// <summary>
         /// Whether DXIL is supported, rather than the old DXBC bytecode form.
         /// This is equivalent to cheking if <see cref="HighestSupportedShaderModel"/> supports shader model 6
         /// </summary>
@@ -499,10 +447,8 @@ namespace Voltium.Core.Devices
             EmptyRootSignature = RootSignature.Create(this, ReadOnlyMemory<RootParameter>.Empty, ReadOnlyMemory<StaticSampler>.Empty, D3D12_ROOT_SIGNATURE_FLAGS.D3D12_ROOT_SIGNATURE_FLAG_NONE);
             CreateDescriptorHeaps();
 
-            if (DeviceCreationSettings.AreMetaCommandsEnabled)
-            {
-                _metaCommandDescs = new Lazy<MetaCommandDesc[]?>(EnumMetaCommands);
-            }
+
+            _metaCommandDescs = new Lazy<MetaCommandDesc[]?>(EnumMetaCommands);
         }
 
         private ref CommandQueue GetQueueForContext(ExecutionContext context)
@@ -613,7 +559,7 @@ namespace Voltium.Core.Devices
 
                 Device = device.Move();
 
-                LogHelper.LogInformation("New D3D12 device created from adapter: \n{0}", adapter);
+                LogHelper.LogInformation("New D3D12 device created from adapter: \n", adapter);
 
                 this.SetName("Primary Device");
 
@@ -644,7 +590,7 @@ namespace Voltium.Core.Devices
 
         internal T QueryFeatureSupport<T>(D3D12_FEATURE feature) where T : unmanaged
         {
-            T val;
+            T val = default;
             QueryFeatureSupport(feature, &val);
             return val;
         }
@@ -755,9 +701,17 @@ namespace Voltium.Core.Devices
         /// Returns a <see cref="UploadContext"/> used for recording upload commands
         /// </summary>
         /// <returns>A new <see cref="UploadContext"/></returns>
-        public UploadContext BeginUploadContext()
+        public UploadContext BeginUploadContext(ContextFlags flags = 0)
         {
-            var context = ContextPool.Rent(ExecutionContext.Copy, null, 0);
+            ContextParams context;
+            if (!Architecture.IsCacheCoherentUma)
+            {
+                context = ContextPool.Rent(ExecutionContext.Copy, null, 0);
+            }
+            else
+            {
+                context = new ContextParams { Device = this, Flags = flags };
+            }
 
             return new UploadContext(context);
         }
@@ -767,9 +721,17 @@ namespace Voltium.Core.Devices
         /// Returns a <see cref="ReadbackContext"/> used for recording readback commands
         /// </summary>
         /// <returns>A new <see cref="ReadbackContext"/></returns>
-        public ReadbackContext BeginReadbackContext()
+        public ReadbackContext BeginReadbackContext(ContextFlags flags = 0)
         {
-            var context = ContextPool.Rent(ExecutionContext.Copy, null, 0);
+            ContextParams context;
+            if (!Architecture.IsCacheCoherentUma)
+            {
+                context = ContextPool.Rent(ExecutionContext.Copy, null, 0);
+            }
+            else
+            {
+                context = new ContextParams { Device = this, Flags = flags };
+            }
 
             return new ReadbackContext(context);
         }
@@ -806,7 +768,13 @@ namespace Voltium.Core.Devices
         /// <param name="targetQueue">The <see cref="ExecutionContext"/> which indicates which GPU work queue this should be executed on</param>
         public GpuTask Execute(GpuContext context, ExecutionContext targetQueue)
         {
-            ID3D12GraphicsCommandList6* list = context.List;
+            var list = context.List;
+
+            // Null list is present on Upload/Readback context with UMA architecture (as no GPU ops need to occur)
+            if (list is null)
+            {
+                return GpuTask.Completed;
+            }
 
             ref var queue = ref GetQueueForContext(targetQueue);
             if (Unsafe.IsNullRef(ref queue))
@@ -814,9 +782,9 @@ namespace Voltium.Core.Devices
                 ThrowHelper.ThrowInvalidOperationException("Invalid to try and execute a GpuContext that is not a CopyContext or ComputeContext on a ComputeDevice");
             }
 
-            var finish = queue.ExecuteCommandLists(1, (ID3D12CommandList**)&list);
+            var finish = queue.ExecuteCommandLists(new(&list, 1));
 
-            ContextPool.Return(context.Params, finish);
+            ContextPool.Return(context, finish);
 
             return finish;
         }
@@ -833,11 +801,15 @@ namespace Voltium.Core.Devices
 
             StackSentinel.StackAssert(StackSentinel.SafeToStackallocPointers(contexts.Length));
 
-            ID3D12CommandList** ppLists = stackalloc ID3D12CommandList*[contexts.Length];
+            int numContexts = 0;
+            Span<UniqueComPtr<ID3D12CommandList>> lists = stackalloc UniqueComPtr<ID3D12CommandList>[contexts.Length];
 
             for (var i = 0; i < contexts.Length; i++)
             {
-                ppLists[i] = (ID3D12CommandList*)contexts[i].List;
+                if (contexts[i].List is not null)
+                {
+                    lists[numContexts++] = (UniqueComPtr<ID3D12CommandList>)(ID3D12CommandList*)contexts[i].List;
+                }
             }
 
             ref var queue = ref GetQueueForContext(targetQueue);
@@ -845,11 +817,15 @@ namespace Voltium.Core.Devices
             {
                 ThrowHelper.ThrowInvalidOperationException("Invalid to try and execute a GpuContext that is not a CopyContext or ComputeContext on a ComputeDevice");
             }
-            var finish = queue.ExecuteCommandLists((uint)contexts.Length, ppLists);
+
+            var finish = queue.ExecuteCommandLists(lists[0..numContexts]);
 
             for (var i = 0; i < contexts.Length; i++)
             {
-                ContextPool.Return(contexts[i].Params, finish);
+                if (contexts[i].List is not null)
+                {
+                    ContextPool.Return(contexts[i], finish);
+                }
                 contexts[i].Params.List = default;
             }
 

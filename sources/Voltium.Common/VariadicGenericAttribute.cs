@@ -17,7 +17,7 @@ namespace Voltium.Common
         /// Creates a new instance of <see cref="VariadicGenericAttribute"/>
         /// </summary>
         /// <param name="template">The template expression to use to generate the variadic expressions.
-        /// Use the special character '%t%' </param>
+        /// Use the special character '%t' </param>
         /// <param name="minNumberArgs"></param>
         /// <param name="maxNumberArgs"></param>
         public VariadicGenericAttribute(string template, int minNumberArgs = 0, int maxNumberArgs = 16)

@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Toolkit.HighPerformance.Extensions;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Common.Debugging;
@@ -69,12 +70,6 @@ namespace Voltium.Core.Pool
         public ContextPool(ComputeDevice device)
         {
             _device = device;
-
-            // Check list support
-            var ctx = Rent(ExecutionContext.Graphics, null, ContextFlags.None);
-            SupportedList = CheckListSupport(ctx.List);
-            ctx.List.Ptr->Close();
-            Return(ctx, GpuTask.Completed);
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -143,18 +138,28 @@ namespace Voltium.Core.Pool
             return supported;
         }
 
-        public void Return(in ContextParams gpuContext, in GpuTask contextFinish)
+        public void Return(GpuContext context, in GpuTask contextFinish)
         {
-            //static void BreakOnTaskEnd(ContextPool @this) => Debugger.Break();
-            //contextFinish.RegisterCallback(this, &BreakOnTaskEnd);
+            static void FreeAttachedResources(List<IDisposable?> resources)
+            {
+                foreach (ref var resource in resources.AsSpan())
+                {
+                    resource?.Dispose();
+                    resource = null;
+                }
+            }
 
-            var context = gpuContext.Context;
+            var @params = context.Params;
 
-            var allocators = GetAllocatorPoolsForContext(context);
-            var lists = GetListPoolsForContext(context);
+            contextFinish.RegisterCallback(context.AttachedResources, &FreeAttachedResources);
 
-            lists.Enqueue(gpuContext.List);
-            allocators.Enqueue(new CommandAllocator { Allocator = gpuContext.Allocator, Task = contextFinish });
+            var executionContext = @params.Context;
+
+            var allocators = GetAllocatorPoolsForContext(executionContext);
+            var lists = GetListPoolsForContext(executionContext);
+
+            lists.Enqueue(@params.List);
+            allocators.Enqueue(new CommandAllocator { Allocator = @params.Allocator, Task = contextFinish });
         }
 
         private int _allocatorCount;

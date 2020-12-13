@@ -72,7 +72,7 @@ namespace Voltium.Core.Devices
             CreateViews();
         }
 
-        internal override unsafe void InternalPresent()
+        internal override unsafe void InternalPresent(in GpuTask presentAfter)
         {
             var toCpuCopy = _device.BeginCopyContext(ContextFlags.ExecuteOnClose);
 

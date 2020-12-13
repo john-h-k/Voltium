@@ -28,6 +28,8 @@ namespace Voltium.Core.Devices
         private ComputeDevice _device;
         private UniqueComPtr<ID3D12PipelineLibrary1> _psoLibrary;
 
+        private static bool DisableCache => true;
+
 
         /// <summary>
         /// Creates a new <see cref="PipelineManager"/> for a device
@@ -73,7 +75,7 @@ namespace Voltium.Core.Devices
 
         private static Span<byte> GetCache()
         {
-            if (File.Exists(CachePsoLibLocation))
+            if (!DisableCache && File.Exists(CachePsoLibLocation))
             {
                 // handle race condition where file is deleted between the call to 'Exists' and the read
                 try
@@ -284,6 +286,11 @@ namespace Voltium.Core.Devices
 
         private void Cache(bool dispose)
         {
+            if (DisableCache)
+            {
+                return;
+            }
+
             try
             {
                 var size = (long)_psoLibrary.Ptr->GetSerializedSize();

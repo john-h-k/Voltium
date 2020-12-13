@@ -108,7 +108,11 @@ namespace Voltium.TextureLoading.DDS
             ref readonly DDSHeaderDxt10 d3d10Ext =
                 ref Unsafe.As<DDSHeader, DDSHeaderDxt10>(
                     ref Unsafe.Add(
-                        ref Unsafe.AsRef(in header), 1));
+                        ref Unsafe.AsRef(
+                            in header
+                        ),
+                    1)
+                );
 
             arraySize = d3d10Ext.ArraySize;
             isCubeMap = false;
@@ -177,19 +181,7 @@ namespace Voltium.TextureLoading.DDS
                     break;
             }
 
-            resDim = d3d10Ext.ResourceDimension switch
-            {
-                D3D11_RESOURCE_DIMENSION.D3D11_RESOURCE_DIMENSION_TEXTURE1D
-                => D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_TEXTURE1D,
-
-                D3D11_RESOURCE_DIMENSION.D3D11_RESOURCE_DIMENSION_TEXTURE2D
-                => D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_TEXTURE2D,
-
-                D3D11_RESOURCE_DIMENSION.D3D11_RESOURCE_DIMENSION_TEXTURE3D
-                => D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_TEXTURE3D,
-
-                _ => D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_UNKNOWN
-            };
+            resDim = (D3D12_RESOURCE_DIMENSION)d3d10Ext.ResourceDimension;
         }
 
 

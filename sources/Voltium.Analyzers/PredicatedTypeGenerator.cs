@@ -50,6 +50,20 @@ namespace Voltium.Analyzers
             => context.RegisterForSyntaxNotifications(() => new SyntaxTypeReceiver<TypeDeclarationSyntax>());
     }
 
+    internal abstract class AttributedTypeGenerator : PredicatedTypeGenerator
+    {
+        protected abstract string AttributeName { get; }
+
+        protected sealed override bool Predicate(GeneratorExecutionContext context, INamedTypeSymbol decl)
+        {
+            if (decl.Name.Contains("Debug"))
+            {
+            }
+            return decl.HasAttribute(AttributeName, context.Compilation);
+        }
+    }
+
+
     internal abstract class PredicatedGenerator<T> : ISourceGenerator where T : SyntaxNode
     {
         public void Execute(GeneratorExecutionContext context)

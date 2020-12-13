@@ -19,8 +19,11 @@ namespace Voltium.Analyzers
 
 
         public static bool TryGetAttribute(this ISymbol type, string attributeName, Compilation comp, out AttributeData attr)
+            => TryGetAttribute(type, comp.GetTypeByMetadataName(attributeName)!, out attr);
+
+        public static bool TryGetAttribute(this ISymbol type, INamedTypeSymbol symbol, out AttributeData attr)
         {
-            attr = type.GetAttributes().Where(attr => SymbolEqualityComparer.Default.Equals(attr.AttributeClass, comp.GetTypeByMetadataName(attributeName))).FirstOrDefault();
+            attr = type.GetAttributes().Where(attr => SymbolEqualityComparer.Default.Equals(attr.AttributeClass, symbol)).FirstOrDefault();
 
             return attr is not null;
         }
@@ -109,5 +112,7 @@ namespace Voltium.Analyzers
 
             return builder.ToString();
         }
+        public static string FullyQualifiedName(this ITypeSymbol symbol)
+            => $"global::{symbol.ContainingNamespace}.{symbol.Name}";
     }
 }

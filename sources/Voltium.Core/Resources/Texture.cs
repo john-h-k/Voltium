@@ -32,15 +32,17 @@ namespace Voltium.Core.Memory
         ShaderResource = 1 << 2,
     }
 
-    internal interface IGpuDisposable
+    public interface IGpuDisposable// : IDisposable
     {
+        internal IDisposable Disposable { get; }
+
         public void Dispose(in GpuTask disposeAfterTask);
     }
 
     /// <summary>
     /// Represents an in-memory texture
     /// </summary>
-    public unsafe struct Texture : IEvictable, IInternalD3D12Object, IDisposable, IGpuDisposable
+    public unsafe struct Texture : IEvictable, IInternalD3D12Object, IDisposable
     {
         bool IEvictable.IsBlittableToPointer => false;
         ID3D12Pageable* IEvictable.GetPageable() => ((IEvictable)_resource).GetPageable();
@@ -129,13 +131,13 @@ namespace Voltium.Core.Memory
             return new Texture(texDesc, res); 
         }
 
-        //public void WriteToSubresource<T>(ReadOnlySpan<T> data, uint rowPitch, uint subresource = 0) where T : unmanaged
-        //{
-        //    fixed (T* pData = data)
-        //    {
-        //        Guard.ThrowIfFailed(_resource.GetResourcePointer()->WriteToSubresource(subresource, null, pData, rowPitch, (uint)data.Length));
-        //    }
-        //}
+        public void WriteToSubresource<T>(ReadOnlySpan<T> data, uint rowPitch, uint depthPitch, uint subresource = 0) where T : unmanaged
+        {
+            fixed (T* pData = data)
+            {
+                Guard.ThrowIfFailed(_resource.GetResourcePointer()->WriteToSubresource(subresource, null, pData, rowPitch, depthPitch));
+            }
+        }
 
         //public void ReadFromSubresource<T>(Span<T> data, uint rowPitch, uint subresource = 0) where T : unmanaged
         //{

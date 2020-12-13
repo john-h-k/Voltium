@@ -1,4 +1,8 @@
-  using TerraFX.Interop;
+using System;
+using System.Collections.Generic;
+using System.Runtime.CompilerServices;
+using Microsoft.Toolkit.HighPerformance.Extensions;
+using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Devices;
 using Voltium.Core.Memory;
@@ -7,13 +11,122 @@ using static TerraFX.Interop.D3D12_DESCRIPTOR_HEAP_TYPE;
 
 namespace Voltium.Core
 {
+    public readonly struct DescriptorAllocation : IDisposable
+    {
+        internal DescriptorAllocation(DescriptorHeap heap, DescriptorSpan span, uint offset)
+        {
+            Heap = heap;
+            Span = span;
+
+            Offset = offset;
+        }
+
+        public DescriptorHandle this[int index] => Span[index];
+        public DescriptorHandle this[uint index] => Span[index];
+
+
+        public DescriptorSpan Slice(int start) => Span.Slice(start);
+        public DescriptorSpan Slice(int start, int length) => Span.Slice(start, length);
+
+        public uint Offset { get; }
+        public int Length => Span.Length;
+
+        public DescriptorHeap Heap { get; }
+        public DescriptorSpan Span { get; }
+
+        public void Dispose()
+        {
+            Heap.Return(ref Unsafe.AsRef(in this));
+        }
+    }
+
+    public readonly struct DescriptorSpan
+     {
+        public readonly int Length => (int)_length;
+
+        internal readonly D3D12_CPU_DESCRIPTOR_HANDLE Cpu;
+        internal readonly D3D12_GPU_DESCRIPTOR_HANDLE Gpu;
+        private readonly uint _length;
+        internal readonly ushort IncrementSize;
+        internal readonly byte Type;
+
+        internal DescriptorSpan(D3D12_CPU_DESCRIPTOR_HANDLE cpu, D3D12_GPU_DESCRIPTOR_HANDLE gpu, uint length, ushort incrementSize, byte type)
+        {
+            _length = length;
+            Cpu = cpu;
+            Gpu = gpu;
+            IncrementSize = incrementSize;
+            Type = type;
+        }
+
+        public DescriptorHandle this[uint index] => this[(int)index];
+        public DescriptorHandle this[int index] => new DescriptorHandle(OffsetCpu(index), OffsetGpu(index));
+
+        private D3D12_CPU_DESCRIPTOR_HANDLE OffsetCpu(int count) => Cpu.Offset(count, IncrementSize);
+        private D3D12_GPU_DESCRIPTOR_HANDLE OffsetGpu(int count) => Gpu.Offset(Gpu.ptr == default ? 0 : count, IncrementSize);
+
+        public DescriptorSpan Slice(int start)
+        {
+            if ((uint)start > (uint)_length)
+                ThrowHelper.ThrowArgumentOutOfRangeException(nameof(start));
+
+            return new DescriptorSpan(OffsetCpu(start), OffsetGpu(start), _length - (uint)start, IncrementSize, Type);
+        }
+
+        public DescriptorSpan Slice(int start, int length)
+        {
+            if ((ulong)(uint)start + (ulong)(uint)length > (ulong)(uint)_length)
+                ThrowHelper.ThrowArgumentOutOfRangeException("start/length");
+
+            return new DescriptorSpan(OffsetCpu(start), OffsetGpu(start), (uint)length, IncrementSize, Type);
+        }
+    }
+
+    public enum DescriptorAllocationHint
+    {
+        LongTerm,
+        ShortTerm
+    }
+
+
+    ///// <summary>
+    ///// A heap of descriptors for resources
+    ///// </summary>
+    //internal unsafe class ShaderVisibleDescriptorHeap : IInternalD3D12Object, IEvictable
+    //{
+    //    private ComputeDevice _device;
+    //    private UniqueComPtr<ID3D12DescriptorHeap> _heap;
+    //    private D3D12_DESCRIPTOR_HEAP_TYPE _type;
+    //    private uint _incrementSize;
+    //    private List<FreeBlock> _freeBlocks;
+
+    //    //public ShaderVisibleDescriptorHeap(uint size)
+    //    //{
+    //    //    _device.Create
+    //    //}
+
+
+    //    private struct FreeBlock { public uint Offset, Length; }
+    //}
+
     /// <summary>
     /// A heap of descriptors for resources
     /// </summary>
-    public unsafe struct DescriptorHeap : IInternalD3D12Object, IEvictable
+    public unsafe class DescriptorHeap : IInternalD3D12Object
     {
         private ComputeDevice _device;
         private UniqueComPtr<ID3D12DescriptorHeap> _heap;
+        private D3D12_DESCRIPTOR_HEAP_TYPE _type;
+        private uint _incrementSize;
+        private List<FreeBlock> _freeBlocks;
+
+        private uint _count;
+        private uint _offset;
+        private DescriptorSpan _allDescriptors;
+
+        internal ComputeDevice Device => _device;
+
+        private struct FreeBlock { public uint Offset, Length; }
 
         /// <summary>
         /// Whether this <see cref="DescriptorHeap"/> has been created
@@ -21,11 +134,6 @@ namespace Voltium.Core
         public bool Exists => _heap.Exists;
 
         internal ID3D12DescriptorHeap* GetHeap() => _heap.Ptr;
-
-        /// <summary>
-        /// Whether this heap is visible to shaders
-        /// </summary>
-        public bool IsShaderVisible => _firstHandle.GpuHandle.ptr != 0;
 
         /// <summary>
         /// The type of the descriptor heap
@@ -37,9 +145,13 @@ namespace Voltium.Core
         /// </summary>
         public uint NumDescriptors { get; private set; }
 
-        private static D3D12_DESCRIPTOR_HEAP_DESC CreateDesc(
-            D3D12_DESCRIPTOR_HEAP_TYPE type,
-            uint numDescriptors,
+        public DescriptorHandle this[uint index] => _allDescriptors[index];
+        public DescriptorHandle this[int index] => _allDescriptors[index];
+
+        internal DescriptorHeap(
+            ComputeDevice device,
+            DescriptorHeapType type,
+            uint descriptorCount,
             bool shaderVisible
         )
         {
@@ -47,92 +159,72 @@ namespace Voltium.Core
             {
                 Flags = shaderVisible ? D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE : D3D12_DESCRIPTOR_HEAP_FLAG_NONE,
                 NodeMask = 0, // TODO: MULTI-GPU
-                NumDescriptors = numDescriptors,
-                Type = type
+                NumDescriptors = descriptorCount,
+                Type = (D3D12_DESCRIPTOR_HEAP_TYPE)type
             };
 
-            return desc;
-        }
-
-        /// <summary>
-        /// Create a new <see cref="DescriptorHeap"/>
-        /// </summary>
-        /// <param name="device">The device to use during creation</param>
-        /// <param name="type">The <see cref="DescriptorHeapType"/> for this heap</param>
-        /// <param name="descriptorCount">The number of descriptors</param>
-        public static DescriptorHeap Create(
-            ComputeDevice device,
-            DescriptorHeapType type,
-            uint descriptorCount
-        )
-        {
-            var desc = CreateDesc(
-                (D3D12_DESCRIPTOR_HEAP_TYPE)type,
-                descriptorCount,
-                type is DescriptorHeapType.Sampler or DescriptorHeapType.ConstantBufferShaderResourceOrUnorderedAccessView
-            );
-
-            return new DescriptorHeap(device, desc);
-        }
-
-
-        private DescriptorHeap(ComputeDevice device, D3D12_DESCRIPTOR_HEAP_DESC desc)
-        {
             _device = device;
 
-            UniqueComPtr<ID3D12DescriptorHeap> heap = default;
-            _device.ThrowIfFailed(device.DevicePointer->CreateDescriptorHeap(&desc, heap.Iid, (void**)&heap));
+            _heap = device.CreateDescriptorHeap(&desc);
 
-            _heap = heap.Move();
             var cpu = _heap.Ptr->GetCPUDescriptorHandleForHeapStart();
+            var gpu = shaderVisible ? _heap.Ptr->GetGPUDescriptorHandleForHeapStart() : default;
 
-            D3D12_GPU_DESCRIPTOR_HANDLE gpu = default;
-            if (desc.Flags.HasFlag(D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE))
-            {
-                gpu = _heap.Ptr->GetGPUDescriptorHandleForHeapStart();
-            }
-
-            _firstHandle = new DescriptorHandle(device.DevicePointer->GetDescriptorHandleIncrementSize(desc.Type), cpu, gpu);
+            _incrementSize = device.GetIncrementSizeForDescriptorType(desc.Type);
+            _allDescriptors = new DescriptorSpan(cpu, gpu, descriptorCount, (ushort)_incrementSize, (byte)type);
             _offset = 0;
             _count = desc.NumDescriptors;
+            _type = desc.Type;
 
             Type = (DescriptorHeapType)desc.Type;
             NumDescriptors = desc.NumDescriptors;
 
-            this.SetName(nameof(ID3D12DescriptorHeap) + " " + desc.Type.ToString());
+            _freeBlocks = new List<FreeBlock> { new FreeBlock { Offset = 0, Length = _count } };
         }
-
-        private void ThrowIfShaderVisible() => ThrowHelper.ThrowInvalidOperationException("Can't copy from shader-visible descriptor heap");
-
-        private uint _count;
-        private uint _offset;
-        private DescriptorHandle _firstHandle;
 
         /// <summary>
         /// Gets the next handle in the heap
         /// </summary>
-        public DescriptorHandle GetNextHandle()
-        {
-            Guard.True(_offset < _count, "Too many descriptors");
-            return _firstHandle + _offset++;
-        }
+        public DescriptorAllocation AllocateHandle()
+            => AllocateHandles(1);
 
         /// <summary>
         /// Gets the next <paramref name="count"/> handles in the heap
         /// </summary>
-        public DescriptorHandle GetNextHandles(int count)
-            => GetNextHandles((uint)count);
+        public DescriptorAllocation AllocateHandles(int count)
+            => AllocateHandles((uint)count);
 
         /// <summary>
         /// Gets the next <paramref name="count"/> handles in the heap
         /// </summary>
-        public DescriptorHandle GetNextHandles(uint count)
+        public DescriptorAllocation AllocateHandles(uint count)
         {
             Guard.True(_offset + count <= _count, "Too many descriptors");
-            var next = _firstHandle + _offset;
-            _offset += count;
-            return next;
+
+            foreach (ref var block in _freeBlocks.AsSpan())
+            {
+                if (block.Length > count)
+                {
+                    var offset = (int)block.Offset;
+                    block.Offset += count;
+                    block.Length -= count;
+
+                    return new DescriptorAllocation(this, _allDescriptors[offset..(int)count], (uint)offset);
+                }
+            }
+
+            return ThrowHelper.ThrowInsufficientMemoryException<DescriptorAllocation>("Descriptor heap full");
         }
+
+        public void Return(ref DescriptorAllocation handle)
+        {
+            var copy = handle;
+            handle = default;
+
+            _freeBlocks.Add(new FreeBlock { Offset = copy.Offset, Length = (uint)copy.Length });
+        }
+
+
         /// <summary>
         /// Resets the heap for reuse
         /// </summary>
@@ -142,9 +234,6 @@ namespace Voltium.Core
         public void Dispose() => _heap.Dispose();
 
         ID3D12Object* IInternalD3D12Object.GetPointer() => (ID3D12Object*)_heap.Ptr;
-
-        ID3D12Pageable* IEvictable.GetPageable() => (ID3D12Pageable*)_heap.Ptr;
-        bool IEvictable.IsBlittableToPointer => false;
     }
 
     /// <summary>

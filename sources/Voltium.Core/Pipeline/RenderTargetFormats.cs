@@ -10,48 +10,26 @@ namespace Voltium.Core.Pipeline
     /// <summary>
     /// 
     /// </summary>
-    /// <typeparam name="TShaderInput"></typeparam>
-    public struct InputLayout<TShaderInput> where TShaderInput : unmanaged, IBindableShaderType
-    {
-        /// <inheritdoc/>
-        internal unsafe void _Initialize()
-        {
-            var inputs = default(TShaderInput).GetShaderInputs();
-
-            var handle = inputs.Pin();
-
-            Layout.Type.Inner = new D3D12_INPUT_LAYOUT_DESC
-            {
-                NumElements = (uint)inputs.Length,
-                pInputElementDescs = (D3D12_INPUT_ELEMENT_DESC*)handle.Pointer
-            };
-        }
-
-        internal InputLayout Layout;
-    }
-
-    /// <summary>
-    /// 
-    /// </summary>
     [StructLayout(LayoutKind.Explicit)]
     public struct InputLayout
     {
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
-        public unsafe InputLayout(ReadOnlySpan<ShaderInput> inputs)
+        public unsafe InputLayout(ReadOnlyMemory<ShaderInput> inputs)
         {
             Unsafe.SkipInit(out this);
-            fixed (ShaderInput* pInputs = inputs)
+
+            var pInputs = inputs.Pin();
+            Type.Inner = new D3D12_INPUT_LAYOUT_DESC
             {
-                Type.Inner = new D3D12_INPUT_LAYOUT_DESC
-                {
-                    NumElements = (uint)inputs.Length,
-                    pInputElementDescs = (D3D12_INPUT_ELEMENT_DESC*)pInputs
-                };
-            }
+                NumElements = (uint)inputs.Length,
+                pInputElementDescs = (D3D12_INPUT_ELEMENT_DESC*)pInputs.Pointer
+            };
         }
 
         public static InputLayout FromType<TShaderInput>() where TShaderInput : struct, IBindableShaderType
-            => new InputLayout(default(TShaderInput).GetShaderInputs().Span);
+            => new InputLayout(default(TShaderInput).GetShaderInputs());
+
+        public static InputLayout Empty => default;
 
         [FieldOffset(0)]
         internal AlignedSubobjectType<D3D12_INPUT_LAYOUT_DESC> Type;

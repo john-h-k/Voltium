@@ -76,7 +76,7 @@ namespace Voltium.Core
                     pParameters = pRootParams,
                     NumStaticSamplers = (uint)staticSamplers.Length,
                     pStaticSamplers = pSamplerDesc,
-                    Flags = flags
+                    Flags = flags | D3D12_ROOT_SIGNATURE_FLAGS.D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
                 };
 
                 var versionedDesc = new D3D12_VERSIONED_ROOT_SIGNATURE_DESC

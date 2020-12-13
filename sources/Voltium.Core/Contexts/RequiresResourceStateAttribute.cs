@@ -9,6 +9,10 @@ namespace Voltium.Core.Contexts
     [AttributeUsage(AttributeTargets.Parameter, AllowMultiple = false)]
     public sealed class RequiresResourceStateAttribute : Attribute
     {
+        public RequiresResourceStateAttribute(string paramName)
+        {
+
+        }
         public RequiresResourceStateAttribute(ResourceState state)
         {
 

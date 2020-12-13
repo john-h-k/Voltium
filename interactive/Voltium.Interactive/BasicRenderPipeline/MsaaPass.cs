@@ -46,7 +46,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
             var settings = resolver.GetComponent<PipelineSettings>();
             if (settings.Msaa.IsMultiSampled)
             {
-                using var _ = context.BeginEvent(Argb32.Red, "Msaa");
+                using var _ = context.ScopedEvent(Argb32.Red, "Msaa");
 
                 var resources = resolver.GetComponent<PipelineResources>();
 

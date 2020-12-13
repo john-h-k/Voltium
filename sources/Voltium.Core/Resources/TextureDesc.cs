@@ -1,4 +1,5 @@
 using System;
+using TerraFX.Interop;
 using Voltium.Core.Configuration.Graphics;
 using Rectangle = System.Drawing.Rectangle;
 
@@ -9,6 +10,41 @@ namespace Voltium.Core.Memory
     /// </summary>
     public struct TextureDesc
     {
+
+        public static TextureDesc CreateShadingRateTextureDesc(uint width, uint height, uint tileSize, ResourceFlags flags = ResourceFlags.None)
+        {
+            return new TextureDesc
+            {
+                Height = (uint)Math.Ceiling((double)height / tileSize),
+                Width = (uint)Math.Ceiling((double)width / tileSize),
+                DepthOrArraySize = 1,
+                Dimension = TextureDimension.Tex2D,
+                MipCount = 1,
+                Format = DataFormat.R8UInt,
+                Layout = TextureLayout.Optimal,
+                Msaa = MsaaDesc.None,
+                ResourceFlags = flags,
+                ClearValue = null,
+            };
+        }
+
+        public static TextureDesc CreateShadingRateTextureDesc(uint width, uint height, ResourceFlags flags = ResourceFlags.None)
+        {
+            return new TextureDesc
+            {
+                Height = height,
+                Width = width,
+                DepthOrArraySize = 1,
+                Dimension = TextureDimension.Tex2D,
+                MipCount = 1,
+                Format = DataFormat.R8UInt,
+                Layout = TextureLayout.Optimal,
+                Msaa = MsaaDesc.None,
+                ResourceFlags = flags,
+                ClearValue = null,
+            };
+        }
+
         /// <summary>
         /// Creates a new <see cref="TextureDesc"/> representing a 2D render target
         /// </summary>
@@ -63,6 +99,7 @@ namespace Voltium.Core.Memory
                 ClearValue = TextureClearValue.CreateForRenderTarget(clearColor),
                 Msaa = msaa,
                 ResourceFlags = ResourceFlags.AllowRenderTarget,
+                Layout = TextureLayout.Optimal
             };
         }
 
@@ -102,6 +139,7 @@ namespace Voltium.Core.Memory
                 ClearValue = TextureClearValue.CreateForDepthStencil(clearDepth, clearStencil),
                 Msaa = msaa,
                 ResourceFlags = ResourceFlags.AllowDepthStencil | (shaderVisible ? 0 : ResourceFlags.DenyShaderResource),
+                Layout = TextureLayout.Optimal
             };
         }
 
@@ -157,9 +195,20 @@ namespace Voltium.Core.Memory
                 DepthOrArraySize = depthOrArraySize,
                 Dimension = dimension,
                 Format = format,
-                ResourceFlags = ResourceFlags.AllowUnorderedAccess
+                ResourceFlags = ResourceFlags.AllowUnorderedAccess,
+                Layout = TextureLayout.Optimal
             };
         }
+
+        /// <summary>
+        /// Creates a new <see cref="TextureDesc"/> representing a unordered access resource, with no height or width, for unspecified size resources
+        /// </summary>
+        /// <param name="format">The <see cref="DataFormat"/> for the unordered access resource</param>
+        /// <param name="dimension">The <see cref="TextureDimension"/> of the unordered access resource
+        /// is <see cref="TextureDimension.Tex3D"/>, else, the number of textures in the array</param>
+        /// <returns>A new <see cref="TextureDesc"/> representing a shader resource</returns>
+        public static TextureDesc CreateUnorderedAccessResourceDesc(DataFormat format, in TextureDimension dimension)
+            => CreateUnorderedAccessResourceDesc(format, dimension, 0, 0, 0);
 
         /// <summary>
         /// The format of the texture
@@ -207,5 +256,14 @@ namespace Voltium.Core.Memory
         /// This is only meaningful when used with a render target or depth stencil
         /// </summary>
         public MsaaDesc Msaa { get; set; }
+
+        public TextureLayout Layout { get; set; }
+    }
+
+    public enum TextureLayout
+    {
+        Optimal = D3D12_TEXTURE_LAYOUT.D3D12_TEXTURE_LAYOUT_UNKNOWN,
+        Optimal64KbTile = D3D12_TEXTURE_LAYOUT.D3D12_TEXTURE_LAYOUT_64KB_UNDEFINED_SWIZZLE,
+        StandardSwizzle64KbTile = D3D12_TEXTURE_LAYOUT.D3D12_TEXTURE_LAYOUT_64KB_STANDARD_SWIZZLE
     }
 }

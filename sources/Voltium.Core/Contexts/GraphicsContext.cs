@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Contexts;
@@ -14,6 +15,25 @@ using Buffer = Voltium.Core.Memory.Buffer;
 
 namespace Voltium.Core
 {
+    public enum ShadingRate
+    {
+        Shade1x1 = D3D12_SHADING_RATE.D3D12_SHADING_RATE_1X1,
+        Shade1x2 = D3D12_SHADING_RATE.D3D12_SHADING_RATE_1X2,
+        Shade2x1 = D3D12_SHADING_RATE.D3D12_SHADING_RATE_2X1,
+        Shade2x2 = D3D12_SHADING_RATE.D3D12_SHADING_RATE_2X2,
+        Shade2x4 = D3D12_SHADING_RATE.D3D12_SHADING_RATE_2X4,
+        Shade4x2 = D3D12_SHADING_RATE.D3D12_SHADING_RATE_4X2,
+        Shade4x4 = D3D12_SHADING_RATE.D3D12_SHADING_RATE_4X4
+    }
+
+    public enum Combiner
+    {
+        Passthrough = D3D12_SHADING_RATE_COMBINER.D3D12_SHADING_RATE_COMBINER_PASSTHROUGH,
+        Override = D3D12_SHADING_RATE_COMBINER.D3D12_SHADING_RATE_COMBINER_OVERRIDE,
+        Min = D3D12_SHADING_RATE_COMBINER.D3D12_SHADING_RATE_COMBINER_MIN,
+        Max = D3D12_SHADING_RATE_COMBINER.D3D12_SHADING_RATE_COMBINER_MAX,
+        Sum = D3D12_SHADING_RATE_COMBINER.D3D12_SHADING_RATE_COMBINER_SUM,
+    }
 
     /// <summary>
     /// Represents a context on which GPU commands can be recorded
@@ -23,17 +43,6 @@ namespace Voltium.Core
         internal GraphicsContext(in ContextParams @params) : base(@params)
         {
 
-        }
-
-        private static bool AreCopyable(GpuResource source, GpuResource destination)
-        {
-            D3D12_RESOURCE_DESC srcDesc = source.GetResourcePointer()->GetDesc();
-            D3D12_RESOURCE_DESC destDesc = destination.GetResourcePointer()->GetDesc();
-
-            return srcDesc.Width == destDesc.Width
-                   && srcDesc.Height == destDesc.Height
-                   && srcDesc.DepthOrArraySize == destDesc.DepthOrArraySize
-                   && srcDesc.Dimension == destDesc.Dimension;
         }
 
         /// <summary>
@@ -47,13 +56,13 @@ namespace Voltium.Core
         /// <summary>
         /// Discard the entire resource value
         /// </summary>
-        public void Discard(in Buffer buffer)
+        public void Discard([RequiresResourceState(ResourceState.RenderTarget)] in Buffer buffer)
             => Discard(buffer.Resource);
 
         /// <summary>
         /// Discard the entire resource value
         /// </summary>
-        public void Discard(in Texture texture)
+        public void Discard([RequiresResourceState(ResourceState.RenderTarget)] in Texture texture)
             => Discard(texture.Resource);
 
         private void Discard(GpuResource resource)
@@ -69,6 +78,17 @@ namespace Voltium.Core
         public void ExecuteBundle(GraphicsContext bundle)
         {
             List->ExecuteBundle(bundle.GetListPointer());
+        }
+
+        public void SetShadingRate(ShadingRate defaultShadingRate, Combiner defaultRateAndPerPrimitiveRateCombiner, Combiner shadingRateTextureCombiner)
+        {
+            var pCombiners = stackalloc[] { defaultRateAndPerPrimitiveRateCombiner, shadingRateTextureCombiner };
+            List->RSSetShadingRate((D3D12_SHADING_RATE)defaultShadingRate, (D3D12_SHADING_RATE_COMBINER*)pCombiners);
+        }
+
+        public void SetShadingRateTexture([RequiresResourceState(ResourceState.VariableShadeRateSource)] in Texture tex)
+        {
+            List->RSSetShadingRateImage(tex.GetResourcePointer());
         }
 
         /// <summary>
@@ -282,19 +302,18 @@ namespace Voltium.Core
         /// <summary>
         /// Sets a range of continuous render targets
         /// </summary>
-        /// <param name="renderTargetHandle">The handle to the start of the continuous array of render targets</param>
-        /// <param name="renderTargetCount">The number of render targets pointed to be <paramref name="renderTargetHandle"/></param>
+        /// <param name="renderTargetHandles">The handle to the start of the continuous array of render targets</param>
         /// <param name="clearValue">The <see cref="Rgba128"/> colors to clear the render targets to</param>
         /// <param name="depthStencilHandle">The handle to the depth stencil descriptor</param>
         /// <param name="depthClear">The <see cref="float"/> values to clear the depth buffer to</param>
         /// <param name="stencilClear">The <see cref="byte"/> values to clear the stencil to</param> 
-        public void SetAndClearRenderTargets(in DescriptorHandle renderTargetHandle, uint renderTargetCount, Rgba128 clearValue = default, in DescriptorHandle? depthStencilHandle = null, float depthClear = 1, byte stencilClear = 0)
+        public void SetAndClearRenderTargets(in DescriptorSpan renderTargetHandles, Rgba128 clearValue = default, in DescriptorHandle? depthStencilHandle = null, float depthClear = 1, byte stencilClear = 0)
         {
-            SetRenderTargets(renderTargetHandle, renderTargetCount, depthStencilHandle);
+            SetRenderTargets(renderTargetHandles, depthStencilHandle);
 
-            for (var i = 0; i < renderTargetCount; i++)
+            for (var i = 0; i < renderTargetHandles.Length; i++)
             {
-                ClearRenderTarget(renderTargetHandle + i, clearValue);
+                ClearRenderTarget(renderTargetHandles[i], clearValue);
             }
 
             if (depthStencilHandle is DescriptorHandle dsv)
@@ -332,7 +351,18 @@ namespace Voltium.Core
         /// <param name="renderTargetHandle">The handle to the render target descriptor</param>
         /// <param name="depthStencilHandle">The handle to the depth stencil descriptor</param>
         public void SetRenderTarget(in DescriptorHandle? renderTargetHandle = null, in DescriptorHandle? depthStencilHandle = null)
-            => SetRenderTargets(renderTargetHandle, 1, depthStencilHandle);
+        {
+            var rtv = renderTargetHandle.GetValueOrDefault().CpuHandle;
+            var dsv = depthStencilHandle.GetValueOrDefault().CpuHandle;
+
+            FlushBarriers();
+            List->OMSetRenderTargets(
+                1,
+                renderTargetHandle is null ? null : &rtv,
+                Windows.TRUE,
+                depthStencilHandle is null ? null : &dsv
+            );
+        }
 
 
         /// <summary>
@@ -364,21 +394,22 @@ namespace Voltium.Core
         /// <summary>
         /// Sets a range of continuous render targets
         /// </summary>
-        /// <param name="renderTargetHandle">The handle to the start of the continuous array of render targets</param>
-        /// <param name="renderTargetCount">The number of render targets pointed to be <paramref name="renderTargetHandle"/></param>
+        /// <param name="renderTargetHandles">The render target handles</param>
         /// <param name="depthStencilHandle">The handle to the depth stencil descriptor</param>
-        public void SetRenderTargets(in DescriptorHandle? renderTargetHandle = null, uint renderTargetCount = 1, in DescriptorHandle? depthStencilHandle = null)
+        public void SetRenderTargets(in DescriptorSpan renderTargetHandles, in DescriptorHandle? depthStencilHandle = null)
         {
-            var rtv = renderTargetHandle.GetValueOrDefault().CpuHandle;
             var dsv = depthStencilHandle.GetValueOrDefault().CpuHandle;
 
-            FlushBarriers();
-            List->OMSetRenderTargets(
-                renderTargetHandle is null ? 0 : renderTargetCount,
-                renderTargetHandle is null ? null : &rtv,
-                Windows.TRUE,
-                depthStencilHandle is null ? null : &dsv
-            );
+            fixed (D3D12_CPU_DESCRIPTOR_HANDLE* pHandles = &renderTargetHandles.Cpu)
+            {
+                FlushBarriers();
+                List->OMSetRenderTargets(
+                    (uint)renderTargetHandles.Length,
+                    pHandles,
+                    Windows.TRUE,
+                    depthStencilHandle is null ? null : &dsv
+                );
+            }
         }
 
 
@@ -411,40 +442,6 @@ namespace Voltium.Core
         {
             FlushBarriers();
             List->ClearRenderTargetView(rtv.CpuHandle, &color.R, 1, (RECT*)&rect);
-        }
-
-        /// <summary>
-        /// Clear the render target and the depth stencil
-        /// </summary>
-        /// <param name="rtv">The render target to clear</param>
-        /// <param name="dsv">The depth stencil target to clear</param>
-        /// <param name="color">The RGBA color to clear it to</param>
-        /// <param name="renderTargetRects">The rectangles representing the sections to clear. By default, this will clear the entire resource</param>
-        /// <param name="depth">The <see cref="float"/> value to set the depth resource to. By default, this is <c>1</c></param>
-        /// <param name="stencil">The <see cref="byte"/> value to set the stencil resource to. By default, this is <c>0</c></param>
-        /// <param name="depthRects">The rectangles representing the sections to clear. By default, this will clear the entire resource</param>
-        public void ClearRenderTargetAndDepthStencil(
-            DescriptorHandle rtv,
-            DescriptorHandle dsv,
-            Rgba128 color = default,
-            float depth = 1,
-            byte stencil = 0,
-            ReadOnlySpan<Rectangle> renderTargetRects = default,
-            ReadOnlySpan<Rectangle> depthRects = default)
-        {
-            fixed (Rectangle* pRt = renderTargetRects)
-            fixed (Rectangle* pDs = depthRects)
-            {
-                FlushBarriers();
-                List->ClearRenderTargetView(rtv.CpuHandle, &color.R, (uint)renderTargetRects.Length, (RECT*)pRt);
-                List->ClearDepthStencilView(
-                    dsv.CpuHandle,
-                    D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_STENCIL,
-                    depth, stencil,
-                    (uint)depthRects.Length,
-                    (RECT*)pDs
-                );
-            }
         }
 
         /// <summary>
@@ -566,7 +563,7 @@ namespace Voltium.Core
         /// <param name="vertexResource">The vertex buffer to set</param>
         /// <param name="startSlot">The slot on the device array to set the vertex buffer to</param>
         /// <typeparam name="T">The type of the vertex in <see cref="Buffer"/></typeparam>
-        public void SetVertexBuffers<T>(in Buffer vertexResource, uint startSlot = 0)
+        public void SetVertexBuffers<T>([RequiresResourceState(ResourceState.VertexBuffer)] in Buffer vertexResource, uint startSlot = 0)
             where T : unmanaged
         {
             var desc = CreateVertexBufferView<T>(vertexResource);
@@ -582,7 +579,7 @@ namespace Voltium.Core
         /// <param name="numVertices">The number of vertices in the buffer</param>
         /// <param name="startSlot">The slot on the device array to set the vertex buffer to</param>
         /// <typeparam name="T">The type of the vertex in <see cref="Buffer"/></typeparam>
-        public void SetVertexBuffers<T>(in Buffer vertexResource, uint numVertices, uint startSlot = 0)
+        public void SetVertexBuffers<T>([RequiresResourceState(ResourceState.VertexBuffer)] in Buffer vertexResource, uint numVertices, uint startSlot = 0)
             where T : unmanaged
         {
             var desc = CreateVertexBufferView<T>(vertexResource, numVertices);
@@ -597,7 +594,7 @@ namespace Voltium.Core
         /// <param name="vertexBuffers">The vertex buffers to set</param>
         /// <param name="startSlot">The slot on the device array to start setting the vertex buffers to</param>
         /// <typeparam name="T">The type of the vertex in <see cref="Buffer"/></typeparam>
-        public void SetVertexBuffers<T>(ReadOnlySpan<Buffer> vertexBuffers, uint startSlot = 0)
+        public void SetVertexBuffers<T>([RequiresResourceState(ResourceState.VertexBuffer)] ReadOnlySpan<Buffer> vertexBuffers, uint startSlot = 0)
             where T : unmanaged
         {
             StackSentinel.StackAssert(StackSentinel.SafeToStackalloc<D3D12_VERTEX_BUFFER_VIEW>(vertexBuffers.Length));
@@ -629,7 +626,7 @@ namespace Voltium.Core
         /// <param name="indexResource">The index buffer to set</param>
         /// <param name="numIndices">The number of indices to bind</param>
         /// <typeparam name="T">The type of the index in <see cref="Buffer"/></typeparam>
-        public void SetIndexBuffer<T>(in Buffer indexResource, uint numIndices = uint.MaxValue)
+        public void SetIndexBuffer<T>([RequiresResourceState(ResourceState.IndexBuffer)] in Buffer indexResource, uint numIndices = uint.MaxValue)
             where T : unmanaged
         {
             var desc = CreateIndexBufferView<T>(indexResource, numIndices);
@@ -676,7 +673,7 @@ namespace Voltium.Core
         /// <param name="dest">The single-sampled dest <see cref="Texture"/></param>
         /// <param name="sourceSubresource">The index of the subresource from <paramref name="source"/> to use</param>
         /// <param name="destSubresource">The index of the subresource from <paramref name="dest"/> to use</param>
-        public void ResolveSubresource(in Texture source, in Texture dest, uint sourceSubresource = 0, uint destSubresource = 0)
+        public void ResolveSubresource([RequiresResourceState(ResourceState.ResolveSource)] in Texture source, [RequiresResourceState(ResourceState.ResolveDestination)] in Texture dest, uint sourceSubresource = 0, uint destSubresource = 0)
         {
             DataFormat format = source.Format == DataFormat.Unknown ? dest.Format : source.Format;
 
@@ -695,7 +692,7 @@ namespace Voltium.Core
         /// <param name="format">The <see cref="DataFormat"/> to resolve as</param>
         /// <param name="sourceSubresource">The index of the subresource from <paramref name="source"/> to use</param>
         /// <param name="destSubresource">The index of the subresource from <paramref name="dest"/> to use</param>
-        public void ResolveSubresource(in Texture source, in Texture dest, DataFormat format, uint sourceSubresource = 0, uint destSubresource = 0)
+        public void ResolveSubresource([RequiresResourceState(ResourceState.ResolveSource)] in Texture source, [RequiresResourceState(ResourceState.ResolveDestination)] in Texture dest, DataFormat format, uint sourceSubresource = 0, uint destSubresource = 0)
         {
             //ResourceTransition(source, ResourceState.ResolveSource, sourceSubresource);
             //ResourceTransition(dest, ResourceState.ResolveDestination, destSubresource);
@@ -765,47 +762,5 @@ namespace Voltium.Core
         /// <param name="z">The number of thread groups to execute in the z direction</param>
         public void DispatchMeshes(uint x, uint y, uint z)
             => List->DispatchMesh(x, y, z);
-    }
-
-    /// <summary>
-    /// Represents the parameters used for a call to <see cref="ID3D12GraphicsCommandList.DrawInstanced"/>
-    /// </summary>
-    public readonly struct DrawArgs
-    {
-        /// <summary>
-        /// Number of indices read from the vertex buffer for each instance
-        /// </summary>
-        public readonly uint VertexCountPerInstance;
-
-        /// <summary>
-        /// Number of instances to draw
-        /// </summary>
-        public readonly uint InstanceCount;
-
-        /// <summary>
-        /// The location of the first vertex read by the GPU from the vertex buffer
-        /// </summary>
-        public readonly uint StartVertexLocation;
-
-        /// <summary>
-        /// A value added to each vertex before reading per-instance data from a vertex buffer
-        /// </summary>
-        public readonly uint StartInstanceLocation;
-
-        /// <summary>
-        /// Creates a new instance of <see cref="IndexedDraw"/>
-        /// </summary>
-        public DrawArgs(
-            uint vertexCountPerInstance,
-            uint instanceCount,
-            uint startVertexLocation,
-            uint startInstanceLocation
-        )
-        {
-            VertexCountPerInstance = vertexCountPerInstance;
-            InstanceCount = instanceCount;
-            StartVertexLocation = startVertexLocation;
-            StartInstanceLocation = startInstanceLocation;
-        }
     }
 }

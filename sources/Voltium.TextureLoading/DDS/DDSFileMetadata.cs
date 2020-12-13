@@ -38,7 +38,7 @@ namespace Voltium.TextureLoading.DDS
 
             int offset = sizeof(uint) + sizeof(DDSHeader) + (hasDxt10Header ? sizeof(DDSHeaderDxt10) : 0);
 
-            return new DDSFileMetadata(ref header, ddsData.Slice(offset));
+            return new DDSFileMetadata(ref header, ddsData[offset..]);
         }
 
         private DDSFileMetadata(ref DDSHeader ddsHeader, ReadOnlyMemory<byte> bitData)

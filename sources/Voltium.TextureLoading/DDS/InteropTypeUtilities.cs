@@ -1,5 +1,8 @@
-﻿using System;
+using System;
+using System.Numerics;
 using System.Runtime.CompilerServices;
+using System.Runtime.Intrinsics;
+using System.Runtime.Intrinsics.X86;
 using TerraFX.Interop;
 using static TerraFX.Interop.DXGI_FORMAT;
 using static Voltium.TextureLoading.DDS.PixelFormatFlags;
@@ -92,10 +95,18 @@ namespace Voltium.TextureLoading.DDS
         }
 
         public static bool IsBitmask(in DDSPixelFormat format, uint r, uint g, uint b, uint a)
-            => format.RBitMask == r &&
-               format.GBitMask == g &&
-               format.BBitMask == b &&
-               format.ABitMask == a;
+        {
+            if (Sse2.IsSupported)
+            {
+
+                return Sse2.MoveMask(Sse2.CompareEqual(Unsafe.As<uint, Vector128<uint>>(ref Unsafe.AsRef(in format.RBitMask)), Vector128.Create(r, g, b, a)).AsByte()) == 0xFFFF;
+            }
+
+            return format.RBitMask == r &&
+                          format.GBitMask == g &&
+                          format.BBitMask == b &&
+                          format.ABitMask == a;
+        }
 
         public static DXGI_FORMAT GetDxgiFormat(in DDSPixelFormat pixelFormat)
         {

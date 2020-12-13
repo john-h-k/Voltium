@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using TerraFX.Interop;
+using Voltium.Common;
 
 namespace Voltium.Core.Pipeline
 {
@@ -19,6 +20,9 @@ namespace Voltium.Core.Pipeline
         {
             Default = NoBlend;
         }
+
+        public bool EnableBlendOp { get => Helpers.Int32ToBool(Desc.BlendEnable); set => Desc.BlendEnable = Helpers.BoolToInt32(value); }
+        public bool EnableLogicOp { get => Helpers.Int32ToBool(Desc.BlendEnable); set => Desc.BlendEnable = Helpers.BoolToInt32(value); }
 
         /// <summary>
         /// Indicates which blend function should be used during RGB blending, or <see cref="BlendFunc.None"/>
@@ -68,6 +72,8 @@ namespace Voltium.Core.Pipeline
         /// Represents a <see cref="RenderTargetBlendDesc"/> where RGBA and logical blending is disabled
         /// </summary>
         public static RenderTargetBlendDesc NoBlend { get; } = new RenderTargetBlendDesc(
+                                                                    false,
+                                                                    false,
                                                                     ColorWriteFlags.All,
                                                                     blendOp: BlendFunc.None,
                                                                     alphaBlendOp: BlendFunc.None,
@@ -95,6 +101,8 @@ namespace Voltium.Core.Pipeline
             ColorWriteFlags flags = ColorWriteFlags.All
         )
             => new RenderTargetBlendDesc(
+                true,
+                false,
                 blendOp: rgbBlendOp,
                 srcBlend: rgbBlendFactorSrc,
                 destBlend: rgbBlendFactorDest,
@@ -114,11 +122,15 @@ namespace Voltium.Core.Pipeline
             BlendFuncLogical logicalOp,
             ColorWriteFlags flags = ColorWriteFlags.All)
             => new RenderTargetBlendDesc(
+                false,
+                true,
                 logicalBlendOp: logicalOp,
                 renderTargetWriteMask: flags
             );
 
         private RenderTargetBlendDesc(
+            bool blendEnable,
+            bool logicEnable,
             ColorWriteFlags renderTargetWriteMask,
             BlendFunc blendOp = BlendFunc.Add,
             BlendFunc alphaBlendOp = BlendFunc.Add,
@@ -130,6 +142,8 @@ namespace Voltium.Core.Pipeline
         )
         {
             Unsafe.SkipInit(out this);
+            EnableBlendOp = blendEnable;
+            EnableLogicOp = logicEnable;
             BlendOp = blendOp;
             AlphaBlendOp = alphaBlendOp;
             LogicalBlendOp = logicalBlendOp;

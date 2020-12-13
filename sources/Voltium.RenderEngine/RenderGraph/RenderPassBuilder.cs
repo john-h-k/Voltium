@@ -56,6 +56,20 @@ namespace Voltium.RenderEngine
         public void MarkUsage(TextureHandle texture, ResourceState flags)
             => MarkUsage(texture.AsResourceHandle(), flags);
 
+        /// <summary>
+        /// Attempts to retrieve the last pass input of type <typeparamref name="TInput"/>
+        /// </summary>
+        /// <typeparam name="TInput">The type to retrieve the input as</typeparam>
+        /// <returns>The input, if existent. Else, an exception will be thrown</returns>
+        public TInput GetInput<TInput>() => _graph.GetInputAs<TInput>(_passIndex);
+
+        /// <summary>
+        /// Sets the passes output to the given value, so future passes can retrieve it
+        /// </summary>
+        /// <typeparam name="TOutput">The type of the output value</typeparam>
+        /// <param name="val">The value</param>
+        public void SetOutput<TOutput>(TOutput val) => _graph.SetOutput(_passIndex, val);
+
         private void AddDependencies(ReadOnlySpan<int> passIndices)
         {
             foreach (var passIndex in passIndices)

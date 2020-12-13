@@ -1,4 +1,4 @@
-﻿using System.Runtime.CompilerServices;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using TerraFX.Interop;
 using Voltium.Common;
@@ -9,11 +9,17 @@ namespace Voltium.Core
     {
         internal D3D12_RAYTRACING_GEOMETRY_DESC Desc;
 
+        public static GeometryDesc FromTriangles(in TriangleGeometryDesc desc)
+            => new() { Type = GeometryType.Triangles, Triangles = desc };
+
+
+        public static GeometryDesc FromAlignedAxisBoundingBoxes(in AxisAlignedBoundingBoxGeometryDesc desc)
+            => new() { Type = GeometryType.AxisAlignedBoundingBoxes, AxisAlignedBoundingBoxes = desc };
+
         /// <summary>
         /// The type of geometry used in the description
         /// </summary>
         public GeometryType Type { get => (GeometryType)Desc.Type; set => Desc.Type = (D3D12_RAYTRACING_GEOMETRY_TYPE)value; }
-
 
         /// <summary>
         /// The <see cref="GeometryFlags"/> for this <see cref="GeometryDesc"/>

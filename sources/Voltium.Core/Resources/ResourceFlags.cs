@@ -1,3 +1,4 @@
+using System;
 using TerraFX.Interop;
 
 namespace Voltium.Core.Memory
@@ -5,6 +6,7 @@ namespace Voltium.Core.Memory
     /// <summary>
     /// Flags used in resource creation
     /// </summary>
+    [Flags]
     public enum ResourceFlags : uint
     {
         /// <summary>

@@ -96,6 +96,7 @@ namespace Voltium.Core.Devices
 
                 ThrowHelper.ThrowInvalidOperationException("Cannot create a GraphicsDevice for this adapter as a ComputeDevice was created for this adapter");
             }
+
             return new GraphicsDevice(requiredFeatureLevel, adapter, config);
         }
 
@@ -154,11 +155,5 @@ namespace Voltium.Core.Devices
 
             GraphicsQueue.Dispose();
         }
-
-#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
-        public void ResetRenderTargetViewHeap() => _rtvs.ResetHeap();
-
-        public void ResetDepthStencilViewHeap() => _dsvs.ResetHeap();
-#pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
     }
 }

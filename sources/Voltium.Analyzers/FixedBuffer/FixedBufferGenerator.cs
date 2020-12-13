@@ -24,7 +24,7 @@ namespace Voltium.Analyzers.FixedBuffer
 
             string type = attr.ConstructorArguments[0].ToCSharpString();
             var start = type.IndexOf('(') + 1;
-            type = type.Substring(start, type.IndexOf(')') - start);
+            type = "global::" + type.Substring(start, type.IndexOf(')') - start);
             int count = (int)attr.ConstructorArguments[1].Value!;
 
             var builder = new StringBuilder();

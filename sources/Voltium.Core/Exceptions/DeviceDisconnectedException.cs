@@ -42,47 +42,38 @@ namespace Voltium.Common
     public class DeviceDisconnectedException : GraphicsException
     {
         /// <summary>
-        /// The device which disconnected
-        /// </summary>
-        public ComputeDevice Device { get; }
-
-        /// <summary>
-        /// The <see cref="DeviceDisconnectReason"/> why <see cref="Device"/> was disconnected
+        /// The <see cref="DeviceDisconnectReason"/> why <see cref="GraphicsException.Device"/> was disconnected
         /// </summary>
         public DeviceDisconnectReason Reason { get; }
 
         /// <summary>
-        /// 
+        ///
         /// </summary>
-        public DeviceDisconnectedException(ComputeDevice device, DeviceDisconnectReason reason)
+        public DeviceDisconnectedException(ComputeDevice device, DeviceDisconnectReason reason) : base(device)
         {
-            Device = device;
             Reason = reason;
         }
 
         /// <summary>
-        /// 
+        ///
         /// </summary>
-        public DeviceDisconnectedException(ComputeDevice device, string? message) : base(message)
+        public DeviceDisconnectedException(ComputeDevice device, string? message) : base(device, message)
         {
-            Device = device;
         }
 
         /// <summary>
-        /// 
+        ///
         /// </summary>
-        public DeviceDisconnectedException(ComputeDevice device, string? message, Exception? innerException) : base(message, innerException)
+        public DeviceDisconnectedException(ComputeDevice device, string? message, Exception? innerException) : base(device, message, innerException)
         {
-            Device = device;
         }
 
         /// <summary>
-        /// 
+        ///
         /// </summary>
         public DeviceDisconnectedException(ComputeDevice device, string message, int hr, object? otherData = null)
-            : base($"{message} -- Error code: {DebugExtensions.DeviceRemovedMessage(hr)}")
+            : base(device, $"{message} -- Error code: {DebugExtensions.DeviceRemovedMessage(hr)}")
         {
-            Device = device;
         }
     }
 }

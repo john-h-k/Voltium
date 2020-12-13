@@ -7,7 +7,12 @@ namespace Voltium.Core
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
     public abstract class Application : IDisposable
     {
-        public abstract string Name { get; }
+        public Application()
+        {
+            Name = GetType().Name;
+        }
+
+        public virtual string Name { get; }
 
         public virtual string WindowTitle => Name;
 

@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.CompilerServices;
+using System.Runtime.Intrinsics;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Memory;
@@ -85,6 +86,32 @@ namespace Voltium.Core
         //SetPipelineState
         //SetPredication
 
+        public void SetDescriptorHeaps(DescriptorHeap? resources = null, DescriptorHeap? samplers = null)
+        {
+            var pHeaps = stackalloc ID3D12DescriptorHeap*[2];
+            uint numHeaps = 0;
+
+            if (resources is not null)
+            {
+                pHeaps[numHeaps++] = resources.GetHeap();
+            }
+            if (samplers is not null)
+            {
+                pHeaps[numHeaps++] = samplers.GetHeap();
+            }
+
+            List->SetDescriptorHeaps(numHeaps, pHeaps);
+        }
+        public void ClearUnorderedAccessViewUInt32(DescriptorHandle shaderVisible, DescriptorHandle shaderOpaque, in Texture tex, Vector128<uint> values = default)
+        {
+            List->ClearUnorderedAccessViewUint(shaderVisible.GpuHandle, shaderOpaque.CpuHandle, tex.GetResourcePointer(), (uint*)&values, 0, null);
+        }
+
+
+        public void ClearUnorderedAccessViewSingle(DescriptorHandle shaderVisible, DescriptorHandle shaderOpaque, in Texture tex, Rgba128 values = default)
+        {
+            List->ClearUnorderedAccessViewFloat(shaderVisible.GpuHandle, shaderOpaque.CpuHandle, tex.GetResourcePointer(), (float*)&values, 0, null);
+        }
 
         /// <summary>
         /// Sets the current pipeline state

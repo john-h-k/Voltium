@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Voltium.Common.Pix;
 using Voltium.Core;
 using Voltium.Core.Configuration.Graphics;
+using Voltium.Core.Contexts;
 using Voltium.Core.Devices;
 using Voltium.RenderEngine;
 
@@ -24,35 +25,34 @@ namespace Voltium.CubeGame
 
         public override bool Register(ref RenderPassBuilder builder, ref Resolver resolver)
         {
-            var resources = resolver.GetComponent<RenderResources>();
+            var color = builder.GetInput<TextureHandle>();
             var settings = resolver.GetComponent<RenderSettings>();
 
-            builder.MarkUsage(resources.SceneColor, settings.Msaa.IsMultiSampled ? ResourceState.ResolveSource : ResourceState.CopySource);
+            builder.MarkUsage(color, settings.Msaa.IsMultiSampled ? ResourceState.ResolveSource : ResourceState.CopySource);
 
             return true;
         }
 
         public override void Record(GraphicsContext context, ref Resolver resolver)
         {
-            using var _ = context.BeginEvent(Argb32.Green, "Tonemap");
+            using var _ = context.ScopedEvent(Argb32.Green, "Tonemap");
 
-            var resources = resolver.GetComponent<RenderResources>();
+            var color = default(TextureHandle);//builder.GetInput<TextureHandle>();
             var settings = resolver.GetComponent<RenderSettings>();
 
-            var sampledOutput = resolver.ResolveResource(resources.SceneColor);
+            var sampledOutput = resolver.ResolveResource(color);
 
-            context.ResourceTransition(_output.OutputBuffer, settings.Msaa.IsMultiSampled ? ResourceState.ResolveDestination : ResourceState.CopyDestination);
-
-            if (settings.Msaa.IsMultiSampled)
+            using (context.ScopedBarrier(ResourceBarrier.Transition(_output.OutputBuffer, ResourceState.Present, settings.Msaa.IsMultiSampled ? ResourceState.ResolveDestination : ResourceState.CopyDestination)))
             {
-                context.ResolveSubresource(sampledOutput, _output.OutputBuffer);
+                if (settings.Msaa.IsMultiSampled)
+                {
+                    context.ResolveSubresource(sampledOutput, _output.OutputBuffer);
+                }
+                else
+                {
+                    context.CopyResource(sampledOutput, _output.OutputBuffer);
+                }
             }
-            else
-            {
-                context.CopyResource(sampledOutput, _output.OutputBuffer);
-            }
-
-            context.ResourceTransition(_output.OutputBuffer, ResourceState.Present);
         }
     }
 }

@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using TerraFX.Interop;
+using Voltium.Common;
 using Voltium.Core.Memory;
 using Voltium.Core.Views;
 using static TerraFX.Interop.Windows;
@@ -14,7 +15,16 @@ namespace Voltium.Core.Devices
 
         private protected virtual void CreateDescriptorHeaps()
         {
-            UavCbvSrvs = DescriptorHeap.Create(this, DescriptorHeapType.ConstantBufferShaderResourceOrUnorderedAccessView, ResourceCount);
+            UavCbvSrvs = CreateDescriptorHeap(DescriptorHeapType.ConstantBufferShaderResourceOrUnorderedAccessView, ResourceCount, true);
+        }
+
+        public void CopyDescriptors(DescriptorSpan source, DescriptorSpan dest)
+        {
+            if (source.Type != dest.Type)
+            {
+                ThrowHelper.ThrowArgumentException(nameof(dest), "Destination DescriptorSpan was of a different type to source");
+            }
+            CopyDescriptors((uint)source.Length, dest.Cpu, source.Cpu, (D3D12_DESCRIPTOR_HEAP_TYPE)source.Type);
         }
 
         /// <summary>
@@ -22,48 +32,10 @@ namespace Voltium.Core.Devices
         /// </summary>
         /// <param name="descriptorCount"></param>
         /// <returns></returns>
-        public DescriptorRange CreateResourceDescriptorRange(int descriptorCount)
+        public DescriptorAllocation AllocateResourceDescriptors(int descriptorCount)
         {
-            var handles = UavCbvSrvs.GetNextHandles(descriptorCount);
-            return new DescriptorRange(handles, descriptorCount);
-        }
-
-        /// <summary>
-        /// Creates a shader resource view to a <see cref="Buffer"/>
-        /// </summary>
-        /// <param name="resource">The <see cref="Buffer"/> resource to create the view for</param>
-        /// <param name="lengthInElements"><inheritdoc cref="BufferShaderResourceViewDesc.ElementStride"/></param>
-        /// <param name="offset"></param>
-        /// <param name="format"></param>
-        /// <param name="isRaw"></param>
-        public DescriptorHandle CreateShaderResourceView<T>(in Buffer resource, uint lengthInElements, uint offset = 0, DataFormat format = DataFormat.Unknown, bool isRaw = false) where T : unmanaged
-            => CreateShaderResourceView(resource, lengthInElements, (uint)sizeof(T), offset, format, isRaw);
-
-        /// <summary>
-        /// Creates a shader resource view to a <see cref="Buffer"/>
-        /// </summary>
-        /// <param name="resource">The <see cref="Buffer"/> resource to create the view for</param>
-        /// <param name="lengthInElements"></param>
-        /// <param name="elementSize"></param>
-        /// <param name="offset"></param>
-        /// <param name="format"></param>
-        /// <param name="isRaw"></param>
-        public DescriptorHandle CreateShaderResourceView(in Buffer resource, uint lengthInElements, uint elementSize, uint offset = 0, DataFormat format = DataFormat.Unknown, bool isRaw = false)
-        {
-            Unsafe.SkipInit(out D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc);
-            srvDesc.Format = (DXGI_FORMAT)format;
-            srvDesc.ViewDimension = D3D12_SRV_DIMENSION.D3D12_SRV_DIMENSION_BUFFER;
-            srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING; // TODO
-            srvDesc.Anonymous.Buffer.FirstElement = offset;
-            srvDesc.Anonymous.Buffer.Flags = isRaw ? D3D12_BUFFER_SRV_FLAGS.D3D12_BUFFER_SRV_FLAG_RAW : D3D12_BUFFER_SRV_FLAGS.D3D12_BUFFER_SRV_FLAG_NONE;
-            srvDesc.Anonymous.Buffer.NumElements = lengthInElements;
-            srvDesc.Anonymous.Buffer.StructureByteStride = elementSize;
-
-            var handle = UavCbvSrvs.GetNextHandle();
-
-            DevicePointer->CreateShaderResourceView(resource.Resource.GetResourcePointer(), &srvDesc, UavCbvSrvs.GetNextHandle().CpuHandle);
-
-            return handle;
+            var handles = UavCbvSrvs.AllocateHandles(descriptorCount);
+            return handles;
         }
 
         /// <summary>
@@ -71,74 +43,56 @@ namespace Voltium.Core.Devices
         /// </summary>
         /// <param name="resource">The <see cref="Buffer"/> resource to create the view for</param>
         /// <param name="desc">The <see cref="BufferShaderResourceViewDesc"/> describing the metadata used to create the view</param>
-        public DescriptorHandle CreateShaderResourceView(in Buffer resource, in BufferShaderResourceViewDesc desc)
-            => CreateShaderResourceView(resource, desc.ElementCount, desc.ElementStride, desc.Offset, desc.Format, desc.IsRaw);
-
-        /// <summary>
-        /// Creates a shader resource view to a <see cref="Buffer"/>
-        /// </summary>
-        /// <param name="resource">The <see cref="Buffer"/> resource to create the view for</param>
-        public DescriptorHandle CreateShaderResourceView(in Buffer resource)
+        /// <param name="descriptor">The <see cref="DescriptorHandle"/> to create the view at</param>
+        public void CreateShaderResourceView(in Buffer resource, in BufferShaderResourceViewDesc desc, in DescriptorHandle descriptor)
         {
-            var handle = UavCbvSrvs.GetNextHandle();
 
-            DevicePointer->CreateShaderResourceView(resource.Resource.GetResourcePointer(), null, handle.CpuHandle);
+            Unsafe.SkipInit(out D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc);
+            srvDesc.Format = (DXGI_FORMAT)desc.Format;
+            srvDesc.ViewDimension = D3D12_SRV_DIMENSION.D3D12_SRV_DIMENSION_BUFFER;
+            srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING; // TODO
+            srvDesc.Anonymous.Buffer.FirstElement = desc.Offset;
+            srvDesc.Anonymous.Buffer.Flags = desc.IsRaw ? D3D12_BUFFER_SRV_FLAGS.D3D12_BUFFER_SRV_FLAG_RAW : D3D12_BUFFER_SRV_FLAGS.D3D12_BUFFER_SRV_FLAG_NONE;
+            srvDesc.Anonymous.Buffer.NumElements = desc.ElementCount;
+            srvDesc.Anonymous.Buffer.StructureByteStride = desc.ElementStride;
 
-            return handle;
+
+
+            DevicePointer->CreateShaderResourceView(resource.Resource.GetResourcePointer(), &srvDesc, descriptor.CpuHandle);
         }
 
         /// <summary>
         /// Creates a shader resource view to a <see cref="Buffer"/>
         /// </summary>
         /// <param name="resource">The <see cref="Buffer"/> resource to create the view for</param>
-        public DescriptorHandle CreateUnorderedAccessView(in Buffer resource)
+        /// <param name="descriptor">The <see cref="DescriptorHandle"/> to create the view at</param>
+        public void CreateShaderResourceView(in Buffer resource, in DescriptorHandle descriptor)
         {
-            var handle = UavCbvSrvs.GetNextHandle();
-
-            DevicePointer->CreateUnorderedAccessView(resource.Resource.GetResourcePointer(), /* TODO: counter support? */ null, null, handle.CpuHandle);
-
-            return handle;
+            DevicePointer->CreateShaderResourceView(resource.Resource.GetResourcePointer(), null, descriptor.CpuHandle);
         }
-
-
-
-
 
         /// <summary>
         /// Creates a shader resource view to a <see cref="Texture"/>
         /// </summary>
+        /// <param name="descriptor">The <see cref="DescriptorHandle"/> to create the view at</param>
         /// <param name="resource">The <see cref="Texture"/> resource to create the view for</param>
-        public DescriptorHandle CreateShaderResourceView(in Texture resource)
+        public void CreateShaderResourceView(in Texture resource, in DescriptorHandle descriptor)
         {
-            var handle = UavCbvSrvs.GetNextHandle();
-
-            DevicePointer->CreateShaderResourceView(resource.Resource.GetResourcePointer(), null, handle.CpuHandle);
-
-            return handle;
+            DevicePointer->CreateShaderResourceView(resource.Resource.GetResourcePointer(), null, descriptor.CpuHandle);
         }
 
         /// <summary>
         /// Creates a shader resource view to a <see cref="Texture"/>
         /// </summary>
-        /// <param name="handle">The <see cref="DescriptorHandle"/> to create the view at</param>
-        /// <param name="resource">The <see cref="Texture"/> resource to create the view for</param>
-        public void CreateShaderResourceView(DescriptorHandle handle, in Texture resource)
-        {
-            DevicePointer->CreateShaderResourceView(resource.Resource.GetResourcePointer(), null, handle.CpuHandle);
-        }
-
-        /// <summary>
-        /// Creates a shader resource view to a <see cref="Texture"/>
-        /// </summary>
-        /// <param name="handle">The <see cref="DescriptorHandle"/> to create the view at</param>
+        /// <param name="descriptor">The <see cref="DescriptorHandle"/> to create the view at</param>
         /// <param name="resource">The <see cref="Texture"/> resource to create the view for</param>
         /// <param name="desc">The <see cref="TextureShaderResourceViewDesc"/> describing the metadata used to create the view</param>
-        public void CreateShaderResourceView(DescriptorHandle handle, in Texture resource, in TextureShaderResourceViewDesc desc)
+        public void CreateShaderResourceView( in Texture resource, in TextureShaderResourceViewDesc desc, in DescriptorHandle descriptor)
         {
             // multisampled textures can be created without a desc
             if (resource.Msaa.SampleCount > 1)
             {
-                CreateShaderResourceView(resource);
+                CreateShaderResourceView(resource, descriptor);
             }
 
             D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc;
@@ -171,20 +125,18 @@ namespace Voltium.Core.Devices
             srvDesc.Format = (DXGI_FORMAT)desc.Format;
             srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING; // TODO
 
-            DevicePointer->CreateShaderResourceView(resource.Resource.GetResourcePointer(), &srvDesc, handle.CpuHandle);
+            DevicePointer->CreateShaderResourceView(resource.Resource.GetResourcePointer(), &srvDesc, descriptor.CpuHandle);
         }
+
 
         /// <summary>
         /// Creates a shader resource view to a <see cref="Texture"/>
         /// </summary>
+        /// <param name="descriptor">The <see cref="DescriptorHandle"/> to create the view at</param>
         /// <param name="resource">The <see cref="Texture"/> resource to create the view for</param>
-        public DescriptorHandle CreateUnorderedAccessView(in Texture resource)
+        public void CreateUnorderedAccessView(in Texture resource, in DescriptorHandle descriptor)
         {
-            var handle = UavCbvSrvs.GetNextHandle();
-
-            DevicePointer->CreateUnorderedAccessView(resource.Resource.GetResourcePointer(), /* TODO: counter support? */ null, null, handle.CpuHandle);
-
-            return handle;
+            DevicePointer->CreateUnorderedAccessView(resource.Resource.GetResourcePointer(), /* TODO: counter support? */ null, null, descriptor.CpuHandle);
         }
     }
 }

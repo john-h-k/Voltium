@@ -111,7 +111,7 @@ namespace Voltium.Core.Pipeline
         public uint NodeMask
         {
             get => _initial.NodeMask.NodeMask;
-            set => _initial.NodeMask.NodeMask = value;
+            set => _initial.NodeMask.NodeMask = /* D3D12 runtime bug incorrectly hands values of 0 (which should be treated as 1). So fix up here */ value == 0 ? 1 : value;
         }
 
         // TODO support Tier1.1

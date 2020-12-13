@@ -10,7 +10,7 @@ namespace Voltium.Common.Debugging
         /// <summary>
         /// Whether the build was compiled with DEBUG
         /// </summary>
-        public static readonly bool IsDebug =
+        public static bool IsDebug =>
 #if DEBUG
             true;
 #else

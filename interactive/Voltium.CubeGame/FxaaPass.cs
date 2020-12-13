@@ -29,12 +29,10 @@ namespace Voltium.CubeGame
                 return false;
             }
 
-            Span<(ulong Address, uint Value)> pairs = stackalloc (ulong Address, uint Value)[10];
-
             var settings = resolver.GetComponent<RenderSettings>();
             var resources = resolver.GetComponent<RenderResources>();
 
-            //builder.CreatePrimaryOutputRelativeTexture(TextureDesc.CreateUnorderedAccessResourceDesc(settings.))
+            builder.CreatePrimaryOutputRelativeTexture(TextureDesc.CreateUnorderedAccessResourceDesc(DataFormat.Unknown, TextureDimension.Tex2D));
 
             return true;
         }

@@ -94,6 +94,14 @@ namespace Voltium.Core.Memory
             GetResourcePointer()->Unmap(subresource, null);
         }
 
+        /// <inheritdoc/>
+        public void Dispose(in GpuTask disposeAfter)
+        {
+            static void _Dispose(GpuResource resource) => resource.Dispose();
+
+            disposeAfter.RegisterCallback(this, &_Dispose);
+        }
+
         /// <inheritdoc cref="IDisposable"/>
         public void Dispose()
         {
@@ -112,6 +120,8 @@ namespace Voltium.Core.Memory
             GC.SuppressFinalize(this);
 #endif
         }
+
+        
 
 
 #if TRACE_DISPOSABLES || DEBUG

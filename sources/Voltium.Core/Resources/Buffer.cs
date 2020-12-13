@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 using TerraFX.Interop;
@@ -9,7 +10,81 @@ using Voltium.Core.Memory;
 
 namespace Voltium.Core.Memory
 {
+    public readonly struct GpuAddress : IEquatable<GpuAddress>, IComparable<GpuAddress>
+    {
+        internal readonly ulong Value;
 
+        internal GpuAddress(ulong value) => Value = value;
+
+        public static bool operator ==(GpuAddress left, GpuAddress right) => left.Value == right.Value;
+        public static bool operator !=(GpuAddress left, GpuAddress right) => left.Value != right.Value;
+
+        public static bool operator >(GpuAddress left, GpuAddress right) => left.Value > right.Value;
+        public static bool operator <(GpuAddress left, GpuAddress right) => left.Value < right.Value;
+
+        public static bool operator >=(GpuAddress left, GpuAddress right) => left.Value >= right.Value;
+        public static bool operator <=(GpuAddress left, GpuAddress right) => left.Value <= right.Value;
+
+
+
+        public static GpuAddress operator +(GpuAddress left, ulong right) => new (left.Value + right);
+        public static GpuAddress operator +(GpuAddress left, long right) => left + (ulong)right;
+        public static GpuAddress operator +(ulong left, GpuAddress right) => new(left + right.Value);
+        public static GpuAddress operator +(long left, GpuAddress right) => (ulong)left + right;
+
+
+
+        public static GpuAddress operator -(GpuAddress left, ulong right) => new(left.Value - right);
+        public static GpuAddress operator -(GpuAddress left, long right) => left - (ulong)right;
+        public static GpuAddress operator -(ulong left, GpuAddress right) => new(left - right.Value);
+        public static GpuAddress operator -(long left, GpuAddress right) => (ulong)left - right;
+
+
+
+        public static GpuAddress operator *(GpuAddress left, ulong right) => new(left.Value * right);
+        public static GpuAddress operator *(GpuAddress left, long right) => left * (ulong)right;
+        public static GpuAddress operator *(ulong left, GpuAddress right) => new(left * right.Value);
+        public static GpuAddress operator *(long left, GpuAddress right) => (ulong)left * right;
+
+
+
+        public static GpuAddress operator /(GpuAddress left, ulong right) => new(left.Value / right);
+        public static GpuAddress operator /(GpuAddress left, long right) => left / (ulong)right;
+        public static GpuAddress operator /(ulong left, GpuAddress right) => new(left / right.Value);
+        public static GpuAddress operator /(long left, GpuAddress right) => (ulong)left / right;
+
+
+        public static GpuAddress operator &(GpuAddress left, ulong right) => new(left.Value & right);
+        public static GpuAddress operator &(GpuAddress left, long right) => left & (ulong)right;
+        public static GpuAddress operator &(ulong left, GpuAddress right) => new(left & right.Value);
+        public static GpuAddress operator &(long left, GpuAddress right) => (ulong)left & right;
+
+
+        public static GpuAddress operator |(GpuAddress left, ulong right) => new(left.Value | right);
+        public static GpuAddress operator |(GpuAddress left, long right) => left | (ulong)right;
+        public static GpuAddress operator |(ulong left, GpuAddress right) => new(left | right.Value);
+        public static GpuAddress operator |(long left, GpuAddress right) => (ulong)left | right;
+
+
+        public static GpuAddress operator ^(GpuAddress left, ulong right) => new(left.Value ^ right);
+        public static GpuAddress operator ^(GpuAddress left, long right) => left ^ (ulong)right;
+        public static GpuAddress operator ^(ulong left, GpuAddress right) => new(left ^ right.Value);
+        public static GpuAddress operator ^(long left, GpuAddress right) => (ulong)left ^ right;
+
+        public static GpuAddress operator >>(GpuAddress left, int right) => new(left.Value >> right);
+        public static GpuAddress operator <<(GpuAddress left, int right) => new(left.Value << right);
+
+
+        public static GpuAddress operator ~(GpuAddress value) => new(~value.Value);
+
+        public override bool Equals(object? obj) => obj is GpuAddress other && Equals(other);
+        public bool Equals(GpuAddress other) => this == other;
+
+        public int CompareTo(GpuAddress other) => Value.CompareTo(other.Value);
+
+        public override int GetHashCode() => Value.GetHashCode();
+        public override string ToString() => $"0x{Value:X16}";
+    }
 
     /// <summary>
     /// Represents a single-dimension untyped buffer of GPU data
@@ -33,17 +108,21 @@ namespace Voltium.Core.Memory
         /// </summary>
         public readonly uint Length;
 
-        internal Buffer(ComputeDevice device, GpuResource resource, ulong offset, InternalAllocDesc* pDesc)
+        internal uint Offset => _offset;
+
+        public readonly uint LengthAs<T>() => Length / (uint)Unsafe.SizeOf<T>();
+
+        internal Buffer(ComputeDevice device, GpuResource resource, ulong offset, in InternalAllocDesc pDesc)
         {
             _resource = resource;
             _offset = (uint)offset;
 
-            Length = (uint)pDesc->Desc.Width;
+            Length = (uint)pDesc.Desc.Width;
 
             _gpuAddress = _resource.GetResourcePointer()->GetGPUVirtualAddress() + _offset;
 
             // Don't map CPU-opaque buffers or raytracing acceleration buffers
-            if (pDesc->HeapProperties.IsCPUAccessible && pDesc->InitialState != D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE)
+            if (pDesc.HeapProperties.IsCPUAccessible && pDesc.InitialState != D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE)
             {
                 void* pData;
                 device.ThrowIfFailed(_resource.GetResourcePointer()->Map(0, null, &pData));
@@ -215,7 +294,6 @@ namespace Voltium.Core.Memory
         /// </summary>
         /// <returns></returns>
         internal ID3D12Resource* GetResourcePointer() => _resource.GetResourcePointer();
-
     }
 
     //public unsafe static class BufferExtensions

@@ -1,76 +1,59 @@
+using System;
+using System.Collections.Generic;
 using Microsoft.Extensions.Logging;
 using Voltium.Common;
 using Voltium.Common.Debugging;
 
+
 namespace Voltium.Core.Devices
 {
+    using MessageCallback = Action<GraphicsExceptionMessageType, LogLevel, string>;
+
     /// <summary>
     /// Describes the debugging state used by the engine
     /// </summary>
-    public class DebugLayerConfiguration
+    [Fluent]
+    public sealed partial class DebugLayerConfiguration
     {
-        /// <summary>
-        /// The default layer for debugging
-        /// </summary>
-        public static DebugLayerConfiguration Debug { get; } = new DebugLayerConfiguration()
+        private List<MessageCallback> _callbacks = new();
+
+
+        private static readonly DebugLayerConfiguration _debug = new DebugLayerConfiguration()
             .WithDebugFlags(DebugFlags.DebugLayer)
             .WithDredFlags(DredFlags.All)
             .WithValidationLogLevel(LogLevel.Information)
             .WithBreakpointLogLevel(LogLevel.Error)
             .WithProfilingEnabled(false);
 
-
-        /// <summary>
-        /// No debug layer, logging, or profiling
-        /// </summary>
-        public static DebugLayerConfiguration None { get; } = new DebugLayerConfiguration()
+        private static readonly DebugLayerConfiguration _none = new DebugLayerConfiguration()
             .WithDebugFlags(DebugFlags.None)
             .WithDredFlags(DredFlags.None)
             .WithValidationLogLevel(LogLevel.None)
             .WithBreakpointLogLevel(LogLevel.None)
             .WithProfilingEnabled(false);
 
-        /// <summary>
-        /// The default layer for profiling
-        /// </summary>
-        public static DebugLayerConfiguration Profile { get; } = new DebugLayerConfiguration()
+        private static readonly DebugLayerConfiguration _profile = new DebugLayerConfiguration()
             .WithDebugFlags(DebugFlags.None)
             .WithDredFlags(DredFlags.None)
             .WithValidationLogLevel(LogLevel.None)
             .WithBreakpointLogLevel(LogLevel.None)
             .WithProfilingEnabled(true);
 
+        /// <summary>
+        /// The default layer for debugging
+        /// </summary>
+        public static DebugLayerConfiguration Debug => (DebugLayerConfiguration)_debug.MemberwiseClone();
 
-#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
-        public DebugLayerConfiguration WithDebugFlags(DebugFlags flags)
-        {
-            DebugFlags = flags;
-            return this;
-        }
 
-        public DebugLayerConfiguration WithDredFlags(DredFlags flags)
-        {
-            DredFlags = flags;
-            return this;
-        }
+        /// <summary>
+        /// No debug layer, logging, or profiling
+        /// </summary>
+        public static DebugLayerConfiguration None => (DebugLayerConfiguration)_none.MemberwiseClone();
 
-        public DebugLayerConfiguration WithValidationLogLevel(LogLevel level)
-        {
-            ValidationLogLevel = level;
-            return this;
-        }
-
-        public DebugLayerConfiguration WithBreakpointLogLevel(LogLevel level)
-        {
-            BreakpointLogLevel = level;
-            return this;
-        }
-
-        public DebugLayerConfiguration WithProfilingEnabled(bool enabled)
-        {
-            ProfilingEnabled = enabled;
-            return this;
-        }
+        /// <summary>
+        /// The default layer for profiling
+        /// </summary>
+        public static DebugLayerConfiguration Profile => (DebugLayerConfiguration)_profile.MemberwiseClone();
 
         /// <summary>
         /// The <see cref="DebugFlags"/> that describes the debug for the application

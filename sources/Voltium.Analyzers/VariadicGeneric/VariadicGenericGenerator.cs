@@ -50,7 +50,7 @@ namespace Voltium.Analyzers
 
             var semantics = context.Compilation.GetSemanticModel(syntax.SyntaxTree);
 
-            WriteMethodDecl(builder, context, symbol, syntax, argCount);
+            WriteMethodDecl(builder, context, symbol, syntax, argCount, out var firstArgIndex);
 
 
             if (syntax.Body is null && syntax.ExpressionBody is null && syntax.Modifiers.IndexOf(SyntaxKind.PartialKeyword) == -1)
@@ -90,7 +90,7 @@ namespace Voltium.Analyzers
 
             if (template.Contains("%t..."))
             {
-                var args = string.Join(", ", Enumerable.Range(0, argCount).Select(i => $"t{i}"));
+                var args = string.Join(", ", Enumerable.Range(firstArgIndex, argCount).Select(i => $"t{i}"));
                 if (args != string.Empty)
                 {
                     args = ", " + args;
@@ -101,20 +101,29 @@ namespace Voltium.Analyzers
             }
             else
             {
-                var insertions = Enumerable.Range(0, argCount).Select(i => template.Replace("%t", $"t{i}"));
+                var insertions = Enumerable.Range(firstArgIndex, argCount).Select(i => template.Replace("%t", $"t{i}"));
                 stmts.InsertRange(targetStatementIndex, insertions);
             }
 
             builder.Append("{" + string.Join(";\n", stmts) + ";\n" + "}");
         }
 
-        private void WriteMethodDecl(StringBuilder builder, GeneratorExecutionContext context, IMethodSymbol symbol, MethodDeclarationSyntax syntax, int argCount)
+        private void WriteMethodDecl(StringBuilder builder, GeneratorExecutionContext context, IMethodSymbol symbol, MethodDeclarationSyntax syntax, int argCount, out int firstArgIndex)
         {
+            firstArgIndex = 0;
             if (argCount > 0)
             {
-                syntax = syntax.AddTypeParameterListParameters(Enumerable.Range(0, argCount).Select(s => SyntaxFactory.TypeParameter($"T{s}")).ToArray());
-                syntax = syntax.AddParameterListParameters(Enumerable.Range(0, argCount).Select(s => SyntaxFactory.Parameter(SyntaxFactory.Identifier($"t{s}")).WithType(SyntaxFactory.IdentifierName($"T{s} "))).ToArray());
+                firstArgIndex = syntax.TypeParameterList?.Parameters.IndexOf(param => param.Identifier.ToString() is var s && s[0] == 'T' && char.IsDigit(s[1])) + 1 ?? 0;
 
+                var numTypeParams = syntax.TypeParameterList?.Parameters.Count ?? 0;
+                var c = syntax.ConstraintClauses.FirstOrDefault();
+                var p = syntax.TypeParameterList?.Parameters.Count > 0 && syntax.ParameterList.Parameters.Count > 0 ? syntax.ParameterList.Parameters.Last() : SyntaxFactory.Parameter(SyntaxFactory.Identifier("_"));
+                syntax = syntax.AddTypeParameterListParameters(Enumerable.Range(firstArgIndex, argCount).Select(s => SyntaxFactory.TypeParameter($"T{s}")).ToArray());
+                if (c is not null)
+                {
+                    syntax = syntax.AddConstraintClauses(Enumerable.Range(firstArgIndex, argCount).Select(s => c.WithName(SyntaxFactory.IdentifierName($"T{s}"))).ToArray());
+                }
+                syntax = syntax.AddParameterListParameters(Enumerable.Range(firstArgIndex, argCount).Select(s => p.WithIdentifier(SyntaxFactory.Identifier($"t{s}")).WithType(SyntaxFactory.IdentifierName($"T{s} "))).ToArray());
 
                 int ind = syntax.Modifiers.IndexOf(SyntaxKind.PartialKeyword);
 

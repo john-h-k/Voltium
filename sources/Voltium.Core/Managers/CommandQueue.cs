@@ -13,7 +13,7 @@ namespace Voltium.Core.Devices
 {
     internal unsafe class CommandQueue : IDisposable, IInternalD3D12Object
     {
-        private ComputeDevice _device;
+        private readonly ComputeDevice _device;
         private UniqueComPtr<ID3D12CommandQueue> _queue;
         private UniqueComPtr<ID3D12Fence> _fence;
         private ulong _lastFence;
@@ -47,14 +47,16 @@ namespace Voltium.Core.Devices
             _fence = device.CreateFence(StartingFenceForContext(context));
             _lastFence = _fence.Ptr->GetCompletedValue();
 
-            DebugHelpers.SetName(_queue.Ptr, GetListTypeName(context) + " Queue");
-            DebugHelpers.SetName(_fence.Ptr, GetListTypeName(context) + " Fence");
+            var name = GetListTypeName(context);
+            this.SetName(name + " Queue");
+
+            DebugHelpers.SetName(_fence.Ptr, name + " Fence");
 
             ulong frequency;
             int hr = _queue.Ptr->GetTimestampFrequency(&frequency);
 
             // E_FAIL is returned when the queue doesn't support timestamps
-            if (hr != E_FAIL)
+            if (SUCCEEDED(hr) || hr == E_FAIL)
             {
                 Frequency = hr == E_FAIL ? 0 : frequency;
             }
@@ -65,9 +67,12 @@ namespace Voltium.Core.Devices
             }
         }
 
-        public GpuTask ExecuteCommandLists(uint numLists, ID3D12CommandList** ppLists)
+        public GpuTask ExecuteCommandLists(ReadOnlySpan<UniqueComPtr<ID3D12CommandList>> lists)
         {
-            _queue.Ptr->ExecuteCommandLists(numLists, ppLists);
+            fixed (void* ppLists = lists)
+            {
+                _queue.Ptr->ExecuteCommandLists((uint)lists.Length, (ID3D12CommandList**)ppLists);
+            }
             return Signal();
         }
 

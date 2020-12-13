@@ -14,7 +14,7 @@ namespace Voltium.Core.Devices
         private Lazy<MetaCommandDesc[]?>? _metaCommandDescs;
 
         /// <summary>
-        /// The device meta commands, if <see cref="DeviceCreationSettings.EnableMetaCommands"/> was called before device creation
+        /// The device meta commands
         /// </summary>
         public ReadOnlyMemory<MetaCommandDesc> MetaCommands => _metaCommandDescs?.Value;
 
@@ -24,16 +24,17 @@ namespace Voltium.Core.Devices
             int numMetaCommands;
             ThrowIfFailed(As<ID3D12Device5>()->EnumerateMetaCommands((uint*)&numMetaCommands, null));
 
-            var meta = RentedArray<D3D12_META_COMMAND_DESC>.Create(numMetaCommands);
+            var metas = RentedArray<D3D12_META_COMMAND_DESC>.Create(numMetaCommands);
             var descs = new MetaCommandDesc[numMetaCommands];
 
-            fixed (D3D12_META_COMMAND_DESC* pDesc = meta.Value)
+            fixed (D3D12_META_COMMAND_DESC* pDesc = metas.Value)
             {
                 ThrowIfFailed(As<ID3D12Device5>()->EnumerateMetaCommands((uint*)&numMetaCommands, pDesc));
 
                 for (int i = 0; i < numMetaCommands; i++)
                 {
-                    descs[i] = new MetaCommandDesc(meta.Value[i].Id, new string((char*)meta.Value[i].Name));
+                    ref readonly D3D12_META_COMMAND_DESC meta = ref metas.Value[i];
+                    descs[i] = new MetaCommandDesc(meta.Id, new string((char*)meta.Name));
                 }
             }
 

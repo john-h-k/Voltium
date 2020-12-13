@@ -55,7 +55,7 @@ namespace Voltium.RenderEngine
         {
             if (Desc.Type == ResourceType.Buffer)
             {
-                Desc.Buffer = allocator.AllocateBuffer(Desc.BufferDesc, Desc.MemoryAccess, Desc.InitialState);
+                Desc.Buffer = allocator.AllocateBuffer(Desc.BufferDesc, Desc.MemoryAccess);
             }
             else
             {

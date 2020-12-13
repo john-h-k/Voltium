@@ -17,8 +17,59 @@ namespace Voltium.Core.Devices
     /// <summary>
     /// A class used for management, compilation, and storing of shaders
     /// </summary>
-    public sealed class ShaderManager
+    public unsafe sealed class ShaderManager
     {
+        private static uint FourCc(char ch0, char ch1, char ch2, char ch3) =>
+            (uint)(byte)(ch0)
+            | (uint)(byte)(ch1) << 8
+            | (uint)(byte)(ch2) << 16
+            | (uint)(byte)(ch3) << 24;
+
+        private static uint DXC_PART_PDB = FourCc('I', 'L', 'D', 'B');
+        private static uint DXC_PART_PDB_NAME = FourCc('I', 'L', 'D', 'N');
+        private static uint DXC_PART_PRIVATE_DATA = FourCc('P', 'R', 'I', 'V');
+        private static uint DXC_PART_ROOT_SIGNATURE = FourCc('R', 'T', 'S', '0');
+        private static uint DXC_PART_DXIL = FourCc('D', 'X', 'I', 'L');
+        private static uint DXC_PART_REFLECTION_DATA = FourCc('S', 'T', 'A', 'T');
+        private static uint DXC_PART_SHADER_HASH = FourCc('H', 'A', 'S', 'H');
+        private static uint DXC_PART_INPUT_SIGNATURE = FourCc('I', 'S', 'G', '1');
+        private static uint DXC_PART_OUTPUT_SIGNATURE = FourCc('O', 'S', 'G', '1');
+        private static uint DXC_PART_PATCH_CONSTANT_SIGNATURE = FourCc('P', 'S', 'G', '1');
+
+        struct ShaderReflection
+        {
+            struct Sampler
+            {
+
+            }
+        }
+
+        private static void Reflect(CompiledShader shader)
+        {
+            var buffer = new DxcBuffer
+            {
+                Encoding = 0,
+                Ptr = shader.Pointer,
+                Size = shader.Length
+            };
+
+            using UniqueComPtr<ID3D12ShaderReflection> reflection = default;
+            Guard.ThrowIfFailed(Utils.Ptr->CreateReflection(&buffer, reflection.Iid, (void**)&reflection));
+
+            D3D12_SHADER_DESC desc;
+            Guard.ThrowIfFailed(reflection.Ptr->GetDesc(&desc));
+
+            for (var i = 0u; i < desc.BoundResources; i++)
+            {
+                D3D12_SHADER_INPUT_BIND_DESC bindDesc;
+                Guard.ThrowIfFailed(reflection.Ptr->GetResourceBindingDesc(i, &bindDesc));
+            }
+        }
+
+        private static void Link(ShaderReflection reflection, RootSignature rootSig)
+        {
+
+        }
 
         /// <summary>
         /// Reads a new <see cref="CompiledShader"/> from  a file

@@ -109,7 +109,8 @@ namespace Voltium.CubeGame
         private GraphicsDevice _device;
         private RenderChunk[] Chunks;
         private Buffer _frameConstants;
-        private DescriptorRange _texViews;
+        private DescriptorHeap _rtvs, _dsvs;
+        private DescriptorAllocation _texViews;
         private Texture[] _textures;
         private Camera _camera;
         private static readonly Rgba128 DefaultSkyColor = Rgba128.CornflowerBlue;
@@ -128,6 +129,9 @@ namespace Voltium.CubeGame
         {
             _device = device;
             _camera = camera;
+
+            _rtvs = _device.CreateDescriptorHeap(DescriptorHeapType.RenderTargetView, 1);
+            _dsvs = _device.CreateDescriptorHeap(DescriptorHeapType.RenderTargetView, 1);
 
             var @params = new RootParameter[]
             {
@@ -162,11 +166,7 @@ namespace Voltium.CubeGame
 
                 VertexShader = ShaderManager.CompileShader("Shaders/ChunkShader.hlsl", ShaderType.Vertex, shaderFlags, "VertexMain"),
                 PixelShader = ShaderManager.CompileShader("Shaders/ChunkShader.hlsl", ShaderType.Pixel, shaderFlags, "PixelMain"),
-                Inputs = InputLayout.FromType<BlockVertex>(),
-
-                Rasterizer = RasterizerDesc.Default,
-                DepthStencil = DepthStencilDesc.Default,
-                Blend = BlendDesc.Default
+                Inputs = InputLayout.FromType<BlockVertex>()
             };
 
             Pso = _device.PipelineManager.CreatePipelineStateObject(psoDesc, "ChunkPso");
@@ -203,12 +203,11 @@ namespace Voltium.CubeGame
             _textures[0] = upload.UploadTexture("Assets/Textures/bricks.dds");
             _textures[1] = upload.UploadTexture("Assets/Textures/stone.dds");
 
-            _texViews = _device.CreateResourceDescriptorRange(_textures.Length);
+            _texViews = _device.AllocateResourceDescriptors(_textures.Length);
 
             for (var i = 0; i < _textures.Length; i++)
             {
-                ref var texture = ref _textures[i];
-                _device.CreateShaderResourceView(_texViews[i], texture);
+                _device.CreateShaderResourceView(_textures[i], _texViews[i]);
             }
         }
 
@@ -252,6 +251,8 @@ namespace Voltium.CubeGame
 
             DefaultPipelineState = settings.Msaa.IsMultiSampled ? MsaaPso : Pso;
 
+            builder.SetOutput(resources.SceneColor);
+
             return true;
         }
 
@@ -265,11 +266,14 @@ namespace Voltium.CubeGame
             frame->View = _camera.View;
             frame->Projection = _camera.Projection;
 
+            _device.CreateRenderTargetView(sceneColor, _rtvs[0]);
+            _device.CreateDepthStencilView(sceneDepth, _dsvs[0]);
+
             var progressBuffer = _device.Allocator.AllocateBuffer(1024, MemoryAccess.GpuOnly);
 
             context.SetRootSignature(RootSignature);
-            context.SetAndClearRenderTarget(_device.CreateRenderTargetView(sceneColor), DefaultSkyColor, _device.CreateDepthStencilView(sceneDepth));
-            context.SetRootDescriptorTable(RootSignatureConstants.TextureIndex, _texViews.Start);
+            context.SetAndClearRenderTarget(_rtvs[0], DefaultSkyColor, _dsvs[0]);
+            context.SetRootDescriptorTable(RootSignatureConstants.TextureIndex, _texViews[0]);
             context.SetConstantBuffer<FrameConstants>(RootSignatureConstants.FrameConstantsIndex, _frameConstants);
             context.SetTopology(Topology.TriangleList);
             context.SetViewportAndScissor(sceneColor.Resolution);

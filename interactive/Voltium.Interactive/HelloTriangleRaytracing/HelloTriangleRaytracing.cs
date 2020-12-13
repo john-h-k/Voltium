@@ -197,13 +197,13 @@ namespace Voltium.Interactive.HelloTriangleRaytracing
                 ResourceState.UnorderedAccess
             );
 
-            _target = _device.CreateUnorderedAccessView(_renderTarget);
+             _device.CreateUnorderedAccessView(_renderTarget, _target);
         }
 
         public override void Update(ApplicationTimer timer) { /* This app doesn't do any updating */ }
         public override void Render()
         {
-            var context = (ComputeContext)_device.BeginGraphicsContext(_pso);
+            var context = (ComputeContext)_device.BeginComputeContext(_pso);
 
             context.SetShaderResourceBuffer(0, _tlas);
             context.SetRootDescriptorTable(1, _target);

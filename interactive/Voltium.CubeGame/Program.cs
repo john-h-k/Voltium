@@ -45,7 +45,8 @@ namespace Voltium.CubeGame
 
             _camera = new();
 
-            _graph = new RenderGraph(_device, 1);
+            const uint latency = 1;
+            _graph = new RenderGraph(_device, latency);
             _worldPass = new WorldPass(_device, _camera);
             _fxaaPass = new FxaaPass(_device);
             _outputPass = new TonemapPass(_output);

@@ -9,7 +9,8 @@ namespace Voltium.Core.Pipeline
     /// Describes the settings and state of the depth stencil of the pipeline
     /// </summary>
     [StructLayout(LayoutKind.Explicit)]
-    public struct DepthStencilDesc
+    [Fluent]
+    public partial struct DepthStencilDesc
     {
         /// <summary>
         /// The default <see cref="DepthStencilDesc"/>. This correspends
@@ -35,7 +36,7 @@ namespace Voltium.Core.Pipeline
         {
             EnableDepthTesting = false,
             DepthWriteMask = DepthWriteMask.Zero,
-            DepthComparison = Comparison.LessThan,
+            DepthComparison = Comparison.True,
             EnableStencilTesting = false,
             StencilReadMask = 0,
             StencilWriteMask = 0,
@@ -53,6 +54,12 @@ namespace Voltium.Core.Pipeline
         /// Whether depth testing should occur
         /// </summary>
         public bool EnableDepthTesting { get => Helpers.Int32ToBool(Type.Inner.DepthEnable); set => Type.Inner.DepthEnable = Helpers.BoolToInt32(value); }
+
+
+        /// <summary>
+        /// Whether dynamic depth bounds testing should occur. Set these bounds via <see cref="GraphicsContext.SetDepthsBounds(float, float)"/>
+        /// </summary>
+        public bool EnableDepthBoundsTesting { get => Helpers.Int32ToBool(Type.Inner.DepthBoundsTestEnable); set => Type.Inner.DepthBoundsTestEnable = Helpers.BoolToInt32(value); }
 
         /// <summary>
         /// The <see cref="DepthWriteMask"/>

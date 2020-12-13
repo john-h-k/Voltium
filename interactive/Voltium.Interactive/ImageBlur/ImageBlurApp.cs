@@ -158,14 +158,16 @@ namespace Voltium.Interactive.FloatMultiplySample
 
         public void BlurImage(in Texture source, in Texture dest)
         {
-            var srcView = _device.CreateShaderResourceView(source);
-            var destView = _device.CreateUnorderedAccessView(dest);
+            var views = _device.AllocateResourceDescriptors(2);
+
+            _device.CreateShaderResourceView(source, views[0]);
+            _device.CreateUnorderedAccessView(dest, views[1]);
 
             var context = _device.BeginComputeContext(_horizontalBlurPso);
 
             context.SetRoot32BitConstants(0, _settings);
-            context.SetRootDescriptorTable(1, srcView);
-            context.SetRootDescriptorTable(2, destView);
+            context.SetRootDescriptorTable(1, views[0]);
+            context.SetRootDescriptorTable(2, views[1]);
 
             uint x = (uint)MathF.Ceiling(source.Width / 256.0f);
             context.Dispatch(x, source.Height, 1);
@@ -176,6 +178,8 @@ namespace Voltium.Interactive.FloatMultiplySample
             context.Dispatch((uint)source.Width, y, 1);
 
             context.TransitionForCrossContextAccess(source, ResourceState.UnorderedAccess);
+
+            context.Attach(ref views);
 
             context.Close();
 

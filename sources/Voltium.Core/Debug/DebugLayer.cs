@@ -82,7 +82,7 @@ namespace Voltium.Common
     /// <summary>
     /// Defines global settings for creation of a <see cref="ComputeDevice"/> or <see cref="GraphicsDevice"/>
     /// </summary>
-    public unsafe static class DeviceCreationSettings
+    public static unsafe class DeviceCreationSettings
     {
         internal static bool HasDeviceBeenCreated = false;
 
@@ -93,9 +93,6 @@ namespace Voltium.Common
                 ThrowHelper.ThrowInvalidOperationException("Cannot change DeviceCreationSettings after a device has been created");
             }
         }
-
-        internal static bool AreMetaCommandsEnabled { get; private set; } = false;
-        internal static bool AreExperimentalShaderModelsEnabled { get; private set; } = false;
 
         private static UniqueComPtr<IDXGIDebug1> _dxgiDebugLayer = GetDxgiDebug();
         private static UniqueComPtr<IDXGraphicsAnalysis> _frameCapture = GetPixIfAttached();
@@ -136,26 +133,6 @@ namespace Voltium.Common
             }
 
             return analysis.Move();
-        }
-
-        /// <summary>
-        /// Enables the experimental D3D12 Meta Commands feature
-        /// </summary>
-        public static void EnableMetaCommands()
-        {
-            Guid iid = D3D12MetaCommand;
-            Guard.ThrowIfFailed(D3D12EnableExperimentalFeatures(1, &iid, null, null));
-            AreMetaCommandsEnabled = true;
-        }
-
-        /// <summary>
-        /// Enables experimental D3D12 shader models
-        /// </summary>
-        public static void EnableExperimentalShaderModels()
-        {
-            Guid iid = D3D12ExperimentalShaderModels;
-            Guard.ThrowIfFailed(D3D12EnableExperimentalFeatures(1, &iid, null, null));
-            AreExperimentalShaderModelsEnabled = true;
         }
 
         /// <summary>

@@ -10,23 +10,23 @@ namespace Voltium.Common.Pix
 #pragma warning disable
     public unsafe static partial class ScopedEventExtensions
     {
-        public readonly unsafe partial struct ScopedEvent : IDisposable
+        public readonly unsafe partial struct PixScopedEvent : IDisposable
         {
 
         }
 
-        public static ScopedEvent BeginEvent(
+        public static PixScopedEvent ScopedEvent(
             in Argb32 color,
             ReadOnlySpan<char> formatString
         )
         {
             PIXMethods.BeginEvent(color, formatString);
 
-            return new ScopedEvent(NoContext);
+            return new PixScopedEvent(NoContext);
         }
 
 
-        public static ScopedEvent BeginEvent<T0>(
+        public static PixScopedEvent ScopedEvent<T0>(
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0
@@ -34,11 +34,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(color, formatString, t0);
 
-            return new ScopedEvent(NoContext);
+            return new PixScopedEvent(NoContext);
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1>(
+        public static PixScopedEvent ScopedEvent<T0, T1>(
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -47,11 +47,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(color, formatString, t0, t1);
 
-            return new ScopedEvent(NoContext);
+            return new PixScopedEvent(NoContext);
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2>(
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -61,11 +61,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(color, formatString, t0, t1, t2);
 
-            return new ScopedEvent(NoContext);
+            return new PixScopedEvent(NoContext);
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3>(
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -76,11 +76,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(color, formatString, t0, t1, t2, t3);
 
-            return new ScopedEvent(NoContext);
+            return new PixScopedEvent(NoContext);
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3, T4>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3, T4>(
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -92,11 +92,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(color, formatString, t0, t1, t2, t3, t4);
 
-            return new ScopedEvent(NoContext);
+            return new PixScopedEvent(NoContext);
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3, T4, T5>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3, T4, T5>(
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -109,11 +109,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(color, formatString, t0, t1, t2, t3, t4, t5);
 
-            return new ScopedEvent(NoContext);
+            return new PixScopedEvent(NoContext);
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3, T4, T5, T6>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3, T4, T5, T6>(
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -127,11 +127,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(color, formatString, t0, t1, t2, t3, t4, t5, t6);
 
-            return new ScopedEvent(NoContext);
+            return new PixScopedEvent(NoContext);
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7>(
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -146,11 +146,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(color, formatString, t0, t1, t2, t3, t4, t5, t6, t7);
 
-            return new ScopedEvent(NoContext);
+            return new PixScopedEvent(NoContext);
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8>(
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -166,11 +166,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(color, formatString, t0, t1, t2, t3, t4, t5, t6, t7, t8);
 
-            return new ScopedEvent(NoContext);
+            return new PixScopedEvent(NoContext);
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9>(
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -187,11 +187,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(color, formatString, t0, t1, t2, t3, t4, t5, t6, t7, t8, t9);
 
-            return new ScopedEvent(NoContext);
+            return new PixScopedEvent(NoContext);
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>(
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -209,11 +209,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(color, formatString, t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10);
 
-            return new ScopedEvent(NoContext);
+            return new PixScopedEvent(NoContext);
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>(
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -232,11 +232,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(color, formatString, t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11);
 
-            return new ScopedEvent(NoContext);
+            return new PixScopedEvent(NoContext);
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>(
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -256,11 +256,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(color, formatString, t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12);
 
-            return new ScopedEvent(NoContext);
+            return new PixScopedEvent(NoContext);
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>(
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -281,11 +281,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(color, formatString, t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13);
 
-            return new ScopedEvent(NoContext);
+            return new PixScopedEvent(NoContext);
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14>(
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -307,11 +307,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(color, formatString, t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14);
 
-            return new ScopedEvent(NoContext);
+            return new PixScopedEvent(NoContext);
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15>(
             in Argb32 color,
             ReadOnlySpan<char> formatString,
             T0 t0,
@@ -335,11 +335,11 @@ namespace Voltium.Common.Pix
             PIXMethods.BeginEvent(color, formatString, t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14,
                 t15);
 
-            return new ScopedEvent(NoContext);
+            return new PixScopedEvent(NoContext);
         }
 
 
-        public static ScopedEvent BeginEvent(
+        public static PixScopedEvent ScopedEvent(
             ID3D12CommandQueue* context,
             in Argb32 color,
             ReadOnlySpan<char> formatString
@@ -347,11 +347,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(context, color, formatString);
 
-            return new ScopedEvent(context);
+            return new PixScopedEvent(context);
         }
 
 
-        public static ScopedEvent BeginEvent<T0>(
+        public static PixScopedEvent ScopedEvent<T0>(
             ID3D12CommandQueue* context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
@@ -360,11 +360,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(context, color, formatString, t0);
 
-            return new ScopedEvent(context);
+            return new PixScopedEvent(context);
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1>(
+        public static PixScopedEvent ScopedEvent<T0, T1>(
             ID3D12CommandQueue* context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
@@ -374,11 +374,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(context, color, formatString, t0, t1);
 
-            return new ScopedEvent(context);
+            return new PixScopedEvent(context);
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2>(
             ID3D12CommandQueue* context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
@@ -389,11 +389,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(context, color, formatString, t0, t1, t2);
 
-            return new ScopedEvent(context);
+            return new PixScopedEvent(context);
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3>(
             ID3D12CommandQueue* context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
@@ -405,11 +405,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(context, color, formatString, t0, t1, t2, t3);
 
-            return new ScopedEvent(context);
+            return new PixScopedEvent(context);
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3, T4>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3, T4>(
             ID3D12CommandQueue* context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
@@ -422,11 +422,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(context, color, formatString, t0, t1, t2, t3, t4);
 
-            return new ScopedEvent(context);
+            return new PixScopedEvent(context);
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3, T4, T5>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3, T4, T5>(
             ID3D12CommandQueue* context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
@@ -440,11 +440,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(context, color, formatString, t0, t1, t2, t3, t4, t5);
 
-            return new ScopedEvent(context);
+            return new PixScopedEvent(context);
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3, T4, T5, T6>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3, T4, T5, T6>(
             ID3D12CommandQueue* context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
@@ -459,11 +459,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(context, color, formatString, t0, t1, t2, t3, t4, t5, t6);
 
-            return new ScopedEvent(context);
+            return new PixScopedEvent(context);
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7>(
             ID3D12CommandQueue* context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
@@ -479,11 +479,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(context, color, formatString, t0, t1, t2, t3, t4, t5, t6, t7);
 
-            return new ScopedEvent(context);
+            return new PixScopedEvent(context);
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8>(
             ID3D12CommandQueue* context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
@@ -500,11 +500,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(context, color, formatString, t0, t1, t2, t3, t4, t5, t6, t7, t8);
 
-            return new ScopedEvent(context);
+            return new PixScopedEvent(context);
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9>(
             ID3D12CommandQueue* context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
@@ -522,11 +522,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(context, color, formatString, t0, t1, t2, t3, t4, t5, t6, t7, t8, t9);
 
-            return new ScopedEvent(context);
+            return new PixScopedEvent(context);
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>(
             ID3D12CommandQueue* context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
@@ -545,11 +545,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(context, color, formatString, t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10);
 
-            return new ScopedEvent(context);
+            return new PixScopedEvent(context);
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>(
             ID3D12CommandQueue* context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
@@ -569,11 +569,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(context, color, formatString, t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11);
 
-            return new ScopedEvent(context);
+            return new PixScopedEvent(context);
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>(
             ID3D12CommandQueue* context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
@@ -594,11 +594,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(context, color, formatString, t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12);
 
-            return new ScopedEvent(context);
+            return new PixScopedEvent(context);
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>(
             ID3D12CommandQueue* context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
@@ -621,11 +621,11 @@ namespace Voltium.Common.Pix
             PIXMethods.BeginEvent(context, color, formatString, t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12,
                 t13);
 
-            return new ScopedEvent(context);
+            return new PixScopedEvent(context);
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14>(
             ID3D12CommandQueue* context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
@@ -649,11 +649,11 @@ namespace Voltium.Common.Pix
             PIXMethods.BeginEvent(context, color, formatString, t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12,
                 t13, t14);
 
-            return new ScopedEvent(context);
+            return new PixScopedEvent(context);
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15>(
             ID3D12CommandQueue* context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
@@ -678,11 +678,11 @@ namespace Voltium.Common.Pix
             PIXMethods.BeginEvent(context, color, formatString, t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12,
                 t13, t14, t15);
 
-            return new ScopedEvent(context);
+            return new PixScopedEvent(context);
         }
 
 
-        public static ScopedEvent BeginEvent(
+        public static PixScopedEvent ScopedEvent(
             this GraphicsContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString
@@ -690,11 +690,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(context, color, formatString);
 
-            return new ScopedEvent(context.GetListPointer());
+            return new PixScopedEvent(context.GetListPointer());
         }
 
 
-        public static ScopedEvent BeginEvent<T0>(
+        public static PixScopedEvent ScopedEvent<T0>(
             this GraphicsContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
@@ -703,11 +703,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(context, color, formatString, t0);
 
-            return new ScopedEvent(context.GetListPointer());
+            return new PixScopedEvent(context.GetListPointer());
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1>(
+        public static PixScopedEvent ScopedEvent<T0, T1>(
             this GraphicsContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
@@ -717,11 +717,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(context, color, formatString, t0, t1);
 
-            return new ScopedEvent(context.GetListPointer());
+            return new PixScopedEvent(context.GetListPointer());
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2>(
             this GraphicsContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
@@ -732,11 +732,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(context, color, formatString, t0, t1, t2);
 
-            return new ScopedEvent(context.GetListPointer());
+            return new PixScopedEvent(context.GetListPointer());
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3>(
             this GraphicsContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
@@ -748,11 +748,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(context, color, formatString, t0, t1, t2, t3);
 
-            return new ScopedEvent(context.GetListPointer());
+            return new PixScopedEvent(context.GetListPointer());
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3, T4>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3, T4>(
             this GraphicsContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
@@ -765,11 +765,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(context, color, formatString, t0, t1, t2, t3, t4);
 
-            return new ScopedEvent(context.GetListPointer());
+            return new PixScopedEvent(context.GetListPointer());
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3, T4, T5>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3, T4, T5>(
             this GraphicsContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
@@ -783,11 +783,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(context, color, formatString, t0, t1, t2, t3, t4, t5);
 
-            return new ScopedEvent(context.GetListPointer());
+            return new PixScopedEvent(context.GetListPointer());
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3, T4, T5, T6>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3, T4, T5, T6>(
             this GraphicsContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
@@ -802,11 +802,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(context, color, formatString, t0, t1, t2, t3, t4, t5, t6);
 
-            return new ScopedEvent(context.GetListPointer());
+            return new PixScopedEvent(context.GetListPointer());
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7>(
             this GraphicsContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
@@ -822,11 +822,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(context, color, formatString, t0, t1, t2, t3, t4, t5, t6, t7);
 
-            return new ScopedEvent(context.GetListPointer());
+            return new PixScopedEvent(context.GetListPointer());
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8>(
             this GraphicsContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
@@ -843,11 +843,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(context, color, formatString, t0, t1, t2, t3, t4, t5, t6, t7, t8);
 
-            return new ScopedEvent(context.GetListPointer());
+            return new PixScopedEvent(context.GetListPointer());
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9>(
             this GraphicsContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
@@ -865,11 +865,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(context, color, formatString, t0, t1, t2, t3, t4, t5, t6, t7, t8, t9);
 
-            return new ScopedEvent(context.GetListPointer());
+            return new PixScopedEvent(context.GetListPointer());
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>(
             this GraphicsContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
@@ -888,11 +888,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(context, color, formatString, t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10);
 
-            return new ScopedEvent(context.GetListPointer());
+            return new PixScopedEvent(context.GetListPointer());
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>(
             this GraphicsContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
@@ -912,11 +912,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(context, color, formatString, t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11);
 
-            return new ScopedEvent(context.GetListPointer());
+            return new PixScopedEvent(context.GetListPointer());
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>(
             this GraphicsContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
@@ -937,11 +937,11 @@ namespace Voltium.Common.Pix
         {
             PIXMethods.BeginEvent(context, color, formatString, t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12);
 
-            return new ScopedEvent(context.GetListPointer());
+            return new PixScopedEvent(context.GetListPointer());
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>(
             this GraphicsContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
@@ -964,11 +964,11 @@ namespace Voltium.Common.Pix
             PIXMethods.BeginEvent(context, color, formatString, t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12,
                 t13);
 
-            return new ScopedEvent(context.GetListPointer());
+            return new PixScopedEvent(context.GetListPointer());
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14>(
             this GraphicsContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
@@ -992,11 +992,11 @@ namespace Voltium.Common.Pix
             PIXMethods.BeginEvent(context, color, formatString, t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12,
                 t13, t14);
 
-            return new ScopedEvent(context.GetListPointer());
+            return new PixScopedEvent(context.GetListPointer());
         }
 
 
-        public static ScopedEvent BeginEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15>(
+        public static PixScopedEvent ScopedEvent<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15>(
             this GraphicsContext context,
             in Argb32 color,
             ReadOnlySpan<char> formatString,
@@ -1021,7 +1021,7 @@ namespace Voltium.Common.Pix
             PIXMethods.BeginEvent(context, color, formatString, t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12,
                 t13, t14, t15);
 
-            return new ScopedEvent(context.GetListPointer());
+            return new PixScopedEvent(context.GetListPointer());
         }
     }
 }

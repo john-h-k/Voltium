@@ -9,12 +9,58 @@ using Voltium.Core.Memory;
 
 namespace Voltium.Core.Devices
 {
+    internal struct TextureSubresourceLayout
+    {
+        public D3D12_PLACED_SUBRESOURCE_FOOTPRINT[] Layouts;
+        public uint[] NumRows;
+        public ulong[] RowSizes;
+        public ulong TotalSize;
+
+    }
+
     public unsafe partial class ComputeDevice
     {
         // Convienience wrapper methods over ID3D12Device* 
 
         internal D3D12_RESOURCE_ALLOCATION_INFO GetAllocationInfo(InternalAllocDesc* desc)
             => DevicePointer->GetResourceAllocationInfo(0, 1, &desc->Desc);
+
+        private uint RtvDescriptorSize, DsvDescriptorSize, SamplerDescriptorSize, CbvSrvUavDescriptorSize;
+
+        internal uint GetIncrementSizeForDescriptorType(D3D12_DESCRIPTOR_HEAP_TYPE type)
+        {
+            if (RtvDescriptorSize == 0)
+            {
+                RtvDescriptorSize = DevicePointer->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE.D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+                DsvDescriptorSize = DevicePointer->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE.D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+                SamplerDescriptorSize = DevicePointer->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE.D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+                CbvSrvUavDescriptorSize = DevicePointer->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE.D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+            }
+
+            return type switch
+            {
+                D3D12_DESCRIPTOR_HEAP_TYPE.D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV => CbvSrvUavDescriptorSize,
+                D3D12_DESCRIPTOR_HEAP_TYPE.D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER => SamplerDescriptorSize,
+                D3D12_DESCRIPTOR_HEAP_TYPE.D3D12_DESCRIPTOR_HEAP_TYPE_RTV => RtvDescriptorSize,
+                D3D12_DESCRIPTOR_HEAP_TYPE.D3D12_DESCRIPTOR_HEAP_TYPE_DSV => DsvDescriptorSize,
+                _ => ThrowHelper.ThrowArgumentOutOfRangeException<uint>(nameof(type))
+            };
+        }
+
+        internal void CopyDescriptors(uint numDescriptors, D3D12_CPU_DESCRIPTOR_HANDLE dest, D3D12_CPU_DESCRIPTOR_HANDLE src, D3D12_DESCRIPTOR_HEAP_TYPE type)
+            => DevicePointer->CopyDescriptorsSimple(numDescriptors, dest, src, type);
+
+        internal UniqueComPtr<ID3D12DescriptorHeap> CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_DESC* desc)
+        {
+            using UniqueComPtr<ID3D12DescriptorHeap> descriptorHeap = default;
+            ThrowIfFailed(DevicePointer->CreateDescriptorHeap(
+                desc,
+                descriptorHeap.Iid,
+                (void**)&descriptorHeap
+            ));
+
+            return descriptorHeap.Move();
+        }
 
         internal UniqueComPtr<ID3D12CommandAllocator> CreateAllocator(ExecutionContext context)
         {
@@ -73,12 +119,14 @@ namespace Voltium.Core.Devices
         {
             using UniqueComPtr<ID3D12Resource> resource = default;
 
+            bool hasClearVal = desc->Desc.Dimension != D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_BUFFER && GpuAllocator.IsRenderTargetOrDepthStencil(desc->Desc.Flags);
+
             ThrowIfFailed(DevicePointer->CreateCommittedResource(
                     &desc->HeapProperties,
                     D3D12_HEAP_FLAGS.D3D12_HEAP_FLAG_NONE,
                     &desc->Desc,
                     desc->InitialState,
-                    desc->Desc.Dimension == D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_BUFFER ? null : &desc->ClearValue,
+                    hasClearVal ? &desc->ClearValue : null,
                     resource.Iid,
                     (void**)&resource
             ));
@@ -163,13 +211,13 @@ namespace Voltium.Core.Devices
             }
         }
 
-        internal TextureLayout GetCopyableFootprints(
+        internal TextureSubresourceLayout GetCopyableFootprints(
             in Texture tex,
             uint firstSubresource,
             uint numSubresources
         )
         {
-            TextureLayout layout;
+            TextureSubresourceLayout layout;
             GetCopyableFootprints(tex, firstSubresource, numSubresources, out layout.Layouts, out layout.NumRows, out layout.RowSizes, out layout.TotalSize);
             return layout;
         }

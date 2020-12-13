@@ -72,7 +72,7 @@ namespace Voltium.Core.Memory
             return new GpuSpan<T>(GpuPointer + offset, _pointer + offset, length);
         }
 
-        public ref T this[ulong index] => ref ((T*)_pointer)[index];
+        public ref T this[ulong index] => ref _pointer is null ? ref Unsafe.NullRef<T>() : ref ((T*)_pointer)[index];
 
         public static bool operator ==(GpuSpan<T> left, GpuSpan<T> right)
             => left.GpuPointer == right.GpuPointer && left.Length == right.Length;

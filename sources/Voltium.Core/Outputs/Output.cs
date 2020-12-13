@@ -31,10 +31,10 @@ namespace Voltium.Core.Devices
 
         private protected OutputConfiguration _desc;
         private protected GraphicsDevice _device;
-        private protected DescriptorHeap _viewHeap;
+        private protected DescriptorHeap _viewHeap = null!;
 
         private protected BackBufferBuffer16 _backBuffers;
-        private protected DescriptorHandleBuffer16 _views;
+        private protected DescriptorAllocation _views;
         private protected uint _backBufferIndex;
 
         /// <summary>
@@ -94,19 +94,19 @@ namespace Voltium.Core.Devices
         private protected void CreateViews()
         {
             // Create or reset the heap
-            if (!_viewHeap.Exists)
+            if (_viewHeap is null)
             {
-                _viewHeap = DescriptorHeap.Create(_device, DescriptorHeapType.RenderTargetView, Configuration.BackBufferCount);
+                _viewHeap = _device.CreateDescriptorHeap(DescriptorHeapType.RenderTargetView, Configuration.BackBufferCount, false);
+                _views = _viewHeap.AllocateHandles(Configuration.BackBufferCount);
             }
             else
             {
                 _viewHeap.ResetHeap();
             }
 
-
             for (var i = 0u; i < Configuration.BackBufferCount; i++)
             {
-                _views[i] = _device.CreateRenderTargetView(_backBuffers[i], _viewHeap.GetNextHandle());
+                _device.CreateRenderTargetView(_backBuffers[i], _views[i]);
             }
         }
 
@@ -120,7 +120,7 @@ namespace Voltium.Core.Devices
         /// <returns>A new <see cref="Output"/></returns>
         public static Output Create(OutputConfiguration desc, GraphicsDevice device, IOutputOwner window, Size outputArea = default)
         {
-            return new SwapChainOutput(device, CreateDesc(desc, outputArea), window, desc);
+            return new SwapChainOutput(device, outputArea, window, desc);
         }
 
         //public static Output CreateForVideoOutput(GraphicsDevice device, OutputConfiguration desc, Size outputArea)
@@ -149,7 +149,7 @@ namespace Voltium.Core.Devices
         /// <returns>A new <see cref="Output"/></returns>
         public static Output CreateForWin32(GraphicsDevice device, OutputConfiguration desc, IntPtr window, Size outputArea = default)
         {
-            return new SwapChainOutput(device, CreateDesc(desc, outputArea), IOutputOwner.FromHwnd(window), desc);
+            return new SwapChainOutput(device, outputArea, IOutputOwner.FromHwnd(window), desc);
         }
 
 
@@ -174,7 +174,7 @@ namespace Voltium.Core.Devices
         /// <returns>A new <see cref="Output"/></returns>
         public static Output CreateForWinRT(GraphicsDevice device, OutputConfiguration desc, void* window, Size outputArea = default)
         {
-            return new SwapChainOutput(device, CreateDesc(desc, outputArea), IOutputOwner.FromICoreWindow(window), desc);
+            return new SwapChainOutput(device, outputArea, IOutputOwner.FromICoreWindow(window), desc);
         }
 
 
@@ -188,7 +188,7 @@ namespace Voltium.Core.Devices
         /// <returns>A new <see cref="Output"/></returns>
         public static Output CreateForSwapChainPanel(GraphicsDevice device, OutputConfiguration desc, void* swapChainPanelNative, Size outputArea)
         {
-            return new SwapChainOutput(device, CreateDesc(desc, outputArea), IOutputOwner.FromSwapChainPanel(swapChainPanelNative), desc);
+            return new SwapChainOutput(device, outputArea, IOutputOwner.FromSwapChainPanel(swapChainPanelNative), desc);
         }
 
         private protected static UniqueComPtr<IDXGIFactory2> CreateFactory()
@@ -208,39 +208,16 @@ namespace Voltium.Core.Devices
             return factory.Move();
         }
 
-        private static DXGI_SWAP_CHAIN_DESC1 CreateDesc(OutputConfiguration desc, Size outputArea)
-        {
-            if (desc.BackBufferCount > BackBufferBuffer16.BufferLength)
-            {
-                ThrowHelper.ThrowArgumentException($"Cannot have more than {BackBufferBuffer16.BufferLength} back buffers");
-            }
-
-            return new DXGI_SWAP_CHAIN_DESC1
-            {
-                AlphaMode = DXGI_ALPHA_MODE.DXGI_ALPHA_MODE_IGNORE, // TODO document
-                BufferCount = desc.BackBufferCount,
-                BufferUsage = (uint)desc.Flags.UsageFlags(), // this is the output chain
-                Flags = 0,
-                Format = (DXGI_FORMAT)desc.BackBufferFormat,
-                Height = (uint)outputArea.Height,
-                Width = (uint)outputArea.Width,
-                SampleDesc = new DXGI_SAMPLE_DESC(count: 1, quality: 0), // backbuffer MSAA is not supported in D3D12
-                Scaling = DXGI_SCALING.DXGI_SCALING_NONE,
-                Stereo = FALSE, // stereoscopic rendering, 2 images, e.g VR or 3D holo
-                SwapEffect = desc.Flags.HasFlag(OutputFlags.PreserveBackBuffer) ? DXGI_SWAP_EFFECT.DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL : DXGI_SWAP_EFFECT.DXGI_SWAP_EFFECT_FLIP_DISCARD
-            };
-        }
-
         /// <summary>
         /// Presents the current back buffer to the output, and advances to the next back buffer
         /// </summary>
-        public void Present()
+        public void Present(in GpuTask presentAfter = default)
         {
-            InternalPresent();
+            InternalPresent(presentAfter);
             _backBufferIndex = (_backBufferIndex + 1) % _desc.BackBufferCount;
         }
 
-        internal abstract void InternalPresent();
+        internal abstract void InternalPresent(in GpuTask presentAfter);
 
         internal abstract void InternalResize(Size newSize);
 

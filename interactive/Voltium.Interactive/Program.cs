@@ -20,6 +20,7 @@ using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Exceptions;
 using Microsoft.Extensions.Logging;
+using Voltium.Interactive.Samples.Predication;
 
 namespace Voltium.Interactive
 {
@@ -27,7 +28,7 @@ namespace Voltium.Interactive
     {
         private static int Main(string[] args)
         {
-            var application = new HelloTriangleRaytracingApp();
+            var application = new PredicationSample();
             return ApplicationRunner.RunWin32(application);
         }
     }

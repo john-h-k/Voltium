@@ -33,6 +33,7 @@ namespace Voltium.Interactive.RenderGraphSamples
     {
         private GraphicsDevice _device;
         private Size _resolution;
+        private DescriptorHeap _heap;
 
         public override bool Register(ref RenderPassBuilder builder, ref Resolver resolver)
         {
@@ -53,12 +54,12 @@ namespace Voltium.Interactive.RenderGraphSamples
         public override void Record(GraphicsContext context, ref Resolver resolver)
         {
             var renderTarget = resolver.ResolveResource(resolver.GetComponent<PipelineResources>().SceneColor);
-            var renderTargetView = _device.CreateRenderTargetView(renderTarget);
+            _device.CreateRenderTargetView(renderTarget, _heap[0]);
 
             context.Barrier(ResourceBarrier.Transition(renderTarget, ResourceState.PixelShaderResource, ResourceState.RenderTarget));
 
             context.SetViewportAndScissor(_resolution);
-            context.SetRenderTargets(renderTargetView);
+            context.SetRenderTarget(_heap[0]);
             context.Discard(renderTarget);
             context.SetTopology(Topology.TriangleList);
             context.SetShaderResourceBuffer(0, _colors);
@@ -72,6 +73,8 @@ namespace Voltium.Interactive.RenderGraphSamples
         {
             _device = device;
             _resolution = resolution;
+
+            _heap = _device.CreateDescriptorHeap(DescriptorHeapType.RenderTargetView, 1);
 
             using (var copy = device.BeginUploadContext())
             {

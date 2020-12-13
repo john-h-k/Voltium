@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
@@ -7,15 +8,17 @@ using Voltium.Common;
 using Voltium.Core.Devices;
 using Voltium.Core.Memory;
 using Voltium.Core.Pool;
+using Buffer = Voltium.Core.Memory.Buffer;
 
 namespace Voltium.Core
 {
     /// <summary>
     /// Represents a generic Gpu context
     /// </summary>
-    public unsafe class GpuContext : IDisposable
+    public unsafe partial class GpuContext : IDisposable
     {
         internal ContextParams Params;
+        internal List<IDisposable?> AttachedResources { get; private set; } = new();
 
         internal ID3D12GraphicsCommandList* GetListPointer() => (ID3D12GraphicsCommandList*)List;
 
@@ -31,6 +34,20 @@ namespace Voltium.Core
             // We can't read past this many buffers as we skip init'ing them
 
             // Don't bother zero'ing expensive buffer
+        }
+
+        [VariadicGeneric("Attach(%t); %t = default!;", minNumberArgs: 1)]
+        public void Attach<T0>(ref T0 t0)
+            where T0 : IDisposable
+        {
+            Attach(t0);
+            t0 = default!;
+            VariadicGenericAttribute.InsertExpressionsHere();
+        }
+
+        private void Attach(IDisposable resource)
+        {
+            AttachedResources.Add(resource);
         }
 
         /// <summary>

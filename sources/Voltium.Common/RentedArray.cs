@@ -64,7 +64,26 @@ namespace Voltium.Common
         public ref T GetPinnableReference() => ref MemoryMarshal.GetArrayDataReference(Value);
 
         public Pinnable CreatePinnable(bool underlyingArrayIsPrePinned = false) => new Pinnable(this, underlyingArrayIsPrePinned);
-        public void Dispose() => Pool.Return(Value);
-        public void Dispose(bool clear) => Pool.Return(Value, clear);
+
+
+        // These prevent double returns
+
+        public void Dispose()
+        {
+            if (Value is not null)
+            {
+                Pool?.Return(Value);
+                Unsafe.AsRef(in Value) = null!;
+            }
+        }
+
+        public void Dispose(bool clear)
+        {
+            if (Value is not null)
+            {
+                Pool?.Return(Value, clear);
+                Unsafe.AsRef(in Value) = null!;
+            }
+        }
     }
 }

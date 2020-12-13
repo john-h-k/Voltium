@@ -56,7 +56,7 @@ namespace Voltium.Core
         public Rgba128 WithA(float a)
             => new Rgba128(R, G, B, a);
 
-        public Rgba128 WithRGB(float r, float g, float b)
+        public Rgba128 WithRgb(float r, float g, float b)
             => new Rgba128(r, g, b, A);
 #pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
 

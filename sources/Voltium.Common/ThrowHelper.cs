@@ -35,9 +35,15 @@ namespace Voltium.Common
         [DoesNotReturn]
         public static void Todo() => throw new NotImplementedException();
 
+
         [DebuggerHidden]
         [DoesNotReturn]
-        public static void ThrowArgumentException(string message, Exception inner) =>
+        public static void ThrowFormatException(string message, Exception? inner = null) =>
+            throw new FormatException(message, inner);
+
+        [DebuggerHidden]
+        [DoesNotReturn]
+        public static void ThrowArgumentException(string message, Exception? inner = null) =>
             throw new ArgumentException(message, inner);
 
         [DebuggerHidden]
@@ -287,6 +293,12 @@ namespace Voltium.Common
 
         [DoesNotReturn]
         public static T Todo<T>() => throw new NotImplementedException();
+
+
+        [DebuggerHidden]
+        [DoesNotReturn]
+        public static T ThrowFormatException<T>(string message, Exception? inner = null) =>
+            throw new FormatException(message, inner);
 
         [DebuggerHidden]
         [DoesNotReturn]

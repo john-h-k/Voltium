@@ -205,6 +205,7 @@ namespace Voltium.Common
                 E_FAIL => new InvalidOperationException(inner.Message, inner),
                 E_OUTOFMEMORY => new OutOfMemoryException(inner.Message, inner),
                 E_NOTIMPL => new NotImplementedException(inner.Message, inner),
+                DXGI_ERROR_NOT_FOUND => new KeyNotFoundException(inner.Message, inner),
                 _ => inner,
             };
 

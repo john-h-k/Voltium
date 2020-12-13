@@ -26,8 +26,8 @@ namespace Voltium.RenderEngine
     {
         private GraphicsDevice _device;
 
-        private DescriptorHeap _transientRtvs;
-        private DescriptorHeap _transientDsvs;
+        private DescriptorHeap _transientRtvs = null!;
+        private DescriptorHeap _transientDsvs = null!;
 
         private DictionarySlim<RenderPass, PassHeuristics> _heuristics = new();
 
@@ -60,6 +60,8 @@ namespace Voltium.RenderEngine
         private FrameData _lastFrame;
 
         private Dictionary<TextureDesc, (Texture Texture, ResourceState LastKnownState)> _cachedTextures = new();
+
+        private List<object?> _outputs = new();
 
         private static bool EnablePooling => false;
 
@@ -123,6 +125,31 @@ namespace Voltium.RenderEngine
             _frame.Resolver.CreateComponent(component3);
         }
 
+        internal void SetOutput(int passIndex, object? val) => _outputs[passIndex] = val;
+        internal object? GetInput(int passIndex)
+        {
+            if (passIndex == 0)
+            {
+                ThrowHelper.ThrowInvalidOperationException("First pass doesn't have an input");
+            }
+
+            return _outputs[passIndex - 1];
+        }
+
+        internal T GetInputAs<T>(int passIndex)
+        {
+            var input = GetInput(passIndex);
+            if (input is T t)
+            {
+                return t;
+            }
+
+            return ThrowHelper.ThrowInvalidOperationException<T>(GetMessage(input));
+
+            static string GetMessage(object? o) => $"Tried to retrieve a pass input with type '{typeof(T).Name}', but pass input was {NullOrType(o)}";
+            static string NullOrType(object? o) => o is null ? "null" : $"of type '{o.GetType().Name}'";
+        }
+
         /// <summary>
         /// Registers a pass into the graph, and calls the <see cref="RenderPass.Register(ref RenderPassBuilder, ref Resolver)"/> 
         /// method immediately to register all dependencies
@@ -132,6 +159,7 @@ namespace Voltium.RenderEngine
         {
             var passIndex = _frame.RenderPasses.Count;
             var builder = new RenderPassBuilder(this, passIndex, pass);
+            _outputs.Add(null);
 
             // Register returning false means "discard pass from graph"
             if (!pass.Register(ref builder, ref _frame.Resolver))
@@ -195,11 +223,6 @@ namespace Voltium.RenderEngine
             _frames[_frameIndex].Block();
             _frames[_frameIndex] = task;
 
-            if (_frameIndex == 0)
-            {
-                _device.ResetRenderTargetViewHeap();
-                _device.ResetDepthStencilViewHeap();
-            }
             _frameIndex = (_frameIndex + 1) % _maxFrameLatency;
 
             if (preserveLastFrame)
@@ -298,10 +321,10 @@ namespace Voltium.RenderEngine
             {
                 ThrowHelper.ThrowInvalidOperationException("Resource was not created");
             }
-            return ref ListExtensions.GetRef(_frame.Resources, (int)handle.Index - 1);
+            return ref Common.ListExtensions.GetRef(_frame.Resources, (int)handle.Index - 1);
         }
 
-        internal ref RenderPassBuilder GetRenderPass(int index) => ref ListExtensions.GetRef(_frame.RenderPasses, index);
+        internal ref RenderPassBuilder GetRenderPass(int index) => ref Common.ListExtensions.GetRef(_frame.RenderPasses, index);
 
         private struct GraphLayer
         {
@@ -352,6 +375,11 @@ namespace Voltium.RenderEngine
                         // make sure no 0 height/depth
                         resource.Desc.TextureDesc.DepthOrArraySize = Math.Max((ushort)1U, resource.Desc.TextureDesc.DepthOrArraySize);
                         resource.Desc.TextureDesc.Height = Math.Max(1U, resource.Desc.TextureDesc.Height);
+
+                        if (resource.Desc.Type == ResourceType.Texture && resource.Desc.Texture.Format == DataFormat.Unknown)
+                        {
+                            resource.Desc.TextureDesc.Format = primary.Format;
+                        }
                     }
                 }
 

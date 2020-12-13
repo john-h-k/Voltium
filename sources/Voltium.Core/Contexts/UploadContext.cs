@@ -22,6 +22,8 @@ namespace Voltium.Core.Contexts
     /// </summary>
     public unsafe class UploadContext : CopyContext
     {
+        // TODO - UMA architectures wont let the copycontext methods be used (as no command list is present)
+
         private List<Buffer> _listBuffers;
         private DynamicAllocator _transientAllocator;
         private const int MaxNumNonListBuffers = 8;
@@ -31,6 +33,13 @@ namespace Voltium.Core.Contexts
             _listBuffers = new();
             _transientAllocator = new DynamicAllocator(Device, MemoryAccess.CpuUpload);
         }
+
+
+        /// <summary>
+        /// Whether this upload context implicitly behaves synchronously, as the device is a cache-coherent UMA architecture
+        /// where GPU resources to can be written via the CPU
+        /// </summary>
+        public bool IsContextSync => Params.Device.Allocator.GpuOnlyResourcesAreWritable;
 
         /// <summary>
         /// Uploads a buffer from the CPU to the GPU
@@ -71,7 +80,7 @@ namespace Voltium.Core.Contexts
         /// <param name="buffer"></param>
         public Buffer UploadBuffer<T>(ReadOnlySpan<T> buffer) where T : unmanaged
         {
-            var destination = Device.Allocator.AllocateBuffer(buffer.Length * sizeof(T), MemoryAccess.GpuOnly, ResourceState.CopyDestination);
+            var destination = Device.Allocator.AllocateBuffer(buffer.Length * sizeof(T), MemoryAccess.GpuOnly);
             UploadBufferToPreexisting(buffer, destination);
             return destination;
         }
@@ -96,10 +105,16 @@ namespace Voltium.Core.Contexts
         /// <param name="destination"></param>
         public void UploadBufferToPreexisting<T>(ReadOnlySpan<T> buffer, in Buffer destination) where T : unmanaged
         {
+            if (Params.Device.Architecture.IsCacheCoherentUma)
+            {
+                buffer.CopyTo(destination.AsSpan<T>());
+                return;
+            }
+
             var upload = _transientAllocator.AllocateBuffer(buffer.Length * sizeof(T));
             upload.WriteData(buffer);
 
-            CopyBufferRegion(upload, destination);
+            CopyResource(upload, destination);
         }
 
         /// <summary>
@@ -110,12 +125,22 @@ namespace Voltium.Core.Contexts
         /// <param name="destination"></param>
         public void UploadTextureToPreexisting(ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, in Texture destination)
         {
+            if (Params.Device.Architecture.IsCacheCoherentUma)
+            {
+                for (var i = 0; i < subresources.Length; i++)
+                {
+                    ref readonly var subresource = ref subresources[i];
+                    destination.WriteToSubresource(texture[(int)subresource.DataOffset..], (uint)subresource.RowPitch, (uint)subresource.SlicePitch);
+                }
+                return;
+            }
+
             var upload = _transientAllocator.AllocateBuffer(
                 checked((uint)Windows.GetRequiredIntermediateSize(destination.GetResourcePointer(), 0, (uint)subresources.Length)),
                 Windows.D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT
             );
 
-            upload.Buffer.SetName("Intermediate texture upload buffer");
+            upload.SetName("Intermediate texture upload buffer");
 
             fixed (byte* pTextureData = texture)
             fixed (SubresourceData* pSubresources = subresources)
@@ -131,7 +156,7 @@ namespace Voltium.Core.Contexts
                 _ = Windows.UpdateSubresources(
                     (ID3D12GraphicsCommandList*)List,
                     destination.GetResourcePointer(),
-                    upload.Buffer.GetResourcePointer(),
+                    upload.GetResourcePointer(),
                     upload.Offset,
                     0,
                     (uint)subresources.Length,
