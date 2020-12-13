@@ -1,5 +1,5 @@
 using System;
-using System.Linq;
+
 using Voltium.Common;
 
 namespace Voltium.Core.Devices

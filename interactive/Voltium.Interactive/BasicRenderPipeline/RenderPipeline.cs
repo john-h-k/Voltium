@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using Voltium.Common;
 using Voltium.Core;
 using Voltium.Core.Configuration.Graphics;
 using Voltium.Core.Devices;
@@ -23,31 +24,18 @@ namespace Voltium.Interactive.BasicRenderPipeline
         private MsaaPass _msaaPass = null!;
         private TonemapPass _outputPass = null!;
 
-        private Output2D _output = null!;
+        private Output _output = null!;
         private PipelineSettings _settings;
 
         public override unsafe void Initialize(Size data, IOutputOwner output)
         {
-            var debug = new DebugLayerConfiguration();
-            debug.BreakpointLogLevel = LogLevel.Error;
-
-            var config = new DeviceConfiguration
-            {
-                RequiredFeatureLevel = FeatureLevel.GraphicsLevel11_0,
-#if DEBUG
-                DebugLayerConfiguration = debug
-#else
-                DebugLayerConfiguration = null
-#endif
-            };
-
             using var factory = DeviceFactory.Create();
             foreach (var device in factory)
             {
                 Console.WriteLine(device);
             }
 
-            _device = new GraphicsDevice(config, null);
+            _device = GraphicsDevice.Create(FeatureLevel.GraphicsLevel11_0, null);
 
             var desc = new OutputConfiguration
             {
@@ -56,12 +44,12 @@ namespace Voltium.Interactive.BasicRenderPipeline
                 SyncInterval = 0
             };
             
-            _output = Output2D.Create(desc, _device, output);
+            _output = Output.Create(desc, _device, output);
 
             _settings = new PipelineSettings
             {
-                Msaa = MultisamplingDesc.None,
-                Resolution = _output.Dimensions,
+                Msaa = MsaaDesc.None,
+                Resolution = _output.Resolution,
                 AspectRatio = _output.AspectRatio
             };
 
@@ -78,6 +66,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
         }
 
         private RenderGraph _graph = null!;
+
         public override unsafe void Render()
         {
             _graph.CreateComponent(_settings);

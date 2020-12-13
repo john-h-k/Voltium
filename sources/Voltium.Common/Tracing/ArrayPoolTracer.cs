@@ -1,4 +1,4 @@
-﻿using System.Buffers;
+using System.Buffers;
 using System.Diagnostics;
 
 namespace Voltium.Common.Tracing
@@ -23,7 +23,6 @@ namespace Voltium.Common.Tracing
 
             return tracer;
 #else
-            ThrowHelper.ConditionalCompilationPath();
             return default;
 #endif
         }

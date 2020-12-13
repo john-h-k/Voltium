@@ -8,7 +8,7 @@ using Voltium.Core.Memory;
 
 namespace Voltium.RenderEngine
 {
-    internal struct TrackedResource : IDisposable
+    internal struct TrackedResource
     {
         public const int NoWritePass = -1;
 
@@ -31,7 +31,7 @@ namespace Voltium.RenderEngine
             }
             else
             {
-                barrier = ResourceBarrier.Transition(Desc.Texture, CurrentTrackedState, state, options);
+                barrier = ResourceBarrier.Transition(Desc.Texture, CurrentTrackedState, state, uint.MaxValue, options);
             }
 
             CurrentTrackedState = state;
@@ -42,11 +42,11 @@ namespace Voltium.RenderEngine
         {
             if (Desc.Type == ResourceType.Buffer)
             {
-                return ResourceBarrier.Uav(Desc.Buffer, options);
+                return ResourceBarrier.UnorderedAcccess(Desc.Buffer, options);
             }
             else
             {
-                return ResourceBarrier.Uav(Desc.Texture, options);
+                return ResourceBarrier.UnorderedAccess(Desc.Texture, options);
             }
         }
 
@@ -55,7 +55,7 @@ namespace Voltium.RenderEngine
         {
             if (Desc.Type == ResourceType.Buffer)
             {
-                Desc.Buffer = allocator.AllocateBuffer(Desc.BufferDesc, Desc.MemoryAccess, Desc.InitialState);
+                Desc.Buffer = allocator.AllocateBuffer(Desc.BufferDesc, Desc.MemoryAccess);
             }
             else
             {
@@ -63,15 +63,15 @@ namespace Voltium.RenderEngine
             }
         }
 
-        public void Dispose()
+        public void Dispose(in GpuTask free = default)
         {
             if (Desc.Type == ResourceType.Buffer)
             {
-                Desc.Buffer.Dispose();
+                Desc.Buffer.Dispose(free);
             }
             else
             {
-                Desc.Texture.Dispose();
+                Desc.Texture.Dispose(free);
             }
         }
 

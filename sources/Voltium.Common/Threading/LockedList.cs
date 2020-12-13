@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 
 namespace Voltium.Common.Threading
@@ -8,14 +9,18 @@ namespace Voltium.Common.Threading
         public LockedList(TLock @lock, int capacity = 4)
         {
             Guard.Positive(capacity);
-            _underlyingList = new List<T>(capacity);
+            UnderlyingList = new List<T>(capacity);
             _lock = @lock;
         }
 
-        private List<T> _underlyingList;
+        public List<T> UnderlyingList { get; private set; }
         private TLock _lock;
 
-        public int Count => _underlyingList.Count;
+        public object SyncRoot => ((ICollection)UnderlyingList).SyncRoot;
+        public int Count => UnderlyingList.Count;
+
+        public ScopedIValueLockEntry<TLock> EnterScopedLock()
+            => _lock.EnterScoped();
 
         public T this[int index]
         {
@@ -23,7 +28,7 @@ namespace Voltium.Common.Threading
             {
                 using (_lock.EnterScoped())
                 {
-                    return _underlyingList[index];
+                    return UnderlyingList[index];
                 }
             }
 
@@ -31,7 +36,7 @@ namespace Voltium.Common.Threading
             {
                 using (_lock.EnterScoped())
                 {
-                    _underlyingList[index] = value;
+                    UnderlyingList[index] = value;
                 }
             }
         }
@@ -39,7 +44,7 @@ namespace Voltium.Common.Threading
         public void Add(T value)
         {
             using var _ = _lock.EnterScoped();
-            _underlyingList.Add(value);
+            UnderlyingList.Add(value);
         }
     }
 }

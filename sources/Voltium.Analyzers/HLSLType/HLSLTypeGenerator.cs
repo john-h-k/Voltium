@@ -9,12 +9,12 @@ namespace Voltium.Analyzers.HLSLType
     //[Generator]
     internal sealed class HLSLTypeGenerator : ISourceGenerator
     {
-        public void Initialize(InitializationContext context)
+        public void Initialize(GeneratorInitializationContext context)
         {
             // Explicit nop
         }
 
-        public void Execute(SourceGeneratorContext context)
+        public void Execute(GeneratorExecutionContext context)
         {
             foreach (var file in context.AdditionalFiles)
             {
@@ -27,7 +27,7 @@ namespace Voltium.Analyzers.HLSLType
             }
         }
 
-        private void Generate(SourceGeneratorContext context, AdditionalText file)
+        private void Generate(GeneratorExecutionContext context, AdditionalText file)
         {
             //Debugger.Launch();
             var hlsl = file.GetText()!.ToString();

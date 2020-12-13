@@ -14,7 +14,7 @@ namespace Voltium.TextureLoading
         /// <param name="mipMapMaxSize">The largest size a mipmap can be (all larger will be discarded)</param>
         /// <param name="loaderFlags">The flags used by the loader</param>
         /// <returns>A descriptor struct of the DDS texture</returns>
-        public static LoadedTexture CreateDdsTexture(
+        public static FormatTexture CreateDdsTexture(
             string fileName,
             uint mipMapMaxSize = default,
             LoaderFlags loaderFlags = LoaderFlags.None
@@ -37,7 +37,7 @@ namespace Voltium.TextureLoading
         /// <param name="mipMapMaxSize">The largest size a mipmap can be (all larger will be discarded)</param>
         /// <param name="loaderFlags">The flags used by the loader</param>
         /// <returns>A descriptor struct of the DDS texture</returns>
-        public static LoadedTexture CreateDdsTexture(
+        public static FormatTexture CreateDdsTexture(
             Stream stream,
             uint mipMapMaxSize = default,
             LoaderFlags loaderFlags = LoaderFlags.None
@@ -70,7 +70,7 @@ namespace Voltium.TextureLoading
         /// <param name="mipMapMaxSize">The largest size a mipmap can be (all larger will be discarded)</param>
         /// <param name="loaderFlags">The flags used by the loader</param>
         /// <returns>A descriptor struct of the DDS texture</returns>
-        public static LoadedTexture CreateDdsTexture(
+        public static FormatTexture CreateDdsTexture(
             ReadOnlyMemory<byte> ddsData,
             uint mipMapMaxSize = default,
             LoaderFlags loaderFlags = LoaderFlags.None

@@ -102,10 +102,22 @@ namespace Voltium.ModelLoading
     {
         public readonly TVertex[] Vertices;
         public readonly uint[] Indices;
+
+        public Mesh(TVertex[] vertices, uint[] indices)
+        {
+            Vertices = vertices;
+            Indices = indices;
+        }
+    }
+
+    public struct RenderObject<TVertex>
+    {
+        public readonly TVertex[] Vertices;
+        public readonly uint[] Indices;
         public Material Material;
         public Matrix4x4 World;
 
-        public Mesh(TVertex[] vertices, uint[] indices, in Material material = default, in Matrix4x4 world = default)
+        public RenderObject(TVertex[] vertices, uint[] indices, in Material material = default, in Matrix4x4 world = default)
         {
             Vertices = vertices;
             Indices = indices;
@@ -129,16 +141,16 @@ namespace Voltium.ModelLoading
         private static readonly IObjLoader _loader = _factory.Create(new MaterialStreamProvider());
         private static readonly Assimp _assimp = Assimp.GetApi();
 
-        private static MemoryHandle DiffuseKey = StringHelper.MarshalToUnmanagedAscii(Assimp.MaterialColorDiffuseBase);
-        private static MemoryHandle ShininessKey = StringHelper.MarshalToUnmanagedAscii(Assimp.MaterialShininessBase);
-        private static MemoryHandle ReflectionFactorKey = StringHelper.MarshalToUnmanagedAscii(Assimp.MaterialColorReflectiveBase);
+        private static MemoryHandle DiffuseKey = StringHelpers.MarshalToPinnedAscii(Assimp.MaterialColorDiffuseBase);
+        private static MemoryHandle ShininessKey = StringHelpers.MarshalToPinnedAscii(Assimp.MaterialShininessBase);
+        private static MemoryHandle ReflectionFactorKey = StringHelpers.MarshalToPinnedAscii(Assimp.MaterialColorReflectiveBase);
         // TODO improve
-        public static unsafe Mesh<TexturedVertex>[] Load(string filename)
+        public static unsafe RenderObject<TexturedVertex>[] Load(string filename)
         {
-            using var ascii = StringHelper.MarshalToUnmanagedAscii(filename);
+            using var ascii = StringHelpers.MarshalToPinnedAscii(filename);
             SimpScene* pScene = _assimp.ImportFile((byte*)ascii.Pointer, 0);
 
-            var meshes = new ArrayBuilder<Mesh<TexturedVertex>>();
+            var meshes = new ArrayBuilder<RenderObject<TexturedVertex>>();
 
             for (var i = 0; i < pScene->MNumMeshes; i++)
             {
@@ -171,7 +183,7 @@ namespace Voltium.ModelLoading
                     indices.Add(new Span<uint>(pFace.MIndices, (int)pFace.MNumIndices));
                 }
 
-                meshes.Add(new Mesh<TexturedVertex>(vertices, indices.MoveTo(), material));
+                meshes.Add(new RenderObject<TexturedVertex>(vertices, indices.MoveTo(), material));
             }
 
             return meshes.MoveTo();
@@ -197,11 +209,11 @@ namespace Voltium.ModelLoading
 
         private static Vector2 ToVector2(Vector3 vec) => Unsafe.As<Vector3, Vector2>(ref vec);
 
-        public static Mesh<TexturedVertex>[] LoadGl_Old(string filename)
+        public static RenderObject<TexturedVertex>[] LoadGl_Old(string filename)
         {
             var m = ModelRoot.Load(filename);
 
-            var texturedObjs = new List<Mesh<TexturedVertex>>(m.LogicalMeshes.Count);
+            var texturedObjs = new List<RenderObject<TexturedVertex>>(m.LogicalMeshes.Count);
 
             //Hemi.001
             //Hemi

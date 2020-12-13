@@ -56,7 +56,7 @@ namespace Voltium.Core
         public Rgba128 WithA(float a)
             => new Rgba128(R, G, B, a);
 
-        public Rgba128 WithRGB(float r, float g, float b)
+        public Rgba128 WithRgb(float r, float g, float b)
             => new Rgba128(r, g, b, A);
 #pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
 
@@ -88,6 +88,13 @@ namespace Voltium.Core
         {
             Debug.Assert(length >= 4);
             return Unsafe.As<float, Rgba128>(ref *p);
+        }
+
+        // you can pass a length, say, of a span, and get a free lil bit of validation
+        internal static unsafe Rgba128 FromRef(ref float p, uint length = 4)
+        {
+            Debug.Assert(length >= 4);
+            return Unsafe.As<float, Rgba128>(ref p);
         }
     }
 }

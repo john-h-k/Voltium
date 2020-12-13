@@ -9,13 +9,17 @@ namespace Voltium.Common
     internal readonly struct RentedArray<T> : IDisposable
     {
         public readonly T[] Value;
+        public readonly int Length;
         public readonly ArrayPool<T> Pool;
 
-        private RentedArray(T[] value, ArrayPool<T> pool)
+        private RentedArray(T[] value, int length, ArrayPool<T> pool)
         {
             Value = value;
+            Length = length;
             Pool = pool;
         }
+
+        public Span<T> AsSpan() => Value.AsSpan(0, Length);
 
         // do this to avoid the extra GCHandle where not necessary
         internal unsafe struct Pinnable : IPinnable
@@ -24,7 +28,7 @@ namespace Voltium.Common
             private GCHandle _handle;
             private bool _isPrePinned;
 
-            public Pinnable(RentedArray<T> array, bool isPrePinned = false)
+            public Pinnable(in RentedArray<T> array, bool isPrePinned = false)
             {
                 _array = array;
                 _handle = default;
@@ -54,13 +58,32 @@ namespace Voltium.Common
         {
             pool ??= ArrayPool<T>.Shared;
 
-            return new RentedArray<T>(pool.Rent(minimumLength), pool);
+            return new RentedArray<T>(pool.Rent(minimumLength), minimumLength, pool);
         }
 
         public ref T GetPinnableReference() => ref MemoryMarshal.GetArrayDataReference(Value);
 
         public Pinnable CreatePinnable(bool underlyingArrayIsPrePinned = false) => new Pinnable(this, underlyingArrayIsPrePinned);
-        public void Dispose() => Pool.Return(Value);
-        public void Dispose(bool clear) => Pool.Return(Value, clear);
+
+
+        // These prevent double returns
+
+        public void Dispose()
+        {
+            if (Value is not null)
+            {
+                Pool?.Return(Value);
+                Unsafe.AsRef(in Value) = null!;
+            }
+        }
+
+        public void Dispose(bool clear)
+        {
+            if (Value is not null)
+            {
+                Pool?.Return(Value, clear);
+                Unsafe.AsRef(in Value) = null!;
+            }
+        }
     }
 }

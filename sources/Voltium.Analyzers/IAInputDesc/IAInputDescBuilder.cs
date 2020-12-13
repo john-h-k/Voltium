@@ -27,7 +27,8 @@ namespace {0}
 {{
     partial struct {1} : IBindableShaderType
     {{
-        ReadOnlyMemory<ShaderInput> IBindableShaderType.GetShaderInputs() => ShaderInputs.AsMemory();
+        /// <inheritdoc />
+        public ReadOnlyMemory<ShaderInput> GetShaderInputs() => ShaderInputs.AsMemory();
 
         /// <summary>
         /// The <see cref=""ShaderInput""/> for this type. This field is generated

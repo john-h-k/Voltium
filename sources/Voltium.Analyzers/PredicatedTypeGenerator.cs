@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using Microsoft.CodeAnalysis;
@@ -7,7 +8,7 @@ namespace Voltium.Analyzers
 {
     internal abstract class PredicatedTypeGenerator : ISourceGenerator
     {
-        public void Execute(SourceGeneratorContext context)
+        public void Execute(GeneratorExecutionContext context)
         {
             // if you wanna debug this method, uncomment this
             // ugly but works. blame roslyn devs not me
@@ -19,44 +20,56 @@ namespace Voltium.Analyzers
 
             OnExecute(context);
 
-
             // this handles partial types, which have multiple type declaration nodes
-            var visited = new HashSet<string>();
+            var visited = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
             foreach (var (tree, node) in nodes)
             {
                 var semantics = comp.GetSemanticModel(tree);
                 var type = (semantics.GetDeclaredSymbol(node) as INamedTypeSymbol)!;
 
-                if (!Predicate(context, type) || visited.Contains(type.Name))
+                if (!Predicate(context, type) || visited.Contains(type))
                 {
                     continue;
                 }
 
                 GenerateFromSyntax(context, node, tree);
                 GenerateFromSymbol(context, type);
-                visited.Add(type.Name);
+                visited.Add(type);
             }
         }
 
-        protected virtual void OnExecute(SourceGeneratorContext context) { }
+        protected virtual void OnExecute(GeneratorExecutionContext context) { }
 
-        protected abstract bool Predicate(SourceGeneratorContext context, INamedTypeSymbol decl);
+        protected abstract bool Predicate(GeneratorExecutionContext context, INamedTypeSymbol decl);
 
 
-        protected virtual void GenerateFromSyntax(SourceGeneratorContext context, TypeDeclarationSyntax syntax, SyntaxTree tree) { }
-        protected virtual void GenerateFromSymbol(SourceGeneratorContext context, INamedTypeSymbol symbol) {  }
+        protected virtual void GenerateFromSyntax(GeneratorExecutionContext context, TypeDeclarationSyntax syntax, SyntaxTree tree) { }
+        protected virtual void GenerateFromSymbol(GeneratorExecutionContext context, INamedTypeSymbol symbol) {  }
 
-        public void Initialize(InitializationContext context)
+        public void Initialize(GeneratorInitializationContext context)
             => context.RegisterForSyntaxNotifications(() => new SyntaxTypeReceiver<TypeDeclarationSyntax>());
     }
 
+    internal abstract class AttributedTypeGenerator : PredicatedTypeGenerator
+    {
+        protected abstract string AttributeName { get; }
+
+        protected sealed override bool Predicate(GeneratorExecutionContext context, INamedTypeSymbol decl)
+        {
+            if (decl.Name.Contains("Debug"))
+            {
+            }
+            return decl.HasAttribute(AttributeName, context.Compilation);
+        }
+    }
+
+
     internal abstract class PredicatedGenerator<T> : ISourceGenerator where T : SyntaxNode
     {
-        public void Execute(SourceGeneratorContext context)
+        public void Execute(GeneratorExecutionContext context)
         {
             // if you wanna debug this method, uncomment this
             // ugly but works. blame roslyn devs not me
-            //Debugger.Launch();
 
             var receiver = (SyntaxTypeReceiver<T>)context.SyntaxReceiver!;
 
@@ -71,7 +84,9 @@ namespace Voltium.Analyzers
             foreach (var (tree, node) in nodes)
             {
                 var semantics = comp.GetSemanticModel(tree);
-                var symbol = semantics.GetDeclaredSymbol(node);
+                var symbol = semantics.GetDeclaredSymbol(node)!;
+
+                Helpers.Assert(symbol is not null);
 
                 if (!Predicate(context, symbol) || visited.Contains(symbol))
                 {
@@ -83,13 +98,13 @@ namespace Voltium.Analyzers
             }
         }
 
-        protected virtual void OnExecute(SourceGeneratorContext context) { }
+        protected virtual void OnExecute(GeneratorExecutionContext context) { }
 
-        protected abstract bool Predicate(SourceGeneratorContext context, ISymbol decl);
+        protected abstract bool Predicate(GeneratorExecutionContext context, ISymbol decl);
 
-        protected abstract void Generate(SourceGeneratorContext context, ISymbol symbol, T syntax);
+        protected abstract void Generate(GeneratorExecutionContext context, ISymbol symbol, T syntax);
 
-        public void Initialize(InitializationContext context)
+        public void Initialize(GeneratorInitializationContext context)
             => context.RegisterForSyntaxNotifications(() => new SyntaxTypeReceiver<T>());
     }
 }

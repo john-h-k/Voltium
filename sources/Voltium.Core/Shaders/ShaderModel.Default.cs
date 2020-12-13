@@ -36,7 +36,7 @@ namespace Voltium.Core.Devices.Shaders
         public static ShaderModel Lib_6_0 { get; } = new ShaderModel(ShaderType.Library, 6, 0);
 
         // Update as compile targets change
-        public static ShaderModel LatestVersion(ShaderType type) => new ShaderModel(type, 6, 4);
+        public static ShaderModel LatestVersion(ShaderType type) => new ShaderModel(type, 6, 5);
     }
 #pragma warning restore CS1591 // XML docs
 }

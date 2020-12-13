@@ -10,8 +10,30 @@
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <CheckForOverflowUnderflow>false</CheckForOverflowUnderflow>
-    <NoWarn>1701;1702;</NoWarn>
+    <NoWarn>1701;1702;1591</NoWarn>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Raytracing\**" />
+    <EmbeddedResource Remove="Raytracing\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="Raytracing\AxisAlignedBoundingBoxGeometryDesc.cs" />
+    <Compile Include="Raytracing\BuildAccelerationStructureFlags.cs" />
+    <Compile Include="Raytracing\GeometryDesc.cs" />
+    <Compile Include="Raytracing\GeometryFlags.cs" />
+    <Compile Include="Raytracing\GeometryInstance.cs" />
+    <Compile Include="Raytracing\GeometryType.cs" />
+    <Compile Include="Raytracing\IndexFormat.cs" />
+    <Compile Include="Raytracing\Layout.cs" />
+    <Compile Include="Raytracing\RayDispatchDesc.cs" />
+    <Compile Include="Raytracing\RaytracingPipelineDesc.cs" />
+    <Compile Include="Raytracing\RaytracingPipelineStateObject.cs" />
+    <Compile Include="Raytracing\ShaderRecordTable.cs" />
+    <Compile Include="Raytracing\TriangleGeometryDesc.cs" />
+    <Compile Include="Raytracing\VertexFormat.cs" />
+  </ItemGroup>
 
   <ItemGroup>
     <None Include="Text\FontPixelShader.hlsl" />
@@ -21,5 +43,9 @@
     <!--PrivateAssets="All"-->
     <ProjectReference Include="..\Voltium.Analyzers\Voltium.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\Voltium.Common\Voltium.Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Debug\" />
   </ItemGroup>
 </Project>

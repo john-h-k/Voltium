@@ -15,8 +15,7 @@ namespace Voltium.Core
     /// </summary>
     internal unsafe static class Win32ApplicationRunner
     {
-        private static readonly delegate* stdcall<IntPtr, uint, nuint, nint, nint> WindowProcHandle =
-            (delegate* stdcall<IntPtr, uint, nuint, nint, nint>)(delegate*<IntPtr, uint, nuint, nint, nint>)&WindowProc;
+        private static readonly delegate* unmanaged<IntPtr, uint, nuint, nint, nint> WindowProcHandle = &WindowProc;
 
         private static bool _isResizing = false;
         private static bool _isPaused = false;
@@ -39,7 +38,7 @@ namespace Voltium.Core
                     style = CS_HREDRAW | CS_VREDRAW,
                     lpfnWndProc = WindowProcHandle,
                     hInstance = hInstance,
-                    hCursor = LoadCursorW(IntPtr.Zero, (ushort*)IDC_ARROW),
+                    hCursor = LoadCursorW(IntPtr.Zero, MAKEINTRESOURCE(32512)),
                     lpszClassName = (ushort*)name
                 };
                 _ = RegisterClassExW(&windowClass);
@@ -87,7 +86,7 @@ namespace Voltium.Core
                     _ = TranslateMessage(&msg);
                     _ = DispatchMessageW(&msg);
                 }
-                else if (!_isPaused)
+                else if (!_isPaused || true)
                 {
                     RunApp();
                 }
@@ -109,15 +108,25 @@ namespace Voltium.Core
             // Update window title approx every second
             if (_timer.TotalSeconds - _lastUpdatedTitle >= 1)
             {
+                string title;
+                if (_isPaused)
+                {
+                    title = _application.WindowTitle + " - Paused";
+                }
+                else
+                {
+                    title = _application.WindowTitle + " FPS: " + _timer.FramesPerSeconds.ToString();
+                }
+
                 _lastUpdatedTitle = _timer.TotalSeconds;
-                fixed (char* pTitle = _application.WindowTitle)
+                fixed (char* pTitle = title)
                 {
                     int result = SetWindowTextW(Hwnd, (ushort*)pTitle);
                     Debug.Assert(result != 0 /* nonzero is success */);
                 }
             }
 
-            _timer.Tick(_application, (timer, app) =>
+            _timer.Tick(_application, static (timer, app) =>
             {
                 app.Update(timer);
                 app.Render();
@@ -129,8 +138,7 @@ namespace Voltium.Core
         private const int ScrollResolution = 120;
 
         // Main message handler
-        // Uncomment when JIT bug is fixed
-        //[UnmanagedCallersOnly(CallingConvention = CallingConvention.StdCall)]
+        [UnmanagedCallersOnly]
         private static nint WindowProc(IntPtr hWnd, uint message, nuint wParam, nint lParam)
         {
             switch (message)
@@ -151,6 +159,22 @@ namespace Voltium.Core
 
                 case WM_KEYDOWN:
                 {
+                    if ((ConsoleKey)wParam == ConsoleKey.Escape)
+                    {
+
+                        if (_isPaused)
+                        {
+                            SetCapture(Hwnd);
+                        }
+                        else
+                        {
+                            ReleaseCapture();
+                        }
+                        _isPaused = !_isPaused;
+
+                        return 0;
+                    }
+
                     if (TryGetModifier(wParam, out var modifier))
                     {
                         KeyboardHandler.SetModifierState(modifier, true);

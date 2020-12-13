@@ -1,5 +1,10 @@
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
+using System.Text;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Voltium.Analyzers
 {
@@ -14,8 +19,11 @@ namespace Voltium.Analyzers
 
 
         public static bool TryGetAttribute(this ISymbol type, string attributeName, Compilation comp, out AttributeData attr)
+            => TryGetAttribute(type, comp.GetTypeByMetadataName(attributeName)!, out attr);
+
+        public static bool TryGetAttribute(this ISymbol type, INamedTypeSymbol symbol, out AttributeData attr)
         {
-            attr = type.GetAttributes().Where(attr => SymbolEqualityComparer.Default.Equals(attr.AttributeClass, comp.GetTypeByMetadataName(attributeName))).FirstOrDefault();
+            attr = type.GetAttributes().Where(attr => SymbolEqualityComparer.Default.Equals(attr.AttributeClass, symbol)).FirstOrDefault();
 
             return attr is not null;
         }
@@ -47,5 +55,64 @@ namespace Voltium.Analyzers
             }
             return false;
         }
+
+        public static string CreatePartialDecl(this INamedTypeSymbol symbol, string code, params INamedTypeSymbol?[]? newBases)
+            => CreatePartialDecl(symbol, code, (IEnumerable<INamedTypeSymbol>?)newBases);
+        public static string CreatePartialDecl(this INamedTypeSymbol symbol, string code, IEnumerable<INamedTypeSymbol>? newBases = null)
+        {
+            var builder = new StringBuilder();
+            var syntax = (TypeDeclarationSyntax)symbol.DeclaringSyntaxReferences[0].GetSyntax();
+
+            var usings = syntax.SyntaxTree.GetRoot().ChildNodes().OfType<UsingDirectiveSyntax>();
+
+            foreach (var @using in usings)
+            {
+                builder.Append(@using.ToFullString());
+            }
+
+            var @namespace = symbol.ContainingNamespace;
+
+            builder.Append("namespace " + @namespace.ToString() + "{\n");
+
+            if (newBases is not null)
+            {
+                var bases = SyntaxFactory.SeparatedList<BaseTypeSyntax>(
+                    newBases.Select(symbol => SyntaxFactory.SimpleBaseType(SyntaxFactory.ParseTypeName(symbol.Name)))
+                );
+
+                syntax = syntax.WithBaseList(syntax.BaseList is null ? SyntaxFactory.BaseList(bases) : syntax.BaseList.WithTypes(bases));
+            }
+
+            var types = new List<TypeDeclarationSyntax>();
+            int nestedLevel = 0;
+            do
+            {
+                nestedLevel++;
+                types.Add(syntax);
+                syntax = (syntax.Parent as TypeDeclarationSyntax)!;
+            }
+            while (syntax is not null);
+
+            foreach (var type in Enumerable.Reverse(types))
+            {
+                var s = type.RemoveNodes(type.ChildNodes().OfType<AttributeListSyntax>(), SyntaxRemoveOptions.KeepDirectives)?.ToFullString() ?? string.Empty;
+                builder.Append(s.Substring(0, s.IndexOf('{')));
+                builder.Append("\n{\n");
+            }
+
+            builder.Append(code);
+
+            for (int i = 0; i < nestedLevel; i++)
+            {
+                builder.Append("}\n");
+            }
+
+
+            builder.Append("}");
+
+            return builder.ToString();
+        }
+        public static string FullyQualifiedName(this ITypeSymbol symbol)
+            => $"global::{symbol.ContainingNamespace}.{symbol.Name}";
     }
 }

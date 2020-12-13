@@ -1,3 +1,5 @@
+using System;
+using System.Diagnostics.CodeAnalysis;
 using Voltium.Core;
 using Voltium.Core.Pipeline;
 
@@ -7,7 +9,7 @@ namespace Voltium.RenderEngine
     /// Represents a render pass. This type cannot be inherited from directly,
     /// use <see cref="ComputeRenderPass"/> or <see cref="GraphicsRenderPass"/> instead
     /// </summary>
-    public abstract class RenderPass
+    public abstract class RenderPass : IEquatable<RenderPass>
     {
         // prevent people directly inheriting from render pass
         private protected RenderPass() { }
@@ -17,7 +19,11 @@ namespace Voltium.RenderEngine
         /// </summary>
         /// <param name="builder">The <see cref="RenderPassBuilder"/> used to build the pass</param>
         /// <param name="resolver"></param>
-        public abstract void Register(ref RenderPassBuilder builder, ref Resolver resolver);
+        /// <returns>Whether the pass is to be registered or not. This allows passes to reject themselves from execution during registration. </returns>
+        public abstract bool Register(ref RenderPassBuilder builder, ref Resolver resolver);
+
+        /// <inheritdoc/>
+        public bool Equals([AllowNull] RenderPass other) => this == other;
 
         /// <summary>
         /// The <see cref="OutputDesc"/> produced by this pass, if any
@@ -72,7 +78,7 @@ namespace Voltium.RenderEngine
         /// The <see cref="PipelineStateObject"/> that this pass expects at the start of
         /// <see cref="Record"/>
         /// </summary>
-        public PipelineStateObject? DefaultPipelineState { get; protected set; }
+        public virtual PipelineStateObject? DefaultPipelineState { get; protected set; }
 
     }
 }

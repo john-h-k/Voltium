@@ -8,29 +8,29 @@ namespace Voltium.Common
 {
     internal unsafe static class DebugExtensions
     {
-        [DebuggerNonUserCode]
-        public static void PossibleDeviceDisconnect(this ComPtr<ID3D12Device> device)
-            => PossibleDeviceDisconnect(device.Get());
+//        [DebuggerNonUserCode]
+//        public static void PossibleDeviceDisconnect(this ComputeDevice device)
+//            => PossibleDeviceDisconnect(device.Get());
 
-        [DebuggerNonUserCode]
-        public static void PossibleDeviceDisconnect(ID3D12Device* device)
-        {
-#if !DEBUG
-            throw new Exception("This should never even be present in release builds. Use only for specific debug issues");
-#else
-            var reason = device->GetDeviceRemovedReason();
-            if (reason == Windows.S_OK)
-            {
-                return;
-            }
+//        [DebuggerNonUserCode]
+//        public static void PossibleDeviceDisconnect(ID3D12Device* device)
+//        {
+//#if !DEBUG
+//            throw new Exception("This should never even be present in release builds. Use only for specific debug issues");
+//#else
+//            var reason = device->GetDeviceRemovedReason();
+//            if (reason == Windows.S_OK)
+//            {
+//                return;
+//            }
 
-            /* inspect this */
-            throw new DeviceDisconnectedException("Device disconnected unexpectedly", reason);
-#endif
-        }
+//            /* inspect this */
+//            throw new DeviceDisconnectedException("Device disconnected unexpectedly", reason);
+//#endif
+//        }
 
-        public static bool IsDeviceRemoved(this ComPtr<ID3D12Device> device) =>
-            device.Get()->GetDeviceRemovedReason() != Windows.S_OK;
+        public static bool IsDeviceRemoved(this UniqueComPtr<ID3D12Device> device) =>
+            device.Ptr->GetDeviceRemovedReason() != Windows.S_OK;
 
         public static string DeviceRemovedMessage(int removedReason) => TranslateHr(removedReason);
 

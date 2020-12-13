@@ -1,18 +1,19 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
+
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Toolkit.HighPerformance.Extensions;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Common.Debugging;
 using Voltium.Core.Devices;
 using Voltium.Core.Memory;
 using Voltium.Core.Pipeline;
-using ZLogger;
+
 using SpinLock = Voltium.Common.Threading.SpinLockWrapped;
 
 namespace Voltium.Core.Pool
@@ -20,19 +21,19 @@ namespace Voltium.Core.Pool
     internal struct ContextParams
     {
         public ComputeDevice Device;
-        public ComPtr<ID3D12GraphicsCommandList> List;
-        public ComPtr<ID3D12CommandAllocator> Allocator;
+        public UniqueComPtr<ID3D12GraphicsCommandList6> List;
+        public UniqueComPtr<ID3D12CommandAllocator> Allocator;
         public PipelineStateObject? PipelineStateObject;
         public ExecutionContext Context;
-        public bool ExecuteOnClose;
+        public ContextFlags Flags;
 
         public ContextParams(
             ComputeDevice device,
-            ComPtr<ID3D12GraphicsCommandList> list,
-            ComPtr<ID3D12CommandAllocator> allocator,
+            UniqueComPtr<ID3D12GraphicsCommandList6> list,
+            UniqueComPtr<ID3D12CommandAllocator> allocator,
             PipelineStateObject? pipelineStateObject,
             ExecutionContext context,
-            bool executeOnClose
+            ContextFlags flags
         )
         {
             Device = device;
@@ -40,7 +41,7 @@ namespace Voltium.Core.Pool
             Allocator = allocator;
             PipelineStateObject = pipelineStateObject;
             Context = context;
-            ExecuteOnClose = executeOnClose;
+            Flags = flags;
         }
     }
 
@@ -52,7 +53,7 @@ namespace Voltium.Core.Pool
 
         private struct CommandAllocator
         {
-            public ComPtr<ID3D12CommandAllocator> Allocator;
+            public UniqueComPtr<ID3D12CommandAllocator> Allocator;
             public GpuTask Task;
         }
 
@@ -60,9 +61,9 @@ namespace Voltium.Core.Pool
         private LockedQueue<CommandAllocator, SpinLock> _computeAllocators = new(GetLock());
         private LockedQueue<CommandAllocator, SpinLock> _directAllocators = new(GetLock());
 
-        private LockedQueue<ComPtr<ID3D12GraphicsCommandList>, SpinLock> _copyLists = new(GetLock());
-        private LockedQueue<ComPtr<ID3D12GraphicsCommandList>, SpinLock> _computeLists = new(GetLock());
-        private LockedQueue<ComPtr<ID3D12GraphicsCommandList>, SpinLock> _directLists = new(GetLock());
+        private LockedQueue<UniqueComPtr<ID3D12GraphicsCommandList6>, SpinLock> _copyLists = new(GetLock());
+        private LockedQueue<UniqueComPtr<ID3D12GraphicsCommandList6>, SpinLock> _computeLists = new(GetLock());
+        private LockedQueue<UniqueComPtr<ID3D12GraphicsCommandList6>, SpinLock> _directLists = new(GetLock());
 
         public static readonly Guid Guid_AllocatorType = new Guid("5D16E61C-E2BF-4118-BB1D-8F804EC4F03D");
 
@@ -72,66 +73,116 @@ namespace Voltium.Core.Pool
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        public ContextParams Rent(ExecutionContext context, PipelineStateObject? pso, bool executeOnClose)
+        public ContextParams Rent(ExecutionContext context, PipelineStateObject? pso, ContextFlags flags)
         {
             var allocators = GetAllocatorPoolsForContext(context);
             var lists = GetListPoolsForContext(context);
 
+            static bool IsAllocatorFinished(ref CommandAllocator allocator) => allocator.Task.IsCompleted;
+
             if (allocators.TryDequeue(out var allocator, &IsAllocatorFinished))
             {
-                Guard.ThrowIfFailed(allocator.Allocator.Get()->Reset());
+                _device.ThrowIfFailed(allocator.Allocator.Ptr->Reset());
             }
             else
             {
                 allocator = new CommandAllocator { Allocator = CreateAllocator(context), Task = GpuTask.Completed };
             }
 
+            using UniqueComPtr<ID3D12PipelineState> pipeline = default;
+            using UniqueComPtr<ID3D12StateObject> stateObject = default;
+
+            _ = pso?.Pointer.TryQueryInterface(&pipeline);
+            _ = pso?.Pointer.TryQueryInterface(&stateObject);
+
+            Debug.Assert(pipeline.Exists is false || (pipeline.Exists != stateObject.Exists)); // only one should be not null
+
             if (lists.TryDequeue(out var list))
             {
-                Guard.ThrowIfFailed(list.Get()->Reset(allocator.Allocator.Get(), pso is null ? null : pso.GetPso()));
+                _device.ThrowIfFailed(list.Ptr->Reset(allocator.Allocator.Ptr, pipeline.Ptr));
             }
             else
             {
-                list = CreateList(context, allocator.Allocator.Get(), pso is null ? null : pso.GetPso());
+                list = CreateList(context, allocator.Allocator.Ptr, pipeline.Ptr);
             }
 
-            return new ContextParams(_device, list, allocator.Allocator, pso, context, executeOnClose);
+            if (stateObject.Exists)
+            {
+                list.As<ID3D12GraphicsCommandList5>().Ptr->SetPipelineState1(stateObject.Ptr);
+            }
+
+            return new ContextParams(_device, list, allocator.Allocator, pso, context, flags);
         }
 
-        private static bool IsAllocatorFinished(ref CommandAllocator allocator) => allocator.Task.IsCompleted;
+        internal SupportedGraphicsCommandList SupportedList { get; }
 
-        public void Return(in ContextParams gpuContext, in GpuTask contextFinish)
+        private SupportedGraphicsCommandList CheckListSupport(UniqueComPtr<ID3D12GraphicsCommandList6> list)
         {
-            var context = gpuContext.Context;
+            var supported = SupportedGraphicsCommandList.GraphicsCommandList6;
+            //var supported = list switch
+            //{
+            //    _ when list.HasInterface<ID3D12GraphicsCommandList6>() => SupportedGraphicsCommandList.GraphicsCommandList6,
+            //    _ when list.HasInterface<ID3D12GraphicsCommandList5>() => SupportedGraphicsCommandList.GraphicsCommandList5,
+            //    _ when list.HasInterface<ID3D12GraphicsCommandList4>() => SupportedGraphicsCommandList.GraphicsCommandList4,
+            //    _ when list.HasInterface<ID3D12GraphicsCommandList3>() => SupportedGraphicsCommandList.GraphicsCommandList3,
+            //    _ when list.HasInterface<ID3D12GraphicsCommandList2>() => SupportedGraphicsCommandList.GraphicsCommandList2,
+            //    _ when list.HasInterface<ID3D12GraphicsCommandList1>() => SupportedGraphicsCommandList.GraphicsCommandList1,
+            //    _ => SupportedGraphicsCommandList.GraphicsCommandList
+            //};
 
-            var allocators = GetAllocatorPoolsForContext(context);
-            var lists = GetListPoolsForContext(context);
+            if (supported < SupportedGraphicsCommandList.GraphicsCommandList5)
+            {
+                ThrowHelper.ThrowPlatformNotSupportedException("GraphicsCommandList5 is required");
+            }
 
-            lists.Enqueue(gpuContext.List);
-            allocators.Enqueue(new CommandAllocator { Allocator = gpuContext.Allocator, Task = contextFinish });
+            return supported;
+        }
+
+        public void Return(GpuContext context, in GpuTask contextFinish)
+        {
+            static void FreeAttachedResources(List<IDisposable?> resources)
+            {
+                foreach (ref var resource in resources.AsSpan())
+                {
+                    resource?.Dispose();
+                    resource = null;
+                }
+            }
+
+            var @params = context.Params;
+
+            contextFinish.RegisterCallback(context.AttachedResources, &FreeAttachedResources);
+
+            var executionContext = @params.Context;
+
+            var allocators = GetAllocatorPoolsForContext(executionContext);
+            var lists = GetListPoolsForContext(executionContext);
+
+            lists.Enqueue(@params.List);
+            allocators.Enqueue(new CommandAllocator { Allocator = @params.Allocator, Task = contextFinish });
         }
 
         private int _allocatorCount;
         private int _listCount;
-        private ComPtr<ID3D12CommandAllocator> CreateAllocator(ExecutionContext context)
+        private UniqueComPtr<ID3D12CommandAllocator> CreateAllocator(ExecutionContext context)
         {
-            using ComPtr<ID3D12CommandAllocator> allocator = _device.CreateAllocator(context);
+            using UniqueComPtr<ID3D12CommandAllocator> allocator = _device.CreateAllocator(context);
 
             LogHelper.LogDebug($"New command allocator allocated (this is the #{_allocatorCount++} allocator)");
 
-            DebugHelpers.SetName(allocator.Get(), $"Pooled allocator #{_allocatorCount}");
-            DebugHelpers.SetPrivateData(allocator.Get(), Guid_AllocatorType, context);
+            DebugHelpers.SetName(allocator.Ptr, $"Pooled allocator #{_allocatorCount}");
+            DebugHelpers.SetPrivateData(allocator.Ptr, Guid_AllocatorType, context);
 
             return allocator.Move();
         }
 
-        private ComPtr<ID3D12GraphicsCommandList> CreateList(ExecutionContext context, ID3D12CommandAllocator* allocator, ID3D12PipelineState* pso)
+        private UniqueComPtr<ID3D12GraphicsCommandList6> CreateList(ExecutionContext context, ID3D12CommandAllocator* allocator, ID3D12PipelineState* pso)
         {
-            using ComPtr<ID3D12GraphicsCommandList> list = _device.CreateList(context, allocator, pso);
+            using UniqueComPtr<ID3D12GraphicsCommandList6> list = _device.CreateList(context, allocator, pso);
 
             LogHelper.LogDebug($"New command list allocated (this is the #{_listCount++} list)");
 
-            DebugHelpers.SetName(list.Get(), $"Pooled list #{_listCount}");
+            DebugHelpers.SetName(list.Ptr, $"Pooled list #{_listCount}");
 
             return list.Move();
         }
@@ -145,7 +196,7 @@ namespace Voltium.Core.Pool
                 _ => default
             };
 
-        private LockedQueue<ComPtr<ID3D12GraphicsCommandList>, SpinLock> GetListPoolsForContext(ExecutionContext context)
+        private LockedQueue<UniqueComPtr<ID3D12GraphicsCommandList6>, SpinLock> GetListPoolsForContext(ExecutionContext context)
             => context switch
             {
                 ExecutionContext.Copy => _copyLists,

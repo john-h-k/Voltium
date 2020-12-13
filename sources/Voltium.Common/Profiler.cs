@@ -22,6 +22,12 @@ namespace Voltium.Common
         public static ProfilerBlockFlags OverrideFlags { get; set; }
         private static Task _asyncOut = InitializeAsyncOut();
 
+        /// <summary>
+        /// The event that occurs when a block is profiled and dispatched. This may not be when the block finishes being profiled, 
+        /// but rather when it is next dispatched by the dispatcher thread
+        /// </summary>
+        public static event Action<BlockData> OnBlockProfiled = (_) => { };
+
         private static Task InitializeAsyncOut()
         {
             StaticFinalizer.Create(FlushQueues);
@@ -55,33 +61,79 @@ namespace Voltium.Common
                     var block = queue[queue.Count - 1];
                     queue.RemoveAt(queue.Count - 1);
 
+                    OnBlockProfiled(block);
                     Console.WriteLine(block.ToString());
                 }
             }
         }
 
-        internal struct BlockData
+        /// <summary>
+        /// The data from a profiling block
+        /// </summary>
+        public struct BlockData
         {
+            /// <summary>
+            /// The name of this block
+            /// </summary>
             public string Name;
+
+            /// <summary>
+            /// The <see cref="ProfilerBlockFlags"/> which determined how this block was profiled
+            /// </summary>
             public ProfilerBlockFlags Flags;
 
+            /// <summary>
+            /// The <see cref="ulong"/> tickcount when this block started
+            /// </summary>
             public long StartTick;
-            public long EndTick;
-            public TimeSpan GetElapsed() => TimeSpan.FromSeconds((EndTick - StartTick) / (double)Stopwatch.Frequency);
 
+            /// <summary>
+            /// The <see cref="ulong"/> tickcount when this block ended
+            /// </summary>
+            public long EndTick;
+
+            /// <summary>
+            /// The <see cref="TimeSpan"/> this entire block elapsed
+            /// </summary>
+            public TimeSpan Elapsed => TimeSpan.FromSeconds((EndTick - StartTick) / (double)Stopwatch.Frequency);
+
+            /// <summary>
+            /// The <see cref="ulong"/> number of bytes that were allocated on the current thread when this block started
+            /// </summary>
             public long StartAllocatedBytes;
+
+            /// <summary>
+            /// The <see cref="ulong"/> number of bytes that were allocated on the current thread when this block ended
+            /// </summary>
             public long EndAllocatedBytes;
 
-            public long GetAllocatedBytes() => EndAllocatedBytes - StartAllocatedBytes;
+            /// <summary>
+            /// The <see cref="ulong"/> number of bytes that were allocated on the current thread during this block
+            /// </summary>
+            public long AllocatedBytes => EndAllocatedBytes - StartAllocatedBytes;
 
+            /// <summary>
+            /// The <see cref="GCMemoryInfo"/> recorded when this block started
+            /// </summary>
             public GCMemoryInfo StartMemoryInfo;
+
+            /// <summary>
+            /// The <see cref="GCMemoryInfo"/> recorded when this block ended
+            /// </summary>
             public GCMemoryInfo EndMemoryInfo;
 
+
+            /// <summary>
+            /// The <see cref="StackTrace"/> for this block
+            /// </summary>
             public StackTrace? Trace;
 
+            /// <summary>
+            /// Returns the string representation of the given block
+            /// </summary>
             public override string ToString()
             {
-                var span = GetElapsed();
+                var span = Elapsed;
                 string time;
                 if (span.TotalSeconds > 1)
                 {
@@ -125,7 +177,6 @@ namespace Voltium.Common
 
                 flags |= OverrideFlags;
 
-                // this contrived pattern generates better asm when no flags are set (the most common case)
                 if (data.Flags.HasFlag(ProfilerBlockFlags.CaptureGCMemoryInfo))
                 {
                     data.StartMemoryInfo = GC.GetGCMemoryInfo();
@@ -144,7 +195,7 @@ namespace Voltium.Common
                 _localBlocks.Add(data);
 
                 // Create the final
-                _localBlocks.GetRefUnsafe(_localBlocks.Count).StartTick = Stopwatch.GetTimestamp();
+                _localBlocks.GetRefUnsafe(_localBlocks.Count - 1).StartTick = Stopwatch.GetTimestamp();
 
                 data.Name = name;
                 data.Flags = flags;

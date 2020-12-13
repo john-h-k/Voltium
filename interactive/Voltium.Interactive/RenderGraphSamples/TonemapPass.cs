@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using TerraFX.Interop;
 using Voltium.Core;
 using Voltium.Core.Configuration.Graphics;
+using Voltium.Core.Contexts;
 using Voltium.Core.Devices;
 using Voltium.RenderEngine;
 
@@ -16,9 +17,9 @@ namespace Voltium.Interactive.RenderGraphSamples
     {
         public override OutputDesc Output { get; }
 
-        private Output2D _output;
+        private Output _output;
 
-        public TonemapPass(Output2D output)
+        public TonemapPass(Output output)
         {
             _output = output;
             Output = OutputDesc.FromBackBuffer(OutputClass.Primary, _output);
@@ -30,15 +31,17 @@ namespace Voltium.Interactive.RenderGraphSamples
 
             var sceneColor = resolver.ResolveResource(resources.SceneColor);
 
+            context.Barrier(ResourceBarrier.Transition(_output.OutputBuffer, ResourceState.Present, ResourceState.CopyDestination));
             context.CopyResource(sceneColor, _output.OutputBuffer);
-
-            context.ResourceTransition(_output.OutputBuffer, ResourceState.Present);
+            context.Barrier(ResourceBarrier.Transition(_output.OutputBuffer, ResourceState.CopyDestination, ResourceState.Present));
         }
 
-        public override void Register(ref RenderPassBuilder builder, ref Resolver resolver)
+        public override bool Register(ref RenderPassBuilder builder, ref Resolver resolver)
         {
             var resources = resolver.GetComponent<PipelineResources>();
             builder.MarkUsage(resources.SceneColor, ResourceState.CopySource);
+
+            return true;
         }
     }
 }

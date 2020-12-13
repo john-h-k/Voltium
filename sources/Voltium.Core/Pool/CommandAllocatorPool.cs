@@ -4,7 +4,7 @@ using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Devices;
 using Voltium.Core.Pool;
-using ZLogger;
+
 
 namespace Voltium.Core.Devices
 {
@@ -21,18 +21,18 @@ namespace Voltium.Core.Devices
         }
 
         private int _allocatorCount = 0;
-        protected override ComPtr<ID3D12CommandAllocator> Create(ExecutionContext context)
+        protected override UniqueComPtr<ID3D12CommandAllocator> Create(ExecutionContext context)
         {
-            using ComPtr<ID3D12CommandAllocator> allocator = default;
-            Guard.ThrowIfFailed(_device.DevicePointer->CreateCommandAllocator(
+            using UniqueComPtr<ID3D12CommandAllocator> allocator = default;
+            _device.ThrowIfFailed(_device.DevicePointer->CreateCommandAllocator(
                 (D3D12_COMMAND_LIST_TYPE)context,
                 allocator.Iid,
-                ComPtr.GetVoidAddressOf(&allocator)
+                (void**)&allocator
             ));
 
             LogHelper.LogDebug($"New command allocator allocated (this is the #{_allocatorCount++} allocator)");
 
-            DebugHelpers.SetName(allocator.Get(), $"Pooled allocator #{_allocatorCount}");
+            DebugHelpers.SetName(allocator.Ptr, $"Pooled allocator #{_allocatorCount}");
 
             return allocator.Move();
         }
@@ -40,14 +40,13 @@ namespace Voltium.Core.Devices
         protected sealed override void InternalDispose()
         {
             base.InternalDispose();
-            _device.Dispose();
         }
 
-        protected override void ManageRent(ref ComPtr<ID3D12CommandAllocator> value, ExecutionContext context)
+        protected override void ManageRent(ref UniqueComPtr<ID3D12CommandAllocator> value, ExecutionContext context)
         {
         }
 
-        protected override void ManageReturn(ref ComPtr<ID3D12CommandAllocator> state)
-            => Guard.ThrowIfFailed(state.Get()->Reset());
+        protected override void ManageReturn(ref UniqueComPtr<ID3D12CommandAllocator> state)
+            => _device.ThrowIfFailed(state.Ptr->Reset());
     }
 }

@@ -23,7 +23,7 @@ namespace Voltium.TextureLoading
         /// <param name="loaderFlags">The flags passed to the texture loader</param>
         /// <param name="maxMipMapSize">The maximum permitted size of a mipmap, or 0 to indicate the maximum size permitted by hardware</param>
         /// <returns>A texture description</returns>
-        public static LoadedTexture CreateTexture(
+        public static FormatTexture LoadTextureDesc(
             string fileName,
             TexType type = TexType.RuntimeDetect,
             LoaderFlags loaderFlags = LoaderFlags.None,
@@ -37,7 +37,7 @@ namespace Voltium.TextureLoading
 
             using var stream = new FileStream(fileName, FileMode.Open, FileAccess.Read);
 
-            return CreateTexture(
+            return LoadTextureDesc(
                 stream,
                 type,
                 loaderFlags,
@@ -53,7 +53,7 @@ namespace Voltium.TextureLoading
         /// <param name="loaderFlags">The flags passed to the texture loader</param>
         /// <param name="maxMipMapSize">The maximum permitted size of a mipmap, or 0 to indicate the maximum size permitted by hardware</param>
         /// <returns>A texture description</returns>
-        public static LoadedTexture CreateTexture(
+        public static FormatTexture LoadTextureDesc(
             Stream stream,
             TexType type = TexType.RuntimeDetect,
             LoaderFlags loaderFlags = LoaderFlags.None,
@@ -74,7 +74,7 @@ namespace Voltium.TextureLoading
             var data = new byte[streamSize];
             var read = stream.Read(data);
 
-            return CreateTexture(
+            return LoadTextureDesc(
                 data,
                 type,
                 loaderFlags,
@@ -90,8 +90,8 @@ namespace Voltium.TextureLoading
         /// <param name="loaderFlags">The flags passed to the texture loader</param>
         /// <param name="maxMipMapSize">The maximum permitted size of a mipmap, or 0 to indicate the maximum size permitted by hardware</param>
         /// <returns>A texture description</returns>
-        public static LoadedTexture CreateTexture(
-            Memory<byte> data,
+        public static FormatTexture LoadTextureDesc(
+            ReadOnlyMemory<byte> data,
             TexType type = TexType.RuntimeDetect,
             LoaderFlags loaderFlags = LoaderFlags.None,
             uint maxMipMapSize = 0
@@ -137,7 +137,7 @@ namespace Voltium.TextureLoading
         public static void RecordTextureUpload(
             ID3D12Device* device,
             ID3D12GraphicsCommandList* cmdList,
-            in LoadedTexture texture,
+            in FormatTexture texture,
             out ID3D12Resource* textureBuffer,
             out ID3D12Resource* textureBufferUploadHeap,
             D3D12_RESOURCE_FLAGS resourceFlags = D3D12_RESOURCE_FLAGS.D3D12_RESOURCE_FLAG_NONE
@@ -266,7 +266,7 @@ namespace Voltium.TextureLoading
         private const ushort BmpMagicWord = 0x424D; // ASCII for 'BM'
         private const ulong PngMagicWord = 0x89504E470d0A1A0A; // ASCII for '\x89PNG\r\n\x1a\n'
 
-        private static bool TryResolveTexture(in Memory<byte> data, out TexType texType)
+        private static bool TryResolveTexture(in ReadOnlyMemory<byte> data, out TexType texType)
         {
             // wtf.jpg
             // we technically handle really small invalid textures here but they'll just error out later in the pipeline

@@ -2,142 +2,14 @@ using System;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using TerraFX.Interop;
-using Voltium.Annotations;
 using Voltium.Common;
 using static TerraFX.Interop.Windows;
 
 namespace Voltium.Core.Devices
 {
-    [NativeComType(implements: typeof(ID3DInclude))]
-    internal unsafe partial struct LegacyFxcIncludeHandler
-    {
-        private IncludeHandler _handler;
-
-        [NativeComMethod]
-        public int Close(void* data)
-        {
-            Helpers.Free(data);
-
-            return S_OK;
-        }
-
-        [NativeComMethod]
-        public int Open(
-                D3D_INCLUDE_TYPE includeType,
-                sbyte* pFileName,
-                void* pParentData,
-                void** ppData,
-                uint* pBytes
-            )
-        {
-            int hr = _handler.LoadSource(new string(pFileName), out byte[] text);
-
-            if (SUCCEEDED(hr))
-            {
-                void* block = Helpers.Alloc(text.Length);
-                text.AsSpan().CopyTo(new Span<byte>(block, text.Length));
-
-                *ppData = block;
-                *pBytes = (uint)text.Length;
-            }
-
-            return hr;
-        }
-
-        public string AppDirectory
-        {
-            get => _handler.AppDirectory;
-            set => _handler.AppDirectory = value;
-        }
-
-        public string ShaderDirectory
-        {
-            get => _handler.ShaderDirectory;
-            set => _handler.ShaderDirectory = value;
-        }
-    }
-
-    [NativeComType(implements: typeof(IDxcIncludeHandler))]
-    internal unsafe partial struct DxcIncludeHandler : IDisposable
-    {
-        private ComPtr<IDxcUtils> _utils;
-        private IncludeHandler _handler;
-
-        public string AppDirectory
-        {
-            get => _handler.AppDirectory;
-            set => _handler.AppDirectory = value;
-        }
-
-        public string ShaderDirectory
-        {
-            get => _handler.ShaderDirectory;
-            set => _handler.ShaderDirectory = value;
-        }
-
-        public void Init(ComPtr<IDxcUtils> utils)
-        {
-            Init();
-
-            AppDirectory = Directory.GetCurrentDirectory();
-            _utils = utils.Move();
-        }
-
-        [NativeComMethod]
-        public int QueryInterface(Guid* riid, void** ppvObject)
-        {
-            return E_NOINTERFACE;
-        }
-
-        [NativeComMethod]
-        public uint AddRef()
-        {
-            return default;
-        }
-
-        [NativeComMethod]
-        public uint Release()
-        {
-            return default;
-        }
-
-        [NativeComMethod]
-        private int LoadSource(ushort* pFilename, IDxcBlob** ppIncludeSource)
-        {
-            var filename = new string((char*)pFilename);
-            var hr = _handler.LoadSource(filename, out string text);
-
-            if (SUCCEEDED(hr))
-            {
-                *ppIncludeSource = CreateBlob(text).Get();
-            }
-
-            return hr;
-        }
-
-
-        private ComPtr<IDxcBlob> CreateBlob(ReadOnlySpan<char> data)
-        {
-            using ComPtr<IDxcBlobEncoding> encoding = default;
-            fixed (char* pData = data)
-            {
-                Guard.ThrowIfFailed(_utils.Get()->CreateBlob(pData, (uint)(data.Length * sizeof(char)), ShaderManager.DXC_CP_UTF16, ComPtr.GetAddressOf(&encoding)));
-            }
-            return ComPtr.UpCast<IDxcBlobEncoding, IDxcBlob>(encoding.Move());
-        }
-
-        private static ref DxcIncludeHandler AsThis(IDxcIncludeHandler* pThis) => ref Unsafe.As<IDxcIncludeHandler, DxcIncludeHandler>(ref *pThis);
-
-
-        public void Dispose()
-        {
-            _utils.Dispose();
-        }
-    }
     internal unsafe struct IncludeHandler
     {
         public string ShaderDirectory { get; set; }
@@ -231,14 +103,4 @@ namespace Voltium.Core.Devices
             throw new NotImplementedException();
         }
     }
-
-    //internal unsafe static class IncludeHandlerExtensions
-    //{
-    //    public static ref IDxcIncludeHandler GetPinnableReference(ref this DxcIncludeHandler handler)
-    //        => ref Unsafe.As<nuint, IDxcIncludeHandler>(ref Unsafe.AsRef(handler.Vtbl));
-
-
-    //    public static ref ID3DInclude GetPinnableReference(ref this LegacyFxcIncludeHandler handler)
-    //        => ref Unsafe.As<nuint, ID3DInclude>(ref Unsafe.AsRef(handler.Vtbl));
-    //}
 }

@@ -18,6 +18,7 @@ using Buffer = Voltium.Core.Memory.Buffer;
 
 using static Voltium.Core.Pipeline.GraphicsPipelineDesc;
 using TerraFX.Interop;
+using Voltium.Core.Contexts;
 
 #if DOUBLE
 using FloatType = System.Double;
@@ -32,8 +33,9 @@ namespace Voltium.Interactive.RenderGraphSamples
     {
         private GraphicsDevice _device;
         private Size _resolution;
+        private DescriptorHeap _heap;
 
-        public override void Register(ref RenderPassBuilder builder, ref Resolver resolver)
+        public override bool Register(ref RenderPassBuilder builder, ref Resolver resolver)
         {
             var settings = resolver.GetComponent<PipelineSettings>();
 
@@ -45,20 +47,22 @@ namespace Voltium.Interactive.RenderGraphSamples
             );
 
             resolver.CreateComponent(resources);
+
+            return true;
         }
 
         public override void Record(GraphicsContext context, ref Resolver resolver)
         {
             var renderTarget = resolver.ResolveResource(resolver.GetComponent<PipelineResources>().SceneColor);
-            var renderTargetView = _device.CreateRenderTargetView(renderTarget);
+            _device.CreateRenderTargetView(renderTarget, _heap[0]);
 
-            context.ResourceTransition(renderTarget, ResourceState.RenderTarget);
+            context.Barrier(ResourceBarrier.Transition(renderTarget, ResourceState.PixelShaderResource, ResourceState.RenderTarget));
 
             context.SetViewportAndScissor(_resolution);
-            context.SetRenderTargets(renderTargetView);
+            context.SetRenderTarget(_heap[0]);
             context.Discard(renderTarget);
-            context.SetTopology(Topology.TriangeList);
-            context.SetBuffer(0, _colors);
+            context.SetTopology(Topology.TriangleList);
+            context.SetShaderResourceBuffer(0, _colors);
             context.SetRoot32BitConstants(1, _constants);
             context.Draw(3);
         }
@@ -70,9 +74,11 @@ namespace Voltium.Interactive.RenderGraphSamples
             _device = device;
             _resolution = resolution;
 
-            using (var copy = device.BeginCopyContext())
+            _heap = _device.CreateDescriptorHeap(DescriptorHeapType.RenderTargetView, 1);
+
+            using (var copy = device.BeginUploadContext())
             {
-                copy.UploadBuffer(GetColors(), ResourceState.PixelShaderResource, out _colors);
+                _colors = copy.UploadBuffer(GetColors());
             }
 
             var @params = new RootParameter[]
@@ -82,7 +88,6 @@ namespace Voltium.Interactive.RenderGraphSamples
             };
 
             var rootSig = _device.CreateRootSignature(@params, null);
-            _device.PipelineManager.Reset();
 
             var flags = new ShaderCompileFlag[]
             {
@@ -98,12 +103,12 @@ namespace Voltium.Interactive.RenderGraphSamples
                 RootSignature = rootSig,
                 Topology = TopologyClass.Triangle,
                 DepthStencil = DepthStencilDesc.DisableDepthStencil,
-                RenderTargetFormats = new FormatBuffer8(BackBufferFormat.R8G8B8A8UnsignedNormalized),
+                RenderTargetFormats = BackBufferFormat.R8G8B8A8UnsignedNormalized,
                 VertexShader = ShaderManager.CompileShader("Shaders/Mandelbrot/EntireScreenCopyVS.hlsl", ShaderModel.Vs_5_0, flags),
                 PixelShader = ShaderManager.CompileShader("Shaders/Mandelbrot/Mandelbrot.hlsl", ShaderModel.Ps_5_0, flags)
             };
 
-            DefaultPipelineState = _device.PipelineManager.CreatePipelineStateObject("Mandelbrot", psoDesc);
+            DefaultPipelineState = _device.PipelineManager.CreatePipelineStateObject(psoDesc, "Mandelbrot");
 
             _constants = new MandelbrotConstants
             {

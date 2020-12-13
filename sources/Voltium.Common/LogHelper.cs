@@ -1,6 +1,6 @@
-#if DEBUG || DEBUG_LOG
+#if DEBUG
 #define DEBUG_OUTPUT_CONSOLE
-#define LOG_LEVEL_DEBUG
+#define LOG_LEVEL_TRACE
 #define LOG
 #endif
 
@@ -9,16 +9,29 @@
 #endif
 
 using System;
+using System.Buffers;
+using System.Collections;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.Runtime.CompilerServices;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Timers;
 using Microsoft.Extensions.Logging;
-using ZLogger;
+using Microsoft.Toolkit.HighPerformance.Extensions;
+using TerraFX.Interop;
+using Voltium.Common.Threading;
+
+using Timer = System.Timers.Timer;
 
 namespace Voltium.Common
 {
-
-    internal static class LogHelper
+#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
+    public static partial class LogHelper
     {
+#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
         private const string LogFile = "log.txt";
 
         public static LogLevel MinimumLogLevel
@@ -45,36 +58,161 @@ namespace Voltium.Common
             }
         }
 
+
+        public struct Context
+        {
+            public Context(int value) => Value = value;
+
+            private static int _lastLogContext;
+            private int Value;
+            public static Context Create() => new Context(Interlocked.Increment(ref _lastLogContext));
+        }
+
+
+        private static readonly Timer AsyncFlush = GetAsyncFlushTimer();
+
+        private static Timer GetAsyncFlushTimer()
+        {
+            var timer = new Timer(1000);
+            timer.Start();
+            timer.AutoReset = true;
+            timer.Elapsed += static (_, _) => FlushBuffer();
+            return timer;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool AreSame<T, U>() => typeof(T) == typeof(U);
+
+        private static bool CanSerializeType<T>() => Helpers.IsPrimitive<T>();
+
         private const string LogSymbol = "DEBUG";
 
-        private static readonly ILogger Logger = LoggerFactory.Create(builder =>
+        private const int BufferSize = 4096;
+
+        private static LockedList<FixedSizeArrayBufferWriter<char>?, MonitorLock> ThreadBuffers = new(MonitorLock.Create());
+
+        [ThreadStatic]
+        private static FixedSizeArrayBufferWriter<char>? TextBuffer;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MemberNotNull(nameof(TextBuffer))]
+        private static void EnsureInitialized()
         {
-            _ = builder.ClearProviders()
-                       .SetMinimumLevel(MinimumLogLevel)
-                       .AddZLoggerConsole(options => options.EnableStructuredLogging = false);
-        }).CreateLogger("GlobalLogger");
+            if (TextBuffer is not null)
+            {
+                return;
+            }
 
-        private static TextWriter Out => Console.Out;
+            InitializeTextBuffer();
 
-        [Conditional(LogSymbol)]
-        public static void Log(LogLevel level, string message) => Out.WriteLine(message);
+            [MethodImpl(MethodImplOptions.NoInlining)]
+            [MemberNotNull(nameof(TextBuffer))]
+            static void InitializeTextBuffer()
+            {
+                TextBuffer = new FixedSizeArrayBufferWriter<char>(BufferSize);
 
-        [Conditional(LogSymbol)]
-        public static void LogTrace(string message) => Out.WriteLine(message);
+                ThreadBuffers.Add(TextBuffer);
+            }
+        }
 
-        [Conditional(LogSymbol)]
-        public static void LogDebug(string message) => Out.WriteLine(message);
+        private static void FlushBuffer()
+        {
+            using (ThreadBuffers.EnterScopedLock())
+            {
+                foreach (var buffer in ThreadBuffers.UnderlyingList)
+                {
+                    if (buffer is null)
+                    {
+                        return;
+                    }
 
-        [Conditional(LogSymbol)]
-        public static void LogInformation(string message) => Out.WriteLine(message);
+                    foreach (var span in buffer.GetWrittenSpan())
+                    {
+                        Console.Out.Write(span);
+                    }
+                    buffer.ResetBuffer();
+                }
+            }
+        }
 
-        [Conditional(LogSymbol)]
-        public static void LogWarning(string message) => Out.WriteLine(message);
+        private static void DirectWriteData(ReadOnlySpan<char> val) => Console.Out.Write(val);
 
-        [Conditional(LogSymbol)]
-        public static void LogCritical(string message) => Out.WriteLine(message);
+        private static void Write(ReadOnlySpan<char> val)
+        {
+            EnsureInitialized();
 
-        [Conditional(LogSymbol)]
-        public static void LogError(string message) => Out.WriteLine(message);
+            while (true)
+            {
+                if (val.TryCopyTo(TextBuffer.GetSpan()))
+                {
+                    TextBuffer.Advance(val.Length);
+                    break;
+                }
+                else
+                {
+                    if (val.Length > TextBuffer.Capacity)
+                    {
+                        DirectWriteData(val);
+                        break;
+                    }
+                    FlushBuffer();
+                }
+            }
+        }
+
+        private static void Write(char val)
+        {
+            EnsureInitialized();
+
+            if (TextBuffer.IsEmpty)
+            {
+                FlushBuffer();
+            }
+
+            TextBuffer.GetSpan()[0] = val;
+            TextBuffer.Advance(1);
+        }
+
+        private static void Write<T>(T val) => Write((val?.ToString() ?? "null").AsSpan());
+
+        private const char NewLine = '\n';
+
+        //[Conditional(LogSymbol)]
+        [VariadicGeneric("Write(%t)")]
+        public static void Log(LogLevel level, ReadOnlySpan<char> message)
+        {
+            if (level < MinimumLogLevel)
+            {
+                return;
+            }
+            Write(message);
+            VariadicGenericAttribute.InsertExpressionsHere();
+            Write(NewLine);
+        }
+
+        //[Conditional(LogSymbol)]
+        [VariadicGeneric("Log(LogLevel.Trace, message %t...)")]
+        public static partial void LogTrace(ReadOnlySpan<char> message);
+
+        //[Conditional(LogSymbol)]
+        [VariadicGeneric("Log(LogLevel.Debug, message %t...)")]
+        public static partial void LogDebug(ReadOnlySpan<char> message);
+
+        //[Conditional(LogSymbol)]
+        [VariadicGeneric("Log(LogLevel.Information, message %t...)")]
+        public static partial void LogInformation(ReadOnlySpan<char> message);
+
+        //[Conditional(LogSymbol)]
+        [VariadicGeneric("Log(LogLevel.Warning, message %t...)")]
+        public static partial void LogWarning(ReadOnlySpan<char> message);
+
+        //[Conditional(LogSymbol)]
+        [VariadicGeneric("Log(LogLevel.Critical, message %t...)")]
+        public static partial void LogCritical(ReadOnlySpan<char> message);
+
+
+        //[Conditional(LogSymbol)]
+        [VariadicGeneric("Log(LogLevel.Error, message %t...)")]
+        public static partial void LogError(ReadOnlySpan<char> message);
     }
 }

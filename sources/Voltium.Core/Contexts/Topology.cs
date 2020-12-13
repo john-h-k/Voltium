@@ -32,7 +32,7 @@ namespace Voltium.Core
         /// <summary>
         /// Each set of 3 vertices represents a single triangle. This is a type of <see cref="TopologyClass.Triangle"/>
         /// </summary>
-        TriangeList = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST,
+        TriangleList = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST,
 
         /// <summary>
         /// Each set of 2 vertices represent a line, but each end vertex is shared by 2 lines

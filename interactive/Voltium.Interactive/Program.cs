@@ -14,15 +14,39 @@ using Voltium.Interactive.BasicRenderPipeline;
 using Voltium.Interactive.RenderGraphSamples;
 using Voltium.RenderEngine;
 using Voltium.Interactive.HelloTriangle;
+using Voltium.Interactive.HelloTriangleRaytracing;
+using Voltium.Interactive.FloatMultiplySample;
+using TerraFX.Interop;
+using Voltium.Common;
+using Voltium.Core.Exceptions;
+using Microsoft.Extensions.Logging;
+using Voltium.Interactive.Samples.Predication;
 
 namespace Voltium.Interactive
 {
-    internal static class Program
+    internal static unsafe class Program
     {
         private static int Main(string[] args)
         {
-            var application = new HelloTriangleApp();
+            var application = new PredicationSample();
             return ApplicationRunner.RunWin32(application);
         }
     }
+
+    public class LogBenchmark
+    {
+        [Benchmark]
+        public void Console_WriteLine()
+        {
+            Console.WriteLine("Hello world, Console.WriteLine here!");
+        }
+
+        [Benchmark]
+        public void LogHelper_WriteLine()
+        {
+             LogHelper.Log(LogLevel.Trace, "Hello world, Console.WriteLine here!");
+        }
+    }
+
+
 }

@@ -9,7 +9,7 @@ using TerraFX.Interop;
 using Voltium.Allocators;
 using Voltium.Common;
 using Voltium.Core.Devices.Shaders;
-using ZLogger;
+
 using static TerraFX.Interop.Windows;
 
 namespace Voltium.Core.Devices
@@ -17,8 +17,59 @@ namespace Voltium.Core.Devices
     /// <summary>
     /// A class used for management, compilation, and storing of shaders
     /// </summary>
-    public sealed class ShaderManager
+    public unsafe sealed class ShaderManager
     {
+        private static uint FourCc(char ch0, char ch1, char ch2, char ch3) =>
+            (uint)(byte)(ch0)
+            | (uint)(byte)(ch1) << 8
+            | (uint)(byte)(ch2) << 16
+            | (uint)(byte)(ch3) << 24;
+
+        private static uint DXC_PART_PDB = FourCc('I', 'L', 'D', 'B');
+        private static uint DXC_PART_PDB_NAME = FourCc('I', 'L', 'D', 'N');
+        private static uint DXC_PART_PRIVATE_DATA = FourCc('P', 'R', 'I', 'V');
+        private static uint DXC_PART_ROOT_SIGNATURE = FourCc('R', 'T', 'S', '0');
+        private static uint DXC_PART_DXIL = FourCc('D', 'X', 'I', 'L');
+        private static uint DXC_PART_REFLECTION_DATA = FourCc('S', 'T', 'A', 'T');
+        private static uint DXC_PART_SHADER_HASH = FourCc('H', 'A', 'S', 'H');
+        private static uint DXC_PART_INPUT_SIGNATURE = FourCc('I', 'S', 'G', '1');
+        private static uint DXC_PART_OUTPUT_SIGNATURE = FourCc('O', 'S', 'G', '1');
+        private static uint DXC_PART_PATCH_CONSTANT_SIGNATURE = FourCc('P', 'S', 'G', '1');
+
+        struct ShaderReflection
+        {
+            struct Sampler
+            {
+
+            }
+        }
+
+        private static void Reflect(CompiledShader shader)
+        {
+            var buffer = new DxcBuffer
+            {
+                Encoding = 0,
+                Ptr = shader.Pointer,
+                Size = shader.Length
+            };
+
+            using UniqueComPtr<ID3D12ShaderReflection> reflection = default;
+            Guard.ThrowIfFailed(Utils.Ptr->CreateReflection(&buffer, reflection.Iid, (void**)&reflection));
+
+            D3D12_SHADER_DESC desc;
+            Guard.ThrowIfFailed(reflection.Ptr->GetDesc(&desc));
+
+            for (var i = 0u; i < desc.BoundResources; i++)
+            {
+                D3D12_SHADER_INPUT_BIND_DESC bindDesc;
+                Guard.ThrowIfFailed(reflection.Ptr->GetResourceBindingDesc(i, &bindDesc));
+            }
+        }
+
+        private static void Link(ShaderReflection reflection, RootSignature rootSig)
+        {
+
+        }
 
         /// <summary>
         /// Reads a new <see cref="CompiledShader"/> from  a file
@@ -37,7 +88,7 @@ namespace Voltium.Core.Devices
         /// <param name="stream">The stream containing the shader data</param>
         /// <param name="type">The type of the shader</param>
         /// <returns>A new <see cref="CompiledShader"/></returns>
-        public static CompiledShader ReadCompiledShader(Stream stream, ShaderType type)
+        public static unsafe CompiledShader ReadCompiledShader(Stream stream, ShaderType type)
         {
             var size = stream.Length;
 
@@ -46,11 +97,11 @@ namespace Voltium.Core.Devices
                 ThrowHelper.ThrowArgumentException("Shaders cannot exceed 2^31 bytes");
             }
 
-            var buff = new byte[(int)size];
+            var buff = Helpers.AllocSpan((int)size);
 
             stream.Read(buff);
 
-            return ReadCompiledShader(buff, type);
+            return new CompiledShader(Helpers.AddressOf(buff), buff.Length, type);
         }
 
         /// <summary>
@@ -59,25 +110,27 @@ namespace Voltium.Core.Devices
         /// <param name="data">The bytes containing the shader data</param>
         /// <param name="type">The type of the shader</param>
         /// <returns>A new <see cref="CompiledShader"/></returns>
-        public static CompiledShader ReadCompiledShader(Memory<byte> data, ShaderType type)
+        public static unsafe CompiledShader ReadCompiledShader(ReadOnlySpan<byte> data, ShaderType type)
         {
-            return new CompiledShader(new NopMemoryOwner<byte>(data), type);
+            var copy = Helpers.Alloc(data.Length);
+            Helpers.Copy(data, copy, data.Length);
+            return new CompiledShader(copy, data.Length, type);
         }
 
-        private static ComPtr<IDxcCompiler3> Compiler;
+        private static UniqueComPtr<IDxcCompiler3> Compiler;
         private static DxcIncludeHandler DefaultDxcIncludeHandler;
         private static LegacyFxcIncludeHandler DefaultFxcIncludeHandler;
-        private static ComPtr<IDxcUtils> Utils;
+        private static UniqueComPtr<IDxcUtils> Utils;
 
         static unsafe ShaderManager()
         {
-            ComPtr<IDxcCompiler3> compiler = default;
-            ComPtr<IDxcUtils> utils = default;
+            UniqueComPtr<IDxcCompiler3> compiler = default;
+            UniqueComPtr<IDxcUtils> utils = default;
 
             Guid clsid = CLSID_DxcCompiler;
-            Guard.ThrowIfFailed(DxcCreateInstance(&clsid, compiler.Iid, ComPtr.GetVoidAddressOf(&compiler)));
-            clsid = CLSID_DxcUtils;
-            Guard.ThrowIfFailed(DxcCreateInstance(&clsid, utils.Iid, ComPtr.GetVoidAddressOf(&utils)));
+            Guard.ThrowIfFailed(DxcCreateInstance(&clsid, compiler.Iid, (void**)&compiler));
+            clsid = CLSID_DxcLibrary;
+            Guard.ThrowIfFailed(DxcCreateInstance(&clsid, utils.Iid, (void**)&utils));
 
             Compiler = compiler.Move();
             Utils = utils.Move();
@@ -408,27 +461,30 @@ namespace Voltium.Core.Devices
             fixed (char* pText = shaderText)
             fixed (IDxcIncludeHandler* pInclude = DefaultDxcIncludeHandler)
             {
+                using UniqueComPtr<IDxcIncludeHandler> defaultInclude = default;
+                Guard.ThrowIfFailed(Utils.Ptr->CreateDefaultIncludeHandler(ComPtr.GetAddressOf(&defaultInclude)));
+
                 DxcBuffer text;
                 text.Ptr = pText;
                 text.Size = (nuint)(shaderText.Length * sizeof(char));
                 text.Encoding = DXC_CP_UTF16;
 
-                using ComPtr<IDxcResult> compileResult = default;
-                Guard.ThrowIfFailed(Compiler.Get()->Compile(
+                using UniqueComPtr<IDxcResult> compileResult = default;
+                Guard.ThrowIfFailed(Compiler.Ptr->Compile(
                     &text,
                     (ushort**)ppFlags,
                     (uint)(flagPointerLength / sizeof(nuint)),
-                    pInclude,
+                    defaultInclude.Ptr,
                     compileResult.Iid,
-                    ComPtr.GetVoidAddressOf(&compileResult)
+                    (void**)&compileResult
                 ));
 
                 int statusHr;
-                Guard.ThrowIfFailed(compileResult.Get()->GetStatus(&statusHr));
+                Guard.ThrowIfFailed(compileResult.Ptr->GetStatus(&statusHr));
 
                 if (FAILED(statusHr))
                 {
-                    var result = TryGetOutput(compileResult.Get(), DXC_OUT_KIND.DXC_OUT_ERRORS, out var errors, out var errorName);
+                    var result = TryGetOutput(compileResult.Ptr, DXC_OUT_KIND.DXC_OUT_ERRORS, out var errors, out var errorName);
                     Debug.Assert(result);
                     _ = result; // prevent release warning
 
@@ -438,27 +494,30 @@ namespace Voltium.Core.Devices
                         var data = new ShaderCompilationData
                         {
                             Filename = name,
-                            Errors = AsString(errors.Get()),
-                            Other = AsString(errorName.Get())
+                            Errors = errors.Ptr->GetString(encoding == OutputEncoding.Utf8 ? Encoding.UTF8 : null),
+                            Other = errorName.Ptr->GetString(),
                         };
                         throw new ShaderCompilationException(data);
                     }
                 }
 
-                if (TryGetOutput(compileResult.Get(), DXC_OUT_KIND.DXC_OUT_PDB, out var pdb, out var pdbName))
+                if (TryGetOutput(compileResult.Ptr, DXC_OUT_KIND.DXC_OUT_PDB, out var pdb, out var pdbName))
                 {
                     using (pdb)
                     using (pdbName)
                     {
-                        HandlePdb(pdb.Get(), pdbName.Get());
+                        HandlePdb(pdb.Ptr, pdbName.Ptr);
                     }
                 }
 
-                using ComPtr<IDxcBlob> pBlob = default;
-                Guard.ThrowIfFailed(compileResult.Get()->GetResult(ComPtr.GetAddressOf(&pBlob)));
-                var shaderBytes = FromBlob(pBlob.Get());
+                using UniqueComPtr<IDxcBlob> pBlob = default;
+                Guard.ThrowIfFailed(compileResult.Ptr->GetResult(ComPtr.GetAddressOf(&pBlob)));
+                var shaderBytes = pBlob.Ptr->AsSpan();
 
-                return new CompiledShader(new DxcBlobMemoryManager(pBlob.Move()), target.Type);
+                var buff = Helpers.Alloc(shaderBytes.Length);
+                Helpers.Copy(pBlob.Ptr->GetBufferPointer(), buff, shaderBytes.Length);
+
+                return new CompiledShader(buff, shaderBytes.Length, target.Type);
             }
         }
 
@@ -499,8 +558,8 @@ namespace Voltium.Core.Devices
 
             var fxcFlags = GetFxcFlags(flags, out var macros);
 
-            using ComPtr<ID3DBlob> pCode = default;
-            using ComPtr<ID3DBlob> pError = default;
+            using UniqueComPtr<ID3DBlob> pCode = default;
+            using UniqueComPtr<ID3DBlob> pError = default;
 
             fixed (byte* pSrcData = strBuff.Value)
             fixed (D3D_SHADER_MACRO* pDefines = macros)
@@ -528,12 +587,16 @@ namespace Voltium.Core.Devices
                     var data = new ShaderCompilationData
                     {
                         Filename = name,
-                        Errors = AsString(pError.Get())
+                        Errors = pError.Ptr->AsDxcBlob()->GetString(Encoding.ASCII)
                     };
                     throw new ShaderCompilationException(data);
                 }
 
-                return new CompiledShader(new D3DBlobMemoryManager(pCode.Move()), target.Type);
+                var shaderBytes = pCode.Ptr->AsDxcBlob()->AsSpan();
+                var buff = Helpers.Alloc(shaderBytes.Length);
+                Helpers.Copy(pCode.Ptr->GetBufferPointer(), buff, shaderBytes.Length);
+
+                return new CompiledShader(buff, shaderBytes.Length, target.Type);
             }
         }
 
@@ -642,66 +705,26 @@ namespace Voltium.Core.Devices
 
         private static unsafe void HandlePdb(IDxcBlob* pdb, IDxcBlobUtf16* pdbName)
         {
-            using var file = File.OpenWrite(FromBlob(pdbName).ToString());
-            file.Write(FromBlob(pdb));
+            using var file = File.OpenWrite(Path.Join(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Temp", pdbName->GetString()));
+            file.Write(pdb->AsSpan());
         }
-
-
-        private static unsafe ReadOnlySpan<char> AsString(ID3DBlob* blob)
-            => blob == null ? null : new string((sbyte*)blob->GetBufferPointer(), 0, (int)blob->GetBufferSize());
-
-        private static unsafe ReadOnlySpan<char> AsString(IDxcBlobUtf16* utf16)
-            => utf16 == null ? null : new ReadOnlySpan<char>(utf16->GetStringPointer(), (int)utf16->GetStringLength());
-        private static unsafe ReadOnlySpan<char> AsString(IDxcBlobUtf8* utf8)
-            => Encoding.UTF8.GetString(new ReadOnlySpan<byte>(utf8->GetStringPointer(), (int)utf8->GetStringLength()));
-
-        private static unsafe ReadOnlySpan<char> AsString(IDxcBlob* pBlob)
-        {
-            if (ComPtr.TryQueryInterface(pBlob, out IDxcBlobUtf8* utf8))
-            {
-                return AsString(utf8);
-            }
-            if (ComPtr.TryQueryInterface(pBlob, out IDxcBlobUtf16* utf16))
-            {
-                return AsString(utf16);
-            }
-
-            if (ComPtr.TryQueryInterface(pBlob, out IDxcBlobEncoding* _))
-            {
-                ThrowHelper.ThrowNotSupportedException("Unsupported encoding");
-            }
-            else
-            {
-                ThrowHelper.ThrowNotSupportedException("Cannot decode binary data");
-            }
-            return null;
-        }
-
-        private static unsafe ReadOnlySpan<byte> FromBlob(IDxcBlob* pBlob)
-            => new ReadOnlySpan<byte>(pBlob->GetBufferPointer(), (int)pBlob->GetBufferSize());
-
-        private static unsafe ReadOnlySpan<char> FromBlob(IDxcBlobUtf8* pBlob)
-            => Encoding.ASCII.GetString(new ReadOnlySpan<byte>(pBlob->GetStringPointer(), (int)pBlob->GetStringLength()));
-
-        private static unsafe ReadOnlySpan<char> FromBlob(IDxcBlobUtf16* pBlob)
-            => new ReadOnlySpan<char>(pBlob->GetStringPointer(), (int)pBlob->GetStringLength());
-
+        
         private static unsafe bool TryGetOutput(
             IDxcResult* result,
             DXC_OUT_KIND kind,
-            out ComPtr<IDxcBlob> data,
-            out ComPtr<IDxcBlobUtf16> name
+            out UniqueComPtr<IDxcBlob> data,
+            out UniqueComPtr<IDxcBlobUtf16> name
         )
         {
-            if (result->HasOutput(kind) == Windows.TRUE)
+            if (result->HasOutput(kind) == TRUE)
             {
-                fixed (ComPtr<IDxcBlob>* pData = &data)
-                fixed (ComPtr<IDxcBlobUtf16>* pName = &name)
+                fixed (UniqueComPtr<IDxcBlob>* pData = &data)
+                fixed (UniqueComPtr<IDxcBlobUtf16>* pName = &name)
                 {
                     Guard.ThrowIfFailed(result->GetOutput(
                         kind,
                         pData->Iid,
-                        ComPtr.GetVoidAddressOf(pData),
+                        (void**)pData,
                         ComPtr.GetAddressOf(pName)
                     ));
 

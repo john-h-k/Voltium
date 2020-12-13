@@ -14,7 +14,7 @@ namespace Voltium.Analyzers.ComType
     [Generator]
     internal class ComTypeGenerator : PredicatedTypeGenerator
     {
-        protected override void GenerateFromSyntax(SourceGeneratorContext context, TypeDeclarationSyntax syntax, SyntaxTree tree)
+        protected override void GenerateFromSyntax(GeneratorExecutionContext context, TypeDeclarationSyntax syntax, SyntaxTree tree)
         {
             var semantics = context.Compilation.GetSemanticModel(tree);
 
@@ -23,7 +23,7 @@ namespace Voltium.Analyzers.ComType
             _ = typeSymbol.TryGetAttribute(NativeComTypeAttributeName, context.Compilation, out var typeAttr);
             var implName = typeAttr.ConstructorArguments[0].IsNull ? null : typeAttr.ConstructorArguments[0].Value?.ToString();
 
-            var vtblType = ((IFieldSymbol)typeSymbol.GetMembers("Vtbl").FirstOrDefault())?.Type.ToString();
+            var vtblType = ((IFieldSymbol)typeSymbol.GetMembers("Vtbl").FirstOrDefault()!)?.Type.ToString();
 
             var initBody = "";
             var wrappers = "";
@@ -38,7 +38,7 @@ namespace Voltium.Analyzers.ComType
 
                     var remap = "_Generated_Com_" + symbol.Name;
                     initBody += GenerateVtableEntry(index, remap, symbol) + ";\n";
-                    wrappers += GenerateManagedWrapper("stdcall", remap, symbol) + "\n\n";
+                    wrappers += GenerateManagedWrapper(null, remap, symbol) + "\n\n";
                 }
             }
 
@@ -123,11 +123,13 @@ namespace Voltium.Analyzers.ComType
                 .First()
                 .NamedArguments.Where(kvp => kvp.Key == "Index").FirstOrDefault().Value.Value as int? ?? -1;
 
-        private string GenerateManagedWrapper(string callingConv, string remapName, IMethodSymbol method)
+        
+        private string GenerateManagedWrapper(string? callingConv, string remapName, IMethodSymbol method)
         {
+            // [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
             var @params = GetParams(method);
             return string.Format(
-                @"[UnmanagedCallersOnly]" +
+                @$"[UnmanagedCallersOnly{(callingConv is null ? "" : $"(CallConvs = new[] {{{{ typeof(CallConv{callingConv}) }}}})")}]" +
                 @"private static unsafe {0} {1}(void* @this{2}) => AsThis(@this).{3}({4});",
                 method.ReturnType.Name,
                 remapName,
@@ -139,23 +141,23 @@ namespace Voltium.Analyzers.ComType
 
         private string GenerateVtableEntry(int index, string remapName, IMethodSymbol method)
         {
-            return string.Format("vtbl[{0}] = ({1})&{2}", index, FuncPtrForMethod("stdcall", method), remapName);
+            return string.Format("vtbl[{0}] = ({1})&{2}", index, FuncPtrForMethod(null, method), remapName);
         }
 
-        private string FuncPtrForMethod(string callingConv, IMethodSymbol method)
+        private string FuncPtrForMethod(string? callingConv, IMethodSymbol method)
         {
             var @params = GetStrippedParams(method);
 
             @params = string.IsNullOrWhiteSpace(@params) ? "void*" : "void*, " + @params;
 
-            return string.Format("delegate* {0}<{1}, {2}>", /* not yet supported */ /*callingConv*/ "", @params, method.ReturnType.Name);
+            return string.Format("delegate* unmanaged{0}<{1}, {2}>", callingConv is null ? "" : $"[{callingConv}]", @params, method.ReturnType.Name);
         }
 
         private string GetParams(IMethodSymbol method) => string.Join(", ", method.Parameters.Select(p => p.Type.ToString() + " " + p.Name));
         private string GetStrippedParams(IMethodSymbol method) => string.Join(", ", method.Parameters.Select(p => p.Type.ToString()));
         private string GetParamNames(IMethodSymbol method) => string.Join(", ", method.Parameters.Select(p => p.Name));
 
-        protected override bool Predicate(SourceGeneratorContext context, INamedTypeSymbol decl)
+        protected override bool Predicate(GeneratorExecutionContext context, INamedTypeSymbol decl)
         {
             return decl.HasAttribute(NativeComTypeAttributeName, context.Compilation);
         }

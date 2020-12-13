@@ -10,16 +10,16 @@ namespace Voltium.Common
 {
     internal unsafe sealed class DxcBlobMemoryManager : MemoryManager<byte>
     {
-        private ComPtr<IDxcBlob> _blob;
+        private UniqueComPtr<IDxcBlob> _blob;
 
-        public DxcBlobMemoryManager(ComPtr<IDxcBlob> blob)
+        public DxcBlobMemoryManager(UniqueComPtr<IDxcBlob> blob)
         {
             _blob = blob.Move();
         }
 
-        public override Span<byte> GetSpan() => new Span<byte>(_blob.Get()->GetBufferPointer(), (int)_blob.Get()->GetBufferSize());
+        public override Span<byte> GetSpan() => new Span<byte>(_blob.Ptr->GetBufferPointer(), (int)_blob.Ptr->GetBufferSize());
 
-        public override MemoryHandle Pin(int elementIndex = 0) => new MemoryHandle((byte*)_blob.Get()->GetBufferPointer() + elementIndex);
+        public override MemoryHandle Pin(int elementIndex = 0) => new MemoryHandle((byte*)_blob.Ptr->GetBufferPointer() + elementIndex);
 
         public override void Unpin()
         {
@@ -34,16 +34,16 @@ namespace Voltium.Common
 
     internal unsafe sealed class D3DBlobMemoryManager : MemoryManager<byte>
     {
-        private ComPtr<ID3DBlob> _blob;
+        private UniqueComPtr<ID3DBlob> _blob;
 
-        public D3DBlobMemoryManager(ComPtr<ID3DBlob> blob)
+        public D3DBlobMemoryManager(UniqueComPtr<ID3DBlob> blob)
         {
             _blob = blob.Move();
         }
 
-        public override Span<byte> GetSpan() => new Span<byte>(_blob.Get()->GetBufferPointer(), (int)_blob.Get()->GetBufferSize());
+        public override Span<byte> GetSpan() => new Span<byte>(_blob.Ptr->GetBufferPointer(), (int)_blob.Ptr->GetBufferSize());
 
-        public override MemoryHandle Pin(int elementIndex = 0) => new MemoryHandle((byte*)_blob.Get()->GetBufferPointer() + elementIndex);
+        public override MemoryHandle Pin(int elementIndex = 0) => new MemoryHandle((byte*)_blob.Ptr->GetBufferPointer() + elementIndex);
 
         public override void Unpin()
         {

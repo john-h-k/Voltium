@@ -1,17 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Diagnostics;
-using System.IO;
 using System.Linq;
-using System.Linq.Expressions;
 using System.Runtime.InteropServices;
-using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
-using Analyzer.Utilities.Extensions;
 
 namespace Voltium.Analyzers
 {
@@ -36,12 +31,11 @@ namespace Voltium.Analyzers
            true
         );
 
-        public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(Rule);
+        public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } = ImmutableArray.Create(Rule);
 
         public override void Initialize(AnalysisContext context)
         {
-            //Debugger.Launch();
-            context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.Analyze | GeneratedCodeAnalysisFlags.ReportDiagnostics);
+            context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None | GeneratedCodeAnalysisFlags.ReportDiagnostics);
             context.EnableConcurrentExecution();
 
             context.RegisterCompilationStartAction(comp => InitializeCompilation(comp));
@@ -121,8 +115,8 @@ namespace Voltium.Analyzers
                 [comp.GetSpecialType(SpecialType.System_Single)] = new TypeSizeInfo(size: 4),
                 [comp.GetSpecialType(SpecialType.System_Double)] = new TypeSizeInfo(size: 8),
 
-                [comp.GetSpecialType(SpecialType.System_IntPtr)] = TypeSizeResolver.ReferenceTypeInfo,
-                [comp.GetSpecialType(SpecialType.System_UIntPtr)] = TypeSizeResolver.ReferenceTypeInfo,
+                [comp.GetSpecialType(SpecialType.System_IntPtr)] = ReferenceTypeInfo,
+                [comp.GetSpecialType(SpecialType.System_UIntPtr)] = ReferenceTypeInfo,
 
                 [comp.GetSpecialType(SpecialType.System_Decimal)] = new TypeSizeInfo(size: 16, alignment: 4),
             };
@@ -164,8 +158,8 @@ namespace Voltium.Analyzers
             var layout = type.GetAttributes().Where(attr => SymbolEqualityComparer.Default.Equals(attr.AttributeClass, _structLayoutAttribute)).FirstOrDefault();
             if (layout is not null)
             {
-                explicitSize = layout.NamedArguments.Where(kvp => kvp.Key == "Size").First().Value.Value as int? ?? 0;
-                explicitAlignment = layout.NamedArguments.Where(kvp => kvp.Key == "Pack").First().Value.Value as int? ?? 0;
+                explicitSize = layout.NamedArguments.Where(kvp => kvp.Key == "Size").FirstOrDefault().Value.Value as int? ?? 0;
+                explicitAlignment = layout.NamedArguments.Where(kvp => kvp.Key == "Pack").FirstOrDefault().Value.Value as int? ?? 0;
             }
 
 

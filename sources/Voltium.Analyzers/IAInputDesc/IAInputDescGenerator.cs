@@ -15,7 +15,7 @@ namespace Voltium.Analyzers
     [Generator]
     internal class IAInputDescGenerator : PredicatedTypeGenerator
     {
-        protected override void OnExecute(SourceGeneratorContext context)
+        protected override void OnExecute(GeneratorExecutionContext context)
             => InitBasicTypes(context.Compilation);
 
         private const string Namespace = "Voltium.Core.Devices.Shaders.";
@@ -23,18 +23,18 @@ namespace Voltium.Analyzers
         private const string InputLayoutAttributeName = Namespace + "InputLayoutAttribute";
         private const string ShaderIgnoreAttributeName = Namespace + "ShaderIgnoreAttribute";
 
-        protected override bool Predicate(SourceGeneratorContext context, INamedTypeSymbol decl)
+        protected override bool Predicate(GeneratorExecutionContext context, INamedTypeSymbol decl)
         {
             return decl.HasAttribute(ShaderInputAttributeName, context.Compilation);
         }
 
-        protected override void GenerateFromSymbol(SourceGeneratorContext context, INamedTypeSymbol typeSymbol)
+        protected override void GenerateFromSymbol(GeneratorExecutionContext context, INamedTypeSymbol typeSymbol)
         {
             var builder = new IAInputDescBuilder();
 
             ResolveType(builder, (typeSymbol.Name, typeSymbol), context.Compilation);
 
-            context.AddSource($"{typeSymbol.Name}.InputAssemblerLayout.cs", SourceText.From(builder.ToString(typeSymbol)!, Encoding.UTF8));
+            context.AddSource($"{typeSymbol}.InputAssemblerLayout.cs", SourceText.From(builder.ToString(typeSymbol)!, Encoding.UTF8));
         }
 
         private void ResolveType(IAInputDescBuilder builder, (string Name, ISymbol Symbol) args, Compilation comp)

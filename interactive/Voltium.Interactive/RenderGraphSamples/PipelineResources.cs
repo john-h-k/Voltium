@@ -20,6 +20,6 @@ namespace Voltium.Interactive.RenderGraphSamples
 
     public struct PipelineSettings
     {
-        public MultisamplingDesc Msaa;
+        public MsaaDesc Msaa;
     }
 }

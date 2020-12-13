@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
+
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
@@ -36,9 +36,9 @@ namespace Voltium.Core.Contexts
     /// <summary>
     /// Represents a single resource barrier, either a UAV, alias, or transition barriers
     /// </summary>
-    public readonly unsafe partial struct ResourceBarrier
+    public unsafe partial struct ResourceBarrier
     {
-        internal readonly D3D12_RESOURCE_BARRIER Barrier;
+        internal D3D12_RESOURCE_BARRIER Barrier;
 
         private ResourceBarrier(
             D3D12_RESOURCE_BARRIER_FLAGS flags,
@@ -55,7 +55,8 @@ namespace Voltium.Core.Contexts
             D3D12_RESOURCE_BARRIER_FLAGS flags,
             GpuResource resource,
             ResourceState before,
-            ResourceState after
+            ResourceState after,
+            uint subresource
         )
         { 
             Unsafe.SkipInit(out Barrier);
@@ -64,6 +65,7 @@ namespace Voltium.Core.Contexts
             Barrier.Anonymous.Transition.pResource = resource.GetResourcePointer();
             Barrier.Anonymous.Transition.StateBefore = (D3D12_RESOURCE_STATES)before;
             Barrier.Anonymous.Transition.StateAfter = (D3D12_RESOURCE_STATES)after;
+            Barrier.Anonymous.Transition.Subresource = subresource;
         }
 
         private ResourceBarrier(
@@ -80,6 +82,21 @@ namespace Voltium.Core.Contexts
         }
 
         /// <summary>
+        /// Attempts to add another <see cref="ResourceState"/> to the barrier
+        /// </summary>
+        /// <param name="add">The <see cref="ResourceState"/> to try and add</param>
+        /// <returns><see langword="true"/> if it succeeded, else <see langword="false"/></returns>
+        public bool TryAddState(ResourceState add)
+        {
+            if (add.IsReadOnly() && ((ResourceState)Barrier.Anonymous.Transition.StateAfter).IsReadOnly())
+            {
+                Barrier.Anonymous.Transition.StateAfter |= (D3D12_RESOURCE_STATES)add;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
         /// Creates a new <see cref="ResourceBarrier"/> representing a resource state transition
         /// </summary>
         /// <param name="buffer">The <see cref="Buffer"/> to transition</param>
@@ -88,7 +105,7 @@ namespace Voltium.Core.Contexts
         /// <param name="options">The <see cref="ResourceBarrierOptions"/> for the barrier</param>
         /// <returns>A new <see cref="ResourceBarrier"/> representing a resource state transition</returns>
         public static ResourceBarrier Transition(in Buffer buffer, ResourceState before, ResourceState after, ResourceBarrierOptions options = ResourceBarrierOptions.Full)
-            => Transition(buffer.Resource, before, after, options);
+            => Transition(buffer.Resource, before, after, 0, options);
 
         /// <summary>
         /// Creates a new <see cref="ResourceBarrier"/> representing a resource state transition
@@ -96,13 +113,23 @@ namespace Voltium.Core.Contexts
         /// <param name="tex">The <see cref="Texture"/> to transition</param>
         /// <param name="before">The before <see cref="ResourceState"/> of <paramref name="tex"/></param>
         /// <param name="after">The after <see cref="ResourceState"/> of <paramref name="tex"/></param>
+        /// <param name="subresource">The subresource index to transition. By default, this is <see cref="uint.MaxValue"/>, which transitions all resources</param>
         /// <param name="options">The <see cref="ResourceBarrierOptions"/> for the barrier</param>
         /// <returns>A new <see cref="ResourceBarrier"/> representing a resource state transition</returns>
-        public static ResourceBarrier Transition(in Texture tex, ResourceState before, ResourceState after, ResourceBarrierOptions options = ResourceBarrierOptions.Full)
-            => Transition(tex.Resource, before, after, options);
+        public static ResourceBarrier Transition(in Texture tex, ResourceState before, ResourceState after, uint subresource = uint.MaxValue, ResourceBarrierOptions options = ResourceBarrierOptions.Full)
+            => Transition(tex.Resource, before, after, subresource, options);
 
-        internal static ResourceBarrier Transition(GpuResource resource, ResourceState before, ResourceState after, ResourceBarrierOptions options)
-            => new ResourceBarrier((D3D12_RESOURCE_BARRIER_FLAGS)options, resource, before, after);
+        internal static ResourceBarrier Transition(GpuResource resource, ResourceState before, ResourceState after, uint subresource, ResourceBarrierOptions options)
+            => new ResourceBarrier((D3D12_RESOURCE_BARRIER_FLAGS)options, resource, before, after, subresource);
+
+
+        /// <summary>
+        /// Creates a new <see cref="ResourceBarrier"/> representing a UAV read/writer barrier
+        /// </summary>
+        /// <param name="options">The <see cref="ResourceBarrierOptions"/> for the barrier</param>
+        /// <returns>A new <see cref="ResourceBarrier"/> representing a UAV read/writer barrier</returns>
+        public static ResourceBarrier UnorderedAcccess(ResourceBarrierOptions options = ResourceBarrierOptions.Full)
+            => UnorderedAcccess(null, options);
 
         /// <summary>
         /// Creates a new <see cref="ResourceBarrier"/> representing a UAV read/writer barrier
@@ -110,8 +137,8 @@ namespace Voltium.Core.Contexts
         /// <param name="buffer">The <see cref="Buffer"/> to barrier</param>
         /// <param name="options">The <see cref="ResourceBarrierOptions"/> for the barrier</param>
         /// <returns>A new <see cref="ResourceBarrier"/> representing a UAV read/writer barrier</returns>
-        public static ResourceBarrier Uav(in Buffer buffer, ResourceBarrierOptions options = ResourceBarrierOptions.Full)
-            => Uav(buffer.Resource, options);
+        public static ResourceBarrier UnorderedAcccess(in Buffer buffer, ResourceBarrierOptions options = ResourceBarrierOptions.Full)
+            => UnorderedAcccess(buffer.Resource, options);
 
         /// <summary>
         /// Creates a new <see cref="ResourceBarrier"/> representing a UAV read/writer barrier
@@ -119,10 +146,10 @@ namespace Voltium.Core.Contexts
         /// <param name="tex">The <see cref="Texture"/> to barrier</param>
         /// <param name="options">The <see cref="ResourceBarrierOptions"/> for the barrier</param>
         /// <returns>A new <see cref="ResourceBarrier"/> representing a UAV read/writer barrier</returns>
-        public static ResourceBarrier Uav(in Texture tex, ResourceBarrierOptions options = ResourceBarrierOptions.Full)
-            => Uav(tex.Resource, options);
+        public static ResourceBarrier UnorderedAccess(in Texture tex, ResourceBarrierOptions options = ResourceBarrierOptions.Full)
+            => UnorderedAcccess(tex.Resource, options);
 
-        internal static ResourceBarrier Uav(GpuResource resource, ResourceBarrierOptions options)
+        internal static ResourceBarrier UnorderedAcccess(GpuResource? resource, ResourceBarrierOptions options)
             => new ResourceBarrier((D3D12_RESOURCE_BARRIER_FLAGS)options, resource);
     }
 }

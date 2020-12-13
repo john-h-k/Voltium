@@ -58,10 +58,12 @@ namespace Voltium.Interactive.BasicRenderPipeline
         private Buffer[] _vertexBuffer = null!;
         private Buffer[] _indexBuffer = null!;
         private Texture _texture;
-        private Mesh<TexturedVertex>[] _texturedObjects = null!;
+        private RenderObject<TexturedVertex>[] _texturedObjects = null!;
         private GraphicsDevice _device = null!;
-        private DescriptorHandle _texHandle;
+        private DescriptorAllocation _textureHandle;
 
+        private DescriptorHeap _rtvs, _dsvs;
+        private DescriptorAllocation _texViews;
         //private Texture _normals;
         //private DescriptorHandle _normalHandle;
 
@@ -82,13 +84,15 @@ namespace Voltium.Interactive.BasicRenderPipeline
         {
             _device = device;
 
-            _device.PipelineManager.Reset();
+
+            _rtvs = _device.CreateDescriptorHeap(DescriptorHeapType.RenderTargetView, 1);
+            _dsvs = _device.CreateDescriptorHeap(DescriptorHeapType.RenderTargetView, 1);
 
             _texturedObjects = ModelLoader.LoadGl_Old("Assets/Gltf/Handgun_NoTangent.gltf");
             //_texturedObjects = new[] { GeometryGenerator.CreateCube(0.5f) };
 
-            var texture = TextureLoader.CreateTexture("Assets/Textures/handgun_c.dds");
-            var normals = TextureLoader.CreateTexture("Assets/Textures/handgun_n.dds");
+            var texture = TextureLoader.LoadTextureDesc("Assets/Textures/handgun_c.dds");
+            var normals = TextureLoader.LoadTextureDesc("Assets/Textures/handgun_n.dds");
 
             _vertexBuffer = new Buffer[_texturedObjects.Length];
             _indexBuffer = new Buffer[_texturedObjects.Length];
@@ -97,36 +101,31 @@ namespace Voltium.Interactive.BasicRenderPipeline
             {
                 for (var i = 0; i < _texturedObjects.Length; i++)
                 {
-                    list.UploadBuffer(_texturedObjects[i].Vertices, out _vertexBuffer[i]);
+                    _vertexBuffer[i] = list.UploadBuffer(_texturedObjects[i].Vertices);
                     _vertexBuffer[i].SetName("VertexBuffer");
 
-                    list.UploadBuffer(_texturedObjects[i].Indices, out _indexBuffer[i]);
+                    _indexBuffer[i] = list.UploadBuffer(_texturedObjects[i].Indices);
                     _indexBuffer[i].SetName("IndexBuffer");
                 }
 
-                list.UploadTexture(texture.Data.Span, texture.SubresourceData.Span, texture.Desc, out _texture);
+                _texture = list.UploadTexture(texture);
                 _texture.SetName("Gun texture");
             }
-
-
 
             //list.UploadTexture(normals.Data.Span, normals.SubresourceData.Span, normals.Desc, ResourceState.PixelShaderResource, out _normals);
             //_normals.SetName("Gun normals");
 
-            _texHandle = _device.CreateShaderResourceView(_texture);
+           _device.CreateShaderResourceView(_texture, _textureHandle[0]);
             //_normalHandle = _device.CreateShaderResourceView(_normals);
             _objectConstants = new ObjectConstants[_texturedObjects.Length];
 
             _obj = _device.Allocator.AllocateBuffer(MathHelpers.AlignUp(sizeof(ObjectConstants), 256) * _texturedObjects.Length, MemoryAccess.CpuUpload);
-            _obj.Map();
             _obj.SetName("ObjectConstants buffer");
 
             _frame = _device.Allocator.AllocateBuffer(sizeof(FrameConstants), MemoryAccess.CpuUpload);
-            _frame.Map();
             _frame.SetName("FrameConstants buffer");
 
             _light = _device.Allocator.AllocateBuffer(sizeof(LightConstants), MemoryAccess.CpuUpload);
-            _light.Map();
             _light.SetName("LightConstants buffer");
 
             CreatePipelines();
@@ -173,21 +172,22 @@ namespace Voltium.Interactive.BasicRenderPipeline
             var psoDesc = new GraphicsPipelineDesc
             {
                 RootSignature = _rootSig,
-                RenderTargetFormats = new GraphicsPipelineDesc.FormatBuffer8(RenderTargetFormat),
+                RenderTargetFormats = RenderTargetFormat,
                 DepthStencilFormat = DepthStencilFormat,
                 VertexShader = vertexShader,
                 PixelShader = pixelShader,
-                Topology = TopologyClass.Triangle
+                Topology = TopologyClass.Triangle,
+                Inputs = InputLayout.FromType<TexturedVertex>()
             };
 
-            _tex = _device.PipelineManager.CreatePipelineStateObject<TexturedVertex>("Texture", psoDesc);
+            _tex = _device.PipelineManager.CreatePipelineStateObject(psoDesc, "Texture");
 
-            psoDesc.Msaa = MultisamplingDesc.X8;
-            _texMsaa8x = _device.PipelineManager.CreatePipelineStateObject<TexturedVertex>("Texture_MSAA8X", psoDesc);
+            //psoDesc.Msaa = MultisamplingDesc.X8;
+            _texMsaa8x = _device.PipelineManager.CreatePipelineStateObject(psoDesc, "Texture_MSAA8X");
         }
 
-        private GraphicsPipelineStateObject _tex = null!;
-        private GraphicsPipelineStateObject _texMsaa8x = null!;
+        private PipelineStateObject _tex = null!;
+        private PipelineStateObject _texMsaa8x = null!;
 
         public void InitializeConstants()
         {
@@ -245,7 +245,7 @@ namespace Voltium.Interactive.BasicRenderPipeline
             _light.WriteConstantBufferData(ref _sceneLight, 0);
         }
 
-        public override void Register(ref RenderPassBuilder builder, ref Resolver resolver)
+        public override bool Register(ref RenderPassBuilder builder, ref Resolver resolver)
         {
             var resources = new PipelineResources();
             var settings = resolver.GetComponent<PipelineSettings>();
@@ -253,13 +253,13 @@ namespace Voltium.Interactive.BasicRenderPipeline
             resources.SceneColor = builder.CreatePrimaryOutputRelativeTexture(
                 TextureDesc.CreateRenderTargetDesc(DataFormat.R8G8B8A8UnsignedNormalized, Rgba128.CornflowerBlue, settings.Msaa),
                 ResourceState.RenderTarget,
-                debugName: "SceneColor"
+                debugName: nameof(resources.SceneColor)
             );
 
             resources.SceneDepth = builder.CreatePrimaryOutputRelativeTexture(
                 TextureDesc.CreateDepthStencilDesc(DataFormat.Depth32Single, 1.0f, 0, false, settings.Msaa),
                 ResourceState.DepthWrite,
-                debugName: "SceneDepth"
+                debugName: nameof(resources.SceneDepth)
             );
 
             resolver.CreateComponent(resources);
@@ -268,35 +268,37 @@ namespace Voltium.Interactive.BasicRenderPipeline
 
             var fovAngleY = 70.0f * MathF.PI / 180.0f;
             _frameConstants.Projection = Matrix4x4.CreatePerspectiveFieldOfView(fovAngleY, settings.AspectRatio, 0.001f, 100f);
+
+            return true;
         }
 
         public override void Record(GraphicsContext recorder, ref Resolver resolver)
         {
             WriteConstantBuffers();
 
-            using var _ = recorder.BeginEvent(Argb32.Red, "BasicSceneRenderer");
+            using var _ = recorder.ScopedEvent(Argb32.Red, "BasicSceneRenderer");
 
             var resources = resolver.GetComponent<PipelineResources>();
             var settings = resolver.GetComponent<PipelineSettings>();
 
-            var sceneRender = resolver.ResolveResource(resources.SceneColor);
+            var sceneColor = resolver.ResolveResource(resources.SceneColor);
             var sceneDepth = resolver.ResolveResource(resources.SceneDepth);
 
-            var rtv = _device.CreateRenderTargetView(sceneRender);
-            var dsv = _device.CreateDepthStencilView(sceneDepth);
+            _device.CreateRenderTargetView(sceneColor, _rtvs[0]);
+            _device.CreateDepthStencilView(sceneDepth, _dsvs[0]);
 
-            recorder.SetViewportAndScissor(settings.Resolution);
+            recorder.SetViewportAndScissor(sceneColor.Resolution);
 
-            recorder.SetAndClearRenderTarget(rtv, Rgba128.CornflowerBlue, dsv);
+            recorder.SetAndClearRenderTarget(_rtvs[0], Rgba128.CornflowerBlue, _dsvs[0]);
 
             recorder.SetConstantBuffer(1, _frame);
             recorder.SetConstantBuffer(2, _light);
-            recorder.SetRootDescriptorTable(3, _texHandle);
+            recorder.SetRootDescriptorTable(3, _textureHandle[0]);
 
-            recorder.SetTopology(Topology.TriangeList);
+            recorder.SetTopology(Topology.TriangleList);
 
             using (Profiler.BeginProfileBlock("Render Object"))
-            using (recorder.BeginEvent(Argb32.AliceBlue, "Render Objects"))
+            using (recorder.ScopedEvent(Argb32.AliceBlue, "Render Objects"))
             {
                 for (var i = 0u; i < _texturedObjects.Length; i++)
                 {

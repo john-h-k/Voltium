@@ -19,6 +19,7 @@
 
   <!-- Default settings that explicitly differ from the Sdk.props defaults  -->
   <PropertyGroup>
+    <EmitCompilerGeneratedFiles>True</EmitCompilerGeneratedFiles>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <BaseIntermediateOutputPath>$(BaseArtifactsPath)obj/$(BaseArtifactsPathSuffix)/</BaseIntermediateOutputPath>
     <DebugType>embedded</DebugType>
@@ -52,21 +53,22 @@
     <Copyright>Copyright © John Kelly and Contributors</Copyright>
     <Description>$Description</Description>
     <Features>strict</Features>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <HighEntropyVA>true</HighEntropyVA>
     <LangVersion>preview</LangVersion>
-    <NeutralLanguage>en-US</NeutralLanguage>
+    <NeutralLanguage>en-GB</NeutralLanguage>
     <OverwriteReadOnlyFiles>true</OverwriteReadOnlyFiles>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>$(RepositoryUrl)</PackageProjectUrl>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <ProduceReferenceAssembly>true</ProduceReferenceAssembly>
     <PublicSign>false</PublicSign>
     <RepositoryType>git</RepositoryType>
     <RestoreSources>
       https://api.nuget.org/v3/index.json;
-      https://pkgs.terrafx.dev/nuget/v3/index.json;
+      https://pkgs.terrafx.dev/index.json;
       https://dotnet.myget.org/F/roslyn/api/v3/index.json;
       https://dotnetfeed.blob.core.windows.net/dotnet-core/index.json;
+      https://pkgs.dev.azure.com/dotnet/WindowsCommunityToolkit/_packaging/WindowsCommunityToolkit-MainLatest/nuget/v3/index.json
     </RestoreSources>
     <UseSharedCompilation>true</UseSharedCompilation>
   </PropertyGroup>

@@ -19,44 +19,34 @@ namespace Voltium.Core.Memory
         internal ID3D12Object* GetPointer() => ((IInternalD3D12Object)this).GetPointer();
 
         internal GpuResource(
-            ComPtr<ID3D12Resource> resource,
-            in InternalAllocDesc desc,
+            ComputeDevice device,
+            UniqueComPtr<ID3D12Resource> resource,
+            InternalAllocDesc* desc,
             GpuAllocator? allocator,
             int heapIndex = -1 /* no relevant heap block */,
             HeapBlock block = default
         )
         {
+            _device = device;
             _value = resource.Move();
-            State = (ResourceState)desc.InitialState;
-            ResourceFormat = (DataFormat)desc.Desc.Format;
+            Desc = *desc;
+            State = (ResourceState)desc->InitialState;
             HeapIndex = heapIndex;
-            Flags = desc.Desc.Flags;
             Block = block;
             _allocator = allocator;
+            MemoryKind = (MemoryAccess)desc->HeapType;
         }
 
         private GpuResource() { }
 
-        // this is a hack. TODO make it right
-        internal static GpuResource FromBackBuffer(
-            ComPtr<ID3D12Resource> resource
-        )
-        {
-            var desc = resource.Get()->GetDesc();
-            return new GpuResource
-            {
-                _value = resource.Move(),
-                ResourceFormat = (DataFormat)desc.Format,
-                State = (ResourceState)D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_COMMON
-            };
-        }
-
         /// <summary>
         /// The format of the buffer, if typed, else <see cref="DataFormat.Unknown"/>
         /// </summary>
-        public DataFormat ResourceFormat;
+        public DataFormat ResourceFormat => (DataFormat)Desc.Desc.Format;
 
-        public unsafe ID3D12Resource* GetResourcePointer() => _value.Get();
+        internal InternalAllocDesc Desc;
+
+        public unsafe ID3D12Resource* GetResourcePointer() => _value.Ptr;
 
         /// The current state of the resource
         public ResourceState State;
@@ -64,8 +54,8 @@ namespace Voltium.Core.Memory
         /// Whether a resource transition was began on this resource, making it temporarily inaccessible
         public bool TransitionBegan;
 
-        private ComPtr<ID3D12Resource> _value;
-        public D3D12_RESOURCE_FLAGS Flags;
+        private UniqueComPtr<ID3D12Resource> _value;
+        internal AllocFlags AllocFlags => Desc.AllocFlags;
 
         // Null if the resource is unmapped or not CPU accessible (default heap)
         public unsafe void* CpuAddress;
@@ -73,6 +63,7 @@ namespace Voltium.Core.Memory
 
         private ComputeDevice _device = null!;
 
+        public MemoryAccess MemoryKind;
         private GpuAllocator? _allocator;
         public int HeapIndex;
         public HeapBlock Block;
@@ -85,7 +76,7 @@ namespace Voltium.Core.Memory
         {
             // Apparently the range for map and unmap are for debugging purposes and yield no perf benefit. Maybe we could still support em
             void* pData;
-            Guard.ThrowIfFailed(GetResourcePointer()->Map(subresource, null, &pData));
+            _device.ThrowIfFailed(GetResourcePointer()->Map(subresource, null, &pData));
             return pData;
         }
 
@@ -95,8 +86,20 @@ namespace Voltium.Core.Memory
         /// <param name="subresource">The subresource index to unmap</param>
         public unsafe void Unmap(uint subresource)
         {
+            if (!_value.Exists)
+            {
+                return;
+            }
             // Apparently the range for map and unmap are for debugging purposes and yield no perf benefit. Maybe we could still support em
             GetResourcePointer()->Unmap(subresource, null);
+        }
+
+        /// <inheritdoc/>
+        public void Dispose(in GpuTask disposeAfter)
+        {
+            static void _Dispose(GpuResource resource) => resource.Dispose();
+
+            disposeAfter.RegisterCallback(this, &_Dispose);
         }
 
         /// <inheritdoc cref="IDisposable"/>
@@ -110,10 +113,15 @@ namespace Voltium.Core.Memory
             {
                 _value.Dispose();
             }
+
+            // Prevent use after free
+            _value = default;
 #if TRACE_DISPOSABLES || DEBUG
             GC.SuppressFinalize(this);
 #endif
         }
+
+        
 
 
 #if TRACE_DISPOSABLES || DEBUG

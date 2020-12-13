@@ -1,5 +1,7 @@
 using Voltium.Common;
 
+using TSampler = Voltium.Core.Sampler;
+
 namespace Voltium.Core
 {
     /// <summary>
@@ -25,7 +27,7 @@ namespace Voltium.Core
         public static Rgba128 OpaqueWhite { get; } = new Rgba128(1, 1, 1, 1);
 
         /// <summary>
-        /// The sampler description for the static sampler. Note that <see cref="Sampler.BorderColor"/> must be either
+        /// The sampler description for the static sampler. Note that <see cref="TSampler.BorderColor"/> must be either
         /// <see cref="TransparentBlack"/>, <see cref="OpaqueBlack"/>, or <see cref="OpaqueWhite"/>
         /// </summary>
         public readonly Sampler Sampler;

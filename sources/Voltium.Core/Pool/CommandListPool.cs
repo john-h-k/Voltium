@@ -2,7 +2,7 @@ using System.Diagnostics;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Devices;
-using ZLogger;
+
 
 namespace Voltium.Core.Pool
 {
@@ -39,7 +39,7 @@ namespace Voltium.Core.Pool
             internal ID3D12PipelineState* Pso;
         }
 
-        public ComPtr<ID3D12GraphicsCommandList> Rent(
+        public UniqueComPtr<ID3D12GraphicsCommandList> Rent(
             ExecutionContext context,
             ID3D12CommandAllocator* allocator,
             ID3D12PipelineState* pso
@@ -47,24 +47,24 @@ namespace Voltium.Core.Pool
             => Rent(new ListCreationParams(context, allocator, pso));
 
         private int _listCount = 0;
-        protected override ComPtr<ID3D12GraphicsCommandList> Create(ListCreationParams state)
+        protected override UniqueComPtr<ID3D12GraphicsCommandList> Create(ListCreationParams state)
         {
-            using ComPtr<ID3D12GraphicsCommandList> list = default;
-            Guard.ThrowIfFailed(_device.DevicePointer->CreateCommandList(
+            using UniqueComPtr<ID3D12GraphicsCommandList> list = default;
+            _device.ThrowIfFailed(_device.DevicePointer->CreateCommandList(
                 0, // TODO: MULTI-GPU
                 state.Type,
                 state.Allocator,
                 state.Pso,
                 list.Iid,
-                ComPtr.GetVoidAddressOf(&list)
+                (void**)&list
             ));
 
             LogHelper.LogDebug($"New command list allocated (this is the #{_listCount++} list)");
 
-            DebugHelpers.SetName(list.Get(), $"Pooled list #{_listCount}");
+            DebugHelpers.SetName(list.Ptr, $"Pooled list #{_listCount}");
 
             // 'ManageRent' expects closed list
-            Guard.ThrowIfFailed(list.Get()->Close());
+            _device.ThrowIfFailed(list.Ptr->Close());
 
             return list.Move();
         }
@@ -74,12 +74,12 @@ namespace Voltium.Core.Pool
             base.InternalDispose();
         }
 
-        protected override void ManageRent(ref ComPtr<ID3D12GraphicsCommandList> value, ListCreationParams state)
+        protected override void ManageRent(ref UniqueComPtr<ID3D12GraphicsCommandList> value, ListCreationParams state)
         {
-            Guard.ThrowIfFailed(value.Get()->Reset(state.Allocator, state.Pso));
+            _device.ThrowIfFailed(value.Ptr->Reset(state.Allocator, state.Pso));
         }
 
-        protected override void ManageReturn(ref ComPtr<ID3D12GraphicsCommandList> value)
+        protected override void ManageReturn(ref UniqueComPtr<ID3D12GraphicsCommandList> value)
         {
         }
     }

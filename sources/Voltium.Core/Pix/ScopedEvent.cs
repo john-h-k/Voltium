@@ -13,25 +13,25 @@ namespace Voltium.Common.Pix
 
         private static readonly CtorDummy NoContext = default;
 
-        public readonly unsafe partial struct ScopedEvent : IDisposable
+        public readonly unsafe partial struct PixScopedEvent : IDisposable
         {
             private readonly void* _context;
             private readonly ContextType _type;
 
 
-            internal ScopedEvent(CtorDummy dummy)
+            internal PixScopedEvent(CtorDummy dummy)
             {
                 _context = null;
                 _type = ContextType.None;
             }
 
-            internal ScopedEvent(ID3D12CommandQueue* context)
+            internal PixScopedEvent(ID3D12CommandQueue* context)
             {
                 _context = context;
                 _type = ContextType.Queue;
             }
 
-            internal ScopedEvent(ID3D12GraphicsCommandList* context)
+            internal PixScopedEvent(ID3D12GraphicsCommandList* context)
             {
                 _context = context;
                 _type = ContextType.List;

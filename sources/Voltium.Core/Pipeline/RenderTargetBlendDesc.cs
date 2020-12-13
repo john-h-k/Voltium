@@ -1,3 +1,7 @@
+using System.Runtime.CompilerServices;
+using TerraFX.Interop;
+using Voltium.Common;
+
 namespace Voltium.Core.Pipeline
 {
     /// <summary>
@@ -5,6 +9,8 @@ namespace Voltium.Core.Pipeline
     /// </summary>
     public struct RenderTargetBlendDesc
     {
+        internal D3D12_RENDER_TARGET_BLEND_DESC Desc;
+
         /// <summary>
         /// The default <see cref="RenderTargetBlendDesc"/>
         /// </summary>
@@ -15,54 +21,59 @@ namespace Voltium.Core.Pipeline
             Default = NoBlend;
         }
 
+        public bool EnableBlendOp { get => Helpers.Int32ToBool(Desc.BlendEnable); set => Desc.BlendEnable = Helpers.BoolToInt32(value); }
+        public bool EnableLogicOp { get => Helpers.Int32ToBool(Desc.BlendEnable); set => Desc.BlendEnable = Helpers.BoolToInt32(value); }
+
         /// <summary>
         /// Indicates which blend function should be used during RGB blending, or <see cref="BlendFunc.None"/>
         /// to indicate RGB blending is disabled
         /// </summary>
-        public BlendFunc BlendOp;
+        public BlendFunc BlendOp { get => (BlendFunc)Desc.BlendOp; set => Desc.BlendOp = (D3D12_BLEND_OP)value; }
 
         /// <summary>
         /// Indicates which blend function should be used during RGB blending, or <see cref="BlendFunc.None"/>
         /// to indicate alpha blending is disabled. 
         /// </summary>
-        public BlendFunc AlphaBlendOp;
+        public BlendFunc AlphaBlendOp { get => (BlendFunc)Desc.BlendOpAlpha; set => Desc.BlendOpAlpha = (D3D12_BLEND_OP)value; }
 
         /// <summary>
         /// Indicates which logical blend function should be used during logical render target blending, or <see cref="BlendFuncLogical.None"/>
         /// to indicate alpha blending is disabled. It is invalid for this value to be anything other than <see cref="BlendFuncLogical.None"/> 
         /// if <see cref="BlendOp"/> or <see cref="AlphaBlendOp"/> are not both <see cref="BlendFunc.None"/>
         /// </summary>
-        public BlendFuncLogical LogicalBlendOp;
+        public BlendFuncLogical LogicalBlendOp { get => (BlendFuncLogical)Desc.LogicOp; set => Desc.LogicOp = (D3D12_LOGIC_OP)value; }
 
         /// <summary>
         /// The <see cref="BlendFactor"/> used as the source component in RGB blending
         /// </summary>
-        public BlendFactor SrcBlend;
+        public BlendFactor SrcBlend { get => (BlendFactor)Desc.SrcBlend; set => Desc.SrcBlend = (D3D12_BLEND)value; }
 
         /// <summary>
         /// The <see cref="BlendFactor"/> used as the dest component in RGB blending
         /// </summary>
-        public BlendFactor DestBlend;
+        public BlendFactor DestBlend { get => (BlendFactor)Desc.DestBlend; set => Desc.DestBlend = (D3D12_BLEND)value; }
 
         /// <summary>
         /// The <see cref="BlendFactor"/> used as the source component in alpha blending
         /// </summary>
-        public BlendFactor SrcBlendAlpha;
+        public BlendFactor SrcBlendAlpha { get => (BlendFactor)Desc.SrcBlendAlpha; set => Desc.SrcBlendAlpha = (D3D12_BLEND)value; }
 
         /// <summary>
         /// The <see cref="BlendFactor"/> used as the dest component in alpha blending
         /// </summary>
-        public BlendFactor DestBlendAlpha;
+        public BlendFactor DestBlendAlpha { get => (BlendFactor)Desc.DestBlendAlpha; set => Desc.DestBlendAlpha = (D3D12_BLEND)value; }
 
         /// <summary>
         /// The flags used to mask which RGBA channels are written to the render target
-        /// </summary>
-        public ColorWriteFlags RenderTargetWriteMask;
+        /// </summary>s
+        public ColorWriteFlags RenderTargetWriteMask { get => (ColorWriteFlags)Desc.RenderTargetWriteMask; set => Desc.RenderTargetWriteMask = (byte)value; }
 
         /// <summary>
         /// Represents a <see cref="RenderTargetBlendDesc"/> where RGBA and logical blending is disabled
         /// </summary>
-        public static RenderTargetBlendDesc NoBlend { get; private set; } = new RenderTargetBlendDesc(
+        public static RenderTargetBlendDesc NoBlend { get; } = new RenderTargetBlendDesc(
+                                                                    false,
+                                                                    false,
                                                                     ColorWriteFlags.All,
                                                                     blendOp: BlendFunc.None,
                                                                     alphaBlendOp: BlendFunc.None,
@@ -90,6 +101,8 @@ namespace Voltium.Core.Pipeline
             ColorWriteFlags flags = ColorWriteFlags.All
         )
             => new RenderTargetBlendDesc(
+                true,
+                false,
                 blendOp: rgbBlendOp,
                 srcBlend: rgbBlendFactorSrc,
                 destBlend: rgbBlendFactorDest,
@@ -109,11 +122,15 @@ namespace Voltium.Core.Pipeline
             BlendFuncLogical logicalOp,
             ColorWriteFlags flags = ColorWriteFlags.All)
             => new RenderTargetBlendDesc(
+                false,
+                true,
                 logicalBlendOp: logicalOp,
                 renderTargetWriteMask: flags
             );
 
         private RenderTargetBlendDesc(
+            bool blendEnable,
+            bool logicEnable,
             ColorWriteFlags renderTargetWriteMask,
             BlendFunc blendOp = BlendFunc.Add,
             BlendFunc alphaBlendOp = BlendFunc.Add,
@@ -124,6 +141,9 @@ namespace Voltium.Core.Pipeline
             BlendFactor destBlendAlpha = BlendFactor.Zero
         )
         {
+            Unsafe.SkipInit(out this);
+            EnableBlendOp = blendEnable;
+            EnableLogicOp = logicEnable;
             BlendOp = blendOp;
             AlphaBlendOp = alphaBlendOp;
             LogicalBlendOp = logicalBlendOp;

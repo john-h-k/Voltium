@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Threading;
 using Voltium.Common;
 
 namespace Voltium.RenderEngine
@@ -14,7 +15,7 @@ namespace Voltium.RenderEngine
 
         private RenderComponents(int handle) => _handle = handle;
 
-        internal static RenderComponents Create() => new RenderComponents(Count++);
+        internal static RenderComponents Create() => new RenderComponents(Interlocked.Increment(ref Count));
 
         private static class TypeComponent<T>
         {
