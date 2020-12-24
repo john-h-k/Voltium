@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using TerraFX.Interop;
 using Voltium.Core.Contexts;
+using Voltium.Core.Memory;
 using Buffer = Voltium.Core.Memory.Buffer;
 
 namespace Voltium.Core
@@ -25,9 +26,9 @@ namespace Voltium.Core
             ulong bottomLevelGpuPointer,
             Layout layout,
             uint numBottomLevelStructures,
-            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in Buffer source,
+            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in RaytracingAccelerationStructure source,
             [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer scratch,
-            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in Buffer dest,
+            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in RaytracingAccelerationStructure dest,
             BuildAccelerationStructureFlags flags = BuildAccelerationStructureFlags.None
         )
         {
@@ -47,8 +48,8 @@ namespace Voltium.Core
             };
 
             FlushBarriers();
-            InsertBarrierIfNecessary(dest, flags);
             List->BuildRaytracingAccelerationStructure(&build, 0, null);
+            InsertBarrierIfNecessary(dest, flags);
         }
 
         /// <summary>
@@ -65,7 +66,7 @@ namespace Voltium.Core
             Layout layout,
             uint numBottomLevelStructures,
             [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer scratch,
-            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in Buffer dest,
+            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in RaytracingAccelerationStructure dest,
             BuildAccelerationStructureFlags flags = BuildAccelerationStructureFlags.None
         )
         {
@@ -83,15 +84,15 @@ namespace Voltium.Core
                 }
             };
 
-            InsertBarrierIfNecessary(dest, flags);
             List->BuildRaytracingAccelerationStructure(&build, 0, null);
+            InsertBarrierIfNecessary(dest, flags);
         }
 
-        /// <inheritdoc cref="BuildAccelerationStructure(ReadOnlySpan{GeometryDesc}, in Buffer, in Buffer, BuildAccelerationStructureFlags)" />
+        /// <inheritdoc cref="BuildAccelerationStructure(ReadOnlySpan{GeometryDesc}, in Buffer, in RaytracingAccelerationStructure, BuildAccelerationStructureFlags)" />
         public void BuildAccelerationStructure(
             in GeometryDesc geometry,
             [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer scratch,
-            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in Buffer dest,
+            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in RaytracingAccelerationStructure dest,
             BuildAccelerationStructureFlags flags = BuildAccelerationStructureFlags.None
         )
             => BuildAccelerationStructure(stackalloc[] { geometry }, scratch, dest, flags);
@@ -106,7 +107,7 @@ namespace Voltium.Core
         public void BuildAccelerationStructure(
             ReadOnlySpan<GeometryDesc> geometry,
             [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer scratch,
-            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in Buffer dest,
+            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in RaytracingAccelerationStructure dest,
             BuildAccelerationStructureFlags flags = BuildAccelerationStructureFlags.None
         )
         {
@@ -127,18 +128,18 @@ namespace Voltium.Core
                 };
 
                 FlushBarriers();
-                InsertBarrierIfNecessary(dest, flags);
                 List->BuildRaytracingAccelerationStructure(&build, 0, null);
+                InsertBarrierIfNecessary(dest, flags);
             }
         }
 
 
-        /// <inheritdoc cref="UpdateAccelerationStructure(ReadOnlySpan{GeometryDesc}, in Buffer, in Buffer, in Buffer, BuildAccelerationStructureFlags)"/>
+        /// <inheritdoc cref="UpdateAccelerationStructure(ReadOnlySpan{GeometryDesc}, in RaytracingAccelerationStructure, in Buffer, in RaytracingAccelerationStructure, BuildAccelerationStructureFlags)"/>
         public void UpdateAccelerationStructure(
             in GeometryDesc geometry,
-            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in Buffer source,
+            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in RaytracingAccelerationStructure source,
             [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer scratch,
-            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in Buffer dest,
+            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in RaytracingAccelerationStructure dest,
             BuildAccelerationStructureFlags flags = BuildAccelerationStructureFlags.None
         )
             => UpdateAccelerationStructure(stackalloc[] { geometry }, source, scratch, dest, flags);
@@ -153,9 +154,9 @@ namespace Voltium.Core
         /// <param name="flags">The <see cref="BuildAccelerationStructureFlags"/> to apply to the build</param>
         public void UpdateAccelerationStructure(
             ReadOnlySpan<GeometryDesc> geometry,
-            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in Buffer source,
+            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in RaytracingAccelerationStructure source,
             [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer scratch,
-            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in Buffer dest,
+            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in RaytracingAccelerationStructure dest,
             BuildAccelerationStructureFlags flags = BuildAccelerationStructureFlags.None
         )
         {
@@ -177,8 +178,8 @@ namespace Voltium.Core
                 };
 
                 FlushBarriers();
-                InsertBarrierIfNecessary(dest, flags);
                 List->BuildRaytracingAccelerationStructure(&build, 0, null);
+                InsertBarrierIfNecessary(dest, flags);
             }
         }
 
@@ -189,8 +190,8 @@ namespace Voltium.Core
         /// <param name="source">The acceleration structure to copy from</param>
         /// <param name="destination">The acceleration structure to copy to</param>
         public void CopyAccelerationStructure(
-            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in Buffer source,
-            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in Buffer destination
+            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in RaytracingAccelerationStructure source,
+            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in RaytracingAccelerationStructure destination
         )
         {
             FlushBarriers();
@@ -235,8 +236,8 @@ namespace Voltium.Core
         /// <param name="uncompacted">The acceleration structure to compact</param>
         /// <param name="compacted">The output to contain the acceleration structure</param>
         public void CompactAccelerationStructure(
-            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in Buffer uncompacted,
-            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in Buffer compacted
+            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in RaytracingAccelerationStructure uncompacted,
+            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in RaytracingAccelerationStructure compacted
         )
         {
             FlushBarriers();
@@ -256,7 +257,7 @@ namespace Voltium.Core
         }
 
 
-        private void InsertBarrierIfNecessary(in Buffer dest, BuildAccelerationStructureFlags flags)
+        private void InsertBarrierIfNecessary(in RaytracingAccelerationStructure dest, BuildAccelerationStructureFlags flags)
         {
             if (flags.HasFlag(BuildAccelerationStructureFlags.InsertUavBarrier))
             {

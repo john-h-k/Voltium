@@ -114,7 +114,7 @@ namespace Voltium.Core.Contexts
             var upload = _transientAllocator.AllocateBuffer(buffer.Length * sizeof(T));
             upload.WriteData(buffer);
 
-            CopyResource(upload, destination);
+            CopyBufferRegion(upload, destination, destination.Length);
         }
 
         /// <summary>
@@ -130,7 +130,7 @@ namespace Voltium.Core.Contexts
                 for (var i = 0; i < subresources.Length; i++)
                 {
                     ref readonly var subresource = ref subresources[i];
-                    destination.WriteToSubresource(texture[(int)subresource.DataOffset..], (uint)subresource.RowPitch, (uint)subresource.SlicePitch);
+                    destination.WriteToSubresource(texture[(int)subresource.DataOffset..], subresource.RowPitch, subresource.SlicePitch);
                 }
                 return;
             }
@@ -145,13 +145,6 @@ namespace Voltium.Core.Contexts
             fixed (byte* pTextureData = texture)
             fixed (SubresourceData* pSubresources = subresources)
             {
-                // D3D12_SUBRESOURCE_DATA and SubresourceData are blittable, just SubresourceData contains an offset past the pointer rather than the pointer
-                // Fix that here
-                for (var i = 0; i < subresources.Length; i++)
-                {
-                    ((D3D12_SUBRESOURCE_DATA*)&pSubresources[i])->pData = pTextureData + pSubresources[i].DataOffset;
-                }
-
                 FlushBarriers();
                 _ = Windows.UpdateSubresources(
                     (ID3D12GraphicsCommandList*)List,
@@ -160,7 +153,8 @@ namespace Voltium.Core.Contexts
                     upload.Offset,
                     0,
                     (uint)subresources.Length,
-                    (D3D12_SUBRESOURCE_DATA*)pSubresources
+                    pTextureData,
+                    (D3D12_SUBRESOURCE_INFO*)pSubresources
                 );
             }
         }

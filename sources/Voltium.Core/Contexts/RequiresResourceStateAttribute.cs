@@ -13,7 +13,7 @@ namespace Voltium.Core.Contexts
         {
 
         }
-        public RequiresResourceStateAttribute(ResourceState state)
+        public RequiresResourceStateAttribute(params ResourceState[] state)
         {
 
         }

@@ -197,7 +197,7 @@ namespace Voltium.Core.Memory
 
                 using UniqueComPtr<ID3D12Resource> page = _device.CreateCommittedResource(&desc);
 
-                var buff = new Page { Resource = new GpuResource(_device, page, &desc, null), UsedOffset = 0, Length = size, Desc = desc };
+                var buff = new Page { Resource = new GpuResource(_device, page.Move(), &desc, null), UsedOffset = 0, Length = size, Desc = desc };
 
                 return buff;
             }

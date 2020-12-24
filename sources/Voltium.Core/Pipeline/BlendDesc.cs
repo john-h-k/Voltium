@@ -9,7 +9,8 @@ namespace Voltium.Core.Pipeline
     /// Describes the blend state of the GPU pipeline
     /// </summary>
     [StructLayout(LayoutKind.Explicit)]
-    public struct BlendDesc
+    [Fluent]
+    public partial struct BlendDesc
     {
         [FieldOffset(0)]
         internal AlignedSubobjectType<D3D12_BLEND_DESC> Type;

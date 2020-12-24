@@ -10,80 +10,101 @@ using Voltium.Core.Memory;
 
 namespace Voltium.Core.Memory
 {
-    public readonly struct GpuAddress : IEquatable<GpuAddress>, IComparable<GpuAddress>
+    //public readonly struct GpuAddress : IEquatable<GpuAddress>, IComparable<GpuAddress>
+    //{
+    //    internal readonly ulong Value;
+
+    //    internal GpuAddress(ulong value) => Value = value;
+
+    //    public static bool operator ==(GpuAddress left, GpuAddress right) => left.Value == right.Value;
+    //    public static bool operator !=(GpuAddress left, GpuAddress right) => left.Value != right.Value;
+
+    //    public static bool operator >(GpuAddress left, GpuAddress right) => left.Value > right.Value;
+    //    public static bool operator <(GpuAddress left, GpuAddress right) => left.Value < right.Value;
+
+    //    public static bool operator >=(GpuAddress left, GpuAddress right) => left.Value >= right.Value;
+    //    public static bool operator <=(GpuAddress left, GpuAddress right) => left.Value <= right.Value;
+
+
+
+    //    public static GpuAddress operator +(GpuAddress left, ulong right) => new(left.Value + right);
+    //    public static GpuAddress operator +(GpuAddress left, long right) => left + (ulong)right;
+    //    public static GpuAddress operator +(ulong left, GpuAddress right) => new(left + right.Value);
+    //    public static GpuAddress operator +(long left, GpuAddress right) => (ulong)left + right;
+
+
+
+    //    public static GpuAddress operator -(GpuAddress left, ulong right) => new(left.Value - right);
+    //    public static GpuAddress operator -(GpuAddress left, long right) => left - (ulong)right;
+    //    public static GpuAddress operator -(ulong left, GpuAddress right) => new(left - right.Value);
+    //    public static GpuAddress operator -(long left, GpuAddress right) => (ulong)left - right;
+
+
+
+    //    public static GpuAddress operator *(GpuAddress left, ulong right) => new(left.Value * right);
+    //    public static GpuAddress operator *(GpuAddress left, long right) => left * (ulong)right;
+    //    public static GpuAddress operator *(ulong left, GpuAddress right) => new(left * right.Value);
+    //    public static GpuAddress operator *(long left, GpuAddress right) => (ulong)left * right;
+
+
+
+    //    public static GpuAddress operator /(GpuAddress left, ulong right) => new(left.Value / right);
+    //    public static GpuAddress operator /(GpuAddress left, long right) => left / (ulong)right;
+    //    public static GpuAddress operator /(ulong left, GpuAddress right) => new(left / right.Value);
+    //    public static GpuAddress operator /(long left, GpuAddress right) => (ulong)left / right;
+
+
+    //    public static GpuAddress operator &(GpuAddress left, ulong right) => new(left.Value & right);
+    //    public static GpuAddress operator &(GpuAddress left, long right) => left & (ulong)right;
+    //    public static GpuAddress operator &(ulong left, GpuAddress right) => new(left & right.Value);
+    //    public static GpuAddress operator &(long left, GpuAddress right) => (ulong)left & right;
+
+
+    //    public static GpuAddress operator |(GpuAddress left, ulong right) => new(left.Value | right);
+    //    public static GpuAddress operator |(GpuAddress left, long right) => left | (ulong)right;
+    //    public static GpuAddress operator |(ulong left, GpuAddress right) => new(left | right.Value);
+    //    public static GpuAddress operator |(long left, GpuAddress right) => (ulong)left | right;
+
+
+    //    public static GpuAddress operator ^(GpuAddress left, ulong right) => new(left.Value ^ right);
+    //    public static GpuAddress operator ^(GpuAddress left, long right) => left ^ (ulong)right;
+    //    public static GpuAddress operator ^(ulong left, GpuAddress right) => new(left ^ right.Value);
+    //    public static GpuAddress operator ^(long left, GpuAddress right) => (ulong)left ^ right;
+
+    //    public static GpuAddress operator >>(GpuAddress left, int right) => new(left.Value >> right);
+    //    public static GpuAddress operator <<(GpuAddress left, int right) => new(left.Value << right);
+
+
+    //    public static GpuAddress operator ~(GpuAddress value) => new(~value.Value);
+
+    //    public override bool Equals(object? obj) => obj is GpuAddress other && Equals(other);
+    //    public bool Equals(GpuAddress other) => this == other;
+
+    //    public int CompareTo(GpuAddress other) => Value.CompareTo(other.Value);
+
+    //    public override int GetHashCode() => Value.GetHashCode();
+    //    public override string ToString() => $"0x{Value:X16}";
+    //}
+
+    //public unsafe struct BufferView
+    //{
+
+    //}
+
+    public unsafe struct RaytracingAccelerationStructure : IInternalD3D12Object, IDisposable
     {
-        internal readonly ulong Value;
+        internal RaytracingAccelerationStructure(in Buffer buffer)
+        {
+            Buffer = buffer;
+        }
 
-        internal GpuAddress(ulong value) => Value = value;
+        internal Buffer Buffer;
 
-        public static bool operator ==(GpuAddress left, GpuAddress right) => left.Value == right.Value;
-        public static bool operator !=(GpuAddress left, GpuAddress right) => left.Value != right.Value;
+        public uint Length => Buffer.Length;
+        public ulong GpuAddress => Buffer.GpuAddress;
 
-        public static bool operator >(GpuAddress left, GpuAddress right) => left.Value > right.Value;
-        public static bool operator <(GpuAddress left, GpuAddress right) => left.Value < right.Value;
-
-        public static bool operator >=(GpuAddress left, GpuAddress right) => left.Value >= right.Value;
-        public static bool operator <=(GpuAddress left, GpuAddress right) => left.Value <= right.Value;
-
-
-
-        public static GpuAddress operator +(GpuAddress left, ulong right) => new (left.Value + right);
-        public static GpuAddress operator +(GpuAddress left, long right) => left + (ulong)right;
-        public static GpuAddress operator +(ulong left, GpuAddress right) => new(left + right.Value);
-        public static GpuAddress operator +(long left, GpuAddress right) => (ulong)left + right;
-
-
-
-        public static GpuAddress operator -(GpuAddress left, ulong right) => new(left.Value - right);
-        public static GpuAddress operator -(GpuAddress left, long right) => left - (ulong)right;
-        public static GpuAddress operator -(ulong left, GpuAddress right) => new(left - right.Value);
-        public static GpuAddress operator -(long left, GpuAddress right) => (ulong)left - right;
-
-
-
-        public static GpuAddress operator *(GpuAddress left, ulong right) => new(left.Value * right);
-        public static GpuAddress operator *(GpuAddress left, long right) => left * (ulong)right;
-        public static GpuAddress operator *(ulong left, GpuAddress right) => new(left * right.Value);
-        public static GpuAddress operator *(long left, GpuAddress right) => (ulong)left * right;
-
-
-
-        public static GpuAddress operator /(GpuAddress left, ulong right) => new(left.Value / right);
-        public static GpuAddress operator /(GpuAddress left, long right) => left / (ulong)right;
-        public static GpuAddress operator /(ulong left, GpuAddress right) => new(left / right.Value);
-        public static GpuAddress operator /(long left, GpuAddress right) => (ulong)left / right;
-
-
-        public static GpuAddress operator &(GpuAddress left, ulong right) => new(left.Value & right);
-        public static GpuAddress operator &(GpuAddress left, long right) => left & (ulong)right;
-        public static GpuAddress operator &(ulong left, GpuAddress right) => new(left & right.Value);
-        public static GpuAddress operator &(long left, GpuAddress right) => (ulong)left & right;
-
-
-        public static GpuAddress operator |(GpuAddress left, ulong right) => new(left.Value | right);
-        public static GpuAddress operator |(GpuAddress left, long right) => left | (ulong)right;
-        public static GpuAddress operator |(ulong left, GpuAddress right) => new(left | right.Value);
-        public static GpuAddress operator |(long left, GpuAddress right) => (ulong)left | right;
-
-
-        public static GpuAddress operator ^(GpuAddress left, ulong right) => new(left.Value ^ right);
-        public static GpuAddress operator ^(GpuAddress left, long right) => left ^ (ulong)right;
-        public static GpuAddress operator ^(ulong left, GpuAddress right) => new(left ^ right.Value);
-        public static GpuAddress operator ^(long left, GpuAddress right) => (ulong)left ^ right;
-
-        public static GpuAddress operator >>(GpuAddress left, int right) => new(left.Value >> right);
-        public static GpuAddress operator <<(GpuAddress left, int right) => new(left.Value << right);
-
-
-        public static GpuAddress operator ~(GpuAddress value) => new(~value.Value);
-
-        public override bool Equals(object? obj) => obj is GpuAddress other && Equals(other);
-        public bool Equals(GpuAddress other) => this == other;
-
-        public int CompareTo(GpuAddress other) => Value.CompareTo(other.Value);
-
-        public override int GetHashCode() => Value.GetHashCode();
-        public override string ToString() => $"0x{Value:X16}";
+        ID3D12Object* IInternalD3D12Object.GetPointer() => (ID3D12Object*)Buffer.GetResourcePointer();
+        public void Dispose() => Buffer.Dispose();
     }
 
     /// <summary>
@@ -146,15 +167,12 @@ namespace Voltium.Core.Memory
         /// <summary>
         /// The buffer data. This may be empty if the data is not CPU writable
         /// </summary>
-        public Span<T> AsSpan<T>() where T : struct => MemoryMarshal.Cast<byte, T>(Span);
-
+        public Span<T> AsSpan<T>() where T : unmanaged => new(Pointer, (int)LengthAs<T>());
 
         /// <summary>
         /// The buffer data. This may be empty if the data is not CPU writable
         /// </summary>
-        public T* As<T>() where T : unmanaged => (T*)_cpuAddress;
-
-
+        public T* As<T>() where T : unmanaged => (T*)Pointer;
 
         /// <summary>
         /// The buffer data. This may be empty if the data is not CPU writable
@@ -164,7 +182,14 @@ namespace Voltium.Core.Memory
         /// <summary>
         /// The buffer data. This may be <see langword="null"/> if the data is not CPU writable
         /// </summary>
-        public void* Pointer => _cpuAddress;
+        public void* Pointer
+        {
+            get
+            {
+                ThrowIfDead();
+                return _cpuAddress;
+            }
+        }
 
         /// <summary>
         /// The GPU address
@@ -175,47 +200,6 @@ namespace Voltium.Core.Memory
         /// The buffer data. This may be empty if the data is not CPU writable
         /// </summary>
         public Span<byte> Span => new Span<byte>(_cpuAddress, _cpuAddress is null ? 0 : (int)Length);
-
-        ///// <summary>
-        ///// Maps the resource
-        ///// </summary>
-        //public void Map()
-        //{
-        //    if (_cpuAddress != null)
-        //    {
-        //        return;
-        //    }
-        //    _cpuAddress = (byte*)_resource.Map(0) + _offset;
-        //}
-
-        ///// <summary>
-        ///// Unmaps the resource
-        ///// </summary>
-        //public void Unmap()
-        //{
-        //    if (_cpuAddress == null)
-        //    {
-        //        return;
-        //    }
-        //    _resource.Unmap(0);
-        //    _cpuAddress = null;
-        //}
-
-        //internal struct ScopedMap : IDisposable
-        //{
-        //    internal ScopedMap(GpuResource resource) => _resource = resource;
-
-        //    public void Dispose() => _resource.Unmap(0);
-
-        //    private GpuResource _resource;
-        //}
-
-        //// internal because it allows use-after-free
-        //internal ScopedMap MapScoped()
-        //{
-        //    Map();
-        //    return new ScopedMap(_resource);
-        //}
 
         /// <summary>
         /// Writes the <typeparamref name="T"/> to the buffer
@@ -269,22 +253,13 @@ namespace Voltium.Core.Memory
         /// <inheritdoc/>
         public void Dispose(in GpuTask disposeAfter)
         {
-            static void _Dispose(GpuResource resource) => resource.Dispose();
+            static void _Dispose(GpuResource? resource) => resource?.Dispose();
 
-            disposeAfter.RegisterCallback(_resource, &_Dispose);
+            disposeAfter.RegisterCallback(Interlocked.Exchange(ref _resource, null!), &_Dispose);
 
             _resource = null!;
             _cpuAddress = null;
             _gpuAddress = 0;
-        }
-
-        internal void* CpuAddress
-        {
-            get
-            {
-                ThrowIfDead();
-                return _cpuAddress;
-            }
         }
 
         internal GpuResource Resource => _resource;

@@ -9,7 +9,7 @@ using static TerraFX.Interop.Windows;
 
 namespace Voltium
 {
-    public static class Voltium
+    public static class Options
     {
         public static void DeclareDeviceRemovalSupport()
         {

@@ -21,6 +21,8 @@ using Voltium.Common;
 using Voltium.Core.Exceptions;
 using Microsoft.Extensions.Logging;
 using Voltium.Interactive.Samples.Predication;
+using Voltium.Core.ShaderLang;
+using System.Numerics;
 
 namespace Voltium.Interactive
 {
@@ -28,7 +30,7 @@ namespace Voltium.Interactive
     {
         private static int Main(string[] args)
         {
-            var application = new PredicationSample();
+            var application = new MandelbrotRenderPass();
             return ApplicationRunner.RunWin32(application);
         }
     }
@@ -48,5 +50,53 @@ namespace Voltium.Interactive
         }
     }
 
+    public class Compute : Shader
+    {
+        private Texture2D<Vector4<float>> _image;
+        private MultiSampledTexture2D<Vector2<float>, _8> _msaa;
+        private Sampler _sampler;
+        private TypedBuffer<Vector3<int>> _colors;
+        private RawBuffer _data;
 
+        [ComputeShader(8, 8)]
+        private void ComputeMain([SV_GroupIndex] int i)
+        {
+            float f = _data.Load<float>(i);
+            _image.Sample(_sampler, i / 8, i / 8);
+        }
+    }
+
+    //public class HelloWorldShader : Shader
+    //{
+    //    [StructLayout(LayoutKind.Sequential)]
+    //    struct VertexIn
+    //    {
+    //        [Semantic("Position")] public Vector4 Position;
+    //        [Semantic("Color")] public Vector3 Color;
+    //    }
+
+    //    struct VertexOut
+    //    {
+    //        [SV_Position] public Vector4 Position;
+    //        public Vector3 Color;
+    //    }
+
+    //    [VertexShader]
+    //    VertexOut VertexMain(in VertexIn @in)
+    //    {
+    //        return new VertexOut
+    //        {
+    //            Position = @in.Position,
+    //            Color = @in.Color
+    //        };
+    //    }
+
+
+    //    [PixelShader]
+    //    [return: SV_Target]
+    //    Vector4 PixelMain(in VertexOut @in)
+    //    {
+    //        return new Vector4(@in.Color, 1);
+    //    }
+    //}
 }

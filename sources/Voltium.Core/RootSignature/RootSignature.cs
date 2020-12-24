@@ -48,7 +48,7 @@ namespace Voltium.Core
         /// <param name="staticSampler">The <see cref="StaticSampler"/> in the signature</param>
         /// <param name="flags"></param>
         /// <returns>A new <see cref="RootSignature"/></returns>
-        internal static RootSignature Create(ComputeDevice device, ReadOnlyMemory<RootParameter> rootParameters, in StaticSampler staticSampler, D3D12_ROOT_SIGNATURE_FLAGS flags)
+        internal static RootSignature Create(ComputeDevice device, ReadOnlyMemory<RootParameter> rootParameters, in StaticSampler staticSampler, RootSignatureFlags flags)
             => Create(device, rootParameters, new[] { staticSampler }, flags);
 
         /// <summary>
@@ -59,7 +59,7 @@ namespace Voltium.Core
         /// <param name="staticSamplers">The <see cref="StaticSampler"/>s in the signature</param>
         /// <param name="flags"></param>
         /// <returns>A new <see cref="RootSignature"/></returns>
-        internal static RootSignature Create(ComputeDevice device, ReadOnlyMemory<RootParameter> rootParameters, ReadOnlyMemory<StaticSampler> staticSamplers, D3D12_ROOT_SIGNATURE_FLAGS flags)
+        internal static RootSignature Create(ComputeDevice device, ReadOnlyMemory<RootParameter> rootParameters, ReadOnlyMemory<StaticSampler> staticSamplers, RootSignatureFlags flags)
         {
             using var rootParams = RentedArray<D3D12_ROOT_PARAMETER1>.Create(rootParameters.Length);
             using var samplers = RentedArray<D3D12_STATIC_SAMPLER_DESC>.Create(staticSamplers.Length);
@@ -76,7 +76,7 @@ namespace Voltium.Core
                     pParameters = pRootParams,
                     NumStaticSamplers = (uint)staticSamplers.Length,
                     pStaticSamplers = pSamplerDesc,
-                    Flags = flags | D3D12_ROOT_SIGNATURE_FLAGS.D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
+                    Flags = (D3D12_ROOT_SIGNATURE_FLAGS)flags
                 };
 
                 var versionedDesc = new D3D12_VERSIONED_ROOT_SIGNATURE_DESC

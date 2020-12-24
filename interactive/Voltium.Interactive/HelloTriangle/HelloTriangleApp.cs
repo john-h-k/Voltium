@@ -22,7 +22,32 @@ namespace Voltium.Interactive.HelloTriangle
         public Vector4 Color;
     }
 
-    public sealed class HelloTriangleApp : Application
+
+    public sealed class SimpleWindowApp : Application
+    {
+        private GraphicsDevice _device = null!;
+        private Output _output = null!;
+
+        public override void Dispose() => _device.Dispose();
+
+        public override void Initialize(Size outputSize, IOutputOwner output)
+        {
+            _device = GraphicsDevice.Create(FeatureLevel.GraphicsLevel11_0, null, null);
+            _output = Output.Create(OutputConfiguration.Default, _device, output);
+        }
+        public override void OnResize(Size newOutputSize) => _output.Resize(newOutputSize);
+        public override void Render()
+        {
+            var ctx = _device.BeginGraphicsContext(null);
+            ctx.ClearRenderTarget(_output.OutputBufferView, Rgba128.Magenta);
+            ctx.Close();
+            _output.Present(_device.Execute(ctx));
+        }
+
+        public override void Update(ApplicationTimer timer) { }
+    }
+
+        public sealed class HelloTriangleApp : Application
     {
         private GraphicsDevice _device = null!;
         private Output _output = null!;
@@ -70,6 +95,7 @@ namespace Voltium.Interactive.HelloTriangle
         public unsafe override void Render()
         {
             var context = _device.BeginGraphicsContext(_pso);
+
 
             // We need to transition the back buffer to ResourceState.RenderTarget so we can draw to it
             using (context.ScopedBarrier(ResourceBarrier.Transition(_output.OutputBuffer, ResourceState.Present, ResourceState.RenderTarget)))

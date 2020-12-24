@@ -9,7 +9,8 @@ namespace Voltium.Core.Pipeline
     /// Represents the state of the rasterization stage
     /// </summary>
     [StructLayout(LayoutKind.Explicit)]
-    public struct RasterizerDesc
+    [Fluent]
+    public partial struct RasterizerDesc
     {
         [FieldOffset(0)]
         internal AlignedSubobjectType<D3D12_RASTERIZER_DESC> Type;

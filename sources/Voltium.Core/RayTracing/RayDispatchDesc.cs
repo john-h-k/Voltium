@@ -1,4 +1,5 @@
 using TerraFX.Interop;
+using Voltium.Core.Contexts;
 using Buffer = Voltium.Core.Memory.Buffer;
 
 namespace Voltium.Core
@@ -11,6 +12,26 @@ namespace Voltium.Core
         internal D3D12_DISPATCH_RAYS_DESC Desc;
 
         internal Buffer RayGenBuffer, HitBuffer, MissBuffer, CallableBuffer;
+
+        public void SetRayGenerationShaderRecord([RequiresResourceState(ResourceState.NonPixelShaderResource)] in Buffer buffer, uint length)
+        {
+            Desc.RayGenerationShaderRecord = new D3D12_GPU_VIRTUAL_ADDRESS_RANGE { SizeInBytes = length, StartAddress = buffer.GpuAddress };
+        }
+
+        public void SetMissShaderTable([RequiresResourceState(ResourceState.NonPixelShaderResource)] in Buffer buffer, uint length, uint count)
+        {
+            Desc.RayGenerationShaderRecord = new D3D12_GPU_VIRTUAL_ADDRESS_RANGE { SizeInBytes = length, StartAddress = buffer.GpuAddress };
+        }
+
+        public void SetHitGroupTable([RequiresResourceState(ResourceState.NonPixelShaderResource)] in Buffer buffer, uint length, uint count)
+        {
+            Desc.RayGenerationShaderRecord = new D3D12_GPU_VIRTUAL_ADDRESS_RANGE { SizeInBytes = length, StartAddress = buffer.GpuAddress };
+        }
+
+        public void SetCallableShaderTable([RequiresResourceState(ResourceState.NonPixelShaderResource)] in Buffer buffer, uint length, uint count)
+        {
+            Desc.RayGenerationShaderRecord = new D3D12_GPU_VIRTUAL_ADDRESS_RANGE { SizeInBytes = length, StartAddress = buffer.GpuAddress };
+        }
 
         /// <summary>
         /// The <see cref="ShaderRecord"/> used as the ray-generation shader

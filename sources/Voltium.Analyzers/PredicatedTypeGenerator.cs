@@ -22,10 +22,11 @@ namespace Voltium.Analyzers
 
             // this handles partial types, which have multiple type declaration nodes
             var visited = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
-            foreach (var (tree, node) in nodes)
+            foreach (var node in nodes)
             {
+                var tree = node.SyntaxTree;
                 var semantics = comp.GetSemanticModel(tree);
-                var type = (semantics.GetDeclaredSymbol(node) as INamedTypeSymbol)!;
+                var type = (INamedTypeSymbol)semantics.GetDeclaredSymbol(node)!;
 
                 if (!Predicate(context, type) || visited.Contains(type))
                 {
@@ -81,9 +82,9 @@ namespace Voltium.Analyzers
 
             // this handles partial types, which have multiple type declaration nodes
             var visited = new HashSet<ISymbol>();
-            foreach (var (tree, node) in nodes)
+            foreach (var node in nodes)
             {
-                var semantics = comp.GetSemanticModel(tree);
+                var semantics = comp.GetSemanticModel(node.SyntaxTree);
                 var symbol = semantics.GetDeclaredSymbol(node)!;
 
                 Helpers.Assert(symbol is not null);

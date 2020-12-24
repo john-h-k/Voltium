@@ -135,7 +135,7 @@ namespace Voltium.Core.Devices
             }
 
             const int numHeaps = 2;
-            var heaps = stackalloc ID3D12DescriptorHeap*[numHeaps] { UavCbvSrvs.GetHeap(), _samplers.GetHeap() };
+            var heaps = stackalloc ID3D12DescriptorHeap*[numHeaps] { Resources.GetHeap(), _samplers.GetHeap() };
 
             context.List->SetDescriptorHeaps(numHeaps, heaps);
         }

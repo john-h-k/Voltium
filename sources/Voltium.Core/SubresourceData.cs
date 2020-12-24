@@ -11,7 +11,7 @@ namespace Voltium.TextureLoading
         /// <param name="dataOffset">The offset from the resource start, in bytes</param>
         /// <param name="rowPitch">The row pitch, or width, or physical size, in bytes, of the subresource data</param>
         /// <param name="slicePitch">The depth pitch, or width, or physical size, in bytes, of the subresource data</param>
-        public SubresourceData(nuint dataOffset, nuint rowPitch, nuint slicePitch)
+        public SubresourceData(ulong dataOffset, uint rowPitch, uint slicePitch)
         {
             DataOffset = dataOffset;
             RowPitch = rowPitch;
@@ -20,9 +20,9 @@ namespace Voltium.TextureLoading
 
         // Same format as D3D12_SUBRESOURCE_DATA, just with diff first member
         //
-        // void* pData (here is it nuint DataOffset)
-        // nuint RowPitch
-        // nuint SlicePitch
+        //    public ulong Offset;
+        //    public uint RowPitch;
+        //    public uint DepthPitch;
         //
         // Once the base pointer (which DataOffset is from) is pinned, you can read DataOffset, and it to the base pointer
         // and then reinterpret this type as a D3D12_SUBRESOURCE_DATA and write this value to pData
@@ -31,17 +31,17 @@ namespace Voltium.TextureLoading
         /// <summary>
         /// The offset from the resource start, in bytes
         /// </summary>
-        public readonly nuint DataOffset;
+        public readonly ulong DataOffset;
 
         /// <summary>
         /// The row pitch, or width, or physical size, in bytes, of the subresource data
         /// </summary>
-        public readonly nuint RowPitch;
+        public readonly uint RowPitch;
 
         /// <summary>
         /// The depth pitch, or width, or physical size, in bytes, of the subresource data
         /// </summary>
-        public readonly nuint SlicePitch;
+        public readonly uint SlicePitch;
 
         /// <inheritdoc/>
         public override string ToString() => ""; // TODO

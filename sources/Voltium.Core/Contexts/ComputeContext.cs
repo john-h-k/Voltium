@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.Intrinsics;
 using TerraFX.Interop;
 using Voltium.Common;
+using Voltium.Core.Contexts;
 using Voltium.Core.Memory;
 using Voltium.Core.Pipeline;
 using Voltium.Core.Pool;
@@ -86,6 +87,12 @@ namespace Voltium.Core
         //SetPipelineState
         //SetPredication
 
+        /// <summary>
+        /// Sets the bound <see cref="DescriptorHeap"/> for the command list
+        /// </summary>
+        /// <param name="resources"></param>
+        /// <param name="samplers"></param>
+        /// <remarks>Minimise changing the bound heaps, as on some hardware they can force a full hardware flush</remarks>
         public void SetDescriptorHeaps(DescriptorHeap? resources = null, DescriptorHeap? samplers = null)
         {
             var pHeaps = stackalloc ID3D12DescriptorHeap*[2];
@@ -102,13 +109,37 @@ namespace Voltium.Core
 
             List->SetDescriptorHeaps(numHeaps, pHeaps);
         }
-        public void ClearUnorderedAccessViewUInt32(DescriptorHandle shaderVisible, DescriptorHandle shaderOpaque, in Texture tex, Vector128<uint> values = default)
+
+        /// <summary>
+        /// Clears an unordered-access view to a specified <see cref="Vector128{UInt32}"/> of values
+        /// </summary>
+        /// <param name="shaderVisible">A <see cref="DescriptorHandle"/> to <paramref name="tex"/> which <b>must</b> be shader-visible</param>
+        /// <param name="shaderOpaque">A <see cref="DescriptorHandle"/> to <paramref name="tex"/> which <b>must not</b> be shader-visible</param>
+        /// <param name="tex">The <see cref="Texture"/> to clear</param>
+        /// <param name="values">The <see cref="Vector128{UInt32}"/> to clear <paramref name="tex"/> to</param>
+        public void ClearUnorderedAccessViewUInt32(
+            DescriptorHandle shaderVisible,
+            DescriptorHandle shaderOpaque,
+            [RequiresResourceState(ResourceState.UnorderedAccess)] in Texture tex,
+            Vector128<uint> values = default
+        )
         {
             List->ClearUnorderedAccessViewUint(shaderVisible.GpuHandle, shaderOpaque.CpuHandle, tex.GetResourcePointer(), (uint*)&values, 0, null);
         }
 
 
-        public void ClearUnorderedAccessViewSingle(DescriptorHandle shaderVisible, DescriptorHandle shaderOpaque, in Texture tex, Rgba128 values = default)
+        /// <summary>
+        /// Clears an unordered-access view to a specified <see cref="Rgba128"/> of values
+        /// </summary>
+        /// <param name="shaderVisible">A <see cref="DescriptorHandle"/> to <paramref name="tex"/> which <b>must</b> be shader-visible</param>
+        /// <param name="shaderOpaque">A <see cref="DescriptorHandle"/> to <paramref name="tex"/> which <b>must not</b> be shader-visible</param>
+        /// <param name="tex">The <see cref="Texture"/> to clear</param>
+        /// <param name="values">The <see cref="Rgba128"/> to clear <paramref name="tex"/> to</param>
+        public void ClearUnorderedAccessViewSingle(
+            DescriptorHandle shaderVisible,
+            DescriptorHandle shaderOpaque,
+            [RequiresResourceState(ResourceState.UnorderedAccess)] in Texture tex,
+            Rgba128 values = default)
         {
             List->ClearUnorderedAccessViewFloat(shaderVisible.GpuHandle, shaderOpaque.CpuHandle, tex.GetResourcePointer(), (float*)&values, 0, null);
         }
@@ -119,14 +150,13 @@ namespace Voltium.Core
         /// <param name="pso">The <see cref="PipelineStateObject"/> to set</param>
         public void SetPipelineState(PipelineStateObject pso)
         {
-            if (pso.Pointer.TryQueryInterface<ID3D12PipelineState>(out var pState))
+            if (pso is RaytracingPipelineStateObject rtPso)
             {
-                List->SetPipelineState(pState.Ptr);
-                pState.Dispose();
+                List->SetPipelineState1((ID3D12StateObject*)rtPso.Pointer.Ptr);
             }
             else
             {
-                List->SetPipelineState1(pso.Pointer.As<ID3D12StateObject>().Ptr);
+                List->SetPipelineState((ID3D12PipelineState*)pso.Pointer.Ptr);
             }
         }
 
@@ -135,8 +165,17 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
-        public void SetShaderResourceBuffer(uint paramIndex, in Buffer cbuffer)
+        public void SetShaderResourceBuffer(uint paramIndex, [RequiresResourceState(ResourceState.NonPixelShaderResource, ResourceState.PixelShaderResource)] in Buffer cbuffer)
             => SetShaderResourceBuffer<byte>(paramIndex, cbuffer, 0);
+
+
+        /// <summary>
+        /// Sets a directly-bound shader resource buffer view descriptor to the graphics pipeline
+        /// </summary>
+        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
+        /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
+        public void SetRaytracingAccelerationStructure(uint paramIndex, in RaytracingAccelerationStructure cbuffer)
+            => SetShaderResourceBuffer<byte>(paramIndex, cbuffer.Buffer, 0);
 
         /// <summary>
         /// Sets a directly-bound shader resource buffer view descriptor to the graphics pipeline
@@ -144,7 +183,7 @@ namespace Voltium.Core
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
         /// <param name="offset">The offset in elements of <typeparamref name="T"/> to start the view at</param>
-        public void SetShaderResourceBuffer<T>(uint paramIndex, in Buffer cbuffer, uint offset = 0) where T : unmanaged
+        public void SetShaderResourceBuffer<T>(uint paramIndex, [RequiresResourceState(ResourceState.NonPixelShaderResource, ResourceState.PixelShaderResource)] in Buffer cbuffer, uint offset = 0) where T : unmanaged
         {
             List->SetComputeRootShaderResourceView(paramIndex, cbuffer.GpuAddress + (ulong)(sizeof(T) * offset));
         }
@@ -155,7 +194,7 @@ namespace Voltium.Core
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
         /// <param name="offset">The offset in bytes to start the view at</param>
-        public void SetShaderResourceBufferByteOffset(uint paramIndex, in Buffer cbuffer, uint offset = 0)
+        public void SetShaderResourceBufferByteOffset(uint paramIndex, [RequiresResourceState(ResourceState.NonPixelShaderResource, ResourceState.PixelShaderResource)] in Buffer cbuffer, uint offset = 0)
         {
             List->SetComputeRootUnorderedAccessView(paramIndex, cbuffer.GpuAddress + offset);
         }
@@ -167,7 +206,7 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
-        public void SetUnorderedAccessBuffer(uint paramIndex, in Buffer cbuffer)
+        public void SetUnorderedAccessBuffer(uint paramIndex, [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer cbuffer)
             => SetUnorderedAccessBuffer<byte>(paramIndex, cbuffer, 0);
 
         /// <summary>
@@ -176,7 +215,7 @@ namespace Voltium.Core
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
         /// <param name="offset">The offset in elements of <typeparamref name="T"/> to start the view at</param>
-        public void SetUnorderedAccessBuffer<T>(uint paramIndex, in Buffer cbuffer, uint offset = 0) where T : unmanaged
+        public void SetUnorderedAccessBuffer<T>(uint paramIndex, [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer cbuffer, uint offset = 0) where T : unmanaged
         {
             List->SetComputeRootUnorderedAccessView(paramIndex, cbuffer.GpuAddress + (ulong)(sizeof(T) * offset));
         }
@@ -187,7 +226,7 @@ namespace Voltium.Core
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
         /// <param name="offset">The offset in bytes to start the view at</param>
-        public void SetUnorderedAccessBuffer(uint paramIndex, in Buffer cbuffer, uint offset = 0)
+        public void SetUnorderedAccessBuffer(uint paramIndex, [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer cbuffer, uint offset = 0)
         {
             List->SetComputeRootUnorderedAccessView(paramIndex, cbuffer.GpuAddress + offset);
         }
@@ -197,7 +236,7 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
-        public void SetConstantBuffer(uint paramIndex, in Buffer cbuffer)
+        public void SetConstantBuffer(uint paramIndex, [RequiresResourceState(ResourceState.ConstantBuffer)] in Buffer cbuffer)
             => SetConstantBuffer<byte>(paramIndex, cbuffer, 0);
 
         /// <summary>
@@ -206,7 +245,7 @@ namespace Voltium.Core
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
         /// <param name="offset">The offset in elements of <typeparamref name="T"/> to start the view at</param>
-        public void SetConstantBuffer<T>(uint paramIndex, in Buffer cbuffer, uint offset = 0) where T : unmanaged
+        public void SetConstantBuffer<T>(uint paramIndex, [RequiresResourceState(ResourceState.ConstantBuffer)] in Buffer cbuffer, uint offset = 0) where T : unmanaged
         {
             var alignedSize = (sizeof(T) + 255) & ~255;
 
@@ -219,7 +258,7 @@ namespace Voltium.Core
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
         /// <param name="offset">The offset in bytes to start the view at</param>
-        public void SetConstantBufferByteOffset(uint paramIndex, in Buffer cbuffer, uint offset = 0)
+        public void SetConstantBufferByteOffset(uint paramIndex, [RequiresResourceState(ResourceState.ConstantBuffer)] in Buffer cbuffer, uint offset = 0)
         {
             List->SetComputeRootConstantBufferView(paramIndex, cbuffer.GpuAddress + offset);
         }
@@ -306,6 +345,10 @@ namespace Voltium.Core
         {
             List->SetComputeRootSignature(signature.Value);
         }
+
+        /// <inheritdoc cref="Dispatch(uint, uint, uint)"/>
+        public void Dispatch(int x, int y = 1, int z = 1)
+            => Dispatch((uint)x, (uint)y, (uint)z);
 
         /// <summary>
         /// Dispatches thread groups

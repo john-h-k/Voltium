@@ -1,11 +1,15 @@
+#include "Complex.hlsli"
+
 StructuredBuffer<float4> Colors : register(t0);
 
 #if DOUBLE
 typedef double FP;
 typedef double2 FP2;
+typedef ComplexD TComplex;
 #else
 typedef float FP;
 typedef float2 FP2;
+typedef Complex TComplex;
 #endif
 
 struct MandelbrotFactors
@@ -15,8 +19,8 @@ struct MandelbrotFactors
     uint2 CenterXY;
     uint2 CenterZW;
 #else
-    float Scale;
-    float2 Center;
+    FP Scale;
+    FP2 Center;
 #endif
     float AspectRatio;
     uint ColorCount;
@@ -43,41 +47,32 @@ float4 main(
 {
 #if DOUBLE
     double scale = asdouble(Constants.Scale.x, Constants.Scale.y);
-    double2 center = double2(asdouble(Constants.CenterXY.x, Constants.CenterXY.y), asdouble(Constants.CenterZW.x, Constants.CenterZW.y));
+    double2 centerVal = double2(asdouble(Constants.CenterXY.x, Constants.CenterXY.y), asdouble(Constants.CenterZW.x, Constants.CenterZW.y));
     //double2 center = asdouble(Constants.CenterXY, Constants.CenterZW);
 #else
     FP scale = Constants.Scale;
-    FP2 center = Constants.Center;
+    FP2 centerVal = Constants.Center;
 #endif
+    TComplex center = Complex_Create(centerVal);
     tex = tex - 0.5;
 
     tex.y = tex.y / Constants.AspectRatio;
 
-    FP2 seed = tex * scale + center;
-
-    const int iter = 256;
+    TComplex seed = Complex_Add(Complex_Create(tex * scale), center);
     int i;
 
-    FP2 z = seed;
-    for (i = 0; i < iter; i++)
+    TComplex z = seed;
+    for (i = 0; i < ITER; i++)
     {
-        FP2 zz = z * z.xy;
-        FP2 invzz = z * z.yx;
+        z = Complex_Add(Complex_Mul(z, z), seed);
 
-        FP x = ((zz.x) - (zz.y)) + seed.x;
-        FP y = ((invzz.x) + (invzz.y)) + seed.y;
-
-        FP2 xy = FP2(x, y);
-
-        if (lengthsquared(xy) > 4.0)
+        if (Complex_MagnitudeSquared(z) > 4.0)
         {
             break;
         }
-
-        z = xy;
     }
 
-    i = i == iter ? 0 : i % Constants.ColorCount;
+    i = i == ITER ? 0 : i % Constants.ColorCount;
     return Colors[i];
 }
 

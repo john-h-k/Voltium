@@ -50,7 +50,7 @@ namespace Voltium.Core.Devices
         // Because shader visible heaps are created in UPLOAD/WRITE_BACK memory, they are very slow to read from, so a non-shader visible CPU descriptor is required for perf
         // This is the heap for that
         private protected DescriptorHeap OpaqueUavs = null!;
-        private protected DescriptorHeap UavCbvSrvs = null!;
+        private protected DescriptorHeap Resources = null!;
 
         private protected UniqueComPtr<ID3D12Device> Device;
         internal SupportedDevice DeviceLevel;
@@ -444,7 +444,7 @@ namespace Voltium.Core.Devices
             ComputeQueue = new CommandQueue(this, ExecutionContext.Compute, true);
             Allocator = new GpuAllocator(this);
             PipelineManager = new PipelineManager(this);
-            EmptyRootSignature = RootSignature.Create(this, ReadOnlyMemory<RootParameter>.Empty, ReadOnlyMemory<StaticSampler>.Empty, D3D12_ROOT_SIGNATURE_FLAGS.D3D12_ROOT_SIGNATURE_FLAG_NONE);
+            EmptyRootSignature = CreateRootSignature(ReadOnlyMemory<RootParameter>.Empty);
             CreateDescriptorHeaps();
 
 
@@ -841,7 +841,7 @@ namespace Voltium.Core.Devices
             }
 
             const int numHeaps = 1;
-            var heaps = stackalloc ID3D12DescriptorHeap*[1] { UavCbvSrvs.GetHeap() };
+            var heaps = stackalloc ID3D12DescriptorHeap*[1] { Resources.GetHeap() };
 
             context.List->SetDescriptorHeaps(numHeaps, heaps);
         }

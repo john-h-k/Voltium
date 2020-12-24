@@ -226,8 +226,8 @@ namespace Voltium.Core.Memory
         /// </summary>
         /// <param name="info">The <see cref="AccelerationStructureBuildInfo"/> containing the required sizes of the buffers</param>
         /// <param name="scratch">On return, this is filled with a <see cref="Buffer"/> with a large anough size to be used as the scratch buffer in a raytracing acceleration structure build</param>
-        /// <returns>A <see cref="Buffer"/> with a large anough size to be used as the destination in a raytracing acceleration structure build</returns>
-        public Buffer AllocateRaytracingAccelerationBuffer(AccelerationStructureBuildInfo info, out Buffer scratch)
+        /// <returns>A <see cref="RaytracingAccelerationStructure"/> with a large anough size to be used as the destination in a raytracing acceleration structure build</returns>
+        public RaytracingAccelerationStructure AllocateRaytracingAccelerationBuffer(AccelerationStructureBuildInfo info, out Buffer scratch)
             => AllocateRaytracingAccelerationBuffer(info, AllocFlags.None, out scratch);
 
         /// <summary>
@@ -236,8 +236,8 @@ namespace Voltium.Core.Memory
         /// <param name="info">The <see cref="AccelerationStructureBuildInfo"/> containing the required sizes of the buffers</param>
         /// <param name="scratch">On return, this is filled with a <see cref="Buffer"/> with a large anough size to be used as the scratch buffer in a raytracing acceleration structure build</param>
         /// <param name="allocFlags">Any additional allocation flags</param>
-        /// <returns>A <see cref="Buffer"/> with a large anough size to be used as the destination in a raytracing acceleration structure build</returns>
-        public Buffer AllocateRaytracingAccelerationBuffer(AccelerationStructureBuildInfo info, AllocFlags allocFlags, out Buffer scratch)
+        /// <returns>A <see cref="RaytracingAccelerationStructure"/> with a large anough size to be used as the destination in a raytracing acceleration structure build</returns>
+        public RaytracingAccelerationStructure AllocateRaytracingAccelerationBuffer(AccelerationStructureBuildInfo info, AllocFlags allocFlags, out Buffer scratch)
         {
             scratch = AllocateBuffer(info.ScratchSize, MemoryAccess.GpuOnly, ResourceFlags.AllowUnorderedAccess | ResourceFlags.DenyShaderResource, allocFlags);
             return AllocateRaytracingAccelerationBuffer(info.DestSize, allocFlags);
@@ -248,13 +248,13 @@ namespace Voltium.Core.Memory
         /// </summary>
         /// <param name="length">The length, in bytes, to allocate</param>
         /// <param name="allocFlags">Any additional allocation flags</param>
-        /// <returns>A <see cref="Buffer"/></returns>
-        public Buffer AllocateRaytracingAccelerationBuffer(ulong length, AllocFlags allocFlags = AllocFlags.None)
+        /// <returns>A <see cref="RaytracingAccelerationStructure"/></returns>
+        public RaytracingAccelerationStructure AllocateRaytracingAccelerationBuffer(ulong length, AllocFlags allocFlags = AllocFlags.None)
         {
             InternalAllocDesc allocDesc = default;
             CreateAllocDesc(new BufferDesc { Length = (long)length, ResourceFlags = ResourceFlags.AllowUnorderedAccess }, &allocDesc, MemoryAccess.GpuOnly, ResourceState.RayTracingAccelerationStructure, allocFlags);
 
-            var buffer = new Buffer(_device, Allocate(&allocDesc), 0, allocDesc);
+            var buffer = new RaytracingAccelerationStructure(new Buffer(_device, Allocate(&allocDesc), 0, allocDesc));
 
             return buffer;
         }
@@ -279,12 +279,10 @@ namespace Voltium.Core.Memory
         /// <summary>
         /// Allocates a <see cref="MemoryAccess.CpuUpload"/> buffer
         /// </summary>
-        /// <param name="initialResourceState">The initial state of the resource</param>
         /// <param name="count">The number of bytes to allocate</param>
         /// <param name="allocFlags">Any additional allocation flags</param>
         /// <returns>A new <see cref="Buffer"/></returns>
         public Buffer AllocateDefaultBuffer(
-            ResourceState initialResourceState,
             int count = 1,
             AllocFlags allocFlags = AllocFlags.None
         )
@@ -319,10 +317,7 @@ namespace Voltium.Core.Memory
             int count = 1,
             AllocFlags allocFlags = AllocFlags.None
         )
-        {
-            var buff = AllocateBuffer(count, MemoryAccess.CpuReadback, allocFlags: allocFlags);
-            return buff;
-        }
+            => AllocateBuffer(count, MemoryAccess.CpuReadback, allocFlags: allocFlags);
 
 
         /// <summary>
@@ -335,11 +330,7 @@ namespace Voltium.Core.Memory
             int count = 1,
             AllocFlags allocFlags = AllocFlags.None
         )
-        {
-            var buff = AllocateUploadBuffer(Unsafe.SizeOf<T>() * count, allocFlags);
-            return buff;
-        }
-
+            => AllocateUploadBuffer(Unsafe.SizeOf<T>() * count, allocFlags);
 
         /// <summary>
         /// Allocates a <see cref="MemoryAccess.CpuUpload"/> buffer and copy initial data to it
@@ -351,10 +342,7 @@ namespace Voltium.Core.Memory
             uint count = 1,
             AllocFlags allocFlags = AllocFlags.None
         )
-        {
-            var buff = AllocateBuffer(count, MemoryAccess.CpuUpload, allocFlags: allocFlags);
-            return buff;
-        }
+            => AllocateBuffer(count, MemoryAccess.CpuUpload, allocFlags: allocFlags);
 
         /// <summary>
         /// Allocates a <see cref="MemoryAccess.CpuUpload"/> buffer and copy initial data to it
@@ -366,24 +354,21 @@ namespace Voltium.Core.Memory
             int count = 1,
             AllocFlags allocFlags = AllocFlags.None
         )
-        {
-            var buff = AllocateBuffer(count, MemoryAccess.CpuUpload, allocFlags: allocFlags);
-            return buff;
-        }
+            => AllocateBuffer(count, MemoryAccess.CpuUpload, allocFlags: allocFlags);
 
         /// <inheritdoc cref="AllocateUploadBuffer{T}(ReadOnlySpan{T}, AllocFlags)"/>
         public Buffer AllocateUploadBuffer<T>(
             T[] data,
             AllocFlags allocFlags = AllocFlags.None
         ) where T : unmanaged
-        => AllocateUploadBuffer((ReadOnlySpan<T>)data, allocFlags);
+            => AllocateUploadBuffer((ReadOnlySpan<T>)data, allocFlags);
 
         /// <inheritdoc cref="AllocateUploadBuffer{T}(ReadOnlySpan{T}, AllocFlags)"/>
         public Buffer AllocateUploadBuffer<T>(
             Span<T> data,
             AllocFlags allocFlags = AllocFlags.None
         ) where T : unmanaged
-        => AllocateUploadBuffer((ReadOnlySpan<T>)data, allocFlags);
+            => AllocateUploadBuffer((ReadOnlySpan<T>)data, allocFlags);
 
         /// <summary>
         /// Allocates a <see cref="MemoryAccess.CpuUpload"/> buffer and copy initial data to it

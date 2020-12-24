@@ -461,9 +461,6 @@ namespace Voltium.Core.Devices
             fixed (char* pText = shaderText)
             fixed (IDxcIncludeHandler* pInclude = DefaultDxcIncludeHandler)
             {
-                using UniqueComPtr<IDxcIncludeHandler> defaultInclude = default;
-                Guard.ThrowIfFailed(Utils.Ptr->CreateDefaultIncludeHandler(ComPtr.GetAddressOf(&defaultInclude)));
-
                 DxcBuffer text;
                 text.Ptr = pText;
                 text.Size = (nuint)(shaderText.Length * sizeof(char));
@@ -474,7 +471,7 @@ namespace Voltium.Core.Devices
                     &text,
                     (ushort**)ppFlags,
                     (uint)(flagPointerLength / sizeof(nuint)),
-                    defaultInclude.Ptr,
+                    pInclude,
                     compileResult.Iid,
                     (void**)&compileResult
                 ));
@@ -495,7 +492,7 @@ namespace Voltium.Core.Devices
                         {
                             Filename = name,
                             Errors = errors.Ptr->GetString(encoding == OutputEncoding.Utf8 ? Encoding.UTF8 : null),
-                            Other = errorName.Ptr->GetString(),
+                            Other = errorName.Exists ? errorName.Ptr->GetString() : "No error name",
                         };
                         throw new ShaderCompilationException(data);
                     }
