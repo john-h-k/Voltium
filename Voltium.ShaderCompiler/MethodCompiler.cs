@@ -421,15 +421,15 @@ namespace Voltium.ShaderCompiler
         public override void VisitGroupClause(GroupClauseSyntax node) => base.VisitGroupClause(node);
         public override void VisitIdentifierName(IdentifierNameSyntax node)
         {
-            if (TryGetWellKnownIdentifier(node, out WellKnownIdentifier identifier))
-            {
-                switch (identifier)
-                {
-
-                }
-            }
-            _builder.Append(node.ToString());
-            base.VisitIdentifierName(node);
+            // if (TryGetWellKnownIdentifier(node, out WellKnownIdentifier identifier))
+            // {
+            //     switch (identifier)
+            //     {
+            //
+            //     }
+            // }
+            // _builder.Append(node.ToString());
+            // base.VisitIdentifierName(node);
         }
 
         public override void VisitIfDirectiveTrivia(IfDirectiveTriviaSyntax node) => base.VisitIfDirectiveTrivia(node);

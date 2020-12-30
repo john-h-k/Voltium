@@ -18,14 +18,7 @@ namespace Voltium.TextureLoading
             SlicePitch = slicePitch;
         }
 
-        // Same format as D3D12_SUBRESOURCE_DATA, just with diff first member
-        //
-        //    public ulong Offset;
-        //    public uint RowPitch;
-        //    public uint DepthPitch;
-        //
-        // Once the base pointer (which DataOffset is from) is pinned, you can read DataOffset, and it to the base pointer
-        // and then reinterpret this type as a D3D12_SUBRESOURCE_DATA and write this value to pData
+        // Same format as D3D12_SUBRESOURCE_INFO
         // and then this object represents the correct subresource data for methods such as UpdateSubresources
 
         /// <summary>

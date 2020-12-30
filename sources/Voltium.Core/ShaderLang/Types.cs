@@ -14,13 +14,7 @@ namespace Voltium.Core.ShaderLang
     {
         internal sealed class SemanticTypeAttribute : Attribute
         {
-            public SemanticTypeAttribute(Type type, SemanticAccess access)
-            {
-
-            }
-
-
-            public SemanticTypeAttribute(Type type, SemanticAccess[] access)
+            public SemanticTypeAttribute(Type type)
             {
 
             }

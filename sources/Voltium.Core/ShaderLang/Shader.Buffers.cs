@@ -6,11 +6,10 @@ using System.Threading.Tasks;
 
 namespace Voltium.Core.ShaderLang
 {
-    class Shader
+    partial class Shader
     {
         protected class GroupSharedBuffer<T>
         {
-            pu
         }
 
         [Intrinsic("ByteAddressBuffer")]

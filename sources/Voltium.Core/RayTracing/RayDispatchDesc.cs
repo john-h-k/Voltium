@@ -5,7 +5,7 @@ using Buffer = Voltium.Core.Memory.Buffer;
 namespace Voltium.Core
 {
     /// <summary>
-    /// Describes the parameters used in a call to <see cref="ComputeContext.DispatchRays"/>
+    /// Describes the parameters used in a call to <see cref="ComputeContext.DispatchRays(in RayDispatchDesc)"/>
     /// </summary>
     public struct RayDispatchDesc
     {

@@ -99,7 +99,7 @@ namespace Voltium.Analyzers.GraphicsAnalyzers
                     static bool TryGetConstantValue<T>(SemanticModel model, ExpressionSyntax expr, out T? val)
                     {
                         var opt = model.GetConstantValue(expr);
-                        val = opt.HasValue ? (T)opt.Value : default;
+                        val = opt.HasValue && opt.Value is T t ? t : default;
                         return opt.HasValue;
                     }
 
@@ -107,7 +107,7 @@ namespace Voltium.Analyzers.GraphicsAnalyzers
                         || !TryGetConstantValue<uint>(model, rhs, out var rightVal))
                     {
                         return;
-                    }
+                    }  
 
                     var enumVals = resStateType.GetMembers().OfType<IFieldSymbol>().Where(field => field.IsConst);
 
@@ -119,6 +119,10 @@ namespace Voltium.Analyzers.GraphicsAnalyzers
 
                     bool IsWriteCombinedWithRead(Access left, Access right) => left != right && (left | right) == Access.ReadWrite;
 
+                    if (leftVal == rightVal)
+                    {
+                        return;
+                    }
                     if (leftVal == /* Common/Present */ 0 || rightVal == 0)
                     {
                         context.ReportDiagnostic(Diagnostic.Create(CantCombineWithCommonOrPresent, context.Node.GetLocation(), (leftVal == 0 ? rhs : lhs).ToString()));

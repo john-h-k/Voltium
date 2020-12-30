@@ -21,9 +21,35 @@ using Buffer = Voltium.Core.Memory.Buffer;
 
 using SysDebug = System.Diagnostics.Debug;
 using Voltium.Core.Queries;
+using Microsoft.Win32.SafeHandles;
+using System.Runtime.Versioning;
 
 namespace Voltium.Core.Devices
 {
+
+    public enum FenceFlags
+    {
+        None = D3D12_FENCE_FLAGS.D3D12_FENCE_FLAG_NONE,
+        ProcessShared = D3D12_FENCE_FLAGS.D3D12_FENCE_FLAG_SHARED,
+        AdapterShared = D3D12_FENCE_FLAGS.D3D12_FENCE_FLAG_SHARED_CROSS_ADAPTER
+    }
+
+    public unsafe class Fence : IInternalD3D12Object, IDisposable
+    {
+        private UniqueComPtr<ID3D12Fence> _fence;
+
+        internal Fence(UniqueComPtr<ID3D12Fence> fence)
+        {
+            _fence = fence.Move();
+        }
+
+        public ulong CompletedValue => _fence.Ptr->GetCompletedValue();
+        public void Signal(ulong value) => _fence.Ptr->Signal(value);
+        unsafe ID3D12Object* IInternalD3D12Object.GetPointer() => (ID3D12Object*)_fence.Ptr;
+
+        public void Dispose() => _fence.Dispose();
+    }
+
     /// <summary>
     ///
     /// </summary>
@@ -79,6 +105,58 @@ namespace Voltium.Core.Devices
             alignment = info.Alignment;
         }
 
+        public sealed class SafeSharedResourceHandle : SafeHandle
+        {
+            public SafeSharedResourceHandle(IntPtr handle) : base(default, true)
+            {
+                this.handle = handle;
+            }
+
+            public override bool IsInvalid => handle == default;
+
+            protected override bool ReleaseHandle() => CloseHandle(handle) == 0;
+        }
+
+        public SafeHandle CreateSharedHandle(in Buffer buff, string? name = null) => CreateSharedHandle((ID3D12DeviceChild*)buff.GetResourcePointer(), name);
+        public SafeHandle CreateSharedHandle(in Texture tex, string? name = null) => CreateSharedHandle((ID3D12DeviceChild*)tex.GetResourcePointer(), name);
+        public SafeHandle CreateSharedHandle(in Fence fence, string? name = null) => CreateSharedHandle((ID3D12DeviceChild*)((IInternalD3D12Object)fence).GetPointer(), name);
+
+        private SafeHandle CreateSharedHandle(ID3D12DeviceChild* pObject, string? name)
+        {
+            fixed (char* pName = name)
+            {
+                IntPtr handle;
+                ThrowIfFailed(DevicePointer->CreateSharedHandle(pObject, null, GENERIC_ALL, (ushort*)pName, &handle));
+                return new SafeSharedResourceHandle(handle);
+            }
+        }
+
+        public Fence OpenSharedFence(string name) => OpenSharedFence(GetHandleForName(name));
+        public Fence OpenSharedFence(SafeHandle handle) => OpenSharedFence(handle.DangerousGetHandle());
+        private Fence OpenSharedFence(IntPtr handle)
+        {
+            using UniqueComPtr<ID3D12Fence> fence = default;
+            ThrowIfFailed(DevicePointer->OpenSharedHandle(handle, fence.Iid, (void**)&fence));
+            return new Fence(fence.Move());
+        }
+
+        private IntPtr GetHandleForName(string name)
+        {
+            fixed (char* pName = name)
+            {
+                IntPtr handle;
+                ThrowIfFailed(DevicePointer->OpenSharedHandleByName((ushort*)pName, GENERIC_ALL, &handle));
+                return handle;
+            }
+        }
+
+        public Fence CreateFence(ulong initialValue, FenceFlags flags = FenceFlags.None)
+        {
+            using UniqueComPtr<ID3D12Fence> fence = default;
+            ThrowIfFailed(DevicePointer->CreateFence(initialValue, (D3D12_FENCE_FLAGS)flags, fence.Iid, (void**)&fence));
+            return new Fence(fence.Move());
+        }
+
         /// <summary>
         /// Reserve video memory for a given node and <see cref="MemorySegment"/>. Set this to the minimum required value for your app to run,
         /// to allow the OS to minimise interruptions caused by sudden high memory pressure.
@@ -86,6 +164,7 @@ namespace Voltium.Core.Devices
         /// <param name="reservation">The reservation, in bytes</param>
         /// <param name="segment">The <see cref="MemorySegment"/> to reserve for</param>
         /// <param name="node">The node to reserve for</param>
+        [SupportedOSPlatform("windows10.0")]
         public unsafe void ReserveVideoMemory(ulong reservation, MemorySegment segment, uint node = 0)
         {
             if (Adapter._adapter.TryQueryInterface<IDXGIAdapter3>(out var adapter3))
@@ -111,7 +190,7 @@ namespace Voltium.Core.Devices
         {
             DXGI_QUERY_VIDEO_MEMORY_INFO info;
 
-            if (Adapter._adapter.TryQueryInterface<IDXGIAdapter3>(out var adapter3))
+            if (/* skip TryQueryInterface if not on windows */ OperatingSystem.IsWindowsVersionAtLeast(10) && Adapter._adapter.TryQueryInterface<IDXGIAdapter3>(out var adapter3))
             {
                 using (adapter3)
                 {

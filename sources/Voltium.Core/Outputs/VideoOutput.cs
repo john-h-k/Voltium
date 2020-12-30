@@ -76,8 +76,6 @@ namespace Voltium.Core.Devices
         {
             var toCpuCopy = _device.BeginCopyContext(ContextFlags.ExecuteOnClose);
 
-            toCpuCopy.CopySubresource(OutputBuffer, _readbackBuffers[_backBufferIndex]);
-
             toCpuCopy.Close();
             _device.Execute(toCpuCopy);
 

@@ -102,7 +102,7 @@ namespace Voltium.Core.ShaderLang
             public Vector4<T> GatherAlpha(Sampler sampler, Vector2<float> xy, uint offsetX = default, uint offsetY = 0) => throw null!;
         }
 
-        protected interface ITypeParamInteger { uint Value; }
+        protected interface ITypeParamInteger { uint Value { get; } }
         protected struct _1 : ITypeParamInteger { public uint Value => 1; }
         protected struct _2 : ITypeParamInteger { public uint Value => 2; }
         protected struct _4 : ITypeParamInteger { public uint Value => 4; }
@@ -117,7 +117,7 @@ namespace Voltium.Core.ShaderLang
             public uint SampleCount => throw null!;
             public Vector2<float> GetSamplePosition(uint sampleIndex) => throw null!;
 
-            public T this[uint sample, uint x, uint y]
+            public T this[uint sample, uint x, uint y] => throw null!;
         }
     }
 }

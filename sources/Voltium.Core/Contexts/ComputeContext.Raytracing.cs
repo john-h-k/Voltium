@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TerraFX.Interop;
+using Voltium.Common;
 using Voltium.Core.Contexts;
 using Voltium.Core.Memory;
 using Buffer = Voltium.Core.Memory.Buffer;
@@ -26,9 +27,9 @@ namespace Voltium.Core
             ulong bottomLevelGpuPointer,
             Layout layout,
             uint numBottomLevelStructures,
-            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in RaytracingAccelerationStructure source,
+            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure source,
             [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer scratch,
-            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in RaytracingAccelerationStructure dest,
+            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure dest,
             BuildAccelerationStructureFlags flags = BuildAccelerationStructureFlags.None
         )
         {
@@ -66,7 +67,7 @@ namespace Voltium.Core
             Layout layout,
             uint numBottomLevelStructures,
             [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer scratch,
-            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in RaytracingAccelerationStructure dest,
+            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure dest,
             BuildAccelerationStructureFlags flags = BuildAccelerationStructureFlags.None
         )
         {
@@ -92,7 +93,7 @@ namespace Voltium.Core
         public void BuildAccelerationStructure(
             in GeometryDesc geometry,
             [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer scratch,
-            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in RaytracingAccelerationStructure dest,
+            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure dest,
             BuildAccelerationStructureFlags flags = BuildAccelerationStructureFlags.None
         )
             => BuildAccelerationStructure(stackalloc[] { geometry }, scratch, dest, flags);
@@ -107,7 +108,7 @@ namespace Voltium.Core
         public void BuildAccelerationStructure(
             ReadOnlySpan<GeometryDesc> geometry,
             [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer scratch,
-            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in RaytracingAccelerationStructure dest,
+            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure dest,
             BuildAccelerationStructureFlags flags = BuildAccelerationStructureFlags.None
         )
         {
@@ -137,9 +138,9 @@ namespace Voltium.Core
         /// <inheritdoc cref="UpdateAccelerationStructure(ReadOnlySpan{GeometryDesc}, in RaytracingAccelerationStructure, in Buffer, in RaytracingAccelerationStructure, BuildAccelerationStructureFlags)"/>
         public void UpdateAccelerationStructure(
             in GeometryDesc geometry,
-            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in RaytracingAccelerationStructure source,
+            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure source,
             [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer scratch,
-            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in RaytracingAccelerationStructure dest,
+            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure dest,
             BuildAccelerationStructureFlags flags = BuildAccelerationStructureFlags.None
         )
             => UpdateAccelerationStructure(stackalloc[] { geometry }, source, scratch, dest, flags);
@@ -154,9 +155,9 @@ namespace Voltium.Core
         /// <param name="flags">The <see cref="BuildAccelerationStructureFlags"/> to apply to the build</param>
         public void UpdateAccelerationStructure(
             ReadOnlySpan<GeometryDesc> geometry,
-            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in RaytracingAccelerationStructure source,
+            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure source,
             [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer scratch,
-            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in RaytracingAccelerationStructure dest,
+            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure dest,
             BuildAccelerationStructureFlags flags = BuildAccelerationStructureFlags.None
         )
         {
@@ -184,18 +185,52 @@ namespace Voltium.Core
         }
 
 
+
+
         /// <summary>
         /// Copies an acceleration structure
         /// </summary>
         /// <param name="source">The acceleration structure to copy from</param>
         /// <param name="destination">The acceleration structure to copy to</param>
         public void CopyAccelerationStructure(
-            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in RaytracingAccelerationStructure source,
-            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in RaytracingAccelerationStructure destination
+            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure source,
+            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure destination
         )
         {
             FlushBarriers();
             List->CopyRaytracingAccelerationStructure(source.GpuAddress, destination.GpuAddress, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_COPY_MODE.D3D12_RAYTRACING_ACCELERATION_STRUCTURE_COPY_MODE_CLONE);
+        }
+
+        public void EmitAccelerationStructureCompactedSize(
+            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure accelerationStructure,
+            [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer dest
+        )
+        {
+            var info = new D3D12_RAYTRACING_ACCELERATION_STRUCTURE_POSTBUILD_INFO_DESC
+            {
+                InfoType = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_POSTBUILD_INFO_TYPE.D3D12_RAYTRACING_ACCELERATION_STRUCTURE_POSTBUILD_INFO_COMPACTED_SIZE,
+                DestBuffer = dest.GpuAddress
+            };
+
+            var asAddress = accelerationStructure.GpuAddress;
+
+            List->EmitRaytracingAccelerationStructurePostbuildInfo(&info, 1, &asAddress);
+        }
+
+        public void EmitAccelerationStructureSerializationInfo(
+            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure accelerationStructure,
+            [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer dest
+        )
+        {
+            var info = new D3D12_RAYTRACING_ACCELERATION_STRUCTURE_POSTBUILD_INFO_DESC
+            {
+                InfoType = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_POSTBUILD_INFO_TYPE.D3D12_RAYTRACING_ACCELERATION_STRUCTURE_POSTBUILD_INFO_SERIALIZATION,
+                DestBuffer = dest.GpuAddress
+            };
+
+            var asAddress = accelerationStructure.GpuAddress;
+
+            List->EmitRaytracingAccelerationStructurePostbuildInfo(&info, 1, &asAddress);
         }
 
         /// <summary>
@@ -206,7 +241,7 @@ namespace Voltium.Core
         /// <param name="accelerationStructure">The acceleration structure to be serialized</param>
         /// <param name="serialized">The output to contain the opaque serialized data</param>
         public void SerializeAccelerationStructure(
-            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in Buffer accelerationStructure,
+            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in Buffer accelerationStructure,
             [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer serialized
         )
         {
@@ -223,7 +258,7 @@ namespace Voltium.Core
         /// <param name="serialized">The output to contain the acceleration structure</param>
         public void DeserializeAccelerationStructure(
             [RequiresResourceState(ResourceState.NonPixelShaderResource)] in Buffer serialized,
-            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in Buffer accelerationStructure
+            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in Buffer accelerationStructure
         )
         {
             FlushBarriers();
@@ -236,8 +271,8 @@ namespace Voltium.Core
         /// <param name="uncompacted">The acceleration structure to compact</param>
         /// <param name="compacted">The output to contain the acceleration structure</param>
         public void CompactAccelerationStructure(
-            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in RaytracingAccelerationStructure uncompacted,
-            [RequiresResourceState(ResourceState.RayTracingAccelerationStructure)] in RaytracingAccelerationStructure compacted
+            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure uncompacted,
+            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure compacted
         )
         {
             FlushBarriers();
@@ -256,12 +291,62 @@ namespace Voltium.Core
             }
         }
 
+        /// <summary>
+        /// Dispatches a raytracing operation
+        /// </summary>
+        public void DispatchRays(
+            uint width,
+            in ShaderRecord raygenRecord,
+            in ShaderRecordTable hitGroupTable = default,
+            in ShaderRecordTable missShaderTable = default,
+            in ShaderRecordTable callableShaderTable = default
+        ) => DispatchRays(width, 1, 1, raygenRecord, hitGroupTable, missShaderTable, callableShaderTable);
+
+        /// <summary>
+        /// Dispatches a raytracing operation
+        /// </summary>
+        public void DispatchRays(
+            uint width,
+            uint height,
+            in ShaderRecord raygenRecord,
+            in ShaderRecordTable hitGroupTable = default,
+            in ShaderRecordTable missShaderTable = default,
+            in ShaderRecordTable callableShaderTable = default
+        ) => DispatchRays(width, height, 1, raygenRecord, hitGroupTable, missShaderTable, callableShaderTable);
+
+        /// <summary>
+        /// Dispatches a raytracing operation
+        /// </summary>
+        public void DispatchRays(
+            uint width,
+            uint height,
+            uint depth,
+            in ShaderRecord raygenRecord,
+            in ShaderRecordTable hitGroupTable = default,
+            in ShaderRecordTable missShaderTable = default,
+            in ShaderRecordTable callableShaderTable = default
+        )
+        {
+            var desc = new D3D12_DISPATCH_RAYS_DESC
+            {
+                Width = width,
+                Height = height,
+                Depth = depth,
+                RayGenerationShaderRecord = raygenRecord.Range,
+                HitGroupTable = hitGroupTable.RangeAndStride,
+                MissShaderTable = missShaderTable.RangeAndStride,
+                CallableShaderTable = callableShaderTable.RangeAndStride
+            };
+
+            List->DispatchRays(&desc);
+        }
+
 
         private void InsertBarrierIfNecessary(in RaytracingAccelerationStructure dest, BuildAccelerationStructureFlags flags)
         {
             if (flags.HasFlag(BuildAccelerationStructureFlags.InsertUavBarrier))
             {
-                Barrier(ResourceBarrier.UnorderedAcccess(dest));
+                Barrier(ResourceBarrier.UnorderedAccess(dest));
             }
         }
     }

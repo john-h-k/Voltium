@@ -18,8 +18,6 @@ using Buffer = Voltium.Core.Memory.Buffer;
 
 namespace Voltium.Core
 {
-
-
     /// <summary>
     /// The mode used for <see cref="CopyContext.WriteBufferImmediate(ulong, uint, WriteBufferImmediateMode)"/> or <see cref="CopyContext.WriteBufferImmediate(ReadOnlySpan{ValueTuple{ulong, uint}}, ReadOnlySpan{WriteBufferImmediateMode})"/>
     /// </summary>
@@ -248,6 +246,72 @@ namespace Voltium.Core
             Barrier(ResourceBarrier.Transition(buffer, current, ResourceState.Common));
         }
 
+
+
+        public struct BufferFootprint
+        {
+            internal D3D12_SUBRESOURCE_FOOTPRINT Footprint;
+
+            public DataFormat Format { get => (DataFormat)Footprint.Format; set => Footprint.Format = (DXGI_FORMAT)value; }
+            public uint Width { get => Footprint.Width; set => Footprint.Width = value; }
+            public uint Height { get => Footprint.Height; set => Footprint.Height = value; }
+            public uint Depth { get => Footprint.Depth; set => Footprint.Depth = value; }
+            public uint RowPitch { get => Footprint.RowPitch; set => Footprint.RowPitch = value; }
+        }
+
+
+        /// <summary>
+        /// Copy a subresource
+        /// </summary>
+        /// <param name="source">The resource to copy from</param>
+        /// <param name="dest">The resource to copy to</param>
+        /// <param name="subresource">The index of the subresource to copy</param>
+        public void CopyBufferToTexture(
+            [RequiresResourceState(ResourceState.CopySource)] in Buffer source,
+            [RequiresResourceState(ResourceState.CopyDestination)] in Texture dest,
+            uint subresource = 0
+        )
+        {
+            Device.GetCopyableFootprint(dest, subresource, out var layout, out var numRow, out var rowSize, out var size);
+
+            var src = new D3D12_TEXTURE_COPY_LOCATION(source.GetResourcePointer(), layout);
+            var dst = new D3D12_TEXTURE_COPY_LOCATION(dest.GetResourcePointer(), subresource);
+
+            List->CopyTextureRegion(&dst, 0, 0, 0, &src, null);
+        }
+
+        /// <summary>
+        /// Copy a subresource
+        /// </summary>
+        /// <param name="source">The resource to copy from</param>
+        /// <param name="dest">The resource to copy to</param>
+        /// <param name="subresource">The index of the subresource to copy</param>
+        public void CopyTextureToBuffer(
+            [RequiresResourceState(ResourceState.CopySource)] in Texture source,
+            [RequiresResourceState(ResourceState.CopyDestination)] in Buffer dest,
+            uint subresource = 0
+        )
+        {
+            Device.GetCopyableFootprint(source, subresource, out var layout, out var numRow, out var rowSize, out var size);
+
+            var dst = new D3D12_TEXTURE_COPY_LOCATION(source.GetResourcePointer(), layout);
+            var src = new D3D12_TEXTURE_COPY_LOCATION(dest.GetResourcePointer(), subresource);
+
+            List->CopyTextureRegion(&dst, 0, 0, 0, &src, null);
+        }
+
+        /// <summary>
+        /// Copy a subresource
+        /// </summary>
+        /// <param name="source">The resource to copy from</param>
+        /// <param name="dest">The resource to copy to</param>
+        /// <param name="subresource">The index of the subresource to copy</param>
+        public void CopySubresource(
+            [RequiresResourceState(ResourceState.CopySource)] in Texture source,
+            [RequiresResourceState(ResourceState.CopyDestination)] in Texture dest,
+            uint subresource
+        ) => CopySubresource(source, dest, subresource, subresource);
+
         /// <summary>
         /// Copy a subresource
         /// </summary>
@@ -255,7 +319,12 @@ namespace Voltium.Core
         /// <param name="dest">The resource to copy to</param>
         /// <param name="sourceSubresource">The index of the subresource to copy from</param>
         /// <param name="destSubresource">The index of the subresource to copy to</param>
-        public void CopySubresource([RequiresResourceState(ResourceState.CopySource)] in Texture source, [RequiresResourceState(ResourceState.CopySource)] in Texture dest, uint sourceSubresource, uint destSubresource)
+        public void CopySubresource(
+            [RequiresResourceState(ResourceState.CopySource)] in Texture source,
+            [RequiresResourceState(ResourceState.CopyDestination)] in Texture dest,
+            uint sourceSubresource,
+            uint destSubresource
+        )
         {
             Unsafe.SkipInit(out D3D12_TEXTURE_COPY_LOCATION sourceDesc);
             Unsafe.SkipInit(out D3D12_TEXTURE_COPY_LOCATION destDesc);
@@ -321,31 +390,12 @@ namespace Voltium.Core
         /// Copy a subresource
         /// </summary>
         /// <param name="source">The resource to copy from</param>
-        /// <param name="dest">The resource to copy to</param>
-        /// <param name="subresourceIndex">The index of the subresource to copy from</param>
-        public void CopySubresource(in Texture source, in Buffer dest, uint subresourceIndex = 0)
-        {
-            Device.GetCopyableFootprint(source, subresourceIndex, 1, out var layout, out var row, out var numRow, out var size);
-
-            Debug.Assert(dest.Length >= size);
-
-            var sourceDesc = new D3D12_TEXTURE_COPY_LOCATION(source.GetResourcePointer(), subresourceIndex);
-            var destDesc = new D3D12_TEXTURE_COPY_LOCATION(dest.GetResourcePointer(), layout);
-
-            FlushBarriers();
-            List->CopyTextureRegion(&destDesc, 0, 0, 0, &sourceDesc, null);
-        }
-
-        /// <summary>
-        /// Copy a subresource
-        /// </summary>
-        /// <param name="source">The resource to copy from</param>
         /// <param name="subresourceIndex">The index of the subresource to copy from</param>
         /// <param name="dest"></param>
         /// <param name="layout"></param>
         public void CopySubresource(in Texture source, uint subresourceIndex, out Buffer dest, out SubresourceLayout layout)
         {
-            Device.GetCopyableFootprint(source, subresourceIndex, 1, out var d3d12Layout, out var numRows, out var rowSize, out var size);
+            Device.GetCopyableFootprint(source, subresourceIndex, out var d3d12Layout, out var numRows, out var rowSize, out var size);
             dest = Device.Allocator.AllocateBuffer((long)size, MemoryAccess.CpuReadback);
 
             var sourceDesc = new D3D12_TEXTURE_COPY_LOCATION(source.GetResourcePointer(), subresourceIndex);
@@ -365,7 +415,7 @@ namespace Voltium.Core
         /// <param name="data"></param>
         public void CopySubresource(in Texture source, uint subresourceIndex, in Buffer data)
         {
-            Device.GetCopyableFootprint(source, subresourceIndex, 1, out _, out _, out var rowSize, out var size);
+            Device.GetCopyableFootprint(source, subresourceIndex, out _, out _, out var rowSize, out var size);
 
             var alignedRowSizes = MathHelpers.AlignUp(rowSize, 256);
 
@@ -428,7 +478,7 @@ namespace Voltium.Core
         )
         {
             FlushBarriers();
-            List->CopyResource(dest.Resource.GetResourcePointer(), source.Resource.GetResourcePointer());
+            List->CopyResource(dest.GetResourcePointer(), source.GetResourcePointer());
         }
 
         //public ref struct SplitBarrierSet

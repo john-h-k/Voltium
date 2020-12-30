@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 using System.Runtime.CompilerServices;
 using TerraFX.Interop;
 using static TerraFX.Interop.Windows;
+using static TerraFX.Interop.D3D12_RESOURCE_FLAGS;
 using Voltium.Common;
 using Voltium.Core.Devices;
 using Voltium.Core.Memory;
@@ -252,7 +253,7 @@ namespace Voltium.Core.Memory
         public RaytracingAccelerationStructure AllocateRaytracingAccelerationBuffer(ulong length, AllocFlags allocFlags = AllocFlags.None)
         {
             InternalAllocDesc allocDesc = default;
-            CreateAllocDesc(new BufferDesc { Length = (long)length, ResourceFlags = ResourceFlags.AllowUnorderedAccess }, &allocDesc, MemoryAccess.GpuOnly, ResourceState.RayTracingAccelerationStructure, allocFlags);
+            CreateAllocDesc(new BufferDesc { Length = (long)length, ResourceFlags = ResourceFlags.AllowUnorderedAccess }, &allocDesc, MemoryAccess.GpuOnly, ResourceState.RaytracingAccelerationStructure, allocFlags);
 
             var buffer = new RaytracingAccelerationStructure(new Buffer(_device, Allocate(&allocDesc), 0, allocDesc));
 
@@ -719,7 +720,7 @@ namespace Voltium.Core.Memory
             // avoid native call as we don't need to for buffers
             if (desc->Desc.Dimension == D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_BUFFER)
             {
-                info = new D3D12_RESOURCE_ALLOCATION_INFO(desc->Desc.Width, Windows.D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT);
+                info = new D3D12_RESOURCE_ALLOCATION_INFO(desc->Desc.Width, D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT);
             }
             else
             {
@@ -738,12 +739,20 @@ namespace Voltium.Core.Memory
 
         private bool ShouldCommitResource(InternalAllocDesc* desc)
         {
-            bool mustCommit = ForceAllAllocationsCommitted || desc->AllocFlags.HasFlag(AllocFlags.ForceAllocateComitted);
+            bool mustCommit =
+                ForceAllAllocationsCommitted
+                || desc->AllocFlags.HasFlag(AllocFlags.ForceAllocateComitted);
 
             // Many resident resources on Win7 can cause ExecuteCommandLists to be slower
             // Placed resources only require checking heap for residency, so don't suffer as much as committed resources do
-            // Render targets and depth stencils can see improved perf when committed
-            return mustCommit || (IsRenderTargetOrDepthStencil(desc->Desc.Flags) && !PlatformInfo.IsWindows7 && _device.Adapter.IsNVidia);
+            // Render targets and depth stencils can see improved perf when committed on NVidia
+            bool advantageousToCommit =
+                IsRenderTargetOrDepthStencil(desc->Desc.Flags)
+                && !OperatingSystem.IsOSPlatform("windows7")
+                && _device.Adapter.IsNVidia
+            ;
+
+            return mustCommit || advantageousToCommit;
         }
 
         private void VerifyDesc(InternalAllocDesc* desc)
@@ -923,9 +932,8 @@ namespace Voltium.Core.Memory
                 else
                 {
                     var refCount = alloc.GetResourcePointer()->Release();
-                    Debug.Assert(refCount == 0);
-                    _ = refCount;
                 }
+                throw new();
             }
         }
 

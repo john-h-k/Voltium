@@ -48,6 +48,7 @@ namespace Voltium.Interactive.BasicRaytracingScene
         private Texture _renderTarget;
         private DescriptorAllocation _target;
         private DescriptorHeap _opaqueUav = null!;
+        private uint _renderWidth, _renderHeight;
 
         private Buffer _raygenBuffer, _missBuffer, _hitGroupBuffer;
 
@@ -145,7 +146,7 @@ namespace Voltium.Interactive.BasicRaytracingScene
         private unsafe void CreatePso()
         {
             _globalRootSig = _device.CreateRootSignature(
-                new RootParameter[]
+                new []
                 {
                     RootParameter.CreateDescriptor(RootParameterType.ShaderResourceView, 0, 0),
                     RootParameter.CreateDescriptorTable(DescriptorRangeType.UnorderedAccessView, 0, 1, 0)
@@ -188,6 +189,8 @@ namespace Voltium.Interactive.BasicRaytracingScene
 
         public override void OnResize(Size newOutputSize)
         {
+            _renderWidth = (uint)newOutputSize.Width;
+            _renderHeight = (uint)newOutputSize.Height;
             _output.Resize(newOutputSize);
 
             var aspectRatio = newOutputSize.AspectRatio();
@@ -223,20 +226,12 @@ namespace Voltium.Interactive.BasicRaytracingScene
             var context = (ComputeContext)_device.BeginGraphicsContext(_pso);
 
             context.ClearUnorderedAccessViewSingle(_target[0], _opaqueUav[0], _renderTarget, Rgba128.CornflowerBlue);
-            context.Barrier(ResourceBarrier.UnorderedAcccess());
+            context.Barrier(ResourceBarrier.UnorderedAccess(_renderTarget));
 
             context.SetRaytracingAccelerationStructure(0, _tlas);
             context.SetRootDescriptorTable(1, _target[0]);
 
-            context.DispatchRays(new RayDispatchDesc
-            {
-                RayGenerationShaderRecord = _raygen,
-                MissShaderTable = _miss,
-                HitGroupTable = _hitGroup,
-                Width = (uint)_output.Resolution.Width,
-                Height = (uint)_output.Resolution.Height,
-                Depth = 1
-            });
+            context.DispatchRays(_renderWidth, _renderHeight, _raygen, _hitGroup, _miss);
 
             using (context.ScopedBarrier(stackalloc[] {
                 ResourceBarrier.Transition(_renderTarget, ResourceState.UnorderedAccess, ResourceState.CopySource),

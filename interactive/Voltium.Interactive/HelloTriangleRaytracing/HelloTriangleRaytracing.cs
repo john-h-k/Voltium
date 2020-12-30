@@ -250,9 +250,9 @@ namespace Voltium.Interactive.HelloTriangleRaytracing
     public sealed class HelloTriangleRaytracingShader : RaytracingShader
     {
         #nullable disable
-        RaytracingAccelerationStructure Scene;
-        WritableTexture2D<Vector4<float>> RenderTarget;
-        HelloTriangleConstantBuffer g_rayGenCB;
+        RaytracingAccelerationStructure Scene = null!;
+        WritableTexture2D<Vector4<float>> RenderTarget = null!;
+        readonly HelloTriangleConstantBuffer g_rayGenCB = default;
 
         struct RayPayload
         {

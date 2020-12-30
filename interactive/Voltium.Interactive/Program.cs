@@ -50,22 +50,6 @@ namespace Voltium.Interactive
         }
     }
 
-    public class Compute : Shader
-    {
-        private Texture2D<Vector4<float>> _image;
-        private MultiSampledTexture2D<Vector2<float>, _8> _msaa;
-        private Sampler _sampler;
-        private TypedBuffer<Vector3<int>> _colors;
-        private RawBuffer _data;
-
-        [ComputeShader(8, 8)]
-        private void ComputeMain([SV_GroupIndex] int i)
-        {
-            float f = _data.Load<float>(i);
-            _image.Sample(_sampler, i / 8, i / 8);
-        }
-    }
-
     //public class HelloWorldShader : Shader
     //{
     //    [StructLayout(LayoutKind.Sequential)]

@@ -165,7 +165,7 @@ namespace Voltium.Core
         /// The resource is being used as a raytracing acceleration structure. This state can't be moved into or out from, and must persist across the resource's lifetime
         /// </summary>
         [ResourceStateInfo(Access.Opaque)]
-        RayTracingAccelerationStructure = D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,
+        RaytracingAccelerationStructure = D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,
 
         /// <summary>
         /// A bitwise-or of all read-only resource states
