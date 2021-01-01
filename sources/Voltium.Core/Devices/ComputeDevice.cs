@@ -395,6 +395,8 @@ namespace Voltium.Core.Devices
         internal CommandQueue ComputeQueue;
         internal CommandQueue GraphicsQueue;
 
+        private GpuTask _lookForDeviceRemoval;
+
         private protected ulong CpuFrequency;
 
         private protected SupportedGraphicsCommandList SupportedList;
@@ -515,6 +517,10 @@ namespace Voltium.Core.Devices
             CpuFrequency = frequency;
 
             _residencyFence = CreateFence();
+            _lookForDeviceRemoval = new GpuTask(this, CreateFence(), ulong.MaxValue);
+            _lookForDeviceRemoval.RegisterCallback(this, &DeviceRemovalDetected);
+
+            static void DeviceRemovalDetected(ComputeDevice device) => throw new DeviceDisconnectedException(device, TranslateReason(device.DevicePointer->GetDeviceRemovedReason()));
 
             NodeCount = DevicePointer->GetNodeCount();
             QueryFeaturesOnCreation();
@@ -586,15 +592,6 @@ namespace Voltium.Core.Devices
                     throw new DeviceDisconnectedException(device, TranslateReason(device.DevicePointer->GetDeviceRemovedReason()));
                 }
 
-                static DeviceDisconnectReason TranslateReason(int hr) => hr switch
-                {
-                    DXGI_ERROR_DEVICE_REMOVED => DeviceDisconnectReason.Removed,
-                    DXGI_ERROR_DEVICE_HUNG => DeviceDisconnectReason.Hung,
-                    DXGI_ERROR_DEVICE_RESET => DeviceDisconnectReason.Reset,
-                    DXGI_ERROR_DRIVER_INTERNAL_ERROR => DeviceDisconnectReason.InternalDriverError,
-                    _ => DeviceDisconnectReason.Unknown
-                };
-
                 Guard.ThrowForHr(hr
 #if DEBUG || EXTENDED_ERROR_INFORMATION
                     ,
@@ -603,6 +600,15 @@ namespace Voltium.Core.Devices
                     );
             }
         }
+
+        private static DeviceDisconnectReason TranslateReason(int hr) => hr switch
+        {
+            DXGI_ERROR_DEVICE_REMOVED => DeviceDisconnectReason.Removed,
+            DXGI_ERROR_DEVICE_HUNG => DeviceDisconnectReason.Hung,
+            DXGI_ERROR_DEVICE_RESET => DeviceDisconnectReason.Reset,
+            DXGI_ERROR_DRIVER_INTERNAL_ERROR => DeviceDisconnectReason.InternalDriverError,
+            _ => DeviceDisconnectReason.Unknown
+        };
 
         internal unsafe UniqueComPtr<ID3D12Fence> CreateFence(ulong startValue = 0)
         {

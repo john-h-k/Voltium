@@ -28,7 +28,7 @@ namespace Voltium.Interactive
 {
     internal static unsafe class Program
     {
-        private static int Main(string[] args)
+        private static int _Main(string[] args)
         {
             var application = new MandelbrotRenderPass();
             return ApplicationRunner.RunWin32(application);

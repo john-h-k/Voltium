@@ -156,7 +156,7 @@ namespace Voltium.Core.Memory
             }
         }
 
-        private void ThrowIfDead()
+        private readonly void ThrowIfDead()
         {
             if (_resource is null)
             {
@@ -167,7 +167,7 @@ namespace Voltium.Core.Memory
         /// <summary>
         /// The buffer data. This may be empty if the data is not CPU writable
         /// </summary>
-        public Span<T> AsSpan<T>() where T : unmanaged => new(Pointer, (int)LengthAs<T>());
+        public readonly Span<T> AsSpan<T>() where T : unmanaged => new(Pointer, (int)LengthAs<T>());
 
         /// <summary>
         /// The buffer data. This may be empty if the data is not CPU writable
@@ -182,7 +182,7 @@ namespace Voltium.Core.Memory
         /// <summary>
         /// The buffer data. This may be <see langword="null"/> if the data is not CPU writable
         /// </summary>
-        public void* Pointer
+        public readonly void* Pointer
         {
             get
             {

@@ -580,7 +580,7 @@ namespace Voltium.Core.Memory
             }
             else if (memoryKind == MemoryAccess.CpuReadback)
             {
-                initialResourceState = ResourceState.CopyDestination;
+                initialResourceState = ResourceState.Common;// ResourceState.CopyDestination;
             }
 
             var resDesc = new D3D12_RESOURCE_DESC
@@ -813,9 +813,45 @@ namespace Voltium.Core.Memory
             VisibleNodeMask = 0
         };
 
+
+
+        private static readonly D3D12_HEAP_PROPERTIES DiscreteHeap = new()
+        {
+            Type = D3D12_HEAP_TYPE.D3D12_HEAP_TYPE_CUSTOM,
+            MemoryPoolPreference = D3D12_MEMORY_POOL.D3D12_MEMORY_POOL_L1,
+            CPUPageProperty = D3D12_CPU_PAGE_PROPERTY.D3D12_CPU_PAGE_PROPERTY_NOT_AVAILABLE, // as they are shared caches, cache coherent UMA
+            CreationNodeMask = 0,
+            VisibleNodeMask = 0
+        };
+
+        private static readonly D3D12_HEAP_PROPERTIES WriteBackHeap = new()
+        {
+            Type = D3D12_HEAP_TYPE.D3D12_HEAP_TYPE_CUSTOM,
+            MemoryPoolPreference = D3D12_MEMORY_POOL.D3D12_MEMORY_POOL_L0,
+            CPUPageProperty = D3D12_CPU_PAGE_PROPERTY.D3D12_CPU_PAGE_PROPERTY_WRITE_BACK, // as they are shared caches, cache coherent UMA
+            CreationNodeMask = 0,
+            VisibleNodeMask = 0
+        };
+
+        private static readonly D3D12_HEAP_PROPERTIES WriteCombineHeap = new()
+        {
+            Type = D3D12_HEAP_TYPE.D3D12_HEAP_TYPE_CUSTOM,
+            MemoryPoolPreference = D3D12_MEMORY_POOL.D3D12_MEMORY_POOL_L0,
+            CPUPageProperty = D3D12_CPU_PAGE_PROPERTY.D3D12_CPU_PAGE_PROPERTY_WRITE_COMBINE, // as they are shared caches, cache coherent UMA
+            CreationNodeMask = 0,
+            VisibleNodeMask = 0
+        };
+
         private D3D12_HEAP_PROPERTIES GetHeapProperties(D3D12_HEAP_TYPE type)
         {
-            return type is D3D12_HEAP_TYPE.D3D12_HEAP_TYPE_DEFAULT && _isCacheCoherentUma ? UmaHeap : new D3D12_HEAP_PROPERTIES(type);
+            return type switch
+            {
+                D3D12_HEAP_TYPE.D3D12_HEAP_TYPE_DEFAULT when _isCacheCoherentUma => UmaHeap,
+                D3D12_HEAP_TYPE.D3D12_HEAP_TYPE_DEFAULT => DiscreteHeap,
+                D3D12_HEAP_TYPE.D3D12_HEAP_TYPE_UPLOAD => WriteCombineHeap,
+                D3D12_HEAP_TYPE.D3D12_HEAP_TYPE_READBACK => WriteBackHeap,
+                _ => default
+            };
         }
 
         private const ulong DefaultHeapAlignment = D3D12_DEFAULT_MSAA_RESOURCE_PLACEMENT_ALIGNMENT; // 4mb for MSAA textures
