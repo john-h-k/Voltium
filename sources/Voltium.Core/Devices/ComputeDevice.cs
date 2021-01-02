@@ -131,13 +131,15 @@ namespace Voltium.Core.Devices
             }
         }
 
-        public Fence OpenSharedFence(string name) => OpenSharedFence(GetHandleForName(name));
-        public Fence OpenSharedFence(SafeHandle handle) => OpenSharedFence(handle.DangerousGetHandle());
-        private Fence OpenSharedFence(IntPtr handle)
+
+
+        public Fence OpenSharedFence(string name) => new(OpenSharedAs<ID3D12Fence>(GetHandleForName(name)));
+        public Fence OpenSharedFence(SafeHandle handle) => new (OpenSharedAs<ID3D12Fence>(handle.DangerousGetHandle()));
+        private UniqueComPtr<T> OpenSharedAs<T>(IntPtr handle) where T : unmanaged
         {
-            using UniqueComPtr<ID3D12Fence> fence = default;
+            using UniqueComPtr<T> fence = default;
             ThrowIfFailed(DevicePointer->OpenSharedHandle(handle, fence.Iid, (void**)&fence));
-            return new Fence(fence.Move());
+            return fence.Move();
         }
 
         private IntPtr GetHandleForName(string name)
@@ -517,6 +519,7 @@ namespace Voltium.Core.Devices
             CpuFrequency = frequency;
 
             _residencyFence = CreateFence();
+
             _lookForDeviceRemoval = new GpuTask(this, CreateFence(), ulong.MaxValue);
             _lookForDeviceRemoval.RegisterCallback(this, &DeviceRemovalDetected);
 

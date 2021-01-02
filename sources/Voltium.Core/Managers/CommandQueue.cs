@@ -52,18 +52,11 @@ namespace Voltium.Core.Devices
 
             DebugHelpers.SetName(_fence.Ptr, name + " Fence");
 
-            ulong frequency;
-            int hr = _queue.Ptr->GetTimestampFrequency(&frequency);
-
-            // E_FAIL is returned when the queue doesn't support timestamps
-            if (SUCCEEDED(hr) || hr == E_FAIL)
+            if (device.QueryFeatureSupport<D3D12_FEATURE_DATA_D3D12_OPTIONS3>(D3D12_FEATURE.D3D12_FEATURE_D3D12_OPTIONS3).CopyQueueTimestampQueriesSupported != Windows.FALSE)
             {
-                Frequency = hr == E_FAIL ? 0 : frequency;
-            }
-            else
-            {
-                Frequency = 0;
-                _device.ThrowIfFailed(hr, "_queue.Ptr->GetTimestampFrequency(&frequency)");
+                ulong frequency;
+                _device.ThrowIfFailed(_queue.Ptr->GetTimestampFrequency(&frequency));
+                Frequency = frequency;
             }
         }
 

@@ -9,8 +9,10 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Diagnostics.Tracing.Parsers.Clr;
+
 using TerraFX.Interop;
 using static TerraFX.Interop.Windows;
+
 using Voltium.Core;
 using Voltium.Core.Contexts;
 using Voltium.Core.Devices;
@@ -22,6 +24,7 @@ using ExecutionContext = Voltium.Core.ExecutionContext;
 
 namespace Voltium.Interactive
 {
+
 
     internal unsafe static class MemoryApi
     {
@@ -79,7 +82,8 @@ namespace Voltium.Interactive
 
         private static unsafe void* AllocateLargePage()
         {
-            void* p = MemoryApi.VirtualAlloc(null, (nuint)BuffLength, 0x00001000 | 0x00002000 /*| 0x20000000*/, Windows.PAGE_READWRITE);
+            void* p = MemoryApi.VirtualAlloc(null, (nuint)BuffLength, 0x00001000 | 0x00002000 /*| 0x20000000*/, PAGE_READWRITE);
+
             if (p == null)
             {
                 char* lpMsgBuf;
@@ -101,14 +105,27 @@ namespace Voltium.Interactive
             }
             return p;
         }
+
         private static unsafe void* AllocateWriteCombined()
         {
-            void* p = MemoryApi.VirtualAlloc(null, (nuint)BuffLength, 0x00001000 | 0x00002000, Windows.PAGE_READWRITE | Windows.PAGE_WRITECOMBINE);
+            void* p = MemoryApi.VirtualAlloc(null, (nuint)BuffLength, 0x00001000 | 0x00002000, PAGE_READWRITE | PAGE_WRITECOMBINE);
             if (p == null)
             {
                 throw new Win32Exception(Marshal.GetLastWin32Error());
             }
             return p;
+        }
+
+        private static unsafe bool IsWriteCombined(void* pPage)
+        {
+            MEMORY_BASIC_INFORMATION info;
+            nuint errno = MemoryApi.VirtualQuery(pPage, &info, (uint)sizeof(MEMORY_BASIC_INFORMATION));
+            if (errno == 0)
+            {
+                throw new Win32Exception(Marshal.GetLastWin32Error());
+            }
+
+            return (info.Protect & PAGE_WRITECOMBINE) != 0;
         }
 
         public static unsafe void Main()
@@ -125,7 +142,8 @@ namespace Voltium.Interactive
             _readbackBuffer = _device.Allocator.AllocateBuffer(BuffLength, MemoryAccess.CpuReadback, allocFlags: flags);
             _defaultBuffer = _device.Allocator.AllocateBuffer(BuffLength, MemoryAccess.GpuOnly, allocFlags: flags);
 
-            
+
+            Console.WriteLine(IsWriteCombined(_uploadBuffer.Pointer) ? "" : "Error: Upload heap not write_combined");
 
             ulong bufferSize = (ulong)BuffLength;
 

@@ -15,7 +15,6 @@ namespace Voltium.Common
     [RaiiOwnershipType]
     public unsafe struct UniqueComPtr<T> : IDisposable, IEquatable<UniqueComPtr<T>> /*, IComType*/ where T : unmanaged
     {
-
         /// <summary>
         /// The IID (Interface ID) of the underlying COM type
         /// </summary>
@@ -128,8 +127,21 @@ namespace Voltium.Common
         [RaiiCopy]
         public readonly int Cast<TInterface>(out UniqueComPtr<TInterface> result) where TInterface : unmanaged
         {
+            fixed (UniqueComPtr<TInterface>* pResult = &result)
+            {
+                return Cast(pResult);
+            }
+        }
+
+        /// <summary>
+        /// Try and cast <typeparamref name="T"/> to <typeparamref name="TInterface"/>
+        /// </summary>
+        /// <param name="result">A <see cref="UniqueComPtr{T}"/> that encapsulates the casted pointer, if succeeded</param>
+        /// <typeparam name="TInterface">The type to cast to</typeparam>
+        /// <returns>An HRESULT representing the cast operation</returns>
+        public readonly int Cast<TInterface>(UniqueComPtr<TInterface>* result) where TInterface : unmanaged
+        {
             var p = (IUnknown*)_ptr;
-            TInterface* pResult;
 
             if (p is null)
             {
@@ -138,8 +150,7 @@ namespace Voltium.Common
             }
 
             Guid* iid = UniqueComPtr<TInterface>.StaticIid;
-            int hr = p->QueryInterface(iid, (void**)&pResult);
-            result = new UniqueComPtr<TInterface>(pResult);
+            int hr = p->QueryInterface(iid, (void**)&result);
             return hr;
         }
 
@@ -171,9 +182,7 @@ namespace Voltium.Common
         /// <returns><see langword="true"/> if the type supports <typeparamref name="TInterface"/>, else <see langword="false" /> </returns>
         public readonly bool HasInterface<TInterface>() where TInterface : unmanaged
         {
-            var result = TryQueryInterface<TInterface>(out var ptr);
-            ptr.Dispose();
-            return result;
+            return Cast<TInterface>(null) == Windows.E_POINTER;
         }
 
         /// <summary>
