@@ -39,6 +39,12 @@ namespace Voltium.Core.Devices
         {
             _device = device;
 
+            if (device.QueryFeatureSupport<D3D12_FEATURE_DATA_SHADER_CACHE>(D3D12_FEATURE.D3D12_FEATURE_SHADER_CACHE)
+                    .SupportFlags.HasFlag(D3D12_SHADER_CACHE_SUPPORT_FLAGS.D3D12_SHADER_CACHE_SUPPORT_LIBRARY))
+            {
+                return;
+            }
+
             Span<byte> cache = GetCache();
 
             fixed (byte* pCache = cache)
@@ -230,7 +236,12 @@ namespace Voltium.Core.Devices
         {
             using UniqueComPtr<ID3D12PipelineState> state = default;
 
-            int hr = _psoLibrary.Ptr->LoadPipeline((ushort*)pName, pso, state.Iid, (void**)&state);
+            int hr = E_INVALIDARG;
+            if (_psoLibrary.Exists)
+            {
+                // will return E_INVALIDARG if pipeline does not exist
+                hr = _psoLibrary.Ptr->LoadPipeline((ushort*)pName, pso, state.Iid, (void**)&state);
+            }
             if (hr == E_INVALIDARG)
             {
                 _device.ThrowIfFailed(_device.As<ID3D12Device2>()->CreatePipelineState(pso, state.Iid, (void**)&state));
@@ -286,7 +297,7 @@ namespace Voltium.Core.Devices
 
         private void Cache(bool dispose)
         {
-            if (DisableCache)
+            if (DisableCache || !_psoLibrary.Exists)
             {
                 return;
             }

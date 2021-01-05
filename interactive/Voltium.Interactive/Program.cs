@@ -23,6 +23,7 @@ using Microsoft.Extensions.Logging;
 using Voltium.Interactive.Samples.Predication;
 using Voltium.Core.ShaderLang;
 using System.Numerics;
+using Voltium.Interactive.Samples.ExecuteIndirect;
 
 namespace Voltium.Interactive
 {
@@ -30,7 +31,7 @@ namespace Voltium.Interactive
     {
         private static int Main(string[] args)
         {
-            var application = new MandelbrotRenderPass();
+            var application = new ExecuteIndirectApp();
             return ApplicationRunner.RunWin32(application);
         }
     }

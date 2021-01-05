@@ -1,3 +1,4 @@
+
 using System;
 using System.Drawing;
 using System.Numerics;
@@ -11,23 +12,23 @@ using Voltium.Core.Devices.Shaders;
 using Voltium.Core.Pipeline;
 using Buffer = Voltium.Core.Memory.Buffer;
 
-namespace Voltium.Interactive.HelloTriangle
+namespace Voltium.Interactive.Samples.ExecuteIndirect
 {
     // This is our vertex type used in the shader
     // [ShaderInput] triggers a source generator to create a shader input description which we need later
     [ShaderInput]
-    internal partial struct HelloWorldVertex
+    internal partial struct Vertex
     {
         public Vector3 Position;
         public Vector4 Color;
     }
 
-        public sealed class HelloTriangleApp : Application
+    public sealed class ExecuteIndirectApp : Application
     {
         private GraphicsDevice _device = null!;
         private Output _output = null!;
         private PipelineStateObject _pso = null!;
-        private Buffer _vertices;
+        private Buffer _vertices, _indirect;
 
         public unsafe override void Initialize(Size outputSize, IOutputOwner output)
         {
@@ -41,15 +42,16 @@ namespace Voltium.Interactive.HelloTriangle
 
             OnResize(outputSize);
 
-            ReadOnlySpan<HelloWorldVertex> vertices = stackalloc HelloWorldVertex[3]
+            ReadOnlySpan<Vertex> vertices = stackalloc Vertex[3]
             {
-                new HelloWorldVertex { Position = new Vector3(+0.25f, -0.25f, +0.0f), Color = (Vector4)Rgba128.Blue },
-                new HelloWorldVertex { Position = new Vector3(-0.25f, -0.25f, +0.0f), Color = (Vector4)Rgba128.Green },
-                new HelloWorldVertex { Position = new Vector3(+0.0f, +0.25f, +0.0f), Color = (Vector4)Rgba128.Red },
+                new Vertex { Position = new Vector3(+0.25f, -0.25f, +0.0f), Color = (Vector4)Rgba128.Blue },
+                new Vertex { Position = new Vector3(-0.25f, -0.25f, +0.0f), Color = (Vector4)Rgba128.Green },
+                new Vertex { Position = new Vector3(+0.0f, +0.25f, +0.0f), Color = (Vector4)Rgba128.Red },
             };
 
             // Allocate the vertices, using the overload which takes some initial data
             _vertices = _device.Allocator.AllocateUploadBuffer(vertices);
+            _indirect = _device.Allocator.AllocateUploadBuffer<IndirectDrawArguments>();
 
             // The pipeline description. We compile shaders at runtime here, which is simpler but less efficient
             var psoDesc = new GraphicsPipelineDesc
@@ -59,7 +61,7 @@ namespace Voltium.Interactive.HelloTriangle
                 PixelShader = ShaderManager.CompileShader("HelloTriangle/Shader.hlsl", ShaderType.Pixel, entrypoint: "PixelMain"),
                 RenderTargetFormats = _output.Configuration.BackBufferFormat,
                 DepthStencil = DepthStencilDesc.DisableDepthStencil,
-                Inputs = InputLayout.FromType<HelloWorldVertex>(),
+                Inputs = InputLayout.FromType<Vertex>(),
             };
 
             _pso = _device.PipelineManager.CreatePipelineStateObject(psoDesc, nameof(_pso));
@@ -71,6 +73,11 @@ namespace Voltium.Interactive.HelloTriangle
         {
             var context = _device.BeginGraphicsContext(_pso);
 
+            IndirectDrawArguments* pDraw = _indirect.As<IndirectDrawArguments>();
+            pDraw->VertexCountPerInstance = _vertices.LengthAs<Vertex>();
+            pDraw->InstanceCount = 1;
+            pDraw->StartVertexLocation = 0;
+            pDraw->StartInstanceLocation = 0;
 
             // We need to transition the back buffer to ResourceState.RenderTarget so we can draw to it
             using (context.ScopedBarrier(ResourceBarrier.Transition(_output.OutputBuffer, ResourceState.Present, ResourceState.RenderTarget)))
@@ -78,9 +85,9 @@ namespace Voltium.Interactive.HelloTriangle
                 // Set that we render to the entire screen, clear the render target, set the vertex buffer, and set the topology we will use
                 context.SetViewportAndScissor(_output.Resolution);
                 context.SetAndClearRenderTarget(_output.OutputBufferView, Rgba128.CornflowerBlue);
-                context.SetVertexBuffers<HelloWorldVertex>(_vertices);
+                context.SetVertexBuffers<Vertex>(_vertices);
                 context.SetTopology(Topology.TriangleList);
-                context.Draw(_vertices.LengthAs<HelloWorldVertex>());
+                context.ExecuteIndirect(_device.DrawIndirect, _indirect);
             }
 
             context.Close();

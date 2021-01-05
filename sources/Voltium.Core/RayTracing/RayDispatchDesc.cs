@@ -11,8 +11,6 @@ namespace Voltium.Core
     {
         internal D3D12_DISPATCH_RAYS_DESC Desc;
 
-        internal Buffer RayGenBuffer, HitBuffer, MissBuffer, CallableBuffer;
-
         public void SetRayGenerationShaderRecord([RequiresResourceState(ResourceState.NonPixelShaderResource)] in Buffer buffer, uint length)
         {
             Desc.RayGenerationShaderRecord = new D3D12_GPU_VIRTUAL_ADDRESS_RANGE { SizeInBytes = length, StartAddress = buffer.GpuAddress };
@@ -20,17 +18,17 @@ namespace Voltium.Core
 
         public void SetMissShaderTable([RequiresResourceState(ResourceState.NonPixelShaderResource)] in Buffer buffer, uint length, uint count)
         {
-            Desc.RayGenerationShaderRecord = new D3D12_GPU_VIRTUAL_ADDRESS_RANGE { SizeInBytes = length, StartAddress = buffer.GpuAddress };
+            Desc.MissShaderTable = new D3D12_GPU_VIRTUAL_ADDRESS_RANGE_AND_STRIDE { SizeInBytes = length * count, StartAddress = buffer.GpuAddress, StrideInBytes = length };
         }
 
         public void SetHitGroupTable([RequiresResourceState(ResourceState.NonPixelShaderResource)] in Buffer buffer, uint length, uint count)
         {
-            Desc.RayGenerationShaderRecord = new D3D12_GPU_VIRTUAL_ADDRESS_RANGE { SizeInBytes = length, StartAddress = buffer.GpuAddress };
+            Desc.HitGroupTable = new D3D12_GPU_VIRTUAL_ADDRESS_RANGE_AND_STRIDE { SizeInBytes = length, StartAddress = buffer.GpuAddress, StrideInBytes = length };
         }
 
         public void SetCallableShaderTable([RequiresResourceState(ResourceState.NonPixelShaderResource)] in Buffer buffer, uint length, uint count)
         {
-            Desc.RayGenerationShaderRecord = new D3D12_GPU_VIRTUAL_ADDRESS_RANGE { SizeInBytes = length, StartAddress = buffer.GpuAddress };
+            Desc.CallableShaderTable = new D3D12_GPU_VIRTUAL_ADDRESS_RANGE_AND_STRIDE { SizeInBytes = length, StartAddress = buffer.GpuAddress, StrideInBytes = length };
         }
 
         /// <summary>
