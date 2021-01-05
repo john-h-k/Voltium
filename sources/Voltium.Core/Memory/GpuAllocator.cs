@@ -933,7 +933,6 @@ namespace Voltium.Core.Memory
                 {
                     var refCount = alloc.GetResourcePointer()->Release();
                 }
-                throw new();
             }
         }
 
