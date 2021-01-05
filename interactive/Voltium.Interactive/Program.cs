@@ -23,14 +23,15 @@ using Microsoft.Extensions.Logging;
 using Voltium.Interactive.Samples.Predication;
 using Voltium.Core.ShaderLang;
 using System.Numerics;
+using Voltium.Interactive.Samples.ExecuteIndirect;
 
 namespace Voltium.Interactive
 {
     internal static unsafe class Program
     {
-        private static int _Main(string[] args)
+        private static int Main(string[] args)
         {
-            var application = new MandelbrotRenderPass();
+            var application = new ExecuteIndirectApp();
             return ApplicationRunner.RunWin32(application);
         }
     }

@@ -150,7 +150,7 @@ namespace Voltium.Common
             }
 
             Guid* iid = UniqueComPtr<TInterface>.StaticIid;
-            int hr = p->QueryInterface(iid, (void**)&result);
+            int hr = p->QueryInterface(iid, (void**)result);
             return hr;
         }
 

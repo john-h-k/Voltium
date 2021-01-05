@@ -128,7 +128,7 @@ namespace Voltium.Interactive
             return (info.Protect & PAGE_WRITECOMBINE) != 0;
         }
 
-        public static unsafe void Main()
+        public static unsafe void _Main()
         {
 #if DEBUG
             var layer = DebugLayerConfiguration.Debug;
