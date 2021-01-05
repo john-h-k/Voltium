@@ -12,6 +12,13 @@ using Buffer = Voltium.Core.Memory.Buffer;
 
 namespace Voltium.Core
 {
+#if D3D12
+    using CmdBuffer = UniqueComPtr<ID3D12GraphicsCommandList6>;
+    using CmdAllocator = UniqueComPtr<ID3D12GraphicsCommandList6>;
+#else
+    using CmdBuffer = VkCommandBuffer;
+    using CmdAllocator = VkCommandPool;
+#endif
     /// <summary>
     /// Represents a generic Gpu context
     /// </summary>
@@ -22,8 +29,8 @@ namespace Voltium.Core
 
         internal ID3D12GraphicsCommandList* GetListPointer() => (ID3D12GraphicsCommandList*)List;
 
-        internal ID3D12GraphicsCommandList6* List => Params.List.Ptr;
-        internal ID3D12CommandAllocator* Allocator => Params.Allocator.Ptr;
+        internal CmdBuffer List => Params.List.Ptr;
+        internal CmdAllocator Allocator => Params.Allocator.Ptr;
         internal ComputeDevice Device => Params.Device;
 
         internal ExecutionContext Context => Params.Context;

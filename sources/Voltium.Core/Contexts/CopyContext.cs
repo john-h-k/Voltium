@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 using TerraFX.Interop;
+using static TerraFX.Interop.Vulkan;
 using Voltium.Common;
 using Voltium.Core.Contexts;
 using Voltium.Core.Devices;
@@ -45,7 +46,9 @@ namespace Voltium.Core
     public unsafe partial class CopyContext : GpuContext
     {
         [FixedBufferType(typeof(D3D12_RESOURCE_BARRIER), 16)]
-        private partial struct BarrierBuffer16 { }
+        private partial struct BarrierBuffer16
+        {
+        }
 
         private BarrierBuffer16 Barriers;
         private uint NumBarriers;
@@ -73,8 +76,12 @@ namespace Voltium.Core
                 FlushBarriers();
                 fixed (D3D12_RESOURCE_BARRIER* pBarriers = barriers)
                 {
+#if D3D12
                     List->ResourceBarrier((uint)barriers.Length, pBarriers);
+#else
+#endif
                 }
+
                 return;
             }
 
@@ -104,7 +111,6 @@ namespace Voltium.Core
 
         internal CopyContext(in ContextParams @params) : base(@params)
         {
-
         }
 
         //AtomicCopyBufferUINT
@@ -128,13 +134,10 @@ namespace Voltium.Core
         /// <param name="address">The GPU address to write to</param>
         /// <param name="value">The 32 bit value to write to memory</param>
         /// <param name="mode">The <see cref="WriteBufferImmediateMode"/> mode to write with. By default, this is <see cref="WriteBufferImmediateMode.Default"/></param>
-        public void WriteBufferImmediate(ulong address, uint value, WriteBufferImmediateMode mode = WriteBufferImmediateMode.Default)
+        public void WriteBufferImmediate(ulong address, uint value,
+            WriteBufferImmediateMode mode = WriteBufferImmediateMode.Default)
         {
-            var param = new D3D12_WRITEBUFFERIMMEDIATE_PARAMETER
-            {
-                Dest = address,
-                Value = value
-            };
+            var param = new D3D12_WRITEBUFFERIMMEDIATE_PARAMETER {Dest = address, Value = value};
 
             FlushBarriers();
             List->WriteBufferImmediate(1, &param, (D3D12_WRITEBUFFERIMMEDIATE_MODE*)&mode);
@@ -147,7 +150,8 @@ namespace Voltium.Core
         /// <param name="pairs">The GPU address and value pairs to write</param>
         /// <param name="modes">The <see cref="WriteBufferImmediateMode"/> modes to write with. By default, this is <see cref="WriteBufferImmediateMode.Default"/>.
         /// If <see cref="ReadOnlySpan{T}.Empty"/> is passed, <see cref="WriteBufferImmediateMode.Default"/> is used.</param>
-        public void WriteBufferImmediate(ReadOnlySpan<(ulong Address, uint Value)> pairs, ReadOnlySpan<WriteBufferImmediateMode> modes = default)
+        public void WriteBufferImmediate(ReadOnlySpan<(ulong Address, uint Value)> pairs,
+            ReadOnlySpan<WriteBufferImmediateMode> modes = default)
         {
             if (!modes.IsEmpty && modes.Length != pairs.Length)
             {
@@ -159,7 +163,8 @@ namespace Voltium.Core
             fixed (void* pModes = modes)
             {
                 FlushBarriers();
-                List->WriteBufferImmediate((uint)modes.Length, (D3D12_WRITEBUFFERIMMEDIATE_PARAMETER*)pParams, (D3D12_WRITEBUFFERIMMEDIATE_MODE*)pModes);
+                List->WriteBufferImmediate((uint)modes.Length, (D3D12_WRITEBUFFERIMMEDIATE_PARAMETER*)pParams,
+                    (D3D12_WRITEBUFFERIMMEDIATE_MODE*)pModes);
             }
         }
 
@@ -171,10 +176,14 @@ namespace Voltium.Core
         /// value in <paramref name="buff"/> will cause the operation to execute.</param>
         /// <param name="buff">The <see cref="Buffer"/> to read the predication value from</param>
         /// <param name="offset">The offset, in bytes, the predication value</param>
-        public void SetPredication(bool predicate, [RequiresResourceState(ResourceState.Predication)] in Buffer buff, uint offset = 0)
+        public void SetPredication(bool predicate, [RequiresResourceState(ResourceState.Predication)]
+            in Buffer buff, uint offset = 0)
         {
             FlushBarriers();
-            List->SetPredication(buff.GetResourcePointer(), buff.Offset + offset, predicate ? D3D12_PREDICATION_OP.D3D12_PREDICATION_OP_NOT_EQUAL_ZERO : D3D12_PREDICATION_OP.D3D12_PREDICATION_OP_EQUAL_ZERO);
+            List->SetPredication(buff.GetResourcePointer(), buff.Offset + offset,
+                predicate
+                    ? D3D12_PREDICATION_OP.D3D12_PREDICATION_OP_NOT_EQUAL_ZERO
+                    : D3D12_PREDICATION_OP.D3D12_PREDICATION_OP_EQUAL_ZERO);
         }
 
         public ref struct Query
@@ -185,6 +194,7 @@ namespace Voltium.Core
             internal uint _index;
 
             public void EndQuery() => Dispose();
+
             public void Dispose()
             {
                 _context.List->EndQuery(_queryHeap, _query, _index);
@@ -197,7 +207,10 @@ namespace Voltium.Core
         public Query ScopedQuery(in QueryHeap heap, QueryType type, uint index)
         {
             BeginQuery(heap, type, index);
-            return new() { _context = this, _queryHeap = heap.GetQueryHeap(), _index = index, _query = (D3D12_QUERY_TYPE)type };
+            return new()
+            {
+                _context = this, _queryHeap = heap.GetQueryHeap(), _index = index, _query = (D3D12_QUERY_TYPE)type
+            };
         }
 
         public void BeginQuery(in QueryHeap heap, QueryType type, uint index)
@@ -215,14 +228,19 @@ namespace Voltium.Core
             List->EndQuery(heap.GetQueryHeap(), D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP, index);
         }
 
-        public void ResolveQuery<TQuery>(in QueryHeap heap, Range queries, [RequiresResourceState(ResourceState.CopyDestination)] in Buffer dest, uint offset = 0) where TQuery : struct, IQueryType
+        public void ResolveQuery<TQuery>(in QueryHeap heap, Range queries,
+            [RequiresResourceState(ResourceState.CopyDestination)]
+            in Buffer dest, uint offset = 0) where TQuery : struct, IQueryType
             => ResolveQuery(heap, default(TQuery).Type, queries, dest, offset);
 
-        public void ResolveQuery(in QueryHeap heap, QueryType type, Range queries, [RequiresResourceState(ResourceState.CopyDestination)] in Buffer dest, uint offset = 0)
+        public void ResolveQuery(in QueryHeap heap, QueryType type, Range queries,
+            [RequiresResourceState(ResourceState.CopyDestination)]
+            in Buffer dest, uint offset = 0)
         {
             FlushBarriers();
             var (heapOffset, length) = queries.GetOffsetAndLength((int)heap.Length);
-            List->ResolveQueryData(heap.GetQueryHeap(), (D3D12_QUERY_TYPE)type, (uint)heapOffset, (uint)length, dest.GetResourcePointer(), dest.Offset + offset);
+            List->ResolveQueryData(heap.GetQueryHeap(), (D3D12_QUERY_TYPE)type, (uint)heapOffset, (uint)length,
+                dest.GetResourcePointer(), dest.Offset + offset);
         }
 
         /// <summary>
@@ -231,7 +249,8 @@ namespace Voltium.Core
         /// <param name="tex">The <see cref="Texture"/> to transition</param>
         /// <param name="current">The current <see cref="ResourceState"/> of <paramref name="tex"/></param>
         /// <param name="subresource">The subresource to transition, by default, all subresources</param>
-        public void TransitionForCrossContextAccess([RequiresResourceState("current")] in Texture tex, ResourceState current, uint subresource = uint.MaxValue)
+        public void TransitionForCrossContextAccess([RequiresResourceState("current")] in Texture tex,
+            ResourceState current, uint subresource = uint.MaxValue)
         {
             Barrier(ResourceBarrier.Transition(tex, current, ResourceState.Common, subresource));
         }
@@ -241,18 +260,23 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="buffer">The <see cref="Buffer"/> to transition</param>
         /// <param name="current">The current <see cref="ResourceState"/> of <paramref name="buffer"/></param>
-        public void TransitionForCrossContextAccess([RequiresResourceState("current")] in Buffer buffer, ResourceState current)
+        public void TransitionForCrossContextAccess([RequiresResourceState("current")] in Buffer buffer,
+            ResourceState current)
         {
             Barrier(ResourceBarrier.Transition(buffer, current, ResourceState.Common));
         }
-
 
 
         public struct BufferFootprint
         {
             internal D3D12_SUBRESOURCE_FOOTPRINT Footprint;
 
-            public DataFormat Format { get => (DataFormat)Footprint.Format; set => Footprint.Format = (DXGI_FORMAT)value; }
+            public DataFormat Format
+            {
+                get => (DataFormat)Footprint.Format;
+                set => Footprint.Format = (DXGI_FORMAT)value;
+            }
+
             public uint Width { get => Footprint.Width; set => Footprint.Width = value; }
             public uint Height { get => Footprint.Height; set => Footprint.Height = value; }
             public uint Depth { get => Footprint.Depth; set => Footprint.Depth = value; }
@@ -267,12 +291,15 @@ namespace Voltium.Core
         /// <param name="dest">The resource to copy to</param>
         /// <param name="subresource">The index of the subresource to copy</param>
         public void CopyBufferToTexture(
-            [RequiresResourceState(ResourceState.CopySource)] in Buffer source,
-            [RequiresResourceState(ResourceState.CopyDestination)] in Texture dest,
+            [RequiresResourceState(ResourceState.CopySource)]
+            in Buffer source,
+            [RequiresResourceState(ResourceState.CopyDestination)]
+            in Texture dest,
             uint subresource = 0
         )
         {
-            Device.GetCopyableFootprint(dest, subresource, out var layout, out var numRow, out var rowSize, out var size);
+            Device.GetCopyableFootprint(dest, subresource, out var layout, out var numRow, out var rowSize,
+                out var size);
 
             var src = new D3D12_TEXTURE_COPY_LOCATION(source.GetResourcePointer(), layout);
             var dst = new D3D12_TEXTURE_COPY_LOCATION(dest.GetResourcePointer(), subresource);
@@ -287,12 +314,15 @@ namespace Voltium.Core
         /// <param name="dest">The resource to copy to</param>
         /// <param name="subresource">The index of the subresource to copy</param>
         public void CopyTextureToBuffer(
-            [RequiresResourceState(ResourceState.CopySource)] in Texture source,
-            [RequiresResourceState(ResourceState.CopyDestination)] in Buffer dest,
+            [RequiresResourceState(ResourceState.CopySource)]
+            in Texture source,
+            [RequiresResourceState(ResourceState.CopyDestination)]
+            in Buffer dest,
             uint subresource = 0
         )
         {
-            Device.GetCopyableFootprint(source, subresource, out var layout, out var numRow, out var rowSize, out var size);
+            Device.GetCopyableFootprint(source, subresource, out var layout, out var numRow, out var rowSize,
+                out var size);
 
             var dst = new D3D12_TEXTURE_COPY_LOCATION(source.GetResourcePointer(), layout);
             var src = new D3D12_TEXTURE_COPY_LOCATION(dest.GetResourcePointer(), subresource);
@@ -307,8 +337,10 @@ namespace Voltium.Core
         /// <param name="dest">The resource to copy to</param>
         /// <param name="subresource">The index of the subresource to copy</param>
         public void CopySubresource(
-            [RequiresResourceState(ResourceState.CopySource)] in Texture source,
-            [RequiresResourceState(ResourceState.CopyDestination)] in Texture dest,
+            [RequiresResourceState(ResourceState.CopySource)]
+            in Texture source,
+            [RequiresResourceState(ResourceState.CopyDestination)]
+            in Texture dest,
             uint subresource
         ) => CopySubresource(source, dest, subresource, subresource);
 
@@ -320,8 +352,10 @@ namespace Voltium.Core
         /// <param name="sourceSubresource">The index of the subresource to copy from</param>
         /// <param name="destSubresource">The index of the subresource to copy to</param>
         public void CopySubresource(
-            [RequiresResourceState(ResourceState.CopySource)] in Texture source,
-            [RequiresResourceState(ResourceState.CopyDestination)] in Texture dest,
+            [RequiresResourceState(ResourceState.CopySource)]
+            in Texture source,
+            [RequiresResourceState(ResourceState.CopyDestination)]
+            in Texture dest,
             uint sourceSubresource,
             uint destSubresource
         )
@@ -350,15 +384,18 @@ namespace Voltium.Core
         /// <param name="destOffset">The offset, in bytes, to start copying to</param>
         /// <param name="numBytes">The number of bytes to copy</param>
         public void CopyBufferRegion(
-            [RequiresResourceState(ResourceState.CopySource)] in Buffer source,
+            [RequiresResourceState(ResourceState.CopySource)]
+            in Buffer source,
             uint sourceOffset,
-            [RequiresResourceState(ResourceState.CopyDestination)] in Buffer dest,
+            [RequiresResourceState(ResourceState.CopyDestination)]
+            in Buffer dest,
             uint destOffset,
             uint numBytes
         )
         {
             FlushBarriers();
-            List->CopyBufferRegion(dest.GetResourcePointer(), dest.Offset + destOffset, source.GetResourcePointer(), source.Offset + sourceOffset, numBytes);
+            List->CopyBufferRegion(dest.GetResourcePointer(), dest.Offset + destOffset, source.GetResourcePointer(),
+                source.Offset + sourceOffset, numBytes);
         }
 
 
@@ -369,21 +406,26 @@ namespace Voltium.Core
         /// <param name="dest">The <see cref="Buffer"/> to copy to</param>
         /// <param name="numBytes">The number of bytes to copy</param>
         public void CopyBufferRegion(
-            [RequiresResourceState(ResourceState.CopySource)] in Buffer source,
-            [RequiresResourceState(ResourceState.CopyDestination)] in Buffer dest,
+            [RequiresResourceState(ResourceState.CopySource)]
+            in Buffer source,
+            [RequiresResourceState(ResourceState.CopyDestination)]
+            in Buffer dest,
             int numBytes
         )
             => CopyBufferRegion(source, dest, (uint)numBytes);
 
         /// <inheritdoc cref="CopyBufferRegion(in Buffer, in Buffer, uint)"/>
         public void CopyBufferRegion(
-            [RequiresResourceState(ResourceState.CopySource)] in Buffer source,
-            [RequiresResourceState(ResourceState.CopyDestination)] in Buffer dest,
+            [RequiresResourceState(ResourceState.CopySource)]
+            in Buffer source,
+            [RequiresResourceState(ResourceState.CopyDestination)]
+            in Buffer dest,
             uint numBytes
         )
         {
             FlushBarriers();
-            List->CopyBufferRegion(dest.GetResourcePointer(), dest.Offset, source.GetResourcePointer(), source.Offset, numBytes);
+            List->CopyBufferRegion(dest.GetResourcePointer(), dest.Offset, source.GetResourcePointer(), source.Offset,
+                numBytes);
         }
 
         /// <summary>
@@ -393,15 +435,17 @@ namespace Voltium.Core
         /// <param name="subresourceIndex">The index of the subresource to copy from</param>
         /// <param name="dest"></param>
         /// <param name="layout"></param>
-        public void CopySubresource(in Texture source, uint subresourceIndex, out Buffer dest, out SubresourceLayout layout)
+        public void CopySubresource(in Texture source, uint subresourceIndex, out Buffer dest,
+            out SubresourceLayout layout)
         {
-            Device.GetCopyableFootprint(source, subresourceIndex, out var d3d12Layout, out var numRows, out var rowSize, out var size);
+            Device.GetCopyableFootprint(source, subresourceIndex, out var d3d12Layout, out var numRows, out var rowSize,
+                out var size);
             dest = Device.Allocator.AllocateBuffer((long)size, MemoryAccess.CpuReadback);
 
             var sourceDesc = new D3D12_TEXTURE_COPY_LOCATION(source.GetResourcePointer(), subresourceIndex);
             var destDesc = new D3D12_TEXTURE_COPY_LOCATION(dest.GetResourcePointer(), d3d12Layout);
 
-            layout = new SubresourceLayout { NumRows = numRows, RowSize = rowSize };
+            layout = new SubresourceLayout {NumRows = numRows, RowSize = rowSize};
 
             FlushBarriers();
             List->CopyTextureRegion(&destDesc, 0, 0, 0, &sourceDesc, null);
@@ -446,14 +490,19 @@ namespace Voltium.Core
         /// <param name="source">The resource to copy from</param>
         /// <param name="dest">The resource to copy to</param>
         public void CopyResource(
-            [RequiresResourceState(ResourceState.CopySource)] in Buffer source,
-            [RequiresResourceState(ResourceState.CopyDestination)] in Buffer dest
+            [RequiresResourceState(ResourceState.CopySource)]
+            in Buffer source,
+            [RequiresResourceState(ResourceState.CopyDestination)]
+            in Buffer dest
         )
         {
             if (IsWholeResource(source) && IsWholeResource(dest))
             {
                 FlushBarriers();
+#if D3D12
                 List->CopyResource(dest.Resource.GetResourcePointer(), source.Resource.GetResourcePointer());
+#else
+                Vulkan.vkCmdCopyBuffer(List, source.GetResourcePointer(), dest.GetResourcePointer(), 0, null);
             }
             else
             {
@@ -461,10 +510,12 @@ namespace Voltium.Core
                 {
                     throw new GraphicsException(Device, "Copy Resource buffers must be sized identically");
                 }
+
                 CopyBufferRegion(source, dest, source.Length);
             }
 
-            static bool IsWholeResource(in Buffer buff) => buff.Offset == 0 && buff.GetResourcePointer()->GetDesc().Width == buff.Length;
+            static bool IsWholeResource(in Buffer buff) =>
+                buff.Offset == 0 && buff.GetResourcePointer()->GetDesc().Width == buff.Length;
         }
 
         /// <summary>
@@ -473,8 +524,10 @@ namespace Voltium.Core
         /// <param name="source">The resource to copy from</param>
         /// <param name="dest">The resource to copy to</param>
         public void CopyResource(
-            [RequiresResourceState(ResourceState.CopySource)] in Texture source,
-            [RequiresResourceState(ResourceState.CopyDestination)] in Texture dest
+            [RequiresResourceState(ResourceState.CopySource)]
+            in Texture source,
+            [RequiresResourceState(ResourceState.CopyDestination)]
+            in Texture dest
         )
         {
             FlushBarriers();
@@ -552,8 +605,8 @@ namespace Voltium.Core
             }
 
             /// <summary>
-            /// Ends the scoped barriers, by reversing all state transitions, 
-            /// reversing all aliasing barriers, 
+            /// Ends the scoped barriers, by reversing all state transitions,
+            /// reversing all aliasing barriers,
             /// and reperforming any UAV barriers
             /// </summary>
             public void Dispose()
@@ -591,15 +644,22 @@ namespace Voltium.Core
                 static D3D12_RESOURCE_BARRIER Reverse(in ResourceBarrier barrier)
                 {
                     D3D12_RESOURCE_BARRIER result;
-                    bool isBeginOnly = barrier.Barrier.Flags.HasFlag(D3D12_RESOURCE_BARRIER_FLAGS.D3D12_RESOURCE_BARRIER_FLAG_BEGIN_ONLY);
-                    result.Flags = isBeginOnly ? D3D12_RESOURCE_BARRIER_FLAGS.D3D12_RESOURCE_BARRIER_FLAG_END_ONLY : D3D12_RESOURCE_BARRIER_FLAGS.D3D12_RESOURCE_BARRIER_FLAG_NONE;
+                    bool isBeginOnly =
+                        barrier.Barrier.Flags.HasFlag(D3D12_RESOURCE_BARRIER_FLAGS
+                            .D3D12_RESOURCE_BARRIER_FLAG_BEGIN_ONLY);
+                    result.Flags = isBeginOnly
+                        ? D3D12_RESOURCE_BARRIER_FLAGS.D3D12_RESOURCE_BARRIER_FLAG_END_ONLY
+                        : D3D12_RESOURCE_BARRIER_FLAGS.D3D12_RESOURCE_BARRIER_FLAG_NONE;
 
                     if (barrier.Barrier.Type == D3D12_RESOURCE_BARRIER_TYPE.D3D12_RESOURCE_BARRIER_TYPE_TRANSITION)
                     {
                         ref readonly var transition = ref barrier.Barrier.Transition;
 
-                        var (before, after) = isBeginOnly ? (transition.StateBefore, transition.StateAfter) : (transition.StateAfter, transition.StateBefore);
-                        result = D3D12_RESOURCE_BARRIER.InitTransition(transition.pResource, before, after, transition.Subresource);
+                        var (before, after) = isBeginOnly
+                            ? (transition.StateBefore, transition.StateAfter)
+                            : (transition.StateAfter, transition.StateBefore);
+                        result = D3D12_RESOURCE_BARRIER.InitTransition(transition.pResource, before, after,
+                            transition.Subresource);
                     }
                     else if (barrier.Barrier.Type == D3D12_RESOURCE_BARRIER_TYPE.D3D12_RESOURCE_BARRIER_TYPE_ALIASING)
                     {
@@ -677,3 +737,5 @@ namespace Voltium.Core
         }
     }
 }
+
+

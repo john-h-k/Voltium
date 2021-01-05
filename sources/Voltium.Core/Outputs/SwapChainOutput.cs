@@ -1,3 +1,4 @@
+using System;
 using System.Drawing;
 using TerraFX.Interop;
 using Voltium.Common;
@@ -196,7 +197,7 @@ namespace Voltium.Core.Devices
                 context.Close();
                 var list = context.List;
 
-                _presentQueue.ExecuteCommandLists(new(&list, 1));
+                _presentQueue.ExecuteCommandLists(new ReadOnlySpan<UniqueComPtr<ID3D12CommandList>>(&list, 1));
             }
 
             _device.ThrowIfFailed(_swapChain.Ptr->Present(_desc.SyncInterval, 0));

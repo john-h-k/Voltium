@@ -15,6 +15,7 @@ using Buffer = Voltium.Core.Memory.Buffer;
 
 namespace Voltium.Core
 {
+
     public enum ShadingRate
     {
         Shade1x1 = D3D12_SHADING_RATE.D3D12_SHADING_RATE_1X1,
@@ -42,7 +43,6 @@ namespace Voltium.Core
     {
         internal GraphicsContext(in ContextParams @params) : base(@params)
         {
-
         }
 
         /// <summary>
@@ -51,18 +51,26 @@ namespace Voltium.Core
         /// <param name="min">The <see cref="float"/> which indicates the minimum depth value which won't be discarded</param>
         /// <param name="max">The <see cref="float"/> which indicates the maximum depth value which won't be discarded</param>
         public void SetDepthsBounds(float min, float max)
-            => List->OMSetDepthBounds(min, max);
+        {
+#if D3D12
+            List->OMSetDepthBounds(min, max);
+#else
+            Vulkan.vkCmdSetDepthBounds(List, min, max);
+#endif
+        }
 
         /// <summary>
         /// Discard the entire resource value
         /// </summary>
-        public void Discard([RequiresResourceState(ResourceState.RenderTarget)] in Buffer buffer)
+        public void Discard([RequiresResourceState(ResourceState.RenderTarget)]
+            in Buffer buffer)
             => Discard(buffer.Resource);
 
         /// <summary>
         /// Discard the entire resource value
         /// </summary>
-        public void Discard([RequiresResourceState(ResourceState.RenderTarget)] in Texture texture)
+        public void Discard([RequiresResourceState(ResourceState.RenderTarget)]
+            in Texture texture)
             => Discard(texture.Resource);
 
         private void Discard(GpuResource resource)
@@ -71,24 +79,33 @@ namespace Voltium.Core
             List->DiscardResource(resource.GetResourcePointer(), null);
         }
 
-        /// <summary>
-        /// Executes a <see cref="GraphicsContext"/>
-        /// </summary>
-        /// <param name="bundle"></param>
-        public void ExecuteBundle(GraphicsContext bundle)
-        {
-            List->ExecuteBundle(bundle.GetListPointer());
-        }
+        // /// <summary>
+        // /// Executes a <see cref="GraphicsContext"/>
+        // /// </summary>
+        // /// <param name="bundle"></param>
+        // public void ExecuteBundle(GraphicsContext bundle)
+        // {
+        //     List->ExecuteBundle(bundle.GetListPointer());
+        // }
 
-        public void SetShadingRate(ShadingRate defaultShadingRate, Combiner defaultRateAndPerPrimitiveRateCombiner, Combiner shadingRateTextureCombiner)
+        public void SetShadingRate(ShadingRate defaultShadingRate, Combiner defaultRateAndPerPrimitiveRateCombiner,
+            Combiner shadingRateTextureCombiner)
         {
-            var pCombiners = stackalloc[] { defaultRateAndPerPrimitiveRateCombiner, shadingRateTextureCombiner };
+            var pCombiners = stackalloc[] {defaultRateAndPerPrimitiveRateCombiner, shadingRateTextureCombiner};
+#if D3D12
             List->RSSetShadingRate((D3D12_SHADING_RATE)defaultShadingRate, (D3D12_SHADING_RATE_COMBINER*)pCombiners);
+#else
+            Vulkan.vkcmdset
+#endif
         }
 
-        public void SetShadingRateTexture([RequiresResourceState(ResourceState.VariableShadeRateSource)] in Texture tex)
+        public void SetShadingRateTexture([RequiresResourceState(ResourceState.VariableShadeRateSource)]
+            in Texture tex)
         {
+#if D3D12
             List->RSSetShadingRateImage(tex.GetResourcePointer());
+#else
+            Vulkan.vkCmdBindShadingRateImageNV(List,);
         }
 
         /// <summary>
@@ -115,7 +132,12 @@ namespace Voltium.Core
         /// <param name="value">The value of the blend factor</param>
         public void SetBlendFactor(Rgba128 value)
         {
-            List->OMSetBlendFactor(&value.R);
+            float* pValue = &value.R;
+#if D3D12
+            List->OMSetBlendFactor(pValue);
+#else
+            Vulkan.vkCmdSetBlendConstants(List, pValue);
+#endif
         }
 
         /// <summary>
@@ -124,7 +146,11 @@ namespace Voltium.Core
         /// <param name="value">The value of the stencil ref</param>
         public void SetStencilRef(uint value)
         {
+#if D3D12
             List->OMSetStencilRef(value);
+#else
+            Vulkan.vkCmdSetStencilReference(List, (uint)VkStencilFaceFlagBits.VK_STENCIL_FACE_FRONT_AND_BACK, value);
+#endif
         }
 
         /// <summary>
@@ -141,7 +167,8 @@ namespace Voltium.Core
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
         /// <param name="offset">The offset in elements of <typeparamref name="T"/> to start the view at</param>
-        public new void SetShaderResourceBuffer<T>(uint paramIndex, in Buffer cbuffer, uint offset = 0) where T : unmanaged
+        public new void SetShaderResourceBuffer<T>(uint paramIndex, in Buffer cbuffer, uint offset = 0)
+            where T : unmanaged
         {
             List->SetGraphicsRootShaderResourceView(paramIndex, cbuffer.GpuAddress + (ulong)(sizeof(T) * offset));
         }
@@ -287,8 +314,9 @@ namespace Voltium.Core
         /// <param name="clearValue">The <see cref="Rgba128"/> colors to clear the render targets to</param>
         /// <param name="depthStencilHandle">The handle to the depth stencil descriptor</param>
         /// <param name="depthClear">The <see cref="float"/> values to clear the depth buffer to</param>
-        /// <param name="stencilClear">The <see cref="byte"/> values to clear the stencil to</param> 
-        public void SetAndClearRenderTarget(in DescriptorHandle renderTargetHandle, Rgba128 clearValue = default, in DescriptorHandle? depthStencilHandle = null, float depthClear = 1, byte stencilClear = 0)
+        /// <param name="stencilClear">The <see cref="byte"/> values to clear the stencil to</param>
+        public void SetAndClearRenderTarget(in DescriptorHandle renderTargetHandle, Rgba128 clearValue = default,
+            in DescriptorHandle? depthStencilHandle = null, float depthClear = 1, byte stencilClear = 0)
         {
             SetRenderTarget(renderTargetHandle, depthStencilHandle);
             ClearRenderTarget(renderTargetHandle, clearValue);
@@ -306,8 +334,9 @@ namespace Voltium.Core
         /// <param name="clearValue">The <see cref="Rgba128"/> colors to clear the render targets to</param>
         /// <param name="depthStencilHandle">The handle to the depth stencil descriptor</param>
         /// <param name="depthClear">The <see cref="float"/> values to clear the depth buffer to</param>
-        /// <param name="stencilClear">The <see cref="byte"/> values to clear the stencil to</param> 
-        public void SetAndClearRenderTargets(in DescriptorSpan renderTargetHandles, Rgba128 clearValue = default, in DescriptorHandle? depthStencilHandle = null, float depthClear = 1, byte stencilClear = 0)
+        /// <param name="stencilClear">The <see cref="byte"/> values to clear the stencil to</param>
+        public void SetAndClearRenderTargets(in DescriptorSpan renderTargetHandles, Rgba128 clearValue = default,
+            in DescriptorHandle? depthStencilHandle = null, float depthClear = 1, byte stencilClear = 0)
         {
             SetRenderTargets(renderTargetHandles, depthStencilHandle);
 
@@ -329,8 +358,10 @@ namespace Voltium.Core
         /// <param name="clearValue">The <see cref="Rgba128"/> colors to clear the render targets to</param>
         /// <param name="depthStencilHandle">The handle to the depth stencil descriptor</param>
         /// <param name="depthClear">The <see cref="float"/> values to clear the depth buffer to</param>
-        /// <param name="stencilClear">The <see cref="byte"/> values to clear the stencil to</param> 
-        public void SetAndClearRenderTargets(ReadOnlySpan<DescriptorHandle> renderTargetHandles, Rgba128 clearValue = default, in DescriptorHandle? depthStencilHandle = null, float depthClear = 1, byte stencilClear = 0)
+        /// <param name="stencilClear">The <see cref="byte"/> values to clear the stencil to</param>
+        public void SetAndClearRenderTargets(ReadOnlySpan<DescriptorHandle> renderTargetHandles,
+            Rgba128 clearValue = default, in DescriptorHandle? depthStencilHandle = null, float depthClear = 1,
+            byte stencilClear = 0)
         {
             SetRenderTargets(renderTargetHandles, depthStencilHandle);
 
@@ -350,18 +381,23 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="renderTargetHandle">The handle to the render target descriptor</param>
         /// <param name="depthStencilHandle">The handle to the depth stencil descriptor</param>
-        public void SetRenderTarget(in DescriptorHandle? renderTargetHandle = null, in DescriptorHandle? depthStencilHandle = null)
+        public void SetRenderTarget(in DescriptorHandle? renderTargetHandle = null,
+            in DescriptorHandle? depthStencilHandle = null)
         {
             var rtv = renderTargetHandle.GetValueOrDefault().CpuHandle;
             var dsv = depthStencilHandle.GetValueOrDefault().CpuHandle;
 
             FlushBarriers();
+
+#if D3D12
             List->OMSetRenderTargets(
                 1,
                 renderTargetHandle is null ? null : &rtv,
                 Windows.TRUE,
                 depthStencilHandle is null ? null : &dsv
             );
+#else
+            Vulkan.cmdset
         }
 
 
@@ -370,9 +406,11 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="renderTargets">A span of <see cref="DescriptorHandle"/>s representing each render target</param>
         /// <param name="depthStencilHandle">The handle to the depth stencil descriptor</param>
-        public void SetRenderTargets(ReadOnlySpan<DescriptorHandle> renderTargets, DescriptorHandle? depthStencilHandle = null)
+        public void SetRenderTargets(ReadOnlySpan<DescriptorHandle> renderTargets,
+            DescriptorHandle? depthStencilHandle = null)
         {
-            StackSentinel.StackAssert(StackSentinel.SafeToStackalloc<D3D12_CPU_DESCRIPTOR_HANDLE>(renderTargets.Length));
+            StackSentinel.StackAssert(
+                StackSentinel.SafeToStackalloc<D3D12_CPU_DESCRIPTOR_HANDLE>(renderTargets.Length));
 
             D3D12_CPU_DESCRIPTOR_HANDLE* pRenderTargets = stackalloc D3D12_CPU_DESCRIPTOR_HANDLE[renderTargets.Length];
 
@@ -396,7 +434,8 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="renderTargetHandles">The render target handles</param>
         /// <param name="depthStencilHandle">The handle to the depth stencil descriptor</param>
-        public void SetRenderTargets(in DescriptorSpan renderTargetHandles, in DescriptorHandle? depthStencilHandle = null)
+        public void SetRenderTargets(in DescriptorSpan renderTargetHandles,
+            in DescriptorHandle? depthStencilHandle = null)
         {
             var dsv = depthStencilHandle.GetValueOrDefault().CpuHandle;
 
@@ -470,7 +509,8 @@ namespace Voltium.Core
             fixed (Rectangle* p = rect)
             {
                 FlushBarriers();
-                List->ClearDepthStencilView(dsv.CpuHandle, D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH, depth, 0, (uint)rect.Length, (RECT*)p);
+                List->ClearDepthStencilView(dsv.CpuHandle, D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH, depth, 0,
+                    (uint)rect.Length, (RECT*)p);
             }
         }
 
@@ -485,7 +525,8 @@ namespace Voltium.Core
             fixed (Rectangle* p = rect)
             {
                 FlushBarriers();
-                List->ClearDepthStencilView(dsv.CpuHandle, D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_STENCIL, 0, stencil, (uint)rect.Length, (RECT*)p);
+                List->ClearDepthStencilView(dsv.CpuHandle, D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_STENCIL, 0, stencil,
+                    (uint)rect.Length, (RECT*)p);
             }
         }
 
@@ -496,12 +537,15 @@ namespace Voltium.Core
         /// <param name="depth">The <see cref="float"/> value to set the depth resource to. By default, this is <c>1</c></param>
         /// <param name="stencil">The <see cref="byte"/> value to set the stencil resource to. By default, this is <c>0</c></param>
         /// <param name="rect">The rectangles representing the sections to clear. By default, this will clear the entire resource</param>
-        public void ClearDepthStencil(DescriptorHandle dsv, float depth = 1, byte stencil = 0, ReadOnlySpan<Rectangle> rect = default)
+        public void ClearDepthStencil(DescriptorHandle dsv, float depth = 1, byte stencil = 0,
+            ReadOnlySpan<Rectangle> rect = default)
         {
             fixed (Rectangle* p = rect)
             {
                 FlushBarriers();
-                List->ClearDepthStencilView(dsv.CpuHandle, D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_STENCIL | D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH, depth, stencil, (uint)rect.Length, (RECT*)p);
+                List->ClearDepthStencilView(dsv.CpuHandle,
+                    D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_STENCIL | D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH, depth,
+                    stencil, (uint)rect.Length, (RECT*)p);
             }
         }
 
@@ -513,7 +557,11 @@ namespace Voltium.Core
         {
             fixed (Viewport* pViewport = &viewport)
             {
+#if D3D12
                 List->RSSetViewports(1, (D3D12_VIEWPORT*)pViewport);
+#else
+                Vulkan.vkCmdSetViewport(List, 0, 1, (VkViewport*)pViewport);
+#endif
             }
         }
 
@@ -525,7 +573,11 @@ namespace Voltium.Core
         {
             fixed (Rectangle* pRects = rectangles)
             {
+#if D3D12
                 List->RSSetScissorRects((uint)rectangles.Length, (RECT*)pRects);
+#else
+                Vulkan.vkCmdSetScissor(List, 0, (uint)rectangles.Length, (VkRect2D*)pRects);
+#endif
             }
         }
 
@@ -534,7 +586,8 @@ namespace Voltium.Core
         /// Set the scissor rectangles
         /// </summary>
         /// <param name="rectangle">The rectangle to set</param>
-        public void SetScissorRectangles(Size rectangle) => SetScissorRectangles(new Rectangle(0, 0, rectangle.Width, rectangle.Height));
+        public void SetScissorRectangles(Size rectangle) =>
+            SetScissorRectangles(new Rectangle(0, 0, rectangle.Width, rectangle.Height));
 
         /// <summary>
         /// Set the scissor rectangles
@@ -542,7 +595,11 @@ namespace Voltium.Core
         /// <param name="rectangle">The rectangle to set</param>
         public void SetScissorRectangles(Rectangle rectangle)
         {
+#if D3D12
             List->RSSetScissorRects(1, (RECT*)&rectangle);
+#else
+            Vulkan.vkCmdSetScissor(List, 0, 1, (VkRect2D*)&rectangle);
+#endif
         }
 
         /// <summary>
@@ -553,7 +610,11 @@ namespace Voltium.Core
         {
             fixed (Viewport* pViewports = viewports)
             {
+#if D3D12
                 List->RSSetViewports((uint)viewports.Length, (D3D12_VIEWPORT*)pViewports);
+#else
+                Vulkan.vkCmdSetViewport(List, 0,(uint)viewports.Length, (VkRect2D*)pViewports );
+#endif
             }
         }
 
@@ -563,13 +624,19 @@ namespace Voltium.Core
         /// <param name="vertexResource">The vertex buffer to set</param>
         /// <param name="startSlot">The slot on the device array to set the vertex buffer to</param>
         /// <typeparam name="T">The type of the vertex in <see cref="Buffer"/></typeparam>
-        public void SetVertexBuffers<T>([RequiresResourceState(ResourceState.VertexBuffer)] in Buffer vertexResource, uint startSlot = 0)
+        public void SetVertexBuffers<T>([RequiresResourceState(ResourceState.VertexBuffer)]
+            in Buffer vertexResource, uint startSlot = 0)
             where T : unmanaged
         {
             var desc = CreateVertexBufferView<T>(vertexResource);
 
             FlushBarriers();
+#if D3D12
             List->IASetVertexBuffers(startSlot, 1, &desc);
+#else
+            var va = vertexResource.GetResourcePointer();
+            Vulkan.vkCmdBindVertexBuffers(List, startSlot, 1,  &va, null);
+#endif
         }
 
         /// <summary>
@@ -579,7 +646,8 @@ namespace Voltium.Core
         /// <param name="numVertices">The number of vertices in the buffer</param>
         /// <param name="startSlot">The slot on the device array to set the vertex buffer to</param>
         /// <typeparam name="T">The type of the vertex in <see cref="Buffer"/></typeparam>
-        public void SetVertexBuffers<T>([RequiresResourceState(ResourceState.VertexBuffer)] in Buffer vertexResource, uint numVertices, uint startSlot = 0)
+        public void SetVertexBuffers<T>([RequiresResourceState(ResourceState.VertexBuffer)]
+            in Buffer vertexResource, uint numVertices, uint startSlot = 0)
             where T : unmanaged
         {
             var desc = CreateVertexBufferView<T>(vertexResource, numVertices);
@@ -594,7 +662,8 @@ namespace Voltium.Core
         /// <param name="vertexBuffers">The vertex buffers to set</param>
         /// <param name="startSlot">The slot on the device array to start setting the vertex buffers to</param>
         /// <typeparam name="T">The type of the vertex in <see cref="Buffer"/></typeparam>
-        public void SetVertexBuffers<T>([RequiresResourceState(ResourceState.VertexBuffer)] ReadOnlySpan<Buffer> vertexBuffers, uint startSlot = 0)
+        public void SetVertexBuffers<T>([RequiresResourceState(ResourceState.VertexBuffer)]
+            ReadOnlySpan<Buffer> vertexBuffers, uint startSlot = 0)
             where T : unmanaged
         {
             StackSentinel.StackAssert(StackSentinel.SafeToStackalloc<D3D12_VERTEX_BUFFER_VIEW>(vertexBuffers.Length));
@@ -609,7 +678,8 @@ namespace Voltium.Core
             List->IASetVertexBuffers(startSlot, (uint)vertexBuffers.Length, views);
         }
 
-        private static D3D12_VERTEX_BUFFER_VIEW CreateVertexBufferView<T>(in Buffer buffer, uint numVertices = uint.MaxValue)
+        private static D3D12_VERTEX_BUFFER_VIEW CreateVertexBufferView<T>(in Buffer buffer,
+            uint numVertices = uint.MaxValue)
             where T : unmanaged
         {
             return new D3D12_VERTEX_BUFFER_VIEW
@@ -626,44 +696,39 @@ namespace Voltium.Core
         /// <param name="indexResource">The index buffer to set</param>
         /// <param name="numIndices">The number of indices to bind</param>
         /// <typeparam name="T">The type of the index in <see cref="Buffer"/></typeparam>
-        public void SetIndexBuffer<T>([RequiresResourceState(ResourceState.IndexBuffer)] in Buffer indexResource, uint numIndices = uint.MaxValue)
+        public void SetIndexBuffer<T>([RequiresResourceState(ResourceState.IndexBuffer)]
+            in Buffer indexResource, uint numIndices = uint.MaxValue)
             where T : unmanaged
         {
+#if D3D12
             var desc = CreateIndexBufferView<T>(indexResource, numIndices);
             List->IASetIndexBuffer(&desc);
+#else
+            Vulkan.vkCmdBindIndexBuffer(List, indexResource.GetResourcePointer(), 0, (VkIndexType)GetIndexType<T>());
+#endif
         }
 
         private static D3D12_INDEX_BUFFER_VIEW CreateIndexBufferView<T>(in Buffer buffer, uint numIndices = uint.MaxValue) where T : unmanaged
-        {
-            return new D3D12_INDEX_BUFFER_VIEW
+            => new()
             {
                 BufferLocation = buffer.GpuAddress,
                 SizeInBytes = numIndices == uint.MaxValue ? buffer.Length : (uint)sizeof(T) * numIndices,
-                Format = GetDxgiIndexType()
+                Format = (DXGI_FORMAT)GetIndexType<T>()
             };
 
-            static DXGI_FORMAT GetDxgiIndexType()
+        private static IndexFormat GetIndexType<T>()
+        {
+            if (typeof(T) == typeof(uint))
             {
-                if (typeof(T) == typeof(int))
-                {
-                    return DXGI_FORMAT.DXGI_FORMAT_R32_SINT;
-                }
-                else if (typeof(T) == typeof(uint))
-                {
-                    return DXGI_FORMAT.DXGI_FORMAT_R32_UINT;
-                }
-                else if (typeof(T) == typeof(short))
-                {
-                    return DXGI_FORMAT.DXGI_FORMAT_R16_SINT;
-                }
-                else if (typeof(T) == typeof(ushort))
-                {
-                    return DXGI_FORMAT.DXGI_FORMAT_R16_UINT;
-                }
-
-                ThrowHelper.ThrowNotSupportedException("Unsupported index type, must be UInt32/Int32/UInt16/Int16");
-                return default;
+                return IndexFormat.R32UInt;
             }
+            else if (typeof(T) == typeof(ushort))
+            {
+                return IndexFormat.R16UInt;
+            }
+
+            ThrowHelper.ThrowNotSupportedException("Unsupported index type, must be UInt32/Int32/UInt16/Int16");
+            return default;
         }
 
         /// <summary>
@@ -673,7 +738,9 @@ namespace Voltium.Core
         /// <param name="dest">The single-sampled dest <see cref="Texture"/></param>
         /// <param name="sourceSubresource">The index of the subresource from <paramref name="source"/> to use</param>
         /// <param name="destSubresource">The index of the subresource from <paramref name="dest"/> to use</param>
-        public void ResolveSubresource([RequiresResourceState(ResourceState.ResolveSource)] in Texture source, [RequiresResourceState(ResourceState.ResolveDestination)] in Texture dest, uint sourceSubresource = 0, uint destSubresource = 0)
+        public void ResolveSubresource([RequiresResourceState(ResourceState.ResolveSource)]
+            in Texture source, [RequiresResourceState(ResourceState.ResolveDestination)]
+            in Texture dest, uint sourceSubresource = 0, uint destSubresource = 0)
         {
             DataFormat format = source.Format == DataFormat.Unknown ? dest.Format : source.Format;
 
@@ -681,7 +748,23 @@ namespace Voltium.Core
             //ResourceTransition(dest, ResourceState.ResolveDestination, destSubresource);
 
             FlushBarriers();
-            List->ResolveSubresource(dest.GetResourcePointer(), destSubresource, source.GetResourcePointer(), sourceSubresource, (DXGI_FORMAT)format);
+#if D3D12
+            List->ResolveSubresource(dest.GetResourcePointer(), destSubresource, source.GetResourcePointer(),
+                sourceSubresource, (DXGI_FORMAT)format);
+#else
+            var subresourceRegion = new VkImageResolve
+            {
+                D
+            }
+            Vulkan.vkCmdResolveImage(
+                List,
+                source.GetResourcePointer(),
+                VkImageLayout.VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                dest.GetResourcePointer(),
+                VkImageLayout.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                1,
+                &subresourceRegion
+            );
         }
 
         /// <summary>
@@ -692,13 +775,16 @@ namespace Voltium.Core
         /// <param name="format">The <see cref="DataFormat"/> to resolve as</param>
         /// <param name="sourceSubresource">The index of the subresource from <paramref name="source"/> to use</param>
         /// <param name="destSubresource">The index of the subresource from <paramref name="dest"/> to use</param>
-        public void ResolveSubresource([RequiresResourceState(ResourceState.ResolveSource)] in Texture source, [RequiresResourceState(ResourceState.ResolveDestination)] in Texture dest, DataFormat format, uint sourceSubresource = 0, uint destSubresource = 0)
+        public void ResolveSubresource([RequiresResourceState(ResourceState.ResolveSource)]
+            in Texture source, [RequiresResourceState(ResourceState.ResolveDestination)]
+            in Texture dest, DataFormat format, uint sourceSubresource = 0, uint destSubresource = 0)
         {
             //ResourceTransition(source, ResourceState.ResolveSource, sourceSubresource);
             //ResourceTransition(dest, ResourceState.ResolveDestination, destSubresource);
 
             FlushBarriers();
-            List->ResolveSubresource(dest.GetResourcePointer(), destSubresource, source.GetResourcePointer(), sourceSubresource, (DXGI_FORMAT)format);
+            List->ResolveSubresource(dest.GetResourcePointer(), destSubresource, source.GetResourcePointer(),
+                sourceSubresource, (DXGI_FORMAT)format);
         }
 
         /// <summary>
@@ -728,7 +814,8 @@ namespace Voltium.Core
         /// <summary>
         /// Submits an instanced draw call
         /// </summary>
-        public void DrawInstanced(uint vertexCountPerInstance, uint instanceCount, uint startVertexLocation, uint startInstanceLocation)
+        public void DrawInstanced(uint vertexCountPerInstance, uint instanceCount, uint startVertexLocation,
+            uint startInstanceLocation)
         {
             FlushBarriers();
             List->DrawInstanced(
@@ -742,7 +829,8 @@ namespace Voltium.Core
         /// <summary>
         /// Submits an indexed and instanced draw call
         /// </summary>
-        public void DrawIndexedInstanced(uint indexCountPerInstance, uint instanceCount, uint startIndexLocation, int baseVertexLocation, uint startInstanceLocation)
+        public void DrawIndexedInstanced(uint indexCountPerInstance, uint instanceCount, uint startIndexLocation,
+            int baseVertexLocation, uint startInstanceLocation)
         {
             FlushBarriers();
             List->DrawIndexedInstanced(
@@ -764,3 +852,4 @@ namespace Voltium.Core
             => List->DispatchMesh(x, y, z);
     }
 }
+

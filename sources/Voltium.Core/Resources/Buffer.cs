@@ -268,7 +268,11 @@ namespace Voltium.Core.Memory
         /// blah
         /// </summary>
         /// <returns></returns>
-        internal ID3D12Resource* GetResourcePointer() => _resource.GetResourcePointer();
+#if D3D12
+        readonly internal ID3D12Resource* GetResourcePointer() => _resource.GetResourcePointer();
+#else
+        readonly internal ulong GetResourcePointer() => _resource.GetResourcePointer();
+#endif
     }
 
     //public unsafe static class BufferExtensions

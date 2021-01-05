@@ -273,7 +273,9 @@ namespace Voltium.Core.Memory
     public enum TextureLayout
     {
         /// <summary>
-        /// Allow the driver to determine the texture layout, meaning the entire layout is opaque to the application
+        /// Allow the driver to determine the texture layout, meaning the entire layout is opaque to the application.
+        /// Mapping the texture allows use of <see cref="TextureExtensions.WriteToSubresource{T}(in Texture, ReadOnlySpan{T}, uint, uint, uint)"/> and
+        /// <see cref="TextureExtensions.ReadFromSubresource{T}(in Texture, Span{T}, uint, uint)"/>, but do not give access to the underlying texture data directly
         /// </summary>
         Optimal = D3D12_TEXTURE_LAYOUT.D3D12_TEXTURE_LAYOUT_UNKNOWN,
 

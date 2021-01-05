@@ -1,36 +1,45 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Toolkit.HighPerformance.Extensions;
 using TerraFX.Interop;
+using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Common.Debugging;
 using Voltium.Core.Devices;
 using Voltium.Core.Memory;
 using Voltium.Core.Pipeline;
-
 using SpinLock = Voltium.Common.Threading.SpinLockWrapped;
+
+
 
 namespace Voltium.Core.Pool
 {
+#if D3D12
+    using CmdBuffer = UniqueComPtr<ID3D12GraphicsCommandList6>;
+    using CmdAllocator = UniqueComPtr<ID3D12GraphicsCommandList6>;
+#else
+    using CmdBuffer = VkCommandBuffer;
+    using CmdAllocator = VkCommandPool;
+#endif
+
     internal struct ContextParams
     {
         public ComputeDevice Device;
-        public UniqueComPtr<ID3D12GraphicsCommandList6> List;
-        public UniqueComPtr<ID3D12CommandAllocator> Allocator;
+        public CmdBuffer List;
+        public CmdAllocator Allocator;
         public PipelineStateObject? PipelineStateObject;
         public ExecutionContext Context;
         public ContextFlags Flags;
 
         public ContextParams(
             ComputeDevice device,
-            UniqueComPtr<ID3D12GraphicsCommandList6> list,
-            UniqueComPtr<ID3D12CommandAllocator> allocator,
+            CmdBuffer list,
+            CmdAllocator allocator,
             PipelineStateObject? pipelineStateObject,
             ExecutionContext context,
             ContextFlags flags
@@ -86,7 +95,7 @@ namespace Voltium.Core.Pool
             }
             else
             {
-                allocator = new CommandAllocator { Allocator = CreateAllocator(context), Task = GpuTask.Completed };
+                allocator = new CommandAllocator {Allocator = CreateAllocator(context), Task = GpuTask.Completed};
             }
 
             using UniqueComPtr<ID3D12PipelineState> pipeline = default;
@@ -95,7 +104,8 @@ namespace Voltium.Core.Pool
             _ = pso?.Pointer.TryQueryInterface(&pipeline);
             _ = pso?.Pointer.TryQueryInterface(&stateObject);
 
-            Debug.Assert(pipeline.Exists is false || (pipeline.Exists != stateObject.Exists)); // only one should be not null
+            Debug.Assert(pipeline.Exists is false ||
+                         (pipeline.Exists != stateObject.Exists)); // only one should be not null
 
             if (lists.TryDequeue(out var list))
             {
@@ -159,11 +169,12 @@ namespace Voltium.Core.Pool
             var lists = GetListPoolsForContext(executionContext);
 
             lists.Enqueue(@params.List);
-            allocators.Enqueue(new CommandAllocator { Allocator = @params.Allocator, Task = contextFinish });
+            allocators.Enqueue(new CommandAllocator {Allocator = @params.Allocator, Task = contextFinish});
         }
 
         private int _allocatorCount;
         private int _listCount;
+
         private UniqueComPtr<ID3D12CommandAllocator> CreateAllocator(ExecutionContext context)
         {
             using UniqueComPtr<ID3D12CommandAllocator> allocator = _device.CreateAllocator(context);
@@ -176,7 +187,8 @@ namespace Voltium.Core.Pool
             return allocator.Move();
         }
 
-        private UniqueComPtr<ID3D12GraphicsCommandList6> CreateList(ExecutionContext context, ID3D12CommandAllocator* allocator, ID3D12PipelineState* pso)
+        private UniqueComPtr<ID3D12GraphicsCommandList6> CreateList(ExecutionContext context,
+            ID3D12CommandAllocator* allocator, ID3D12PipelineState* pso)
         {
             using UniqueComPtr<ID3D12GraphicsCommandList6> list = _device.CreateList(context, allocator, pso);
 
@@ -196,7 +208,8 @@ namespace Voltium.Core.Pool
                 _ => default
             };
 
-        private LockedQueue<UniqueComPtr<ID3D12GraphicsCommandList6>, SpinLock> GetListPoolsForContext(ExecutionContext context)
+        private LockedQueue<UniqueComPtr<ID3D12GraphicsCommandList6>, SpinLock> GetListPoolsForContext(
+            ExecutionContext context)
             => context switch
             {
                 ExecutionContext.Copy => _copyLists,

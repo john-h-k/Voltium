@@ -113,7 +113,12 @@ namespace Voltium.Core.Memory
 
         internal readonly GpuResource Resource => _resource;
 
+#if D3D12
         internal readonly ID3D12Resource* GetResourcePointer() => _resource.GetResourcePointer();
+
+#else
+        internal readonly ulong GetResourcePointer() => _resource.GetResourcePointer();
+#endif
 
 
         /// <inheritdoc/>
@@ -138,7 +143,13 @@ namespace Voltium.Core.Memory
 
     public static unsafe class TextureExtensions
     {
-        public static void WriteToSubresource<T>([RequiresResourceState(ResourceState.Common)] this in Texture texture, ReadOnlySpan<T> data, uint rowPitch, uint depthPitch, uint subresource = 0) where T : unmanaged
+        public static void WriteToSubresource<T>(
+            [RequiresResourceState(ResourceState.Common)] this in Texture texture,
+            ReadOnlySpan<T> data,
+            uint rowPitch,
+            uint depthPitch,
+            uint subresource = 0
+        ) where T : unmanaged
         {
             fixed (T* pData = data)
             {
@@ -146,7 +157,12 @@ namespace Voltium.Core.Memory
             }
         }
 
-        public static void ReadFromSubresource<T>([RequiresResourceState(ResourceState.Common)] this in Texture texture, Span<T> data, uint rowPitch, uint subresource = 0) where T : unmanaged
+        public static void ReadFromSubresource<T>(
+            [RequiresResourceState(ResourceState.Common)] this in Texture texture,
+            Span<T> data,
+            uint rowPitch,
+            uint subresource = 0
+        ) where T : unmanaged
         {
             fixed (T* pData = data)
             {
