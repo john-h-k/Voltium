@@ -8,6 +8,7 @@ using Voltium.Core.Memory;
 using Voltium.Core.Pipeline;
 using Voltium.Core.Pool;
 using Voltium.TextureLoading;
+using static TerraFX.Interop.Vulkan;
 using Buffer = Voltium.Core.Memory.Buffer;
 
 namespace Voltium.Core
@@ -244,6 +245,7 @@ namespace Voltium.Core
             uint maxCommandCount = 1
         )
         {
+#if D3D12
             List->ExecuteIndirect(
                 command.GetCommandSignature(),
                 maxCommandCount,
@@ -252,6 +254,33 @@ namespace Voltium.Core
                 null,
                 0
             );
+#else
+            foreach (ref readonly var argument in command.IndirectArguments.Span)
+            {
+                switch (argument.Desc.Type)
+                {
+                    case D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DRAW:
+                        vkCmdDrawIndirect(List, commandBuffer.GetResourcePointer(), commandBufferOffset, maxCommandCount, command.CommandSizeInBytes);
+                        break;
+                    case D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DRAW_INDEXED:
+                        vkCmdDrawIndexedIndirect(List, commandBuffer.GetResourcePointer(), commandBufferOffset, maxCommandCount, command.CommandSizeInBytes);
+                        break;
+                    case D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH:
+                        for (var i = 0u; i < maxCommandCount; i++)
+                        {
+                            vkCmdDispatchIndirect(List, commandBuffer.GetResourcePointer(), commandBufferOffset + (i * command.CommandSizeInBytes));
+                        }
+                        break;
+                    case D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH_RAYS:
+                        ThrowHelper.ThrowPlatformNotSupportedException("vkCmdTraceRaysIndirectKHR unfortunately sucks");
+                        break;
+                    case D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH_MESH:
+                        ThrowHelper.ThrowPlatformNotSupportedException("vkCmdMeshWorkIndirectNV unfortunately sucks");
+                        break;
+                }
+            }
+#endif
+
         }
 
         public void ExecuteIndirect(
@@ -286,6 +315,7 @@ namespace Voltium.Core
             uint maxCommandCount = 1
         )
         {
+#if D3D12
             List->ExecuteIndirect(
                 command.GetCommandSignature(),
                 maxCommandCount,
@@ -294,6 +324,49 @@ namespace Voltium.Core
                 commandCountBuffer.GetResourcePointer(),
                 commandCountBufferOffset
             );
+            
+#else
+            foreach (ref readonly var argument in command.IndirectArguments.Span)
+            {
+                switch (argument.Desc.Type)
+                {
+                    case D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DRAW:
+                        vkCmdDrawIndirectCount(
+                            List,
+                            commandBuffer.GetResourcePointer(),
+                            commandBufferOffset,
+                            commandCountBuffer.GetResourcePointer(),
+                            commandCountBufferOffset,
+                            maxCommandCount,
+                            command.CommandSizeInBytes
+                        );
+                        break;
+                    case D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DRAW_INDEXED:
+                        vkCmdDrawIndexedIndirectCount(
+                            List,
+                            commandBuffer.GetResourcePointer(),
+                            commandBufferOffset,
+                            commandCountBuffer.GetResourcePointer(),
+                            commandCountBufferOffset,
+                            maxCommandCount,
+                            command.CommandSizeInBytes
+                        );
+                        break;
+                    case D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH:
+                        for (var i = 0u; i < maxCommandCount; i++)
+                        {
+                            ThrowHelper.ThrowPlatformNotSupportedException("vkCmdDispatchIndirectCountKHR does not exist");
+                        }
+                        break;
+                    case D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH_RAYS:
+                        ThrowHelper.ThrowPlatformNotSupportedException("vkCmdTraceRaysIndirectKHR unfortunately sucks");
+                        break;
+                    case D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH_MESH:
+                        ThrowHelper.ThrowPlatformNotSupportedException("vkCmdMeshWorkIndirectNV unfortunately sucks");
+                        break;
+                }
+            }
+#endif
         }
 
         /// <summary>
@@ -333,7 +406,11 @@ namespace Voltium.Core
             Vector128<uint> values = default
         )
         {
+#if D3D12
             List->ClearUnorderedAccessViewUint(shaderVisible.GpuHandle, shaderOpaque.CpuHandle, tex.GetResourcePointer(), (uint*)&values, 0, null);
+#else
+            vkCmdClearColorImage(List, tex.GetResourcePointer(), VkImageLayout.VK_IMAGE_LAYOUT_GENERAL, (VkClearColorValue*)&values, 0, null);
+#endif
         }
 
 
@@ -351,7 +428,11 @@ namespace Voltium.Core
             Rgba128 values = default
         )
         {
+#if D3D12
             List->ClearUnorderedAccessViewFloat(shaderVisible.GpuHandle, shaderOpaque.CpuHandle, tex.GetResourcePointer(), (float*)&values, 0, null);
+#else
+            vkCmdClearColorImage(List, tex.GetResourcePointer(), VkImageLayout.VK_IMAGE_LAYOUT_GENERAL, (VkClearColorValue*)&values, 0, null);
+#endif
         }
 
         /// <summary>
@@ -360,14 +441,27 @@ namespace Voltium.Core
         /// <param name="pso">The <see cref="PipelineStateObject"/> to set</param>
         public void SetPipelineState(PipelineStateObject pso)
         {
+#if D3D12
             if (pso is RaytracingPipelineStateObject rtPso)
             {
                 List->SetPipelineState1((ID3D12StateObject*)rtPso.Pointer.Ptr);
+
             }
             else
             {
                 List->SetPipelineState((ID3D12PipelineState*)pso.Pointer.Ptr);
             }
+#else
+            var bindPoint = pso switch
+            {
+                RaytracingPipelineStateObject => VkPipelineBindPoint.VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
+                MeshPipelineStateObject or GraphicsPipelineStateObject => VkPipelineBindPoint.VK_PIPELINE_BIND_POINT_GRAPHICS,
+                ComputePipelineStateObject => VkPipelineBindPoint.VK_PIPELINE_BIND_POINT_COMPUTE,
+                _ => default
+            };
+
+            vkCmdBindPipeline(List, bindPoint, pso.Pointer);
+#endif
         }
 
         /// <summary>
@@ -490,27 +584,7 @@ namespace Voltium.Core
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which these constants represents</param>
         /// <param name="value">The 32 bit values to set</param>
         /// <param name="offset">The offset, in 32 bit offsets, to bind this at</param>
-        public void SetRoot32BitConstants<T>(uint paramIndex, T value, uint offset = 0) where T : unmanaged
-        {
-            if (sizeof(T) % 4 != 0)
-            {
-                ThrowHelper.ThrowArgumentException(
-                    $"Type '{typeof(T).Name}' has size '{sizeof(T)}' but {nameof(SetRoot32BitConstants)} requires param '{nameof(value)} '" +
-                    "to have size divisble by 4"
-                );
-            }
-
-            List->SetComputeRoot32BitConstants(paramIndex, (uint)sizeof(T) / 4, &value, offset);
-        }
-
-        /// <summary>
-        /// Sets a group of 32 bit values to the graphics pipeline
-        /// </summary>
-        /// <typeparam name="T">The type of the elements used. This must have a size that is a multiple of 4</typeparam>
-        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which these constants represents</param>
-        /// <param name="value">The 32 bit values to set</param>
-        /// <param name="offset">The offset, in 32 bit offsets, to bind this at</param>
-        public void SetRoot32BitConstants<T>(uint paramIndex, ref T value, uint offset = 0) where T : unmanaged
+        public void SetRoot32BitConstants<T>(uint paramIndex, in T value, uint offset = 0) where T : unmanaged
         {
             if (sizeof(T) % 4 != 0)
             {
@@ -522,7 +596,11 @@ namespace Voltium.Core
 
             fixed (void* pValue = &value)
             {
+#if D3D12
                 List->SetComputeRoot32BitConstants(paramIndex, (uint)sizeof(T) / 4, pValue, offset);
+#else
+                vkCmdPushConstants(List, Layout, (uint)VkShaderStageFlagBits.VK_SHADER_STAGE_ALL, offset / 4, (uint)sizeof(T), pValue);
+#endif
             }
         }
 
@@ -544,8 +622,14 @@ namespace Voltium.Core
                 );
             }
 
+#if D3D12
             List->SetComputeRoot32BitConstant(paramIndex, Unsafe.As<T, uint>(ref value), offset);
+#else
+            vkCmdPushConstants(List, Layout, (uint)VkShaderStageFlagBits.VK_SHADER_STAGE_ALL, offset / 4, 4, &value);
+#endif
         }
+
+        protected VkPipelineLayout Layout;
 
         /// <summary>
         /// Set the graphics root signature for the command list
@@ -553,7 +637,10 @@ namespace Voltium.Core
         /// <param name="signature">The signature to set to</param>
         public void SetRootSignature(RootSignature signature)
         {
+#if D3D12
             List->SetComputeRootSignature(signature.Value);
+#endif
+            Layout = signature.Value;
         }
 
         /// <inheritdoc cref="Dispatch(uint, uint, uint)"/>
@@ -569,7 +656,11 @@ namespace Voltium.Core
         public void Dispatch(uint x, uint y = 1, uint z = 1)
         {
             FlushBarriers();
+#if D3D12
             List->Dispatch(x, y, z);
+#else
+            vkCmdDispatch(List, x, y, z);
+#endif
         }
     }
 }

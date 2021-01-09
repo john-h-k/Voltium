@@ -11,9 +11,27 @@ using Voltium.Core.Pipeline;
 using static TerraFX.Interop.Windows;
 using Voltium.Core.Pool;
 using Voltium.Core.Contexts;
+using System.Threading;
 
 namespace Voltium.Core.Devices
 {
+
+    internal struct DisposeLock
+    {
+        private string _name;
+        private volatile int _disposed;
+
+        public void ThrowIfDisposed()
+        {
+            if (Volatile.Read(ref _disposed) == 1)
+            {
+                ThrowHelper.ThrowObjectDisposedException(_name);
+            }
+        }
+
+        public bool TryBeginDispose() => Interlocked.CompareExchange(ref _disposed, 1, 0) == 0;
+    }
+
     [Flags]
     enum DeviceFlags
     {
@@ -29,6 +47,12 @@ namespace Voltium.Core.Devices
         internal ulong TotalFramesRendered = 0;
 
         private bool _disposed;
+
+        /// <summary>
+        /// The default <see cref="IndirectCommand"/> for performing an indirect dispatch.
+        /// It changes no root signature bindings and has a command size of <see langword="sizeof"/>(<see cref="IndirectDispatchArguments"/>)
+        /// </summary>
+        public IndirectCommand DispatchIndirect { get; }
 
         /// <summary>
         /// The default <see cref="IndirectCommand"/> for performing an indirect draw.
@@ -128,6 +152,8 @@ namespace Voltium.Core.Devices
         {
             GraphicsQueue = new CommandQueue(this, ExecutionContext.Graphics, true);
 
+
+            DispatchIndirect = CreateIndirectCommand(IndirectArgument.CreateDispatch());
             DrawIndirect = CreateIndirectCommand(IndirectArgument.CreateDraw());
             DrawIndexedIndirect = CreateIndirectCommand(IndirectArgument.CreateDrawIndexed());
             DispatchMeshIndirect = CreateIndirectCommand(IndirectArgument.CreateDispatchMesh());

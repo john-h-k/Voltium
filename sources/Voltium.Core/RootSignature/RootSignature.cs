@@ -213,7 +213,11 @@ namespace Voltium.Core
         /// <summary>
         /// The underlying value of the root signature
         /// </summary>
-        internal /* does this need to be public? */ ID3D12RootSignature* Value => _value.Ptr;
+#if D3D12
+        internal ID3D12RootSignature* Value => _value.Ptr;
+#else
+        internal ulong Value => _value.Ptr;
+#endif
 
         /// <summary>
         /// The <see cref="RootParameter"/>s for this root signature, in order

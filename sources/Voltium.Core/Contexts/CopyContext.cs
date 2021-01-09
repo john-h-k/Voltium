@@ -17,8 +17,16 @@ using Voltium.Core.Queries;
 using Voltium.TextureLoading;
 using Buffer = Voltium.Core.Memory.Buffer;
 
+
 namespace Voltium.Core
 {
+    using BarrierType =
+#if D3D12
+        D3D12_RESOURCE_BARRIER;
+#else
+        VkMemoryBarrier;
+#endif
+
     /// <summary>
     /// The mode used for <see cref="CopyContext.WriteBufferImmediate(ulong, uint, WriteBufferImmediateMode)"/> or <see cref="CopyContext.WriteBufferImmediate(ReadOnlySpan{ValueTuple{ulong, uint}}, ReadOnlySpan{WriteBufferImmediateMode})"/>
     /// </summary>
@@ -45,7 +53,7 @@ namespace Voltium.Core
     /// </summary>
     public unsafe partial class CopyContext : GpuContext
     {
-        [FixedBufferType(typeof(D3D12_RESOURCE_BARRIER), 16)]
+        [FixedBufferType(typeof(BarrierType), 16)]
         private partial struct BarrierBuffer16
         {
         }
@@ -54,7 +62,7 @@ namespace Voltium.Core
         private uint NumBarriers;
 
 
-        internal void AddBarrier(in D3D12_RESOURCE_BARRIER barrier)
+        internal void AddBarrier(in BarrierType barrier)
         {
             if (NumBarriers == BarrierBuffer16.BufferLength)
             {
@@ -64,7 +72,7 @@ namespace Voltium.Core
             Barriers[NumBarriers++] = barrier;
         }
 
-        internal void AddBarriers(ReadOnlySpan<D3D12_RESOURCE_BARRIER> barriers)
+        internal void AddBarriers(ReadOnlySpan<BarrierType> barriers)
         {
             if (barriers.Length == 0)
             {
@@ -74,11 +82,12 @@ namespace Voltium.Core
             if (barriers.Length > BarrierBuffer16.BufferLength)
             {
                 FlushBarriers();
-                fixed (D3D12_RESOURCE_BARRIER* pBarriers = barriers)
+                fixed (BarrierType* pBarriers = barriers)
                 {
 #if D3D12
                     List->ResourceBarrier((uint)barriers.Length, pBarriers);
 #else
+                    vkCmdPipelineBarrier()
 #endif
                 }
 
@@ -101,9 +110,12 @@ namespace Voltium.Core
                 return;
             }
 
-            fixed (D3D12_RESOURCE_BARRIER* pBarriers = Barriers)
+            fixed (BarrierType* pBarriers = Barriers)
             {
+#if D3D12
                 List->ResourceBarrier(NumBarriers, pBarriers);
+#else
+                vkCmdPipelineBarrier(List, )
             }
 
             NumBarriers = 0;
@@ -134,13 +146,18 @@ namespace Voltium.Core
         /// <param name="address">The GPU address to write to</param>
         /// <param name="value">The 32 bit value to write to memory</param>
         /// <param name="mode">The <see cref="WriteBufferImmediateMode"/> mode to write with. By default, this is <see cref="WriteBufferImmediateMode.Default"/></param>
-        public void WriteBufferImmediate(ulong address, uint value,
-            WriteBufferImmediateMode mode = WriteBufferImmediateMode.Default)
+        public void WriteBufferImmediate(
+            ulong address,
+            uint value,
+            WriteBufferImmediateMode mode = WriteBufferImmediateMode.Default
+        )
         {
             var param = new D3D12_WRITEBUFFERIMMEDIATE_PARAMETER {Dest = address, Value = value};
 
             FlushBarriers();
+#if D3D12
             List->WriteBufferImmediate(1, &param, (D3D12_WRITEBUFFERIMMEDIATE_MODE*)&mode);
+#else
         }
 
 
@@ -150,8 +167,10 @@ namespace Voltium.Core
         /// <param name="pairs">The GPU address and value pairs to write</param>
         /// <param name="modes">The <see cref="WriteBufferImmediateMode"/> modes to write with. By default, this is <see cref="WriteBufferImmediateMode.Default"/>.
         /// If <see cref="ReadOnlySpan{T}.Empty"/> is passed, <see cref="WriteBufferImmediateMode.Default"/> is used.</param>
-        public void WriteBufferImmediate(ReadOnlySpan<(ulong Address, uint Value)> pairs,
-            ReadOnlySpan<WriteBufferImmediateMode> modes = default)
+        public void WriteBufferImmediate(
+            ReadOnlySpan<(ulong Address, uint Value)> pairs,
+            ReadOnlySpan<WriteBufferImmediateMode> modes = default
+        )
         {
             if (!modes.IsEmpty && modes.Length != pairs.Length)
             {
@@ -176,20 +195,39 @@ namespace Voltium.Core
         /// value in <paramref name="buff"/> will cause the operation to execute.</param>
         /// <param name="buff">The <see cref="Buffer"/> to read the predication value from</param>
         /// <param name="offset">The offset, in bytes, the predication value</param>
-        public void SetPredication(bool predicate, [RequiresResourceState(ResourceState.Predication)]
-            in Buffer buff, uint offset = 0)
+        public void SetPredication(
+            bool predicate,
+            [RequiresResourceState(ResourceState.Predication)] in Buffer buff,
+            uint offset = 0
+        )
         {
             FlushBarriers();
+#if D3D12
             List->SetPredication(buff.GetResourcePointer(), buff.Offset + offset,
                 predicate
                     ? D3D12_PREDICATION_OP.D3D12_PREDICATION_OP_NOT_EQUAL_ZERO
                     : D3D12_PREDICATION_OP.D3D12_PREDICATION_OP_EQUAL_ZERO);
+#else
+            var info = new VkConditionalRenderingBeginInfoEXT
+            {
+                sType = VkStructureType.VK_STRUCTURE_TYPE_CONDITIONAL_RENDERING_BEGIN_INFO_EXT,
+                buffer = buff.GetResourcePointer(),
+                flags = (uint)(predicate ? 0 : VkConditionalRenderingFlagBitsEXT.VK_CONDITIONAL_RENDERING_INVERTED_BIT_EXT),
+                offset = offset
+            };
+
+            vkCmdBeginConditionalRenderingEXT(List, &info);
+#endif
         }
 
         public ref struct Query
         {
             internal CopyContext _context;
+#if D3D12
             internal ID3D12QueryHeap* _queryHeap;
+#else
+            internal ulong _queryHeap;
+#endif
             internal D3D12_QUERY_TYPE _query;
             internal uint _index;
 
@@ -197,7 +235,11 @@ namespace Voltium.Core
 
             public void Dispose()
             {
+#if D3D12
                 _context.List->EndQuery(_queryHeap, _query, _index);
+#else
+                vkCmdEndQuery(_context.List, _queryHeap, _index);
+#endif
             }
         }
 
@@ -215,32 +257,64 @@ namespace Voltium.Core
 
         public void BeginQuery(in QueryHeap heap, QueryType type, uint index)
         {
+#if D3D12
             List->BeginQuery(heap.GetQueryHeap(), (D3D12_QUERY_TYPE)type, index);
+#else
+            vkCmdBeginQuery(List, heap.GetQueryHeap(), index, (uint)(type == QueryType.Occlusion ? VkQueryControlFlagBits.VK_QUERY_CONTROL_PRECISE_BIT : 0));
+#endif
         }
 
         public void EndQuery(in QueryHeap heap, QueryType type, uint index)
         {
+#if D3D12
             List->EndQuery(heap.GetQueryHeap(), (D3D12_QUERY_TYPE)type, index);
+#else
+            vkCmdEndQuery(List, heap.GetQueryHeap(), index);
+#endif
         }
 
         public void QueryTimestamp(in QueryHeap heap, uint index)
         {
+#if D3D12
             List->EndQuery(heap.GetQueryHeap(), D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP, index);
+#else
+            vkCmdWriteTimestamp(List, VkPipelineStageFlagBits.VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, heap.GetQueryHeap(), index);
+#endif
         }
 
-        public void ResolveQuery<TQuery>(in QueryHeap heap, Range queries,
+        public void ResolveQuery<TQuery>(
+            in QueryHeap heap,
+            Range queries,
             [RequiresResourceState(ResourceState.CopyDestination)]
-            in Buffer dest, uint offset = 0) where TQuery : struct, IQueryType
+            in Buffer dest, uint offset = 0
+        ) where TQuery : struct, IQueryType
             => ResolveQuery(heap, default(TQuery).Type, queries, dest, offset);
 
-        public void ResolveQuery(in QueryHeap heap, QueryType type, Range queries,
-            [RequiresResourceState(ResourceState.CopyDestination)]
-            in Buffer dest, uint offset = 0)
+        public void ResolveQuery(
+            in QueryHeap heap,
+            QueryType type,
+            Range queries,
+            [RequiresResourceState(ResourceState.CopyDestination)] in Buffer dest,
+            uint offset = 0
+        )
         {
             FlushBarriers();
             var (heapOffset, length) = queries.GetOffsetAndLength((int)heap.Length);
+
+#if D3D12
             List->ResolveQueryData(heap.GetQueryHeap(), (D3D12_QUERY_TYPE)type, (uint)heapOffset, (uint)length,
                 dest.GetResourcePointer(), dest.Offset + offset);
+#else
+            vkCmdCopyQueryPoolResults(
+                List,
+                heap.GetQueryHeap(),
+                (uint)heapOffset,
+                (uint)length,
+                dest.GetResourcePointer(),
+                offset,
+                sizeof(ulong),
+                (uint)(VkQueryResultFlagBits.VK_QUERY_RESULT_64_BIT | VkQueryResultFlagBits.VK_QUERY_RESULT_WAIT_BIT)
+            );
         }
 
         /// <summary>
@@ -300,11 +374,28 @@ namespace Voltium.Core
         {
             Device.GetCopyableFootprint(dest, subresource, out var layout, out var numRow, out var rowSize,
                 out var size);
-
+#if D3D12
             var src = new D3D12_TEXTURE_COPY_LOCATION(source.GetResourcePointer(), layout);
             var dst = new D3D12_TEXTURE_COPY_LOCATION(dest.GetResourcePointer(), subresource);
 
             List->CopyTextureRegion(&dst, 0, 0, 0, &src, null);
+#else
+            var region = new VkBufferImageCopy
+            {
+                bufferRowLength = (uint)rowSize,
+                bufferImageHeight = layout.Footprint.Height,
+                
+            };
+
+
+            vkCmdCopyBufferToImage(
+                List,
+                source.GetResourcePointer(),
+                dest.GetResourcePointer(),
+                VkImageLayout.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                1,
+                &region
+            );
         }
 
         /// <summary>
@@ -321,13 +412,26 @@ namespace Voltium.Core
             uint subresource = 0
         )
         {
-            Device.GetCopyableFootprint(source, subresource, out var layout, out var numRow, out var rowSize,
-                out var size);
-
+            Device.GetCopyableFootprint(source, subresource, out var layout, out var numRow, out var rowSize, out var size);
+#if D3D12
             var dst = new D3D12_TEXTURE_COPY_LOCATION(source.GetResourcePointer(), layout);
             var src = new D3D12_TEXTURE_COPY_LOCATION(dest.GetResourcePointer(), subresource);
 
             List->CopyTextureRegion(&dst, 0, 0, 0, &src, null);
+#else
+            var region = new VkBufferImageCopy
+            {
+                imageOffset = default,
+                imageExtent = new VkExtent3D
+                {
+                    width = (uint)source.Width,
+                    height = source.Height,
+                    depth = source.Height,
+                }
+            };
+
+            vkCmdCopyImageToBuffer(List, source.GetResourcePointer(), VkImageLayout.VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dest.GetResourcePointer(), 1, &region);
+#endif
         }
 
         /// <summary>
@@ -360,6 +464,7 @@ namespace Voltium.Core
             uint destSubresource
         )
         {
+#if D3D12
             Unsafe.SkipInit(out D3D12_TEXTURE_COPY_LOCATION sourceDesc);
             Unsafe.SkipInit(out D3D12_TEXTURE_COPY_LOCATION destDesc);
 
@@ -373,6 +478,46 @@ namespace Voltium.Core
 
             FlushBarriers();
             List->CopyTextureRegion(&destDesc, 0, 0, 0, &sourceDesc, null);
+#else
+
+            Windows.D3D12DecomposeSubresource(sourceSubresource, source.MipCount, source.IsArray ? source.DepthOrArraySize : 1, out var sMip, out var sArr, out var sPlane);
+            Windows.D3D12DecomposeSubresource(destSubresource, dest.MipCount, dest.IsArray ? dest.DepthOrArraySize : 1, out var dMip, out var dArr, out var dPlane);
+            var aspectBits = 0u;
+            var region = new VkImageCopy
+            {
+                srcSubresource = new VkImageSubresourceLayers
+                {
+                    aspectMask = aspectBits,
+                    baseArrayLayer = sArr,
+                    layerCount = 1,
+                    mipLevel = sMip
+                },
+
+                dstSubresource = new VkImageSubresourceLayers
+                {
+                    aspectMask = aspectBits,
+                    baseArrayLayer = dArr,
+                    layerCount = 1,
+                    mipLevel = dMip
+                },
+                extent = new VkExtent3D
+                {
+                    width = (uint)source.Width,
+                    height = source.Height,
+                    depth = source.IsArray ? 1 : source.DepthOrArraySize,
+                }
+            };
+
+            vkCmdCopyImage(
+                List,
+                source.GetResourcePointer(),
+                VkImageLayout.VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                dest.GetResourcePointer(),
+                VkImageLayout.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                1,
+                &region
+            );
+#endif
         }
 
         /// <summary>
@@ -394,8 +539,18 @@ namespace Voltium.Core
         )
         {
             FlushBarriers();
+#if D3D12
             List->CopyBufferRegion(dest.GetResourcePointer(), dest.Offset + destOffset, source.GetResourcePointer(),
                 source.Offset + sourceOffset, numBytes);
+#else
+            var copy = new VkBufferCopy
+            {
+                srcOffset = sourceOffset,
+                dstOffset = destOffset,
+                size = numBytes
+            };
+            vkCmdCopyBuffer(List, source.GetResourcePointer(), dest.GetResourcePointer(), 1, &copy);
+#endif
         }
 
 
@@ -424,64 +579,18 @@ namespace Voltium.Core
         )
         {
             FlushBarriers();
+#if D3D12
             List->CopyBufferRegion(dest.GetResourcePointer(), dest.Offset, source.GetResourcePointer(), source.Offset,
                 numBytes);
-        }
-
-        /// <summary>
-        /// Copy a subresource
-        /// </summary>
-        /// <param name="source">The resource to copy from</param>
-        /// <param name="subresourceIndex">The index of the subresource to copy from</param>
-        /// <param name="dest"></param>
-        /// <param name="layout"></param>
-        public void CopySubresource(in Texture source, uint subresourceIndex, out Buffer dest,
-            out SubresourceLayout layout)
-        {
-            Device.GetCopyableFootprint(source, subresourceIndex, out var d3d12Layout, out var numRows, out var rowSize,
-                out var size);
-            dest = Device.Allocator.AllocateBuffer((long)size, MemoryAccess.CpuReadback);
-
-            var sourceDesc = new D3D12_TEXTURE_COPY_LOCATION(source.GetResourcePointer(), subresourceIndex);
-            var destDesc = new D3D12_TEXTURE_COPY_LOCATION(dest.GetResourcePointer(), d3d12Layout);
-
-            layout = new SubresourceLayout {NumRows = numRows, RowSize = rowSize};
-
-            FlushBarriers();
-            List->CopyTextureRegion(&destDesc, 0, 0, 0, &sourceDesc, null);
-        }
-
-        /// <summary>
-        /// Copy a subresource
-        /// </summary>
-        /// <param name="source">The resource to copy from</param>
-        /// <param name="subresourceIndex">The index of the subresource to copy from</param>
-        /// <param name="data"></param>
-        public void CopySubresource(in Texture source, uint subresourceIndex, in Buffer data)
-        {
-            Device.GetCopyableFootprint(source, subresourceIndex, out _, out _, out var rowSize, out var size);
-
-            var alignedRowSizes = MathHelpers.AlignUp(rowSize, 256);
-
-
-            var layout = new D3D12_PLACED_SUBRESOURCE_FOOTPRINT
+#else
+            var copy = new VkBufferCopy
             {
-                Offset = 0,
-                Footprint = new D3D12_SUBRESOURCE_FOOTPRINT
-                {
-                    Depth = source.DepthOrArraySize,
-                    Height = source.Height,
-                    Width = (uint)source.Width,
-                    Format = (DXGI_FORMAT)source.Format,
-                    RowPitch = (uint)alignedRowSizes
-                }
+                srcOffset = 0,
+                dstOffset = 0,
+                size = numBytes
             };
-
-            var destDesc = new D3D12_TEXTURE_COPY_LOCATION(data.GetResourcePointer(), layout);
-            var sourceDesc = new D3D12_TEXTURE_COPY_LOCATION(source.GetResourcePointer(), subresourceIndex);
-
-            FlushBarriers();
-            List->CopyTextureRegion(&destDesc, 0, 0, 0, &sourceDesc, null);
+            vkCmdCopyBuffer(List, source.GetResourcePointer(), dest.GetResourcePointer(), 1, &copy);
+#endif
         }
 
         /// <summary>
@@ -502,7 +611,8 @@ namespace Voltium.Core
 #if D3D12
                 List->CopyResource(dest.Resource.GetResourcePointer(), source.Resource.GetResourcePointer());
 #else
-                Vulkan.vkCmdCopyBuffer(List, source.GetResourcePointer(), dest.GetResourcePointer(), 0, null);
+                vkCmdCopyBuffer(List, source.GetResourcePointer(), dest.GetResourcePointer(), 0, null);
+#endif
             }
             else
             {
@@ -515,7 +625,11 @@ namespace Voltium.Core
             }
 
             static bool IsWholeResource(in Buffer buff) =>
+#if D3D12
                 buff.Offset == 0 && buff.GetResourcePointer()->GetDesc().Width == buff.Length;
+#else
+                true;
+#endif
         }
 
         /// <summary>
@@ -531,7 +645,44 @@ namespace Voltium.Core
         )
         {
             FlushBarriers();
+#if D3D12
             List->CopyResource(dest.GetResourcePointer(), source.GetResourcePointer());
+#else
+            var aspectBits = 0u;
+            var region = new VkImageCopy
+            {
+                srcSubresource = new VkImageSubresourceLayers
+                {
+                    aspectMask = aspectBits,
+                    baseArrayLayer = 0,
+                    layerCount = 1,
+                    mipLevel = sMip
+                },
+
+                dstSubresource = new VkImageSubresourceLayers
+                {
+                    aspectMask = aspectBits,
+                    baseArrayLayer = dArr,
+                    layerCount = 1,
+                    mipLevel = dMip
+                },
+                extent = new VkExtent3D
+                {
+                    width = (uint)source.Width,
+                    height = source.Height,
+                    depth = source.IsArray ? 1 : source.DepthOrArraySize,
+                }
+            };
+
+            vkCmdCopyImage(
+                List,
+                source.GetResourcePointer(),
+                VkImageLayout.VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                dest.GetResourcePointer(),
+                VkImageLayout.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                1,
+                &region
+            );
         }
 
         //public ref struct SplitBarrierSet

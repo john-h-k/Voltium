@@ -66,8 +66,48 @@ namespace Voltium.Core.Queries
         public override string ToString() => this ? "BinaryOcclusionQuery: Some samples passed depth/stencil test" : "BinaryOcclusionQuery: No samples passed depth/stencil test";
     }
 
-    public readonly struct PipelineStatisticsQuery : IQueryType, IFormattable
+    public readonly struct ComputePipelineStatisticsQuery : IQueryType, IFormattable
     {
+        QueryType IQueryType.Type => QueryType.PipelineStatistics;
+
+        public readonly ulong _pad0;
+        public readonly ulong _pad1;
+        public readonly ulong _pad2;
+        public readonly ulong _pad3;
+        public readonly ulong _pad4;
+        public readonly ulong _pad5;
+        public readonly ulong _pad6;
+        public readonly ulong _pad7;
+        public readonly ulong _pad8;
+        public readonly ulong _pad9;
+        public readonly ulong ComputeShaderInvocationCount;
+
+        public override string ToString()
+            => $"ComputePipelineStatistics: \n" +
+                $"\tComputeShaderInvocationCount: {ComputeShaderInvocationCount}\n";
+
+        public string ToString(string? format, IFormatProvider? formatProvider)
+        {
+            if (format is null)
+            {
+                return ToString();
+            }
+
+            var (type, value) = format switch
+            {
+                "C" or "Compute" => ("Compute", $"ComputeShaderInvocationCount: {ComputeShaderInvocationCount}\n"),
+
+                _ => ThrowHelper.ThrowFormatException<(string, string)>($"Invalid format specifier '{format}'")
+            };
+
+            return $"{type} PipelineStatistics: \n\t{value}";
+        }
+    }
+
+    public readonly struct GraphicsPipelineStatisticsQuery : IQueryType, IFormattable
+    {
+        QueryType IQueryType.Type => QueryType.PipelineStatistics;
+
         public readonly ulong InputAssemblerVertexCount;
         public readonly ulong InputAssemblerPrimitiveCount;
         public readonly ulong VertexShaderInvocationCount;
@@ -81,7 +121,7 @@ namespace Voltium.Core.Queries
         public readonly ulong ComputeShaderInvocationCount;
 
         public override string ToString()
-            => $"PipelineStatistics: \n" +
+            => $"GraphicsPipelineStatistics: \n" +
                 $"\tInputAssemblerVertexCount: {InputAssemblerVertexCount}\n" +
                 $"\tInputAssemblerPrimitiveCount: {InputAssemblerPrimitiveCount}\n" +
                 $"\tVertexShaderInvocationCount: {VertexShaderInvocationCount}\n" +
@@ -130,7 +170,5 @@ namespace Voltium.Core.Queries
 
             return $"{type} PipelineStatistics: \n\t{value}";
         }
-
-        QueryType IQueryType.Type => QueryType.PipelineStatistics;
     }
 }

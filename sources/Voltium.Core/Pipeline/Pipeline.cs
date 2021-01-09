@@ -9,7 +9,12 @@ namespace Voltium.Core.Pipeline
     /// </summary>
     public unsafe abstract class PipelineStateObject : IDisposable
     {
+#if D3D12
         internal UniqueComPtr<ID3D12Object> Pointer;
+#else
+        internal ulong Pointer;
+#endif
+
 
         internal virtual ID3D12RootSignature* GetRootSig() => null;
 

@@ -22,7 +22,7 @@ namespace Voltium.Core.Memory
             ComputeDevice device,
             UniqueComPtr<ID3D12Resource> resource,
             InternalAllocDesc* desc,
-            GpuAllocator? allocator,
+            ComputeAllocator? allocator,
             int heapIndex = -1 /* no relevant heap block */,
             HeapBlock block = default
         )

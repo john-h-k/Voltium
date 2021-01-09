@@ -11,6 +11,7 @@ using Voltium.Core.Pipeline;
 using Voltium.Core.Pool;
 using Voltium.TextureLoading;
 using static TerraFX.Interop.D3D_PRIMITIVE_TOPOLOGY;
+using static TerraFX.Interop.Vulkan;
 using Buffer = Voltium.Core.Memory.Buffer;
 
 namespace Voltium.Core
@@ -55,7 +56,7 @@ namespace Voltium.Core
 #if D3D12
             List->OMSetDepthBounds(min, max);
 #else
-            Vulkan.vkCmdSetDepthBounds(List, min, max);
+            vkCmdSetDepthBounds(List, min, max);
 #endif
         }
 
@@ -95,7 +96,7 @@ namespace Voltium.Core
 #if D3D12
             List->RSSetShadingRate((D3D12_SHADING_RATE)defaultShadingRate, (D3D12_SHADING_RATE_COMBINER*)pCombiners);
 #else
-            Vulkan.vkcmdset
+            vkcmdset
 #endif
         }
 
@@ -105,7 +106,7 @@ namespace Voltium.Core
 #if D3D12
             List->RSSetShadingRateImage(tex.GetResourcePointer());
 #else
-            Vulkan.vkCmdBindShadingRateImageNV(List,);
+            vkCmdBindShadingRateImageNV(List,);
         }
 
         /// <summary>
@@ -136,7 +137,7 @@ namespace Voltium.Core
 #if D3D12
             List->OMSetBlendFactor(pValue);
 #else
-            Vulkan.vkCmdSetBlendConstants(List, pValue);
+            vkCmdSetBlendConstants(List, pValue);
 #endif
         }
 
@@ -149,7 +150,7 @@ namespace Voltium.Core
 #if D3D12
             List->OMSetStencilRef(value);
 #else
-            Vulkan.vkCmdSetStencilReference(List, (uint)VkStencilFaceFlagBits.VK_STENCIL_FACE_FRONT_AND_BACK, value);
+            vkCmdSetStencilReference(List, (uint)VkStencilFaceFlagBits.VK_STENCIL_FACE_FRONT_AND_BACK, value);
 #endif
         }
 
@@ -397,7 +398,6 @@ namespace Voltium.Core
                 depthStencilHandle is null ? null : &dsv
             );
 #else
-            Vulkan.cmdset
         }
 
 
@@ -458,7 +458,11 @@ namespace Voltium.Core
         /// <param name="topology">The <see cref="D3D_PRIMITIVE_TOPOLOGY"/> to use</param>
         public void SetTopology(Topology topology)
         {
+#if D3D12
             List->IASetPrimitiveTopology((D3D_PRIMITIVE_TOPOLOGY)topology);
+#else
+            vkCmdSetPrimitiveTopologyEXT(List, (VkPrimitiveTopology)topology);
+#endif
         }
 
         /// <summary>
@@ -468,7 +472,12 @@ namespace Voltium.Core
         public void SetControlPatchPointCount(byte count)
         {
             Guard.InRangeInclusive(1, 32, count);
+#if D3D12
             List->IASetPrimitiveTopology((D3D_PRIMITIVE_TOPOLOGY_1_CONTROL_POINT_PATCHLIST - 1) + count);
+#else
+            ThrowHelper.ThrowPlatformNotSupportedException("Vk doesn't support dynamic control points");
+#endif
+
         }
 
         /// <summary>
@@ -509,8 +518,24 @@ namespace Voltium.Core
             fixed (Rectangle* p = rect)
             {
                 FlushBarriers();
+#if D3D12
                 List->ClearDepthStencilView(dsv.CpuHandle, D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH, depth, 0,
                     (uint)rect.Length, (RECT*)p);
+#else
+                var clearValue = new VkClearDepthStencilValue
+                {
+                    depth = depth
+                };
+                var resource = new VkImageSubresourceRange
+                {
+                    aspectMask = (uint)VkImageAspectFlagBits.VK_IMAGE_ASPECT_DEPTH_BIT,
+                    baseArrayLayer = 0,
+                    baseMipLevel = 0,
+                    layerCount = VK_REMAINING_ARRAY_LAYERS,
+                    levelCount = VK_REMAINING_MIP_LEVELS
+                };
+                vkCmdClearDepthStencilImage(List, 0, VkImageLayout.VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, &clearValue, 1, &resource);
+#endif
             }
         }
 
@@ -525,8 +550,24 @@ namespace Voltium.Core
             fixed (Rectangle* p = rect)
             {
                 FlushBarriers();
+#if D3D12
                 List->ClearDepthStencilView(dsv.CpuHandle, D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_STENCIL, 0, stencil,
                     (uint)rect.Length, (RECT*)p);
+#else
+                var clearValue = new VkClearDepthStencilValue
+                {
+                    stencil = stencil
+                };
+                var resource = new VkImageSubresourceRange
+                {
+                    aspectMask = (uint)VkImageAspectFlagBits.VK_IMAGE_ASPECT_STENCIL_BIT,
+                    baseArrayLayer = 0,
+                    baseMipLevel = 0,
+                    layerCount = VK_REMAINING_ARRAY_LAYERS,
+                    levelCount = VK_REMAINING_MIP_LEVELS
+                };
+                vkCmdClearDepthStencilImage(List, 0, VkImageLayout.VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, &clearValue, 1, &resource);
+#endif
             }
         }
 
@@ -543,9 +584,25 @@ namespace Voltium.Core
             fixed (Rectangle* p = rect)
             {
                 FlushBarriers();
+#if D3D12
                 List->ClearDepthStencilView(dsv.CpuHandle,
                     D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_STENCIL | D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH, depth,
                     stencil, (uint)rect.Length, (RECT*)p);
+#else
+                var clearValue = new VkClearDepthStencilValue
+                {
+                    stencil = stencil
+                };
+                var resource = new VkImageSubresourceRange
+                {
+                    aspectMask = (uint)(VkImageAspectFlagBits.VK_IMAGE_ASPECT_STENCIL_BIT | VkImageAspectFlagBits.VK_IMAGE_ASPECT_DEPTH_BIT),
+                    baseArrayLayer = 0,
+                    baseMipLevel = 0,
+                    layerCount = VK_REMAINING_ARRAY_LAYERS,
+                    levelCount = VK_REMAINING_MIP_LEVELS
+                };
+                vkCmdClearDepthStencilImage(List, 0, VkImageLayout.VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, &clearValue, 1, &resource);
+#endif
             }
         }
 
@@ -560,7 +617,7 @@ namespace Voltium.Core
 #if D3D12
                 List->RSSetViewports(1, (D3D12_VIEWPORT*)pViewport);
 #else
-                Vulkan.vkCmdSetViewport(List, 0, 1, (VkViewport*)pViewport);
+                vkCmdSetViewport(List, 0, 1, (VkViewport*)pViewport);
 #endif
             }
         }
@@ -576,7 +633,7 @@ namespace Voltium.Core
 #if D3D12
                 List->RSSetScissorRects((uint)rectangles.Length, (RECT*)pRects);
 #else
-                Vulkan.vkCmdSetScissor(List, 0, (uint)rectangles.Length, (VkRect2D*)pRects);
+                vkCmdSetScissor(List, 0, (uint)rectangles.Length, (VkRect2D*)pRects);
 #endif
             }
         }
@@ -598,7 +655,7 @@ namespace Voltium.Core
 #if D3D12
             List->RSSetScissorRects(1, (RECT*)&rectangle);
 #else
-            Vulkan.vkCmdSetScissor(List, 0, 1, (VkRect2D*)&rectangle);
+            vkCmdSetScissor(List, 0, 1, (VkRect2D*)&rectangle);
 #endif
         }
 
@@ -613,7 +670,7 @@ namespace Voltium.Core
 #if D3D12
                 List->RSSetViewports((uint)viewports.Length, (D3D12_VIEWPORT*)pViewports);
 #else
-                Vulkan.vkCmdSetViewport(List, 0,(uint)viewports.Length, (VkRect2D*)pViewports );
+                vkCmdSetViewport(List, 0,(uint)viewports.Length, (VkViewport*)pViewports);
 #endif
             }
         }
@@ -624,18 +681,20 @@ namespace Voltium.Core
         /// <param name="vertexResource">The vertex buffer to set</param>
         /// <param name="startSlot">The slot on the device array to set the vertex buffer to</param>
         /// <typeparam name="T">The type of the vertex in <see cref="Buffer"/></typeparam>
-        public void SetVertexBuffers<T>([RequiresResourceState(ResourceState.VertexBuffer)]
-            in Buffer vertexResource, uint startSlot = 0)
+        public void SetVertexBuffers<T>(
+            [RequiresResourceState(ResourceState.VertexBuffer)] in Buffer vertexResource,
+            uint startSlot = 0)
             where T : unmanaged
         {
-            var desc = CreateVertexBufferView<T>(vertexResource);
 
             FlushBarriers();
 #if D3D12
+            var desc = CreateVertexBufferView<T>(vertexResource);
             List->IASetVertexBuffers(startSlot, 1, &desc);
 #else
             var va = vertexResource.GetResourcePointer();
-            Vulkan.vkCmdBindVertexBuffers(List, startSlot, 1,  &va, null);
+            ulong zero = 0;
+            vkCmdBindVertexBuffers(List, startSlot, 1, &va, &zero);
 #endif
         }
 
@@ -646,14 +705,24 @@ namespace Voltium.Core
         /// <param name="numVertices">The number of vertices in the buffer</param>
         /// <param name="startSlot">The slot on the device array to set the vertex buffer to</param>
         /// <typeparam name="T">The type of the vertex in <see cref="Buffer"/></typeparam>
-        public void SetVertexBuffers<T>([RequiresResourceState(ResourceState.VertexBuffer)]
-            in Buffer vertexResource, uint numVertices, uint startSlot = 0)
+        public void SetVertexBuffers<T>(
+            [RequiresResourceState(ResourceState.VertexBuffer)] in Buffer vertexResource,
+            uint numVertices,
+            uint startSlot = 0
+        )
             where T : unmanaged
         {
-            var desc = CreateVertexBufferView<T>(vertexResource, numVertices);
 
             FlushBarriers();
+#if D3D12
+            var desc = CreateVertexBufferView<T>(vertexResource, numVertices);
             List->IASetVertexBuffers(startSlot, 1, &desc);
+            
+#else
+            var va = vertexResource.GetResourcePointer();
+            ulong zero = 0;
+            vkCmdBindVertexBuffers(List, startSlot, 1, &va, &zero);
+#endif
         }
 
         /// <summary>
@@ -662,20 +731,38 @@ namespace Voltium.Core
         /// <param name="vertexBuffers">The vertex buffers to set</param>
         /// <param name="startSlot">The slot on the device array to start setting the vertex buffers to</param>
         /// <typeparam name="T">The type of the vertex in <see cref="Buffer"/></typeparam>
-        public void SetVertexBuffers<T>([RequiresResourceState(ResourceState.VertexBuffer)]
-            ReadOnlySpan<Buffer> vertexBuffers, uint startSlot = 0)
+        public void SetVertexBuffers<T>(
+            [RequiresResourceState(ResourceState.VertexBuffer)] ReadOnlySpan<Buffer> vertexBuffers,
+            uint startSlot = 0
+        )
             where T : unmanaged
         {
             StackSentinel.StackAssert(StackSentinel.SafeToStackalloc<D3D12_VERTEX_BUFFER_VIEW>(vertexBuffers.Length));
 
-            D3D12_VERTEX_BUFFER_VIEW* views = stackalloc D3D12_VERTEX_BUFFER_VIEW[vertexBuffers.Length];
+            var views =
+#if D3D12
+                stackalloc D3D12_VERTEX_BUFFER_VIEW[vertexBuffers.Length];
+#else
+                stackalloc ulong[vertexBuffers.Length];
+#endif
+
             for (int i = 0; i < vertexBuffers.Length; i++)
             {
+#if D3D12
                 views[i] = CreateVertexBufferView<T>(vertexBuffers[i]);
+#else
+                views[i] = vertexBuffers[i].GetResourcePointer();
+#endif
             }
 
             FlushBarriers();
+#if D3D12
             List->IASetVertexBuffers(startSlot, (uint)vertexBuffers.Length, views);
+#else
+            ulong* offsets = stackalloc ulong[vertexBuffers.Length];
+            Unsafe.InitBlock(offsets, 0, (uint)vertexBuffers.Length);
+            vkCmdBindVertexBuffers(List, startSlot, (uint)vertexBuffers.Length, views, offsets);
+#endif
         }
 
         private static D3D12_VERTEX_BUFFER_VIEW CreateVertexBufferView<T>(in Buffer buffer,
@@ -704,7 +791,7 @@ namespace Voltium.Core
             var desc = CreateIndexBufferView<T>(indexResource, numIndices);
             List->IASetIndexBuffer(&desc);
 #else
-            Vulkan.vkCmdBindIndexBuffer(List, indexResource.GetResourcePointer(), 0, (VkIndexType)GetIndexType<T>());
+            vkCmdBindIndexBuffer(List, indexResource.GetResourcePointer(), 0, (VkIndexType)GetIndexType<T>());
 #endif
         }
 
@@ -738,33 +825,13 @@ namespace Voltium.Core
         /// <param name="dest">The single-sampled dest <see cref="Texture"/></param>
         /// <param name="sourceSubresource">The index of the subresource from <paramref name="source"/> to use</param>
         /// <param name="destSubresource">The index of the subresource from <paramref name="dest"/> to use</param>
-        public void ResolveSubresource([RequiresResourceState(ResourceState.ResolveSource)]
-            in Texture source, [RequiresResourceState(ResourceState.ResolveDestination)]
-            in Texture dest, uint sourceSubresource = 0, uint destSubresource = 0)
+        public void ResolveSubresource(
+            [RequiresResourceState(ResourceState.ResolveSource)] in Texture source,
+            [RequiresResourceState(ResourceState.ResolveDestination)] in Texture dest,
+            uint sourceSubresource = 0,
+            uint destSubresource = 0)
         {
-            DataFormat format = source.Format == DataFormat.Unknown ? dest.Format : source.Format;
-
-            //ResourceTransition(source, ResourceState.ResolveSource, sourceSubresource);
-            //ResourceTransition(dest, ResourceState.ResolveDestination, destSubresource);
-
-            FlushBarriers();
-#if D3D12
-            List->ResolveSubresource(dest.GetResourcePointer(), destSubresource, source.GetResourcePointer(),
-                sourceSubresource, (DXGI_FORMAT)format);
-#else
-            var subresourceRegion = new VkImageResolve
-            {
-                D
-            }
-            Vulkan.vkCmdResolveImage(
-                List,
-                source.GetResourcePointer(),
-                VkImageLayout.VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                dest.GetResourcePointer(),
-                VkImageLayout.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                1,
-                &subresourceRegion
-            );
+            ResolveSubresource(source, dest, source.Format == DataFormat.Unknown ? dest.Format : source.Format, sourceSubresource, destSubresource);
         }
 
         /// <summary>
@@ -775,16 +842,75 @@ namespace Voltium.Core
         /// <param name="format">The <see cref="DataFormat"/> to resolve as</param>
         /// <param name="sourceSubresource">The index of the subresource from <paramref name="source"/> to use</param>
         /// <param name="destSubresource">The index of the subresource from <paramref name="dest"/> to use</param>
-        public void ResolveSubresource([RequiresResourceState(ResourceState.ResolveSource)]
-            in Texture source, [RequiresResourceState(ResourceState.ResolveDestination)]
-            in Texture dest, DataFormat format, uint sourceSubresource = 0, uint destSubresource = 0)
+        public void ResolveSubresource(
+            [RequiresResourceState(ResourceState.ResolveSource)] in Texture source,
+            [RequiresResourceState(ResourceState.ResolveDestination)] in Texture dest,
+            DataFormat format,
+            uint sourceSubresource = 0,
+            uint destSubresource = 0
+        )
         {
-            //ResourceTransition(source, ResourceState.ResolveSource, sourceSubresource);
-            //ResourceTransition(dest, ResourceState.ResolveDestination, destSubresource);
-
             FlushBarriers();
-            List->ResolveSubresource(dest.GetResourcePointer(), destSubresource, source.GetResourcePointer(),
-                sourceSubresource, (DXGI_FORMAT)format);
+#if D3D12
+            List->ResolveSubresource(
+                dest.GetResourcePointer(),
+                destSubresource,
+                source.GetResourcePointer(),
+                sourceSubresource,
+                (DXGI_FORMAT)format
+            );
+#else
+            Windows.D3D12DecomposeSubresource(sourceSubresource, source.MipCount, source.IsArray ? source.DepthOrArraySize : 1, out var sMip, out var sArr, out var sPlane);
+            Windows.D3D12DecomposeSubresource(destSubresource, dest.MipCount, dest.IsArray ? dest.DepthOrArraySize : 1, out var dMip, out var dArr, out var dPlane);
+            var subresourceRegion = new VkImageResolve
+            {
+                srcSubresource = new VkImageSubresourceLayers
+                {
+                    aspectMask = (uint)VkImageAspectFlagBits.VK_IMAGE_ASPECT_COLOR_BIT,
+                    baseArrayLayer = sArr,
+                    layerCount = 1,
+                    mipLevel = sMip
+                },
+
+                dstSubresource = new VkImageSubresourceLayers
+                {
+                    aspectMask = (uint)VkImageAspectFlagBits.VK_IMAGE_ASPECT_COLOR_BIT,
+                    baseArrayLayer = dArr,
+                    layerCount = 1,
+                    mipLevel = dMip
+                },
+
+                extent = new VkExtent3D
+                {
+                    width = (uint)source.Width,
+                    height = source.Height,
+                    depth = source.DepthOrArraySize
+                },
+
+                srcOffset = new VkOffset3D
+                {
+                    x = 0,
+                    y = 0,
+                    z = 0
+                },
+
+                dstOffset = new VkOffset3D
+                {
+                    x = 0,
+                    y = 0,
+                    z = 0
+                }
+            };
+
+            vkCmdResolveImage(
+                List,
+                source.GetResourcePointer(),
+                VkImageLayout.VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                dest.GetResourcePointer(),
+                VkImageLayout.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                1,
+                &subresourceRegion
+            );
         }
 
         /// <summary>
@@ -818,12 +944,16 @@ namespace Voltium.Core
             uint startInstanceLocation)
         {
             FlushBarriers();
+#if D3D12
             List->DrawInstanced(
                 vertexCountPerInstance,
                 instanceCount,
                 startVertexLocation,
                 startInstanceLocation
             );
+#else
+            vkCmdDraw(List, vertexCountPerInstance, instanceCount, startVertexLocation, startInstanceLocation);
+#endif
         }
 
         /// <summary>
@@ -833,6 +963,8 @@ namespace Voltium.Core
             int baseVertexLocation, uint startInstanceLocation)
         {
             FlushBarriers();
+
+#if D3D12
             List->DrawIndexedInstanced(
                 indexCountPerInstance,
                 instanceCount,
@@ -840,6 +972,9 @@ namespace Voltium.Core
                 baseVertexLocation,
                 startInstanceLocation
             );
+#else
+            vkCmdDrawIndexed(List, indexCountPerInstance, in, startIndexLocation, baseVertexLocation, startInstanceLocation);
+#endif
         }
 
         /// <summary>
@@ -849,7 +984,13 @@ namespace Voltium.Core
         /// <param name="y">The number of thread groups to execute in the y direction</param>
         /// <param name="z">The number of thread groups to execute in the z direction</param>
         public void DispatchMeshes(uint x, uint y, uint z)
-            => List->DispatchMesh(x, y, z);
+        {
+#if D3D12
+            List->DispatchMesh(x, y, z);
+#else
+            vkCmdDrawMeshTasksNV(List, x * y * z, 0);
+#endif
+        }
     }
 }
 

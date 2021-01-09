@@ -44,7 +44,11 @@ namespace Voltium.Core.Queries
             _numQueries = (uint)numQueries;
         }
 
+#if D3D12
         internal ID3D12QueryHeap* GetQueryHeap() => _queryHeap.Ptr;
+#else
+        internal ulong GetQueryHeap() => _queryHeap.Ptr;
+#endif
 
         bool IEvictable.IsBlittableToPointer => false;
         ID3D12Pageable* IEvictable.GetPageable() => (ID3D12Pageable*)_queryHeap.Ptr;

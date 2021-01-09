@@ -60,6 +60,11 @@ namespace Voltium.Core.Memory
         public readonly uint Height;
 
         /// <summary>
+        /// The number of mips
+        /// </summary>
+        public readonly uint MipCount;
+
+        /// <summary>
         /// The resolution, in texels, of the texture
         /// </summary>
         public readonly Size Resolution => new Size((int)Width, (int)Height);
@@ -85,6 +90,7 @@ namespace Voltium.Core.Memory
             Width = desc.Width;
             Height = desc.Height;
             DepthOrArraySize = desc.DepthOrArraySize;
+            MipCount = desc.MipCount;
             _length = resource.Block.Size;
             _resource = resource;
             Msaa = desc.Msaa;
