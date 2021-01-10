@@ -24,6 +24,7 @@ using Voltium.Core.Queries;
 using Microsoft.Win32.SafeHandles;
 using System.Runtime.Versioning;
 using Microsoft.Toolkit.HighPerformance.Memory;
+using Voltium.Core.Exceptions;
 
 namespace Voltium.Core.Devices
 {
@@ -64,7 +65,7 @@ namespace Voltium.Core.Devices
         /// <summary>
         /// The default allocator for the device
         /// </summary>
-        public GpuAllocator Allocator { get; private protected set; }
+        public ComputeAllocator Allocator { get; private protected set; }
 
 
 
@@ -111,14 +112,9 @@ namespace Voltium.Core.Devices
         public DescriptorHeap CreateDescriptorHeap(DescriptorHeapType type, uint descriptorCount, bool shaderVisible = false)
             => new DescriptorHeap(this, type, descriptorCount, shaderVisible);
 
-        public void GetTextureInformation(in TextureDesc desc, out ulong sizeInBytes, out ulong alignment)
-        {
-            var alloc = new InternalAllocDesc();
-            GpuAllocator.CreateDesc(desc, out alloc.Desc);
-            var info = GetAllocationInfo(&alloc);
-            sizeInBytes = info.SizeInBytes;
-            alignment = info.Alignment;
-        }
+
+
+        internal void ThrowGraphicsException(string message, Exception? inner = null) => throw new GraphicsException(this, message, inner);
 
 
         public IndirectCommand CreateIndirectCommand(in IndirectArgument argument, int commandStride = -1)
@@ -605,7 +601,7 @@ namespace Voltium.Core.Devices
             ContextPool = new ContextPool(this);
             CopyQueue = new CommandQueue(this, ExecutionContext.Copy, true);
             ComputeQueue = new CommandQueue(this, ExecutionContext.Compute, true);
-            Allocator = new GpuAllocator(this);
+            Allocator = this is GraphicsDevice ? null! /* set by child ctor, hacky i know */  : new ComputeAllocator(this);
             PipelineManager = new PipelineManager(this);
             EmptyRootSignature = CreateRootSignature(ReadOnlyMemory<RootParameter>.Empty, ReadOnlyMemory<StaticSampler>.Empty, RootSignatureFlags.AllowInputAssembler);
             CreateDescriptorHeaps();

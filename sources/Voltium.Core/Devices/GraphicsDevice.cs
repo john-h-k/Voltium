@@ -30,6 +30,12 @@ namespace Voltium.Core.Devices
 
         private bool _disposed;
 
+
+        /// <summary>
+        /// The default allocator for the device
+        /// </summary>
+        public new GraphicsAllocator Allocator => Unsafe.As<GraphicsAllocator>(base.Allocator);
+
         /// <summary>
         /// The default <see cref="IndirectCommand"/> for performing an indirect draw.
         /// It changes no root signature bindings and has a command size of <see langword="sizeof"/>(<see cref="IndirectDrawArguments"/>)
@@ -127,6 +133,7 @@ namespace Voltium.Core.Devices
         private GraphicsDevice(FeatureLevel level, in Adapter? adapter, DebugLayerConfiguration? config = null) : base(level, adapter, config)
         {
             GraphicsQueue = new CommandQueue(this, ExecutionContext.Graphics, true);
+            base.Allocator = new GraphicsAllocator(this);
 
             DrawIndirect = CreateIndirectCommand(IndirectArgument.CreateDraw());
             DrawIndexedIndirect = CreateIndirectCommand(IndirectArgument.CreateDrawIndexed());
@@ -163,6 +170,15 @@ namespace Voltium.Core.Devices
             return new IndirectCommand(CreateCommandSignature(rootSignature, arguments, (uint)commandStride).Move(), rootSignature, (uint)commandStride, arguments.ToArray());
         }
 
+
+        public void GetTextureInformation(in TextureDesc desc, out ulong sizeInBytes, out ulong alignment)
+        {
+            InternalAllocDesc alloc;
+            Allocator.CreateAllocDesc(desc, &alloc, ResourceState.Common, AllocFlags.None);
+            var info = GetAllocationInfo(&alloc);
+            sizeInBytes = info.SizeInBytes;
+            alignment = info.Alignment;
+        }
 
         // Output requires this for swapchain creation
         internal IUnknown* GetGraphicsQueue() => (IUnknown*)GraphicsQueue.GetQueue();
