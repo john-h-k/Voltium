@@ -115,6 +115,7 @@ namespace Voltium.Common
             }
         }
 
+        private static void FlushBuffer()
         {
             using (ThreadBuffers.EnterScopedLock())
             {

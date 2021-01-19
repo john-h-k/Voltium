@@ -12,6 +12,10 @@ namespace Voltium.Common
     /// </summary>
     public interface IInternalD3D12Object
     {
+#if D3D12
         internal unsafe ID3D12Object* GetPointer();
+#else
+        internal unsafe ulong GetPointer();
+#endif
     }
 }

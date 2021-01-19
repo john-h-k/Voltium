@@ -9,14 +9,25 @@ namespace Voltium.Common.Debugging
     {
         private const string DoNotUseWithoutDebugger = "Should not use this without a debugger";
 
-        public static bool HasSingleRef<T>(in T value) where T : IInternalD3D12Object
-            => GetRefCount(value) == 1;
 
+        public static bool HasSingleRef<T>(in T value) where T : IInternalD3D12Object
+        {
+#if D3D12
+            return GetRefCount(value) == 1;
+#else
+            return true;
+#endif
+        }
+        
         public static int GetRefCount<T>(in T value) where T : IInternalD3D12Object
         {
+#if D3D12
             var ptr = value.GetPointer();
             _ = ptr->AddRef();
             return (int)ptr->Release();
+#else
+            return 1;
+#endif
         }
 
         public static void RegisterForDeletionCallback<T>(in T ptr, delegate* unmanaged<void*, void> callback, object? data = null) where T : unmanaged, IInternalD3D12Object

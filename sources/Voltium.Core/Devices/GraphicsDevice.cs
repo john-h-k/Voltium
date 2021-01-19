@@ -9,6 +9,7 @@ using Voltium.Core.Memory;
 using Voltium.Core.Infrastructure;
 using Voltium.Core.Pipeline;
 using static TerraFX.Interop.Windows;
+using static TerraFX.Interop.Vulkan;
 using Voltium.Core.Pool;
 using Voltium.Core.Contexts;
 using System.Threading;
@@ -83,6 +84,8 @@ namespace Voltium.Core.Devices
         /// </summary>
         public void Idle()
         {
+            ThrowIfFailed(vkDeviceWaitIdle(DevicePointer));
+
             var graphics = GraphicsQueue.GetSynchronizerForIdle();
             var compute = ComputeQueue.GetSynchronizerForIdle();
             var copy = CopyQueue.GetSynchronizerForIdle();

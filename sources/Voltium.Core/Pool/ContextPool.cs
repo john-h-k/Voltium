@@ -74,8 +74,6 @@ namespace Voltium.Core.Pool
         private LockedQueue<UniqueComPtr<ID3D12GraphicsCommandList6>, SpinLock> _computeLists = new(GetLock());
         private LockedQueue<UniqueComPtr<ID3D12GraphicsCommandList6>, SpinLock> _directLists = new(GetLock());
 
-        public static readonly Guid Guid_AllocatorType = new Guid("5D16E61C-E2BF-4118-BB1D-8F804EC4F03D");
-
         public ContextPool(ComputeDevice device)
         {
             _device = device;
@@ -104,8 +102,8 @@ namespace Voltium.Core.Pool
             _ = pso?.Pointer.TryQueryInterface(&pipeline);
             _ = pso?.Pointer.TryQueryInterface(&stateObject);
 
-            Debug.Assert(pipeline.Exists is false ||
-                         (pipeline.Exists != stateObject.Exists)); // only one should be not null
+            SysDebug.Assert(pipeline.Exists is false ||
+                            stateObject.Exists is false); // only one should be not null
 
             if (lists.TryDequeue(out var list))
             {

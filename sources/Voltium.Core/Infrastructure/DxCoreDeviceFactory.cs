@@ -125,7 +125,7 @@ namespace Voltium.Core.Infrastructure
                 dedicatedVideoMemory,
                 dedicatedSystemMemory,
                 sharedSystemMemory,
-                luid,
+                new Guid((int)luid.LowPart, (short)luid.HighPart, (short)((uint)luid.HighPart >> 16), 0, 0, 0, 0, 0, 0, 0, 0),
                 driverVersion,
                 isSoftware: !isHardware,
                 type

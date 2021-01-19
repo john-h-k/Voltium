@@ -6,6 +6,13 @@ using Voltium.Common;
 
 namespace Voltium.Core.Infrastructure
 {
+#if D3D12
+    using NativeAdapter = UniqueComPtr<IUnknown>;
+    using NativeAdapterPtr = IUnknown*;
+#else
+    using NativeAdapter = VkPhysicalDevice;
+#endif
+
     /// <summary>
     /// Represents a DXGI adapter
     /// </summary>
@@ -39,9 +46,13 @@ namespace Voltium.Core.Infrastructure
         /// <summary>
         /// The value of the <see cref="IDXGIAdapter1"/>
         /// </summary>
+#if D3D12
         internal unsafe IUnknown* GetAdapterPointer() => _adapter.Ptr;
+#else
+        internal unsafe VkPhysicalDevice GetAdapterPointer() => _adapter.Ptr;
+#endif
 
-        internal UniqueComPtr<IUnknown> _adapter;
+        internal NativeAdapter _adapter;
 
         /// <summary>
         /// A string that contains the adapter description
@@ -86,7 +97,7 @@ namespace Voltium.Core.Infrastructure
         /// <summary>
         /// A locally-unique identifier for the adapter
         /// </summary>
-        public ulong AdapterLuid { get; }
+        public Guid AdapterLuid { get; }
 
         /// <summary>
         /// The driver version for the adapter
@@ -108,7 +119,7 @@ namespace Voltium.Core.Infrastructure
         /// Create a new instance of <see cref="Adapter"/>
         /// </summary>
         internal unsafe Adapter(
-            UniqueComPtr<IUnknown> adapter,
+            NativeAdapter adapter,
             string description,
             AdapterVendor vendorId,
             uint deviceId,
@@ -117,7 +128,7 @@ namespace Voltium.Core.Infrastructure
             ulong dedicatedVideoMemory,
             ulong dedicatedSystemMemory,
             ulong sharedSystemMemory,
-            LUID adapterLuid,
+            Guid adapterLuid,
             ulong driverVersion,
             bool isSoftware,
             DeviceType type
@@ -132,7 +143,7 @@ namespace Voltium.Core.Infrastructure
             DedicatedVideoMemory = dedicatedVideoMemory;
             DedicatedSystemMemory = dedicatedSystemMemory;
             SharedSystemMemory = sharedSystemMemory;
-            AdapterLuid = adapterLuid.LowPart | ((uint)adapterLuid.HighPart << 32);
+            AdapterLuid = adapterLuid;
             DriverVersion = driverVersion;
             IsSoftware = isSoftware;
             Type = type;
@@ -166,7 +177,12 @@ namespace Voltium.Core.Infrastructure
         public bool Equals(Adapter other) => AdapterLuid == other.AdapterLuid;
 
         /// <inheritdoc cref="IDisposable"/>
-        public void Dispose() => _adapter.Dispose();
+        public void Dispose()
+        {
+#if D3D12
+            _adapter.Dispose();
+#endif
+        }
     }
 
     /// <summary>

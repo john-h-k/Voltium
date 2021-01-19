@@ -594,7 +594,7 @@ namespace Voltium.Core
                 );
             }
 
-            fixed (void* pValue = &value)
+            fixed (T* pValue = &value)
             {
 #if D3D12
                 List->SetComputeRoot32BitConstants(paramIndex, (uint)sizeof(T) / 4, pValue, offset);
@@ -639,8 +639,9 @@ namespace Voltium.Core
         {
 #if D3D12
             List->SetComputeRootSignature(signature.Value);
-#endif
+#else
             Layout = signature.Value;
+#endif
         }
 
         /// <inheritdoc cref="Dispatch(uint, uint, uint)"/>

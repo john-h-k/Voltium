@@ -7,21 +7,25 @@ using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Devices;
 using Voltium.Core.Memory;
+using Voltium.Core.Pool;
 using static TerraFX.Interop.Windows;
+using SysDebug = System.Diagnostics.Debug;
 
 namespace Voltium.Core.Devices
 {
-    internal unsafe class CommandQueue : IDisposable, IInternalD3D12Object
+    internal unsafe partial class CommandQueue : IDisposable, IInternalD3D12Object
     {
         private readonly ComputeDevice _device;
-        private UniqueComPtr<ID3D12CommandQueue> _queue;
-        private UniqueComPtr<ID3D12Fence> _fence;
         private ulong _lastFence;
 
         public readonly ExecutionContext Type;
         public readonly ulong Frequency;
 
+#if D3D12
         internal ID3D12CommandQueue* GetQueue() => _queue.Ptr;
+#else
+        internal ulong GetQueue() => _queue;
+#endif
 
         private static ulong StartingFenceForContext(ExecutionContext context) => 0; // context switch
         //{
@@ -32,49 +36,14 @@ namespace Voltium.Core.Devices
         //    _ => 0xFFFFFFFFFFFFFFFF
         //};
 
-        public CommandQueue(
+        public partial CommandQueue(
             ComputeDevice device,
             ExecutionContext context,
             bool enableTdr
-        )
-        {
-            Debug.Assert(device is object);
+        );
 
-            Type = context;
+        public partial GpuTask ExecuteCommandLists(ReadOnlySpan<ContextParams> lists);
 
-            _device = device;
-            _queue = device.CreateQueue(context, enableTdr ? D3D12_COMMAND_QUEUE_FLAGS.D3D12_COMMAND_QUEUE_FLAG_NONE : D3D12_COMMAND_QUEUE_FLAGS.D3D12_COMMAND_QUEUE_FLAG_DISABLE_GPU_TIMEOUT);
-            _fence = device.CreateFence(StartingFenceForContext(context));
-            _lastFence = _fence.Ptr->GetCompletedValue();
-
-            var name = GetListTypeName(context);
-            this.SetName(name + " Queue");
-
-            DebugHelpers.SetName(_fence.Ptr, name + " Fence");
-
-            ulong frequency;
-            int hr = _queue.Ptr->GetTimestampFrequency(&frequency);
-
-            // E_FAIL is returned when the queue doesn't support timestamps
-            if (SUCCEEDED(hr) || hr == E_FAIL)
-            {
-                Frequency = hr == E_FAIL ? 0 : frequency;
-            }
-            else
-            {
-                Frequency = 0;
-                _device.ThrowIfFailed(hr, "_queue.Ptr->GetTimestampFrequency(&frequency)");
-            }
-        }
-
-        public GpuTask ExecuteCommandLists(ReadOnlySpan<UniqueComPtr<ID3D12CommandList>> lists)
-        {
-            fixed (void* ppLists = lists)
-            {
-                _queue.Ptr->ExecuteCommandLists((uint)lists.Length, (ID3D12CommandList**)ppLists);
-            }
-            return Signal();
-        }
 
         public bool TryQueryTimestamps(out ulong gpu, out ulong cpu)
         {
@@ -85,7 +54,7 @@ namespace Voltium.Core.Devices
             }
         }
 
-        public bool TryQueryTimestamps(ulong* gpu, ulong* cpu) => SUCCEEDED(_queue.Ptr->GetClockCalibration(gpu, cpu));
+        public partial bool TryQueryTimestamps(ulong* gpu, ulong* cpu);
 
         private static string GetListTypeName(ExecutionContext type) => type switch
         {
@@ -95,31 +64,13 @@ namespace Voltium.Core.Devices
             _ => "Unknown"
         };
 
-        internal GpuTask GetSynchronizerForIdle() => Signal();
         internal void Idle() => GetSynchronizerForIdle().Block();
 
-        public void Wait(in GpuTask waitable)
-        {
-            if (waitable.IsCompleted)
-            {
-                return;
-            }
+        public partial void Wait(in GpuTask waitable);
 
-            waitable.GetFenceAndMarker(out var fence, out var marker);
-            _device.ThrowIfFailed(_queue.Ptr->Wait(fence, marker));
-        }
+        public partial GpuTask Signal();
 
-        public GpuTask Signal()
-        {
-            _device.ThrowIfFailed(_queue.Ptr->Signal(_fence.Ptr, Interlocked.Increment(ref _lastFence)));
-            return new GpuTask(_device, _fence, _lastFence);
-        }
-
-        public void Dispose()
-        {
-            _queue.Dispose();
-            _fence.Dispose();
-        }
+        public partial void Dispose();
 
         ID3D12Object* IInternalD3D12Object.GetPointer() => (ID3D12Object*)_queue.Ptr;
     }
