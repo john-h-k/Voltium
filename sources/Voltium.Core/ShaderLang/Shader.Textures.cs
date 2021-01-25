@@ -9,13 +9,13 @@ namespace Voltium.Core.ShaderLang
     public abstract partial class Shader
     {
 
-        [Intrinsic("SamplerState")]
+        [NameRemap("SamplerState")]
         protected class Sampler
         {
 
         }
 
-        [Intrinsic]
+        [NameRemap]
         protected class WritableTexture1D<T>
         {
             public uint Width => throw null!;
@@ -23,7 +23,7 @@ namespace Voltium.Core.ShaderLang
             public T this[uint x] { get => throw null!; set => throw null!; }
         }
 
-        [Intrinsic]
+        [NameRemap]
         protected class WritableTexture1DArray<T>
         {
             public uint Width => throw null!;
@@ -32,7 +32,7 @@ namespace Voltium.Core.ShaderLang
             public T this[uint x, uint arrayIndex] { get => throw null!; set => throw null!; }
         }
 
-        [Intrinsic]
+        [NameRemap]
         protected class WritableTexture2D<T>
         {
             public uint Width => throw null!;
@@ -42,7 +42,7 @@ namespace Voltium.Core.ShaderLang
             public T this[Vector2<uint> xy] { get => throw null!; set => throw null!; }
         }
 
-        [Intrinsic]
+        [NameRemap]
         protected class WritableTexture2DArray<T>
         {
             public uint Width => throw null!;
@@ -54,7 +54,7 @@ namespace Voltium.Core.ShaderLang
             public T this[Vector3<uint> xyArrayIndex] { get => throw null!; set => throw null!; }
         }
 
-        [Intrinsic]
+        [NameRemap]
         protected class WritableTexture3D<T>
         {
             public uint Width => throw null!;
@@ -66,7 +66,7 @@ namespace Voltium.Core.ShaderLang
         }
 
 
-        [Intrinsic]
+        [NameRemap]
         protected class Texture2D<T>
         {
             public T this[uint x, uint y, uint mip = 0] => throw null!;

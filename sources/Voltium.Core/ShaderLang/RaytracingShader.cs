@@ -7,7 +7,7 @@ namespace Voltium.Core.ShaderLang
     {
 
 
-        [Intrinsic("RaytracingAccelerationStructure")]
+        [NameRemap("RaytracingAccelerationStructure")]
         protected class RaytracingAccelerationStructure { }
 
 

@@ -12,7 +12,7 @@ namespace Voltium.Core.ShaderLang
         {
         }
 
-        [Intrinsic("ByteAddressBuffer")]
+        [NameRemap("ByteAddressBuffer")]
         protected class RawBuffer
         {
             public int Length => throw null!;
@@ -30,7 +30,7 @@ namespace Voltium.Core.ShaderLang
             public bool TryLoad<T>(int address, out T value) => throw null!;
         }
 
-        [Intrinsic("RWByteAddressBuffer")]
+        [NameRemap("RWByteAddressBuffer")]
         protected class WritableRawBuffer
         {
             public int Length => throw null!;
@@ -55,7 +55,7 @@ namespace Voltium.Core.ShaderLang
             public bool TryLoad<T>(int address, out T value) => throw null!;
         }
 
-        [Intrinsic("RWBuffer<T>")]
+        [NameRemap("RWBuffer<{0}>")]
         protected class TypedBuffer<T>
         {
             public int Length => throw null!;
@@ -65,7 +65,7 @@ namespace Voltium.Core.ShaderLang
         }
 
 
-        [Intrinsic("Buffer<T>")]
+        [NameRemap("Buffer<{0}>")]
         protected class WritableTypedBuffer<T>
         {
             public int Length => throw null!;
@@ -74,7 +74,7 @@ namespace Voltium.Core.ShaderLang
             public bool TryLoad(int index, out T value) => throw null!;
         }
 
-        [Intrinsic("StructuredBuffer<T>")]
+        [NameRemap("StructuredBuffer<{0}>")]
         protected class StructuredBuffer<T>
         {
             public int Length => throw null!;
@@ -83,7 +83,7 @@ namespace Voltium.Core.ShaderLang
             public bool TryLoad(int index, out T value) => throw null!;
         }
 
-        [Intrinsic("RWStructuredBuffer<T>")]
+        [NameRemap("RWStructuredBuffer<{0}>")]
         protected class WritableStructuredBuffer<T>
         {
             public uint IncrementCounter() => throw null!;
@@ -95,7 +95,7 @@ namespace Voltium.Core.ShaderLang
             public bool TryLoad(int index, out T value) => throw null!;
         }
 
-        [Intrinsic("AppendStructuredBuffer<T>")]
+        [NameRemap("AppendStructuredBuffer<{0}>")]
         protected class AppendStructuredBuffer<T>
         {
             public int Length => throw null!;

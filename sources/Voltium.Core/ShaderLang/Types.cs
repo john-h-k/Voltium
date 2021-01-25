@@ -40,9 +40,9 @@ namespace Voltium.Core.ShaderLang
         }
 
         [AttributeUsage(AttributeTargets.Method | AttributeTargets.Struct | AttributeTargets.Class)]
-        private protected class IntrinsicAttribute : ShaderAttribute
+        private protected class NameRemapAttribute : ShaderAttribute
         {
-            public IntrinsicAttribute(string? translation = null)
+            public NameRemapAttribute(string? translation = null)
             {
 
             }
