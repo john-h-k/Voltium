@@ -105,6 +105,9 @@ namespace Voltium.Core
         [ResourceStateInfo(Access.Read)]
         PixelShaderResource = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 
+
+        // NOTE: Stream out was decided to not be supported. Because it sucks
+
         ///// <summary>
         ///// The resource is being used as a stream-out destination. This is a write-only state
         ///// </summary>

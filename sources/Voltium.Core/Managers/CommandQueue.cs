@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using TerraFX.Interop;
 using Voltium.Common;
+using Voltium.Common.Threading;
 using Voltium.Core.Devices;
 using Voltium.Core.Memory;
 using static TerraFX.Interop.Windows;
@@ -20,6 +21,8 @@ namespace Voltium.Core.Devices
 
         public readonly ExecutionContext Type;
         public readonly ulong Frequency;
+
+        internal readonly MonitorLock WorkSubmissionLock = MonitorLock.Create();
 
         internal ID3D12CommandQueue* GetQueue() => _queue.Ptr;
 
@@ -50,20 +53,13 @@ namespace Voltium.Core.Devices
             var name = GetListTypeName(context);
             this.SetName(name + " Queue");
 
-            DebugHelpers.SetName(_fence.Ptr, name + " Fence");
+            DebugHelpers.SetName(_fence.Ptr, name + "Queue Fence");
 
-            ulong frequency;
-            int hr = _queue.Ptr->GetTimestampFrequency(&frequency);
-
-            // E_FAIL is returned when the queue doesn't support timestamps
-            if (SUCCEEDED(hr) || hr == E_FAIL)
+            ulong frequency = 0;
+            if (context == ExecutionContext.Copy
+                && _device.QueryFeatureSupport<D3D12_FEATURE_DATA_D3D12_OPTIONS3>(D3D12_FEATURE.D3D12_FEATURE_D3D12_OPTIONS3).CopyQueueTimestampQueriesSupported != FALSE)
             {
-                Frequency = hr == E_FAIL ? 0 : frequency;
-            }
-            else
-            {
-                Frequency = 0;
-                _device.ThrowIfFailed(hr, "_queue.Ptr->GetTimestampFrequency(&frequency)");
+                _device.ThrowIfFailed(_queue.Ptr->GetTimestampFrequency(&frequency));
             }
         }
 
@@ -71,9 +67,12 @@ namespace Voltium.Core.Devices
         {
             fixed (void* ppLists = lists)
             {
-                _queue.Ptr->ExecuteCommandLists((uint)lists.Length, (ID3D12CommandList**)ppLists);
+                using (WorkSubmissionLock.EnterScoped())
+                {
+                    _queue.Ptr->ExecuteCommandLists((uint)lists.Length, (ID3D12CommandList**)ppLists);
+                }
             }
-            return Signal();
+            return Signal(false);
         }
 
         public bool TryQueryTimestamps(out ulong gpu, out ulong cpu)
@@ -95,7 +94,15 @@ namespace Voltium.Core.Devices
             _ => "Unknown"
         };
 
-        internal GpuTask GetSynchronizerForIdle() => Signal();
+        internal GpuTask GetSynchronizerForIdle() => Signal(false);
+        internal (GpuTask Task, MonitorLock Lock) GetSynchronizerForIdleAndTakeLock() => (Signal(true), WorkSubmissionLock);
+        internal MonitorLock IdleAndTakeLock()
+        {
+            var (task, @lock) = GetSynchronizerForIdleAndTakeLock();
+            task.Block();
+            return @lock;
+        }
+
         internal void Idle() => GetSynchronizerForIdle().Block();
 
         public void Wait(in GpuTask waitable)
@@ -109,8 +116,12 @@ namespace Voltium.Core.Devices
             _device.ThrowIfFailed(_queue.Ptr->Wait(fence, marker));
         }
 
-        public GpuTask Signal()
+        private GpuTask Signal(bool takeLock)
         {
+            if (takeLock)
+            {
+                Monitor.Enter(WorkSubmissionLock);
+            }
             _device.ThrowIfFailed(_queue.Ptr->Signal(_fence.Ptr, Interlocked.Increment(ref _lastFence)));
             return new GpuTask(_device, _fence, _lastFence);
         }

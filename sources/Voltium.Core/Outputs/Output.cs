@@ -18,6 +18,15 @@ using Rectangle = System.Drawing.Rectangle;
 
 namespace Voltium.Core.Devices
 {
+
+    enum PresentFlags : uint
+    {
+        DoNotSequence = DXGI_PRESENT_DO_NOT_SEQUENCE,
+        Restart = DXGI_PRESENT_RESTART,
+        DoNotWait = DXGI_PRESENT_DO_NOT_WAIT,
+        AllowTearing = DXGI_PRESENT_ALLOW_TEARING
+    }
+
     /// <summary>
     /// An output that displays graphics to the user
     /// </summary>
@@ -56,7 +65,7 @@ namespace Voltium.Core.Devices
             Resolution = newSize;
             AspectRatio = Resolution.AspectRatio();
 
-            InternalResize(newSize);
+            InternalResize(newSize, 0, 0);
         }
 
         /// <summary>
@@ -208,6 +217,8 @@ namespace Voltium.Core.Devices
             return factory.Move();
         }
 
+        public virtual bool IsFullyOccluded => false;
+
         /// <summary>
         /// Presents the current back buffer to the output, and advances to the next back buffer
         /// </summary>
@@ -217,9 +228,19 @@ namespace Voltium.Core.Devices
             _backBufferIndex = (_backBufferIndex + 1) % _desc.BackBufferCount;
         }
 
-        internal abstract void InternalPresent(in GpuTask presentAfter);
+        public void PartialPresent(ReadOnlySpan<Rectangle> dirtyRects, Rectangle scrollRect, Point scrollOffset)
+            => PartialPresent(default, dirtyRects, scrollRect, scrollOffset);
 
-        internal abstract void InternalResize(Size newSize);
+        public void PartialPresent(in GpuTask presentAfter, ReadOnlySpan<Rectangle> dirtyRects, Rectangle scrollRect, Point scrollOffset)
+        {
+            InternalPartialPresent(presentAfter, dirtyRects, scrollRect, scrollOffset);
+            _backBufferIndex = (_backBufferIndex + 1) % _desc.BackBufferCount;
+        }
+
+        internal abstract void InternalPresent(in GpuTask presentAfter);
+        internal virtual void InternalPartialPresent(in GpuTask presentAfter, ReadOnlySpan<Rectangle> dirtyRects, Rectangle scrollRect, Point scrollOffset) => InternalPresent(presentAfter);
+
+        internal abstract void InternalResize(Size newSize, uint newBufferCount, BackBufferFormat format);
 
         /// <inheritdoc cref="IDisposable"/>
         public void Dispose()

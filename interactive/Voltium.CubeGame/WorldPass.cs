@@ -25,8 +25,18 @@ using Buffer = Voltium.Core.Memory.Buffer;
 
 namespace Voltium.CubeGame
 {
+    public enum BlockId
+    {
+        Air,
+        Stone,
+        Brick
+    }
+
     internal struct Block
     {
+        public bool IsOpaque => BlockId == BlockId.Air;
+
+        public BlockId BlockId;
         public uint TextureId;
     }
 
@@ -104,6 +114,12 @@ namespace Voltium.CubeGame
         public Matrix4x4 TexTransform;
     }
 
+    internal sealed class ChunkGeneratorPass : ComputeRenderPass
+    {
+        public override void Record(ComputeContext context, ref Resolver resolver) => throw new NotImplementedException();
+        public override bool Register(ref RenderPassBuilder builder, ref Resolver resolver) => throw new NotImplementedException();
+    }
+
     internal sealed class WorldPass : GraphicsRenderPass
     {
         private GraphicsDevice _device;
@@ -111,7 +127,12 @@ namespace Voltium.CubeGame
         private Buffer _frameConstants;
         private DescriptorHeap _rtvs, _dsvs;
         private DescriptorAllocation _texViews;
-        private Texture[] _textures;
+        private Texture _textures;
+
+
+        private Buffer _globalVertexBuffer, _globalIndexBuffer;
+
+
         private Camera _camera;
         private static readonly Rgba128 DefaultSkyColor = Rgba128.CornflowerBlue;
 
@@ -146,7 +167,7 @@ namespace Voltium.CubeGame
                 new StaticSampler(TextureAddressMode.Clamp, SamplerFilterType.MagPoint | SamplerFilterType.MinPoint | SamplerFilterType.MipLinear, 0, 0, ShaderVisibility.Pixel)
             };
 
-            RootSignature = _device.CreateRootSignature(@params, samplers);
+            var rootSig = _device.CreateRootSignature(@params, samplers);
 
             var shaderFlags = new[]
             {
@@ -158,7 +179,7 @@ namespace Voltium.CubeGame
 
             var psoDesc = new GraphicsPipelineDesc
             {
-                RootSignature = RootSignature,
+                RootSignature = rootSig,
                 Topology = TopologyClass.Triangle,
                 RenderTargetFormats = BackBufferFormat.R8G8B8A8UnsignedNormalized,
                 
@@ -178,7 +199,7 @@ namespace Voltium.CubeGame
             UploadTextures();
 
             Chunks = new[] { new RenderChunk() };
-            Chunks[0].Chunk.Blocks = new Block?[Width * Height * Depth];
+            Chunks[0].Chunk.Blocks = new Block[Width * Height * Depth];
             Chunks[0].Chunk.NeedsRebuild = true;
 
             var rng = new Random();
@@ -190,7 +211,6 @@ namespace Voltium.CubeGame
             SetConstants();
         }
 
-        private RootSignature RootSignature;
         private PipelineStateObject Pso, MsaaPso;
 
         [MemberNotNull(nameof(_textures))]
@@ -198,17 +218,16 @@ namespace Voltium.CubeGame
         {
             using var upload = _device.BeginUploadContext();
 
-            _textures = new Texture[2];
-
-            _textures[0] = upload.UploadTexture("Assets/Textures/bricks.dds");
-            _textures[1] = upload.UploadTexture("Assets/Textures/stone.dds");
-
-            _texViews = _device.AllocateResourceDescriptors(_textures.Length);
-
-            for (var i = 0; i < _textures.Length; i++)
+            foreach (var info in BlockInfo)
             {
-                _device.CreateShaderResourceView(_textures[i], _texViews[i]);
+                var texInfo = TextureLoader.LoadTextureDesc(info.File);
+                upload.CopyBufferToTexture()
             }
+
+
+            _texViews = _device.AllocateResourceDescriptors(1);
+
+            _device.CreateShaderResourceView(_textures, _texViews[0]);
         }
 
         private unsafe void SetConstants()
@@ -293,11 +312,7 @@ namespace Voltium.CubeGame
                 context.SetVertexBuffers<BlockVertex>(chunk.Mesh.Vertices, (uint)chunk.Mesh.VertexCount, 0);
                 context.SetIndexBuffer<uint>(chunk.Mesh.Indices, (uint)chunk.Mesh.IndexCount);
 
-                context.WriteBufferImmediate(progressBuffer.GpuAddress + (sizeof(int) * i), GetDrawIndex(i), WriteBufferImmediateMode.In);
                 context.DrawIndexed(chunk.Mesh.IndexCount);
-
-
-                static uint GetDrawIndex(uint i) => i;
             }
         }
 
@@ -329,7 +344,7 @@ namespace Voltium.CubeGame
             var indexSpan = mesh.Indices.AsSpan<uint>();
             var texIds = mesh.TexIndices.AsSpan<uint>();
 
-            var blocks = new ReadOnlySpan3D<Block?>(chunk.Blocks.Span, Width, Height, Depth);
+            var blocks = new ReadOnlySpan3D<Block>(chunk.Blocks.Span, Width, Height, Depth);
 
             for (var i = 0; i < Width; i++)
             {
@@ -348,27 +363,20 @@ namespace Voltium.CubeGame
             chunk.NeedsRebuild = false;
         }
 
-        private void BuildVisibleFaces(ref ReadOnlySpan3D<Block?> blocks, ref Span<BlockVertex> vertices, ref Span<uint> indices, ref Span<uint> texIds, int x, int y, int z, ref int numGeneratedVertices, ref int numGeneratedIndices)
+        private void BuildVisibleFaces(ref ReadOnlySpan3D<Block> blocks, ref Span<BlockVertex> vertices, ref Span<uint> indices, ref Span<uint> texIds, int x, int y, int z, ref int numGeneratedVertices, ref int numGeneratedIndices)
         {
-            var maybeBlock = blocks[x, y, z];
-
-            if (maybeBlock is null)
-            {
-                return;
-            }
-
-            var block = maybeBlock.GetValueOrDefault();
+            var block = blocks[x, y, z];
 
             // Check for faces
             // TODO clean this up
-            var hasLeftFace = x == 0 || blocks[x - 1, y, z] is null;
-            var hasRightFace = x == Width - 1 || blocks[x + 1, y, z] is null;
+            var hasLeftFace = x == 0 || !blocks[x - 1, y, z].IsOpaque;
+            var hasRightFace = x == Width - 1 || !blocks[x + 1, y, z].IsOpaque;
 
-            var hasBottomFace = y == 0 || blocks[x, y - 1, z] is null;
-            var hasTopFace = y == Height - 1 || blocks[x, y + 1, z] is null;
+            var hasBottomFace = y == 0 || !blocks[x, y - 1, z].IsOpaque;
+            var hasTopFace = y == Height - 1 || !blocks[x, y + 1, z].IsOpaque;
 
-            var hasFrontFace = z == 0 || blocks[x, y, z - 1] is null;
-            var hasBackFace = z == Depth - 1 || blocks[x, y, z + 1] is null;
+            var hasFrontFace = z == 0 || !blocks[x, y, z - 1].IsOpaque;
+            var hasBackFace = z == Depth - 1 || !blocks[x, y, z + 1].IsOpaque;
 
             if (hasLeftFace)
             {

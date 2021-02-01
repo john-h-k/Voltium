@@ -4,9 +4,37 @@ using Voltium.Common;
 using Voltium.Extensions;
 using Voltium.Core.Memory;
 using static TerraFX.Interop.Windows;
+using System.Threading;
+using Voltium.Common.Threading;
 
 namespace Voltium.Core.Devices
 {
+    struct InterlockedBool
+    {
+        private const int True = 1;
+        private const int False = 0;
+
+        private volatile int _value;
+
+        public bool Value
+        {
+            get => _value == True;
+            set => _value = value ? True : False;
+        }
+
+        public bool Exchange(bool value)
+        {
+            return Interlocked.Exchange(ref _value, value ? True : False) == True;
+        }
+
+        public bool CompareExchange(bool value, bool comparand)
+        {
+            return Interlocked.CompareExchange(ref _value, value ? True : False, comparand ? True : False) == True;
+        }
+
+        public static implicit operator bool(InterlockedBool val) => val.Value;
+    }
+
     internal unsafe sealed class SwapChainOutput : Output
     {
         private UniqueComPtr<IDXGISwapChain3> _swapChain;
@@ -98,6 +126,8 @@ namespace Voltium.Core.Devices
             CreateBuffersFromSwapChain();
         }
 
+        public override bool IsFullyOccluded => _swapChain.Ptr->Present(0, DXGI_PRESENT_TEST) == DXGI_STATUS_OCCLUDED;   
+
         private static DXGI_SWAP_CHAIN_DESC1 CreateDesc(OutputConfiguration desc, Size outputArea)
         {
             if (desc.BackBufferCount > BackBufferBuffer16.BufferLength)
@@ -121,25 +151,32 @@ namespace Voltium.Core.Devices
             };
         }
 
-        internal override void InternalResize(Size newSize)
+        internal override void InternalResize(Size newSize, uint newBufferCount, BackBufferFormat format)
         {
-            _presentQueue.Idle();
-
-            DataFormat format = _backBuffers[0].Format;
-            for (var i = 0U; i < _desc.BackBufferCount; i++)
+            MonitorLock? @lock = null;
+            try
             {
-                _backBuffers[i].Dispose();
+                @lock = _presentQueue.IdleAndTakeLock();
+
+                for (var i = 0U; i < _desc.BackBufferCount; i++)
+                {
+                    _backBuffers[i].Dispose();
+                }
+
+                _device.ThrowIfFailed(_swapChain.Ptr->ResizeBuffers(
+                       newBufferCount, // preserve existing number
+                       (uint)newSize.Width,
+                       (uint)newSize.Height,
+                       (DXGI_FORMAT)format, // preserve existing format
+                       0
+                ));
+
+                _backBufferIndex = _swapChain.Ptr->GetCurrentBackBufferIndex();
             }
-
-            _device.ThrowIfFailed(_swapChain.Ptr->ResizeBuffers(
-                   0, // preserve existing number
-                   (uint)newSize.Width,
-                   (uint)newSize.Height,
-                   DXGI_FORMAT.DXGI_FORMAT_UNKNOWN, // preserve existing format
-                   0
-            ));
-
-            _backBufferIndex = _swapChain.Ptr->GetCurrentBackBufferIndex();
+            finally
+            {
+                @lock?.Exit();
+            }
 
             CreateBuffersFromSwapChain();
         }

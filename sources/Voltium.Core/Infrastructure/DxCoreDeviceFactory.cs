@@ -147,7 +147,7 @@ namespace Voltium.Core.Infrastructure
 
         public override bool TryEnablePreferentialOrdering(DevicePreference preference)
         {
-            DXCoreAdapterPreference* pPreferences = stackalloc DXCoreAdapterPreference[4];
+            DXCoreAdapterPreference* pPreferences = stackalloc DXCoreAdapterPreference[3];
             int i = 0;
 
             _softwareOnly = preference.HasFlag(DevicePreference.Software) && !preference.HasFlag(DevicePreference.Hardware);
@@ -181,7 +181,7 @@ namespace Voltium.Core.Infrastructure
                     return false;
                 }
 
-                StackSentinel.StackAssert(i < 4);
+                StackSentinel.StackAssert(i < 3);
                 pPreferences[i++] = dxCorePref;
                 return true;
             }

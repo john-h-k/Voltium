@@ -16,7 +16,7 @@ namespace Voltium.CubeGame
         }
 
         public ref T this[int linear] => ref Span[linear];
-        public ref T this[int x, int y, int z] => ref Span[(((z * Depth) + y) * Width) + x];
+        public ref T this[int x, int y, int z] => ref Span[(((z * Height) + y) * Width) + x];
     }
 
     internal ref struct ReadOnlySpan3D<T>
@@ -33,7 +33,7 @@ namespace Voltium.CubeGame
         }
 
         public ref readonly T this[int linear] => ref Span[linear];
-        public ref readonly T this[int x, int y, int z] => ref Span[(((z * Depth) + y) * Width) + x];
+        public ref readonly T this[int x, int y, int z] => ref Span[(((z * Height) + y) * Width) + x];
 
         public int Linearise(int x, int y, int z) => (((z * Depth) + y) * Width) + x;
     }

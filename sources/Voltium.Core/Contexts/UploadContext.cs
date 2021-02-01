@@ -10,6 +10,7 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using TerraFX.Interop;
 using Voltium.Common;
+using Voltium.Core.Devices;
 using Voltium.Core.Memory;
 using Voltium.Core.Pool;
 using Voltium.TextureLoading;
@@ -93,7 +94,7 @@ namespace Voltium.Core.Contexts
         /// <param name="tex"></param>
         public Texture UploadTexture(ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, in TextureDesc tex)
         {
-            var destination = Device.Allocator.AllocateTexture(tex, ResourceState.Common);
+            var destination = Unsafe.As<GraphicsDevice>(Device).Allocator.AllocateTexture(tex, ResourceState.Common);
             UploadTextureToPreexisting(texture, subresources, destination);
             return destination;
         }

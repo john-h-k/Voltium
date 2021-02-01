@@ -51,8 +51,8 @@ namespace Voltium.Core.Pool
         }
 
         protected abstract UniqueComPtr<T> Create(TRentState state);
-        protected abstract void ManageRent(ref UniqueComPtr<T> value, TRentState state);
-        protected abstract void ManageReturn(ref UniqueComPtr<T> value);
+        protected virtual void ManageRent(ref UniqueComPtr<T> value, TRentState state) { }
+        protected virtual void ManageReturn(ref UniqueComPtr<T> value) { }
         protected virtual bool CanRent(ref UniqueComPtr<T> value, TRentState state) => true;
 
         protected virtual void InternalDispose()

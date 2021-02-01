@@ -4,7 +4,7 @@ using Voltium.Common;
 namespace Voltium.Core.Pipeline
 {
     /// <summary>
-    /// A <see cref="PipelineStateObject"/> for a grpahics pipeline
+    /// A <see cref="PipelineStateObject"/> for a raytracing pipeline
     /// </summary>
     public unsafe sealed class RaytracingPipelineStateObject : PipelineStateObject
     {

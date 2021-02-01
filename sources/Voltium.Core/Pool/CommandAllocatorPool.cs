@@ -16,7 +16,7 @@ namespace Voltium.Core.Devices
         private ComputeDevice _device;
 
         public CommandAllocatorPool(ComputeDevice device)
-        {;
+        {
             _device = device;
         }
 

@@ -7,7 +7,7 @@ namespace Voltium.CubeGame
 {
     internal struct Chunk
     {
-        public ReadOnlyMemory<Block?> Blocks { get; set; }
+        public ReadOnlyMemory<Block> Blocks { get; set; }
         public bool NeedsRebuild { get; set; }
     }
 }

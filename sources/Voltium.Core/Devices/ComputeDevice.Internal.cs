@@ -100,7 +100,7 @@ namespace Voltium.Core.Devices
         {
             using UniqueComPtr<ID3D12Resource> resource = default;
 
-            bool hasClearVal = desc->Desc.Dimension != D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_BUFFER && GpuAllocator.IsRenderTargetOrDepthStencil(desc->Desc.Flags);
+            bool hasClearVal = desc->Desc.Dimension != D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_BUFFER && ComputeAllocator.IsRenderTargetOrDepthStencil(desc->Desc.Flags);
 
             ThrowIfFailed(DevicePointer->CreatePlacedResource(
                  heap,
@@ -118,8 +118,7 @@ namespace Voltium.Core.Devices
         internal UniqueComPtr<ID3D12Resource> CreateCommittedResource(InternalAllocDesc* desc)
         {
             using UniqueComPtr<ID3D12Resource> resource = default;
-
-            bool hasClearVal = desc->Desc.Dimension != D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_BUFFER && GpuAllocator.IsRenderTargetOrDepthStencil(desc->Desc.Flags);
+                        bool hasClearVal = desc->Desc.Dimension != D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_BUFFER && ComputeAllocator.IsRenderTargetOrDepthStencil(desc->Desc.Flags);
 
             ThrowIfFailed(DevicePointer->CreateCommittedResource(
                     &desc->HeapProperties,
@@ -150,7 +149,7 @@ namespace Voltium.Core.Devices
 
         internal UniqueComPtr<ID3D12Heap> CreateHeap(D3D12_HEAP_DESC* desc)
         {
-            UniqueComPtr<ID3D12Heap> heap = default;
+            using UniqueComPtr<ID3D12Heap> heap = default;
             ThrowIfFailed(DevicePointer->CreateHeap(
                 desc,
                 heap.Iid,
@@ -259,36 +258,6 @@ namespace Voltium.Core.Devices
                 DevicePointer->GetCopyableFootprints(&desc, 0, numSubresources, 0, pLayouts, pNumRows, pRowSizesInBytes, &size);
                 requiredSize = size;
             }
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="tex"></param>
-        /// <param name="numSubresources"></param>
-        /// <returns></returns>
-        public ulong GetRequiredSize(
-            in Texture tex,
-            uint numSubresources
-        )
-        {
-            var desc = tex.GetResourcePointer()->GetDesc();
-            return GetRequiredSize(&desc, numSubresources);
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="tex"></param>
-        /// <param name="numSubresources"></param>
-        /// <returns></returns>
-        public ulong GetRequiredSize(
-            in TextureDesc tex,
-            uint numSubresources
-        )
-        {
-            GpuAllocator.CreateDesc(tex, out var desc);
-            return GetRequiredSize(&desc, numSubresources);
         }
 
         internal ulong GetRequiredSize(

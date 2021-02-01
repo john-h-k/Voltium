@@ -474,6 +474,11 @@ namespace Voltium.Core.Memory
 
         private bool ShouldCommitResource(InternalAllocDesc* desc)
         {
+            if (desc->AllocFlags.HasFlag(AllocFlags.ForceAllocateNotComitted))
+            {
+                LogContext.
+            }
+
             bool mustCommit =
                 ForceAllAllocationsCommitted
                 || desc->AllocFlags.HasFlag(AllocFlags.ForceAllocateComitted);

@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -273,15 +273,12 @@ namespace Voltium.ShaderCompiler
         public override void VisitNullableType(NullableTypeSyntax node) => base.VisitNullableType(node);
         public override void VisitObjectCreationExpression(ObjectCreationExpressionSyntax node)
         {
-            if (node.Pare)
-
             foreach (var field in node.Initializer?.Expressions ?? default)
             {
                 if (field is AssignmentExpressionSyntax assignment)
                 {
                     if (assignment.Left is IdentifierNameSyntax name)
                     {
-                        var access = SyntaxFactory.MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression, 
                     }
                 }
             }

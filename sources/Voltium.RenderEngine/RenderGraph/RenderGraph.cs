@@ -500,7 +500,7 @@ namespace Voltium.RenderEngine
 
         private void RecordWithoutHeuristics()
         {
-            var passes = _frame.RenderPasses.AsSpan();
+            var passes = _frame.RenderPasses.AsSpan()
             foreach (ref var pass in passes)
             {
                 RecordPass(ref pass);

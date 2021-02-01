@@ -104,6 +104,16 @@ namespace Voltium.Core.Infrastructure
         /// </summary>
         public DeviceType Type { get; }
 
+        public OutputEnumerator Outputs => new(this);
+
+        public struct OutputEnumerator
+        {
+            internal OutputEnumerator(in Adapter adapter)
+            { 
+
+            }
+        }
+
         /// <summary>
         /// Create a new instance of <see cref="Adapter"/>
         /// </summary>
@@ -167,6 +177,21 @@ namespace Voltium.Core.Infrastructure
 
         /// <inheritdoc cref="IDisposable"/>
         public void Dispose() => _adapter.Dispose();
+    }
+
+
+    public struct AdapterOutput
+    {
+        private UniqueComPtr<IDXGIOutput1> _output;
+
+        public ColorSpace ColorSpace { get; }
+    }
+
+    public enum ColorSpace
+    {
+        Sdr,
+        HdrScRgb,
+        Hdr10
     }
 
     /// <summary>

@@ -118,6 +118,7 @@ namespace Voltium.Core.ShaderLang
             public Vector2<float> GetSamplePosition(uint sampleIndex) => throw null!;
 
             public T this[uint sample, uint x, uint y] => throw null!;
+            public T this[uint x, uint y] => throw null!;
         }
     }
 }

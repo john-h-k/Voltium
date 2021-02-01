@@ -164,7 +164,7 @@ namespace Voltium.ShaderCompiler
         private static readonly DiagnosticDescriptor ShaderAccessibleItemsMustBePrivateOrProtectedOrPrivateProtected = new DiagnosticDescriptor(
             "VCS0004",
             nameof(ShaderAccessibleItemsMustBePrivateOrProtectedOrPrivateProtected),
-            "Only a single semantic is allowed per parameter",
+            "Shader accessible items must be <see langword=\"private\"\\>, <see langword=\"protected\"\\> or <see langword=\"private protected\"\\>",
             "Correctness",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true
