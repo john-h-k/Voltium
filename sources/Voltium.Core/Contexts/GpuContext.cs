@@ -198,10 +198,10 @@ namespace Voltium.Core
 
     internal unsafe struct CommandBeginRenderPass
     {
-        puublic RenderPassHandle RenderPass;
-        public DepthStencil DepthStencil
+        public RenderPassHandle RenderPass;
+        public DepthStencil DepthStencil;
         public uint RenderTargetCount;
-        public Render
+        public RenderTarget* Values => (RenderTarget*)((uint*)Unsafe.AsPointer(ref RenderTargetCount) + 1);
     }
 
     internal unsafe struct DepthStencil
