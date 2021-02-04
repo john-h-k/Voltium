@@ -48,7 +48,7 @@ namespace Voltium.Core
         BindDescriptors,
         Bind32BitConstants,
 
-        // Render pass
+        // Render passes
         BeginRenderPass,
         EndRenderPass,
 
@@ -99,6 +99,12 @@ namespace Voltium.Core
         [FieldOffset(sizeof(CommandType))]
         public byte Arguments;
 
+        #region Render passes
+        
+        [FieldOffset(sizeof(CommandType))]
+        public CommandBeginRenderPass BeginRenderPass;
+
+        #endregion
 
         #region Timestamps and queries
 
@@ -163,6 +169,12 @@ namespace Voltium.Core
         #region Clears
 
         [FieldOffset(sizeof(CommandType))]
+        public CommandClearBuffer ClearBuffer;
+
+        [FieldOffset(sizeof(CommandType))]
+        public CommandClearBufferInteger ClearBufferInteger;
+
+        [FieldOffset(sizeof(CommandType))]
         public CommandClearTexture ClearTexture;
 
         [FieldOffset(sizeof(CommandType))]
@@ -196,21 +208,62 @@ namespace Voltium.Core
         #endregion
     }
 
+    public enum LoadOperation
+    {
+        Discard = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE.D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_DISCARD,
+        Clear = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE.D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_CLEAR,
+        Preserve = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE.D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_PRESERVE,
+        NoAccess = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE.D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_NO_ACCESS,
+    }
+    public enum StoreOperation
+    {
+        Discard = D3D12_RENDER_PASS_ENDING_ACCESS_TYPE.D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_DISCARD,
+        Resolve = D3D12_RENDER_PASS_ENDING_ACCESS_TYPE.D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_RESOLVE,
+        Preserve = D3D12_RENDER_PASS_ENDING_ACCESS_TYPE.D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_PRESERVE,
+        NoAccess = D3D12_RENDER_PASS_ENDING_ACCESS_TYPE.D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_NO_ACCESS,
+    }
+
+    internal unsafe struct RenderPassInfo
+    {
+        public LoadOperation DepthLoad;
+        public StoreOperation DepthStore;
+        public LoadOperation StencilLoad;
+        public StoreOperation StencilStore;
+
+        public uint RenderTargetCount;
+
+        public LoadOperationBuffer8 RenderTargetLoad;
+        public StoreOperationBuffer8 RenderTargetStore;
+
+        [FixedBufferType(typeof(LoadOperation), 8)]
+        public struct LoadOperationBuffer8 { }
+        [FixedBufferType(typeof(StoreOperation), 8)]
+        public struct StoreOperationBuffer8 { }
+    }
+
     internal unsafe struct CommandBeginRenderPass
     {
         public RenderPassHandle RenderPass;
         public DepthStencil DepthStencil;
+        public bool AllowTextureWrites;
         public uint RenderTargetCount;
-        public RenderTarget* Values => (RenderTarget*)((uint*)Unsafe.AsPointer(ref RenderTargetCount) + 1);
+        public RenderTarget* RenderTargets => (RenderTarget*)((uint*)Unsafe.AsPointer(ref RenderTargetCount) + 1);
     }
 
     internal unsafe struct DepthStencil
     {
-
+        public ViewHandle Resource;
+        public float Depth;
+        public byte Stencil;
     }
+
     internal unsafe struct RenderTarget
     {
+        public ViewHandle Resource;
+        public fixed float ClearValue[4];
     }
+
+    
 
     internal unsafe struct CommandReadTimestamp
     {
@@ -275,7 +328,7 @@ namespace Voltium.Core
         public bool Predicate;
     }
 
-    internal struct SamplePosition { public sbyte X, Y };
+    internal struct SamplePosition { public sbyte X, Y; };
 
     internal unsafe struct CommandSetBlendFactor
     {
@@ -293,7 +346,7 @@ namespace Voltium.Core
         public uint SamplesPerPixel;
         public uint PixelCount;
 
-        public SamplePosition* Values => (SamplePosition*)((uint*)Unsafe.AsPointer(ref PixelCount) + 1);
+        public SamplePosition* SamplePositions => (SamplePosition*)((uint*)Unsafe.AsPointer(ref PixelCount) + 1);
     }
 
     internal unsafe struct CommandSetViewInstanceMask
@@ -326,12 +379,31 @@ namespace Voltium.Core
         public ulong Length;
     }
 
+    internal struct CommandTextureCopy
+    {
+        public ResourceHandle Source, Dest;
+        public ulong SourceOffset, DestOffset;
+        public ulong Length;
+    }
+
     [Flags]
     internal enum DepthStencilClearFlags : byte
     {
         ClearDepth = 1,
         ClearStencil = 1 << 2,
         ClearAll = ClearDepth | ClearStencil
+    }
+
+    internal unsafe struct CommandClearBuffer
+    {
+        public ViewHandle View;
+        public fixed float ClearValue[4];
+    }
+
+    internal unsafe struct CommandClearBufferInteger
+    {
+        public ViewHandle View;
+        public fixed uint ClearValue[4];
     }
 
     internal unsafe struct CommandClearDepthStencil
@@ -344,6 +416,9 @@ namespace Voltium.Core
         public uint RectangleCount;
         internal Rectangle* Rectangles => (Rectangle*)((uint*)Unsafe.AsPointer(ref RectangleCount) + 1);
     }
+
+
+
     internal unsafe struct CommandClearTextureInteger
     {
         public ViewHandle View;
