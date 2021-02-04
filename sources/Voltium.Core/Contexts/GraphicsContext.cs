@@ -75,6 +75,7 @@ namespace Voltium.Core
         /// Executes a <see cref="GraphicsContext"/>
         /// </summary>
         /// <param name="bundle"></param>
+        [ /* no nested bundles */ IllegalBundleMethod]
         public void ExecuteBundle(GraphicsContext bundle)
         {
             List->ExecuteBundle(bundle.GetListPointer());
@@ -96,6 +97,7 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="width">The width, in pixels</param>
         /// <param name="height">The height, in pixels</param>
+        [IllegalBundleMethod]
         public void SetViewportAndScissor(uint width, uint height)
         {
             SetViewports(new Viewport(0, 0, width, height, 0, Windows.D3D12_MAX_DEPTH));
@@ -106,6 +108,7 @@ namespace Voltium.Core
         /// Sets the viewport and scissor rectangle
         /// </summary>
         /// <param name="size">The size, in pixels</param>
+        [IllegalBundleMethod]
         public void SetViewportAndScissor(Size size)
             => SetViewportAndScissor((uint)size.Width, (uint)size.Height);
 
@@ -288,6 +291,7 @@ namespace Voltium.Core
         /// <param name="depthStencilHandle">The handle to the depth stencil descriptor</param>
         /// <param name="depthClear">The <see cref="float"/> values to clear the depth buffer to</param>
         /// <param name="stencilClear">The <see cref="byte"/> values to clear the stencil to</param> 
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void SetAndClearRenderTarget(in DescriptorHandle renderTargetHandle, Rgba128 clearValue = default, in DescriptorHandle? depthStencilHandle = null, float depthClear = 1, byte stencilClear = 0)
         {
             SetRenderTarget(renderTargetHandle, depthStencilHandle);
@@ -307,6 +311,7 @@ namespace Voltium.Core
         /// <param name="depthStencilHandle">The handle to the depth stencil descriptor</param>
         /// <param name="depthClear">The <see cref="float"/> values to clear the depth buffer to</param>
         /// <param name="stencilClear">The <see cref="byte"/> values to clear the stencil to</param> 
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void SetAndClearRenderTargets(in DescriptorSpan renderTargetHandles, Rgba128 clearValue = default, in DescriptorHandle? depthStencilHandle = null, float depthClear = 1, byte stencilClear = 0)
         {
             SetRenderTargets(renderTargetHandles, depthStencilHandle);
@@ -330,6 +335,7 @@ namespace Voltium.Core
         /// <param name="depthStencilHandle">The handle to the depth stencil descriptor</param>
         /// <param name="depthClear">The <see cref="float"/> values to clear the depth buffer to</param>
         /// <param name="stencilClear">The <see cref="byte"/> values to clear the stencil to</param> 
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void SetAndClearRenderTargets(ReadOnlySpan<DescriptorHandle> renderTargetHandles, Rgba128 clearValue = default, in DescriptorHandle? depthStencilHandle = null, float depthClear = 1, byte stencilClear = 0)
         {
             SetRenderTargets(renderTargetHandles, depthStencilHandle);
@@ -350,6 +356,7 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="renderTargetHandle">The handle to the render target descriptor</param>
         /// <param name="depthStencilHandle">The handle to the depth stencil descriptor</param>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void SetRenderTarget(in DescriptorHandle? renderTargetHandle = null, in DescriptorHandle? depthStencilHandle = null)
         {
             var rtv = renderTargetHandle.GetValueOrDefault().CpuHandle;
@@ -370,6 +377,7 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="renderTargets">A span of <see cref="DescriptorHandle"/>s representing each render target</param>
         /// <param name="depthStencilHandle">The handle to the depth stencil descriptor</param>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void SetRenderTargets(ReadOnlySpan<DescriptorHandle> renderTargets, DescriptorHandle? depthStencilHandle = null)
         {
             StackSentinel.StackAssert(StackSentinel.SafeToStackalloc<D3D12_CPU_DESCRIPTOR_HANDLE>(renderTargets.Length));
@@ -396,6 +404,7 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="renderTargetHandles">The render target handles</param>
         /// <param name="depthStencilHandle">The handle to the depth stencil descriptor</param>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void SetRenderTargets(in DescriptorSpan renderTargetHandles, in DescriptorHandle? depthStencilHandle = null)
         {
             var dsv = depthStencilHandle.GetValueOrDefault().CpuHandle;
@@ -438,6 +447,7 @@ namespace Voltium.Core
         /// <param name="rtv">The render target to clear</param>
         /// <param name="color">The RGBA color to clear it to</param>
         /// <param name="rect">The rectangle representing the section to clear</param>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void ClearRenderTarget(DescriptorHandle rtv, Rgba128 color, Rectangle rect)
         {
             FlushBarriers();
@@ -450,6 +460,7 @@ namespace Voltium.Core
         /// <param name="rtv">The render target to clear</param>
         /// <param name="color">The RGBA color to clear it to</param>
         /// <param name="rect">The rectangles representing the sections to clear. By default, this will clear the entire resource</param>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void ClearRenderTarget(DescriptorHandle rtv, Rgba128 color, ReadOnlySpan<Rectangle> rect = default)
         {
             fixed (Rectangle* p = rect)
@@ -465,6 +476,7 @@ namespace Voltium.Core
         /// <param name="dsv">The depth stencil target to clear</param>
         /// <param name="depth">The <see cref="float"/> value to set the depth resource to. By default, this is <c>1</c></param>
         /// <param name="rect">The rectangles representing the sections to clear. By default, this will clear the entire resource</param>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void ClearDepth(DescriptorHandle dsv, float depth = 1, ReadOnlySpan<Rectangle> rect = default)
         {
             fixed (Rectangle* p = rect)
@@ -480,6 +492,7 @@ namespace Voltium.Core
         /// <param name="dsv">The depth stencil target to clear</param>
         /// <param name="stencil">The <see cref="byte"/> value to set the stencil resource to. By default, this is <c>0</c></param>
         /// <param name="rect">The rectangles representing the sections to clear. By default, this will clear the entire resource</param>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void ClearStencil(DescriptorHandle dsv, byte stencil = 0, ReadOnlySpan<Rectangle> rect = default)
         {
             fixed (Rectangle* p = rect)
@@ -496,6 +509,7 @@ namespace Voltium.Core
         /// <param name="depth">The <see cref="float"/> value to set the depth resource to. By default, this is <c>1</c></param>
         /// <param name="stencil">The <see cref="byte"/> value to set the stencil resource to. By default, this is <c>0</c></param>
         /// <param name="rect">The rectangles representing the sections to clear. By default, this will clear the entire resource</param>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void ClearDepthStencil(DescriptorHandle dsv, float depth = 1, byte stencil = 0, ReadOnlySpan<Rectangle> rect = default)
         {
             fixed (Rectangle* p = rect)
@@ -509,6 +523,7 @@ namespace Voltium.Core
         /// Set the viewports
         /// </summary>
         /// <param name="viewport">The viewport to set</param>
+        [IllegalBundleMethod]
         public void SetViewports(in Viewport viewport)
         {
             fixed (Viewport* pViewport = &viewport)
@@ -521,6 +536,7 @@ namespace Voltium.Core
         /// Set the scissor rectangles
         /// </summary>
         /// <param name="rectangles">The rectangles to set</param>
+        [IllegalBundleMethod]
         public void SetScissorRectangles(ReadOnlySpan<Rectangle> rectangles)
         {
             fixed (Rectangle* pRects = rectangles)
@@ -534,12 +550,14 @@ namespace Voltium.Core
         /// Set the scissor rectangles
         /// </summary>
         /// <param name="rectangle">The rectangle to set</param>
+        [IllegalBundleMethod]
         public void SetScissorRectangles(Size rectangle) => SetScissorRectangles(new Rectangle(0, 0, rectangle.Width, rectangle.Height));
 
         /// <summary>
         /// Set the scissor rectangles
         /// </summary>
         /// <param name="rectangle">The rectangle to set</param>
+        [IllegalBundleMethod]
         public void SetScissorRectangles(Rectangle rectangle)
         {
             List->RSSetScissorRects(1, (RECT*)&rectangle);
@@ -549,6 +567,7 @@ namespace Voltium.Core
         /// Set the viewports
         /// </summary>
         /// <param name="viewports">The viewports to set</param>
+        [IllegalBundleMethod]
         public void SetViewports(ReadOnlySpan<Viewport> viewports)
         {
             fixed (Viewport* pViewports = viewports)
@@ -673,6 +692,7 @@ namespace Voltium.Core
         /// <param name="dest">The single-sampled dest <see cref="Texture"/></param>
         /// <param name="sourceSubresource">The index of the subresource from <paramref name="source"/> to use</param>
         /// <param name="destSubresource">The index of the subresource from <paramref name="dest"/> to use</param>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void ResolveSubresource([RequiresResourceState(ResourceState.ResolveSource)] in Texture source, [RequiresResourceState(ResourceState.ResolveDestination)] in Texture dest, uint sourceSubresource = 0, uint destSubresource = 0)
         {
             DataFormat format = source.Format == DataFormat.Unknown ? dest.Format : source.Format;
@@ -692,6 +712,7 @@ namespace Voltium.Core
         /// <param name="format">The <see cref="DataFormat"/> to resolve as</param>
         /// <param name="sourceSubresource">The index of the subresource from <paramref name="source"/> to use</param>
         /// <param name="destSubresource">The index of the subresource from <paramref name="dest"/> to use</param>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void ResolveSubresource([RequiresResourceState(ResourceState.ResolveSource)] in Texture source, [RequiresResourceState(ResourceState.ResolveDestination)] in Texture dest, DataFormat format, uint sourceSubresource = 0, uint destSubresource = 0)
         {
             //ResourceTransition(source, ResourceState.ResolveSource, sourceSubresource);

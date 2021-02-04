@@ -35,12 +35,11 @@ namespace Voltium.Core.Devices
             RECT window;
             _ = Windows.GetClientRect(hwnd, &window);
 
-            InternalResize(new Size(width: window.right - window.left, height: window.bottom - window.top));
+            InternalResize(new Size(width: window.right - window.left, height: window.bottom - window.top), 0, 0);
         }
 
-        internal override void InternalResize(Size newSize)
+        internal override void InternalResize(Size newSize, uint newBufferCount, BackBufferFormat format)
         {
-            DataFormat format = (DataFormat)_desc.BackBufferFormat;
             for (var i = 0U; i < _desc.BackBufferCount; i++)
             {
                 _backBuffers[i].Dispose();
@@ -58,7 +57,7 @@ namespace Voltium.Core.Devices
                 Width = (uint)newSize.Width,
                 Height = (uint)newSize.Height,
                 DepthOrArraySize = 1,
-                Format = format,
+                Format = (DataFormat)format,
                 MipCount = 1,
                 Dimension = TextureDimension.Tex2D,
                 ClearValue = default,

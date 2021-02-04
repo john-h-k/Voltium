@@ -21,24 +21,18 @@ namespace Voltium.Core.Pool
     internal struct ContextParams
     {
         public ComputeDevice Device;
-        public UniqueComPtr<ID3D12GraphicsCommandList6> List;
-        public UniqueComPtr<ID3D12CommandAllocator> Allocator;
         public PipelineStateObject? PipelineStateObject;
         public ExecutionContext Context;
         public ContextFlags Flags;
 
         public ContextParams(
             ComputeDevice device,
-            UniqueComPtr<ID3D12GraphicsCommandList6> list,
-            UniqueComPtr<ID3D12CommandAllocator> allocator,
             PipelineStateObject? pipelineStateObject,
             ExecutionContext context,
             ContextFlags flags
         )
         {
             Device = device;
-            List = list;
-            Allocator = allocator;
             PipelineStateObject = pipelineStateObject;
             Context = context;
             Flags = flags;

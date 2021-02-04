@@ -326,6 +326,7 @@ namespace Voltium.Core
         /// <param name="shaderOpaque">A <see cref="DescriptorHandle"/> to <paramref name="tex"/> which <b>must not</b> be shader-visible</param>
         /// <param name="tex">The <see cref="Texture"/> to clear</param>
         /// <param name="values">The <see cref="Vector128{UInt32}"/> to clear <paramref name="tex"/> to</param>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void ClearUnorderedAccessViewUInt32(
             DescriptorHandle shaderVisible,
             DescriptorHandle shaderOpaque,
@@ -344,6 +345,7 @@ namespace Voltium.Core
         /// <param name="shaderOpaque">A <see cref="DescriptorHandle"/> to <paramref name="tex"/> which <b>must not</b> be shader-visible</param>
         /// <param name="tex">The <see cref="Texture"/> to clear</param>
         /// <param name="values">The <see cref="Rgba128"/> to clear <paramref name="tex"/> to</param>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void ClearUnorderedAccessViewSingle(
             DescriptorHandle shaderVisible,
             DescriptorHandle shaderOpaque,
@@ -557,6 +559,7 @@ namespace Voltium.Core
         }
 
         /// <inheritdoc cref="Dispatch(uint, uint, uint)"/>
+        [IllegalRenderPassMethod]
         public void Dispatch(int x, int y = 1, int z = 1)
             => Dispatch((uint)x, (uint)y, (uint)z);
 
@@ -566,6 +569,7 @@ namespace Voltium.Core
         /// <param name="x">How many thread groups should be dispatched in the X direction</param>
         /// <param name="y">How many thread groups should be dispatched in the Y direction</param>
         /// <param name="z">How many thread groups should be dispatched in the Z direction</param>
+        [IllegalRenderPassMethod]
         public void Dispatch(uint x, uint y = 1, uint z = 1)
         {
             FlushBarriers();

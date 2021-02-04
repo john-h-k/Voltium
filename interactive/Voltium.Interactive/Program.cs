@@ -31,8 +31,10 @@ namespace Voltium.Interactive
     {
         private static int Main(string[] args)
         {
-            var application = new ExecuteIndirectApp();
-            return ApplicationRunner.RunWin32(application);
+            //var b = new CommandListMethodBenchmark();
+            //b.Setup();
+            BenchmarkRunner.Run<CommandListMethodBenchmark>();
+            return 0;
         }
     }
 
@@ -47,7 +49,7 @@ namespace Voltium.Interactive
         [Benchmark]
         public void LogHelper_WriteLine()
         {
-             LogHelper.Log(LogLevel.Trace, "Hello world, Console.WriteLine here!");
+             //LogHelper.Log(LogLevel.Trace, "Hello world, Console.WriteLine here!");
         }
     }
 

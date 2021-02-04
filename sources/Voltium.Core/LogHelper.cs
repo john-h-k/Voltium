@@ -58,15 +58,38 @@ namespace Voltium.Common
             }
         }
 
+        private unsafe struct Variant
+        {
+            public enum Tag
+            {
+                Byte, SByte,
+                Int16, UInt16,
+                Int32, UInt32,
+                Int64, UInt64,
+                Single, Double,
+                Bool, Char,
+                Decimal, Guid
+                DateTime, TimeSpan,
+                Object,
+            }
+
+            public Tag Type;
+            public fixed byte Value[16];
+            public object? Object;
+        }
+
 
         public struct Context
         {
-            public Context(int value) => Value = value;
+            internal Context(int value) => Value = value;
 
-            private static int _lastLogContext;
             private int Value;
-            public static Context Create() => new Context(Interlocked.Increment(ref _lastLogContext));
+
+            public void Log(LogLevel level, FormattableString value) => 
         }
+
+        private static int _lastLogContext;
+        public static Context CreateContext() => new Context(Interlocked.Increment(ref _lastLogContext));
 
 
         private static readonly Timer AsyncFlush = GetAsyncFlushTimer();

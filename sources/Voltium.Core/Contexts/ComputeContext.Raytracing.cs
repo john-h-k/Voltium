@@ -23,6 +23,7 @@ namespace Voltium.Core
         /// <param name="scratch">The scratch-space <see cref="Buffer"/> used by the driver during the update</param>
         /// <param name="dest">The destination buffer for the updated structure. This can be the same as <paramref name="source"/> to perform an in-place update</param>
         /// <param name="flags">The <see cref="BuildAccelerationStructureFlags"/> to apply to the update</param>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void UpdateAccelerationStructure(
             ulong bottomLevelGpuPointer,
             Layout layout,
@@ -62,6 +63,7 @@ namespace Voltium.Core
         /// <param name="scratch">The scratch-space <see cref="Buffer"/> used by the driver during the build</param>
         /// <param name="dest">The destination buffer for the structure</param>
         /// <param name="flags">The <see cref="BuildAccelerationStructureFlags"/> to apply to the build</param>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void BuildAccelerationStructure(
             in Buffer bottomLevelGpuPointer,
             Layout layout,
@@ -90,6 +92,7 @@ namespace Voltium.Core
         }
 
         /// <inheritdoc cref="BuildAccelerationStructure(ReadOnlySpan{GeometryDesc}, in Buffer, in RaytracingAccelerationStructure, BuildAccelerationStructureFlags)" />
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void BuildAccelerationStructure(
             in GeometryDesc geometry,
             [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer scratch,
@@ -105,6 +108,7 @@ namespace Voltium.Core
         /// <param name="scratch">The scratch-space <see cref="Buffer"/> used by the driver during the build</param>
         /// <param name="dest">The destination buffer for the structure</param>
         /// <param name="flags">The <see cref="BuildAccelerationStructureFlags"/> to apply to the build</param>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void BuildAccelerationStructure(
             ReadOnlySpan<GeometryDesc> geometry,
             [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer scratch,
@@ -136,6 +140,7 @@ namespace Voltium.Core
 
 
         /// <inheritdoc cref="UpdateAccelerationStructure(ReadOnlySpan{GeometryDesc}, in RaytracingAccelerationStructure, in Buffer, in RaytracingAccelerationStructure, BuildAccelerationStructureFlags)"/>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void UpdateAccelerationStructure(
             in GeometryDesc geometry,
             [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure source,
@@ -153,6 +158,7 @@ namespace Voltium.Core
         /// <param name="scratch">The scratch-space <see cref="Buffer"/> used by the driver during the update</param>
         /// <param name="dest">The destination buffer for the updated structure. This can be the same as <paramref name="source"/> to perform an in-place update</param>
         /// <param name="flags">The <see cref="BuildAccelerationStructureFlags"/> to apply to the build</param>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void UpdateAccelerationStructure(
             ReadOnlySpan<GeometryDesc> geometry,
             [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure source,
@@ -192,6 +198,7 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="source">The acceleration structure to copy from</param>
         /// <param name="destination">The acceleration structure to copy to</param>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void CopyAccelerationStructure(
             [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure source,
             [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure destination
@@ -201,6 +208,7 @@ namespace Voltium.Core
             List->CopyRaytracingAccelerationStructure(source.GpuAddress, destination.GpuAddress, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_COPY_MODE.D3D12_RAYTRACING_ACCELERATION_STRUCTURE_COPY_MODE_CLONE);
         }
 
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void EmitAccelerationStructureCompactedSize(
             [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure accelerationStructure,
             [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer dest
@@ -217,6 +225,7 @@ namespace Voltium.Core
             List->EmitRaytracingAccelerationStructurePostbuildInfo(&info, 1, &asAddress);
         }
 
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void EmitAccelerationStructureSerializationInfo(
             [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure accelerationStructure,
             [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer dest
@@ -240,6 +249,7 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="accelerationStructure">The acceleration structure to be serialized</param>
         /// <param name="serialized">The output to contain the opaque serialized data</param>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void SerializeAccelerationStructure(
             [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in Buffer accelerationStructure,
             [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer serialized
@@ -256,6 +266,7 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="accelerationStructure">The opaque serialized data to be deserialized</param>
         /// <param name="serialized">The output to contain the acceleration structure</param>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void DeserializeAccelerationStructure(
             [RequiresResourceState(ResourceState.NonPixelShaderResource)] in Buffer serialized,
             [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in Buffer accelerationStructure
@@ -270,6 +281,7 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="uncompacted">The acceleration structure to compact</param>
         /// <param name="compacted">The output to contain the acceleration structure</param>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void CompactAccelerationStructure(
             [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure uncompacted,
             [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure compacted
@@ -283,6 +295,7 @@ namespace Voltium.Core
         /// Dispatches a raytracing operation
         /// </summary>
         /// <param name="desc">The <see cref="RayDispatchDesc"/> which describes the raytracing operation</param>
+        [IllegalRenderPassMethod]
         public void DispatchRays(in RayDispatchDesc desc)
         {
             fixed (D3D12_DISPATCH_RAYS_DESC* pDesc = &desc.Desc)
@@ -294,6 +307,7 @@ namespace Voltium.Core
         /// <summary>
         /// Dispatches a raytracing operation
         /// </summary>
+        [IllegalRenderPassMethod]
         public void DispatchRays(
             uint width,
             in ShaderRecord raygenRecord,
@@ -305,6 +319,7 @@ namespace Voltium.Core
         /// <summary>
         /// Dispatches a raytracing operation
         /// </summary>
+        [IllegalRenderPassMethod]
         public void DispatchRays(
             uint width,
             uint height,
@@ -317,6 +332,7 @@ namespace Voltium.Core
         /// <summary>
         /// Dispatches a raytracing operation
         /// </summary>
+        [IllegalRenderPassMethod]
         public void DispatchRays(
             uint width,
             uint height,

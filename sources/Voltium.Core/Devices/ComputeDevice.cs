@@ -25,6 +25,7 @@ using Microsoft.Win32.SafeHandles;
 using System.Runtime.Versioning;
 using Microsoft.Toolkit.HighPerformance.Memory;
 using Voltium.Core.Exceptions;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Voltium.Core.Devices
 {
@@ -107,7 +108,7 @@ namespace Voltium.Core.Devices
             => new DescriptorHeap(this, type, descriptorCount, shaderVisible);
 
 
-
+        [DoesNotReturn]
         internal void ThrowGraphicsException(string message, Exception? inner = null) => throw new GraphicsException(this, message, inner);
 
 

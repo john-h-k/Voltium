@@ -22,7 +22,7 @@ namespace Voltium.Core.Devices
         public readonly ExecutionContext Type;
         public readonly ulong Frequency;
 
-        internal readonly MonitorLock WorkSubmissionLock = MonitorLock.Create();
+        internal MonitorLock WorkSubmissionLock = MonitorLock.Create();
 
         internal ID3D12CommandQueue* GetQueue() => _queue.Ptr;
 

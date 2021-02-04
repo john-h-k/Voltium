@@ -476,7 +476,6 @@ namespace Voltium.Core.Memory
         {
             if (desc->AllocFlags.HasFlag(AllocFlags.ForceAllocateNotComitted))
             {
-                LogContext.
             }
 
             bool mustCommit =

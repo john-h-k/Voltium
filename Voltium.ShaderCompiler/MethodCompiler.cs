@@ -203,7 +203,7 @@ namespace Voltium.ShaderCompiler
 
 
         private static readonly DiagnosticDescriptor InvalidIntrinsicUsage = new DiagnosticDescriptor(
-            "VCS0008",
+            "VCS0009",
             nameof(InvalidIntrinsicUsage),
             "Intrinsic {0} is not usable from the {1} shader",
             "Correctness",

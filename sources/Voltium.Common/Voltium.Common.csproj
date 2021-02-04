@@ -17,7 +17,7 @@
     <PackageReference Include="Microsoft.Extensions.Logging" Version="5.0.0-preview.4.20251.6" />
     <PackageReference Include="Microsoft.Toolkit.HighPerformance" Version="7.0.0-build.531" />
     <PackageReference Include="SixLabors.ImageSharp" Version="1.0.0" />
-    <PackageReference Include="TerraFX.Interop.Windows" Version="10.0.19041-beta2-421722498" />
+    <PackageReference Include="TerraFX.Interop.Windows" Version="10.0.19041-beta2-528020472" />
     <PackageReference Include="TerraFX.Interop.Libc" Version="1.2017.0-alpha-235193088" />
     <PackageReference Include="RaiiSharp.Annotations" Version="1.0.1" />
   </ItemGroup>

@@ -29,9 +29,8 @@ namespace Voltium.Core.Devices
             _maybeHwnd = default;
         }
 
-        internal override void InternalResize(Size newSize)
+        internal override void InternalResize(Size newSize, uint newBackBufferCount, BackBufferFormat format)
         {
-            DataFormat format = _backBuffers[0].Format;
             for (var i = 0U; i < _desc.BackBufferCount; i++)
             {
                 _backBuffers[i].Dispose();
@@ -49,7 +48,7 @@ namespace Voltium.Core.Devices
                 Width = (uint)newSize.Width,
                 Height = (uint)newSize.Height,
                 DepthOrArraySize = 1,
-                Format = format,
+                Format = (DataFormat)format,
                 MipCount = 1,
                 Dimension = TextureDimension.Tex2D,
                 ClearValue = default,
@@ -59,7 +58,7 @@ namespace Voltium.Core.Devices
 
             var readbackDesc = new BufferDesc
             {
-                Length = (long)_device.GetRequiredSize(desc, 0),
+                Length = 0,//(long)_device.GetRequiredSize(desc, 0),
                 ResourceFlags = ResourceFlags.DenyShaderResource
             };
 

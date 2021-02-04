@@ -31,4 +31,8 @@
   <ItemGroup>
     <Folder Include="Debug\" />
   </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MathSharp" Version="2.0.0-pre" />
+  </ItemGroup>
 </Project>

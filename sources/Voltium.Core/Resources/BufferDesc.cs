@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 namespace Voltium.Core.Memory
 {
     /// <summary>
-    /// Describes a buffer, for use by the <see cref="GpuAllocator"/>
+    /// Describes a buffer, for use by the <see cref="GraphicsAllocator"/>
     /// </summary>
     public struct BufferDesc
     {

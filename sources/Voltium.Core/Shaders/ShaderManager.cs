@@ -264,7 +264,7 @@ namespace Voltium.Core.Devices
             OutputEncoding encoding = OutputEncoding.Utf16,
             string shaderDir = ""
         )
-            => CompileShader(name, shaderText, type, flags, entrypoint, encoding, shaderDir);
+            => CompileShader(name, shaderText, ShaderModel.LatestVersion(type), flags, entrypoint, encoding, shaderDir);
 
         /// <summary>
         /// Compiles a new <see cref="CompiledShader"/> from a name and a <see cref="Stream"/>

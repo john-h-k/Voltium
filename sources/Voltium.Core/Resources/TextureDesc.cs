@@ -7,7 +7,7 @@ using Rectangle = System.Drawing.Rectangle;
 namespace Voltium.Core.Memory
 {
     /// <summary>
-    /// Describes a buffer, for use by the <see cref="GpuAllocator"/>
+    /// Describes a buffer, for use by the <see cref="GraphicsAllocator"/>
     /// </summary>
     [Fluent]
     public partial struct TextureDesc

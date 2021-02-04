@@ -128,6 +128,7 @@ namespace Voltium.Core
         /// <param name="address">The GPU address to write to</param>
         /// <param name="value">The 32 bit value to write to memory</param>
         /// <param name="mode">The <see cref="WriteBufferImmediateMode"/> mode to write with. By default, this is <see cref="WriteBufferImmediateMode.Default"/></param>
+        [IllegalBundleMethod]
         public void WriteBufferImmediate(ulong address, uint value, WriteBufferImmediateMode mode = WriteBufferImmediateMode.Default)
         {
             var param = new D3D12_WRITEBUFFERIMMEDIATE_PARAMETER
@@ -147,6 +148,7 @@ namespace Voltium.Core
         /// <param name="pairs">The GPU address and value pairs to write</param>
         /// <param name="modes">The <see cref="WriteBufferImmediateMode"/> modes to write with. By default, this is <see cref="WriteBufferImmediateMode.Default"/>.
         /// If <see cref="ReadOnlySpan{T}.Empty"/> is passed, <see cref="WriteBufferImmediateMode.Default"/> is used.</param>
+        [IllegalBundleMethod]
         public void WriteBufferImmediate(ReadOnlySpan<(ulong Address, uint Value)> pairs, ReadOnlySpan<WriteBufferImmediateMode> modes = default)
         {
             if (!modes.IsEmpty && modes.Length != pairs.Length)
@@ -171,6 +173,7 @@ namespace Voltium.Core
         /// value in <paramref name="buff"/> will cause the operation to execute.</param>
         /// <param name="buff">The <see cref="Buffer"/> to read the predication value from</param>
         /// <param name="offset">The offset, in bytes, the predication value</param>
+        [IllegalBundleMethod]
         public void SetPredication(bool predicate, [RequiresResourceState(ResourceState.Predication)] in Buffer buff, uint offset = 0)
         {
             FlushBarriers();
@@ -191,33 +194,40 @@ namespace Voltium.Core
             }
         }
 
+        [IllegalBundleMethod]
         public Query ScopedQuery<TQuery>(in QueryHeap heap, uint index) where TQuery : struct, IQueryType
             => ScopedQuery(heap, default(TQuery).Type, index);
 
+        [IllegalBundleMethod]
         public Query ScopedQuery(in QueryHeap heap, QueryType type, uint index)
         {
             BeginQuery(heap, type, index);
             return new() { _context = this, _queryHeap = heap.GetQueryHeap(), _index = index, _query = (D3D12_QUERY_TYPE)type };
         }
 
+        [IllegalBundleMethod]
         public void BeginQuery(in QueryHeap heap, QueryType type, uint index)
         {
             List->BeginQuery(heap.GetQueryHeap(), (D3D12_QUERY_TYPE)type, index);
         }
 
+        [IllegalBundleMethod]
         public void EndQuery(in QueryHeap heap, QueryType type, uint index)
         {
             List->EndQuery(heap.GetQueryHeap(), (D3D12_QUERY_TYPE)type, index);
         }
 
+        [IllegalBundleMethod]
         public void QueryTimestamp(in QueryHeap heap, uint index)
         {
             List->EndQuery(heap.GetQueryHeap(), D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP, index);
         }
 
+        [IllegalBundleMethod]
         public void ResolveQuery<TQuery>(in QueryHeap heap, Range queries, [RequiresResourceState(ResourceState.CopyDestination)] in Buffer dest, uint offset = 0) where TQuery : struct, IQueryType
             => ResolveQuery(heap, default(TQuery).Type, queries, dest, offset);
 
+        [IllegalBundleMethod]
         public void ResolveQuery(in QueryHeap heap, QueryType type, Range queries, [RequiresResourceState(ResourceState.CopyDestination)] in Buffer dest, uint offset = 0)
         {
             FlushBarriers();
@@ -231,6 +241,7 @@ namespace Voltium.Core
         /// <param name="tex">The <see cref="Texture"/> to transition</param>
         /// <param name="current">The current <see cref="ResourceState"/> of <paramref name="tex"/></param>
         /// <param name="subresource">The subresource to transition, by default, all subresources</param>
+        [IllegalBundleMethod]
         public void TransitionForCrossContextAccess([RequiresResourceState("current")] in Texture tex, ResourceState current, uint subresource = uint.MaxValue)
         {
             Barrier(ResourceBarrier.Transition(tex, current, ResourceState.Common, subresource));
@@ -241,6 +252,7 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="buffer">The <see cref="Buffer"/> to transition</param>
         /// <param name="current">The current <see cref="ResourceState"/> of <paramref name="buffer"/></param>
+        [IllegalBundleMethod]
         public void TransitionForCrossContextAccess([RequiresResourceState("current")] in Buffer buffer, ResourceState current)
         {
             Barrier(ResourceBarrier.Transition(buffer, current, ResourceState.Common));
@@ -266,6 +278,7 @@ namespace Voltium.Core
         /// <param name="source">The resource to copy from</param>
         /// <param name="dest">The resource to copy to</param>
         /// <param name="subresource">The index of the subresource to copy</param>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void CopyBufferToTexture(
             [RequiresResourceState(ResourceState.CopySource)] in Buffer source,
             [RequiresResourceState(ResourceState.CopyDestination)] in Texture dest,
@@ -286,6 +299,7 @@ namespace Voltium.Core
         /// <param name="source">The resource to copy from</param>
         /// <param name="dest">The resource to copy to</param>
         /// <param name="subresource">The index of the subresource to copy</param>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void CopyTextureToBuffer(
             [RequiresResourceState(ResourceState.CopySource)] in Texture source,
             [RequiresResourceState(ResourceState.CopyDestination)] in Buffer dest,
@@ -306,6 +320,7 @@ namespace Voltium.Core
         /// <param name="source">The resource to copy from</param>
         /// <param name="dest">The resource to copy to</param>
         /// <param name="subresource">The index of the subresource to copy</param>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void CopySubresource(
             [RequiresResourceState(ResourceState.CopySource)] in Texture source,
             [RequiresResourceState(ResourceState.CopyDestination)] in Texture dest,
@@ -319,6 +334,7 @@ namespace Voltium.Core
         /// <param name="dest">The resource to copy to</param>
         /// <param name="sourceSubresource">The index of the subresource to copy from</param>
         /// <param name="destSubresource">The index of the subresource to copy to</param>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void CopySubresource(
             [RequiresResourceState(ResourceState.CopySource)] in Texture source,
             [RequiresResourceState(ResourceState.CopyDestination)] in Texture dest,
@@ -349,6 +365,7 @@ namespace Voltium.Core
         /// <param name="dest">The <see cref="Buffer"/> to copy to</param>
         /// <param name="destOffset">The offset, in bytes, to start copying to</param>
         /// <param name="numBytes">The number of bytes to copy</param>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void CopyBufferRegion(
             [RequiresResourceState(ResourceState.CopySource)] in Buffer source,
             uint sourceOffset,
@@ -368,6 +385,7 @@ namespace Voltium.Core
         /// <param name="source">The <see cref="Buffer"/> to copy from</param>
         /// <param name="dest">The <see cref="Buffer"/> to copy to</param>
         /// <param name="numBytes">The number of bytes to copy</param>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void CopyBufferRegion(
             [RequiresResourceState(ResourceState.CopySource)] in Buffer source,
             [RequiresResourceState(ResourceState.CopyDestination)] in Buffer dest,
@@ -376,6 +394,7 @@ namespace Voltium.Core
             => CopyBufferRegion(source, dest, (uint)numBytes);
 
         /// <inheritdoc cref="CopyBufferRegion(in Buffer, in Buffer, uint)"/>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void CopyBufferRegion(
             [RequiresResourceState(ResourceState.CopySource)] in Buffer source,
             [RequiresResourceState(ResourceState.CopyDestination)] in Buffer dest,
@@ -393,6 +412,7 @@ namespace Voltium.Core
         /// <param name="subresourceIndex">The index of the subresource to copy from</param>
         /// <param name="dest"></param>
         /// <param name="layout"></param>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void CopySubresource(in Texture source, uint subresourceIndex, out Buffer dest, out SubresourceLayout layout)
         {
             Device.GetCopyableFootprint(source, subresourceIndex, out var d3d12Layout, out var numRows, out var rowSize, out var size);
@@ -413,6 +433,7 @@ namespace Voltium.Core
         /// <param name="source">The resource to copy from</param>
         /// <param name="subresourceIndex">The index of the subresource to copy from</param>
         /// <param name="data"></param>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void CopySubresource(in Texture source, uint subresourceIndex, in Buffer data)
         {
             Device.GetCopyableFootprint(source, subresourceIndex, out _, out _, out var rowSize, out var size);
@@ -445,6 +466,7 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="source">The resource to copy from</param>
         /// <param name="dest">The resource to copy to</param>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void CopyResource(
             [RequiresResourceState(ResourceState.CopySource)] in Buffer source,
             [RequiresResourceState(ResourceState.CopyDestination)] in Buffer dest
@@ -472,6 +494,7 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="source">The resource to copy from</param>
         /// <param name="dest">The resource to copy to</param>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void CopyResource(
             [RequiresResourceState(ResourceState.CopySource)] in Texture source,
             [RequiresResourceState(ResourceState.CopyDestination)] in Texture dest
@@ -633,6 +656,7 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="barrier">The <see cref="ResourceBarrier"/> to perform and reverse</param>
         /// <returns>A new <see cref="ScopedBarrierSet"/></returns>
+        [IllegalBundleMethod]
         public ScopedBarrierSet ScopedBarrier(in ResourceBarrier barrier)
         {
             Barrier(barrier);
@@ -645,6 +669,7 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="barriers">The <see cref="ResourceBarrier"/>s to perform and reverse</param>
         /// <returns>A new <see cref="ScopedBarrierSet"/></returns>
+        [IllegalBundleMethod]
         public ScopedBarrierSet ScopedBarrier(ReadOnlySpan<ResourceBarrier> barriers)
         {
             Barrier(barriers);
@@ -655,6 +680,7 @@ namespace Voltium.Core
         /// Mark a resource barrierson the command list
         /// </summary>
         /// <param name="barrier">The barrier</param>
+        [IllegalBundleMethod]
         public void Barrier(in ResourceBarrier barrier)
         {
             AddBarrier(barrier.Barrier);
@@ -664,6 +690,7 @@ namespace Voltium.Core
         /// Mark a set of resource barriers on the command list
         /// </summary>
         /// <param name="barriers">The barriers</param>
+        [IllegalBundleMethod]
         public void Barrier(ReadOnlySpan<ResourceBarrier> barriers)
         {
             AddBarriers(MemoryMarshal.Cast<ResourceBarrier, D3D12_RESOURCE_BARRIER>(barriers));

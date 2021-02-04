@@ -182,7 +182,7 @@ namespace Voltium.Core.Infrastructure
 
     public struct AdapterOutput
     {
-        private UniqueComPtr<IDXGIOutput1> _output;
+        //private UniqueComPtr<IDXGIOutput1> _output;
 
         public ColorSpace ColorSpace { get; }
     }
