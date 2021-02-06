@@ -189,12 +189,15 @@ namespace Voltium.Core.Devices
         {
             _presentQueue.Wait(presentAfter);
 
-            var context = _device.BeginGraphicsContext();
-            context.CopyResource(_backBuffers[_backBufferIndex], _actualBackBuffers[_backBufferIndex]);
-            context.Close();
-            var list = context.List;
+            if (_presentQueueIsSeperate)
+            {
+                var context = _device.BeginGraphicsContext();
+                context.CopyResource(_backBuffers[_backBufferIndex], _actualBackBuffers[_backBufferIndex]);
+                context.Close();
+                var list = context.List;
 
-            _presentQueue.ExecuteCommandLists(new(&list, 1));
+                _presentQueue.ExecuteCommandLists(new(&list, 1));
+            }
 
             _device.ThrowIfFailed(_swapChain.Ptr->Present(_desc.SyncInterval, 0));
         }

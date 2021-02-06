@@ -30,6 +30,36 @@ namespace Voltium.Core.Devices
 
         private bool _disposed;
 
+
+        /// <summary>
+        /// The default allocator for the device
+        /// </summary>
+        public new GraphicsAllocator Allocator => Unsafe.As<GraphicsAllocator>(base.Allocator);
+
+        /// <summary>
+        /// The default <see cref="IndirectCommand"/> for performing an indirect draw.
+        /// It changes no root signature bindings and has a command size of <see langword="sizeof"/>(<see cref="IndirectDrawArguments"/>)
+        /// </summary>
+        public IndirectCommand DrawIndirect { get; }
+
+        /// <summary>
+        /// The default <see cref="IndirectCommand"/> for performing an indirect indexed draw.
+        /// It changes no root signature bindings and has a command size of <see langword="sizeof"/>(<see cref="IndirectDrawIndexedArguments"/>)
+        /// </summary>
+        public IndirectCommand DrawIndexedIndirect { get; }
+
+        /// <summary>
+        /// The default <see cref="IndirectCommand"/> for performing an indirect dispatch rays.
+        /// It changes no root signature bindings and has a command size of <see langword="sizeof"/>(<see cref="IndirectDispatchRaysArguments"/>)
+        /// </summary>
+        public IndirectCommand DispatchRaysIndirect { get; }
+
+        /// <summary>
+        /// The default <see cref="IndirectCommand"/> for performing an indirect dispatch mesh.
+        /// It changes no root signature bindings and has a command size of <see langword="sizeof"/>(<see cref="IndirectDispatchMeshArguments"/>)
+        /// </summary>
+        public IndirectCommand DispatchMeshIndirect { get; }
+
         /// <summary>
         /// Block until this device has idled on all queues
         /// </summary>
@@ -103,8 +133,52 @@ namespace Voltium.Core.Devices
         private GraphicsDevice(FeatureLevel level, in Adapter? adapter, DebugLayerConfiguration? config = null) : base(level, adapter, config)
         {
             GraphicsQueue = new CommandQueue(this, ExecutionContext.Graphics, true);
+            base.Allocator = new GraphicsAllocator(this);
+
+            DrawIndirect = CreateIndirectCommand(IndirectArgument.CreateDraw());
+            DrawIndexedIndirect = CreateIndirectCommand(IndirectArgument.CreateDrawIndexed());
+            DispatchMeshIndirect = CreateIndirectCommand(IndirectArgument.CreateDispatchMesh());
+            DispatchRaysIndirect = CreateIndirectCommand(IndirectArgument.CreateDispatchRays());
         }
 
+
+        public override sealed IndirectCommand CreateIndirectCommand(RootSignature? rootSignature, ReadOnlySpan<IndirectArgument> arguments, int commandStride = -1)
+        {
+            if (commandStride == -1)
+            {
+                commandStride = CalculateCommandStride(arguments);
+            }
+
+            if (arguments.Length == 1)
+            {
+                var cmd = arguments[0].Desc.Type switch
+                {
+                    D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DRAW when commandStride == sizeof(IndirectDrawArguments) => DrawIndirect,
+                    D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DRAW_INDEXED when commandStride == sizeof(IndirectDrawIndexedArguments) => DrawIndexedIndirect,
+                    D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH when commandStride == sizeof(IndirectDispatchArguments) => DispatchIndirect,
+                    D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH_RAYS when commandStride == sizeof(IndirectDispatchRaysArguments) => DispatchRaysIndirect,
+                    D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH_MESH when commandStride == sizeof(IndirectDispatchMeshArguments) => DispatchMeshIndirect,
+                    _ => null
+                };
+
+                if (cmd is not null)
+                {
+                    return cmd;
+                }
+            }
+
+            return new IndirectCommand(CreateCommandSignature(rootSignature, arguments, (uint)commandStride).Move(), rootSignature, (uint)commandStride, arguments.ToArray());
+        }
+
+
+        public void GetTextureInformation(in TextureDesc desc, out ulong sizeInBytes, out ulong alignment)
+        {
+            InternalAllocDesc alloc;
+            Allocator.CreateAllocDesc(desc, &alloc, ResourceState.Common, AllocFlags.None);
+            var info = GetAllocationInfo(&alloc);
+            sizeInBytes = info.SizeInBytes;
+            alignment = info.Alignment;
+        }
 
         // Output requires this for swapchain creation
         internal IUnknown* GetGraphicsQueue() => (IUnknown*)GraphicsQueue.GetQueue();
@@ -135,7 +209,7 @@ namespace Voltium.Core.Devices
             }
 
             const int numHeaps = 2;
-            var heaps = stackalloc ID3D12DescriptorHeap*[numHeaps] { UavCbvSrvs.GetHeap(), _samplers.GetHeap() };
+            var heaps = stackalloc ID3D12DescriptorHeap*[numHeaps] { Resources.GetHeap(), _samplers.GetHeap() };
 
             context.List->SetDescriptorHeaps(numHeaps, heaps);
         }

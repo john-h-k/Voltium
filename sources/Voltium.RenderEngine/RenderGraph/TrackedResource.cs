@@ -42,7 +42,7 @@ namespace Voltium.RenderEngine
         {
             if (Desc.Type == ResourceType.Buffer)
             {
-                return ResourceBarrier.UnorderedAcccess(Desc.Buffer, options);
+                return ResourceBarrier.UnorderedAccess(Desc.Buffer, options);
             }
             else
             {
@@ -51,7 +51,7 @@ namespace Voltium.RenderEngine
         }
 
 
-        public void AllocateFrom(GpuAllocator allocator)
+        public void AllocateFrom(GraphicsAllocator allocator)
         {
             if (Desc.Type == ResourceType.Buffer)
             {

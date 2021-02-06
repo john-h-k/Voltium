@@ -1,4 +1,6 @@
+using System;
 using static TerraFX.Interop.DXGI_FORMAT;
+using static Voltium.Core.DataFormat;
 
 namespace Voltium.Core
 {
@@ -468,5 +470,166 @@ namespace Voltium.Core
         /// </summary>
 
         OPAQUE_420 = DXGI_FORMAT_420_OPAQUE, // not supported but gotta have 420  😎
+    }
+
+
+    public static class DataFormatExtensions
+    {
+        public static bool IsBlockCompressed(this DataFormat format)
+            => format is BC1Typeless or BC1UnsignedNormalized or BC1UnsignedNormalizedSRGB
+                      or BC2Typeless or BC2UnsignedNormalized or BC2UnsignedNormalizedSRGB
+                      or BC3Typeless or BC3UnsignedNormalized or BC3UnsignedNormalizedSRGB
+                      or BC4Typeless or BC4UnsignedNormalized or BC4Normalized
+                      or BC5Typeless or BC5UnsignedNormalized or BC5Normalized
+                      or BC6HTypeless or BC6HSF16 or BC6HUF16
+                      or BC7Typeless or BC7UnsignedNormalized or BC7UnsignedNormalizedSRGB;
+
+        public static uint BytesPerPixel(this DataFormat format) => format.BitsPerPixel() / 8;
+        public static uint BytesPer4x4Block(this DataFormat format) => format.BitsPer4x4Block() / 8;
+
+        public static uint BitsPer4x4Block(this DataFormat format)
+            => format switch
+            {
+                BC1Typeless => 8 * 8,
+                BC1UnsignedNormalized => 8 * 8,
+                BC1UnsignedNormalizedSRGB => 8 * 8,
+
+                BC2Typeless => 16 * 8,
+                BC2UnsignedNormalized => 16 * 8,
+                BC2UnsignedNormalizedSRGB => 16 * 8,
+
+                BC3Typeless => 16 * 8,
+                BC3UnsignedNormalized => 16 * 8,
+                BC3UnsignedNormalizedSRGB => 16 * 8,
+
+                BC4Typeless => 8 * 8,
+                BC4UnsignedNormalized => 8 * 8,
+                BC4Normalized => 8 * 8,
+
+                BC5Typeless => 16 * 8,
+                BC5UnsignedNormalized => 16 * 8,
+                BC5Normalized => 16 * 8,
+
+                BC6HTypeless => 16 * 8,
+                BC6HUF16 => 16 * 8,
+                BC6HSF16 => 16 * 8,
+
+                BC7Typeless => 16 * 8,
+                BC7UnsignedNormalized => 16 * 8,
+                BC7UnsignedNormalizedSRGB => 16 * 8,
+
+                _ => BitsPerPixel(format) * 4 * 4
+            };
+
+
+        public static uint BitsPerPixel(this DataFormat format)
+            => format switch
+            {
+                Unknown => 0,
+
+                R32G32B32A32Typeless => 128,
+                R32G32B32A32Single => 128,
+                R32G32B32A32UInt => 128,
+                R32G32B32A32Int => 128,
+
+                R32G32B32Typeless => 96,
+                R32G32B32Single => 96,
+                R32G32B32UInt => 96,
+                R32G32B32Int => 96,
+
+                R16G16B16A16Typeless => 64,
+                R16G16B16A16Single => 64,
+                R16G16B16A16UnsignedNormalized => 64,
+                R16G16B16A16UInt => 64,
+                R16G16B16A16Normalized => 64,
+                R16G16B16A16Int => 64,
+                R32G32Typeless => 64,
+                R32G32Single => 64,
+                R32G32UInt => 64,
+                R32G32Int => 64,
+
+                R10G10B10A2Typeless => 32,
+                R10G10B10A2UnsignedNormalized => 32,
+                R10G10B10A2UInt => 32,
+                R11G11B10Single => 32,
+                R8G8B8A8Typeless => 32,
+                R8G8B8A8UnsignedNormalized => 32,
+                R8G8B8A8UnsignedNormalizedSRGB => 32,
+                R8G8B8A8UInt => 32,
+                R8G8B8A8Normalized => 32,
+                R8G8B8A8Int => 32,
+                R16G16Typeless => 32,
+                R16G16Single => 32,
+                R16G16UnsignedNormalized => 32,
+                R16G16UInt => 32,
+                R16G16Normalized => 32,
+                R16G16Int => 32,
+                R32Typeless => 32,
+                Depth32Single => 32,
+                R32Single => 32,
+                R32UInt => 32,
+                R32Int => 32,
+                R24G8Typeless => 32,
+                Depth24UnsignedNormalizedS8UInt => 32,
+                R24UnsignedNormalizedX8Typeless => 32,
+
+                R8G8Typeless => 16,
+                R8G8UnsignedNormalized => 16,
+                R8G8UInt => 16,
+                R8G8Normalized => 16,
+                R8G8Int => 16,
+                R16Typeless => 16,
+                R16Single => 16,
+                Depth16UnsignedNormalized => 16,
+                R16UnsignedNormalized => 16,
+                R16UInt => 16,
+                R16Normalized => 16,
+                R16Int => 16,
+
+                R8Typeless => 8,
+                R8UnsignedNormalized => 8,
+                R8UInt => 8,
+                R8Normalized => 8,
+                R8Int => 8,
+                A8UnsignedNormalized => 8,
+
+                R1UnsignedNormalized => 1,
+
+
+                B5G6R5UnsignedNormalized => 16,
+                B5G5R5A1UnsignedNormalized => 16,
+
+                B8G8R8A8UnsignedNormalized => 32,
+                B8G8R8X8UnsignedNormalized => 32,
+                B8G8R8A8Typeless => 32,
+                B8G8R8A8UnsignedNormalizedSRGB => 32,
+                B8G8R8X8Typeless => 32,
+                B8G8R8X8UnsignedNormalizedSRGB => 32,
+
+                BC1Typeless => throw new System.NotImplementedException(),
+                BC1UnsignedNormalized => throw new System.NotImplementedException(),
+                BC1UnsignedNormalizedSRGB => throw new System.NotImplementedException(),
+                BC2Typeless => throw new System.NotImplementedException(),
+                BC2UnsignedNormalized => throw new System.NotImplementedException(),
+                BC2UnsignedNormalizedSRGB => throw new System.NotImplementedException(),
+                BC3Typeless => throw new System.NotImplementedException(),
+                BC3UnsignedNormalized => throw new System.NotImplementedException(),
+                BC3UnsignedNormalizedSRGB => throw new System.NotImplementedException(),
+                BC4Typeless => throw new System.NotImplementedException(),
+                BC4UnsignedNormalized => throw new System.NotImplementedException(),
+                BC4Normalized => throw new System.NotImplementedException(),
+                BC5Typeless => throw new System.NotImplementedException(),
+                BC5UnsignedNormalized => throw new System.NotImplementedException(),
+                BC5Normalized => throw new System.NotImplementedException(),
+                BC6HTypeless => throw new System.NotImplementedException(),
+                BC6HUF16 => throw new System.NotImplementedException(),
+                BC6HSF16 => throw new System.NotImplementedException(),
+                BC7Typeless => throw new System.NotImplementedException(),
+                BC7UnsignedNormalized => throw new System.NotImplementedException(),
+                BC7UnsignedNormalizedSRGB => throw new System.NotImplementedException(),
+                OPAQUE_420 => throw new System.NotImplementedException(),
+
+                _ => throw new ArgumentOutOfRangeException(nameof(format))
+            };
     }
 }

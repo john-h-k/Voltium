@@ -44,11 +44,11 @@ namespace Voltium.Interactive.BasicRaytracingScene
         private Output _output = null!;
         private RaytracingPipelineStateObject _pso = null!;
         private RootSignature _globalRootSig = null!, _localRootSig = null!;
-        private Buffer _blas, _tlas;
+        private RaytracingAccelerationStructure _blas, _tlas;
         private Texture _renderTarget;
         private DescriptorAllocation _target;
-        private DescriptorAllocation _opaqueTarget;
         private DescriptorHeap _opaqueUav = null!;
+        private uint _renderWidth, _renderHeight;
 
         private Buffer _raygenBuffer, _missBuffer, _hitGroupBuffer;
 
@@ -83,7 +83,6 @@ namespace Voltium.Interactive.BasicRaytracingScene
             _output = Output.Create(OutputConfiguration.Default, _device, output);
 
             _opaqueUav = _device.CreateDescriptorHeap(DescriptorHeapType.ConstantBufferShaderResourceOrUnorderedAccessView, 1, false);
-            _opaqueTarget = _opaqueUav.AllocateHandle();
             _target = _device.AllocateResourceDescriptors(1);
 
             OnResize(outputSize);
@@ -147,7 +146,7 @@ namespace Voltium.Interactive.BasicRaytracingScene
         private unsafe void CreatePso()
         {
             _globalRootSig = _device.CreateRootSignature(
-                new RootParameter[]
+                new []
                 {
                     RootParameter.CreateDescriptor(RootParameterType.ShaderResourceView, 0, 0),
                     RootParameter.CreateDescriptorTable(DescriptorRangeType.UnorderedAccessView, 0, 1, 0)
@@ -190,6 +189,8 @@ namespace Voltium.Interactive.BasicRaytracingScene
 
         public override void OnResize(Size newOutputSize)
         {
+            _renderWidth = (uint)newOutputSize.Width;
+            _renderHeight = (uint)newOutputSize.Height;
             _output.Resize(newOutputSize);
 
             var aspectRatio = newOutputSize.AspectRatio();
@@ -206,20 +207,17 @@ namespace Voltium.Interactive.BasicRaytracingScene
 
             _renderTarget.Dispose();
             _renderTarget = _device.Allocator.AllocateTexture(
-                new TextureDesc
-                {
-                    Dimension = TextureDimension.Tex2D,
-                    Format = (DataFormat)_output.Configuration.BackBufferFormat,
-                    Height = (uint)newOutputSize.Height,
-                    Width = (uint)newOutputSize.Width,
-                    MipCount = 1,
-                    ResourceFlags = ResourceFlags.AllowUnorderedAccess
-                },
+                TextureDesc.CreateUnorderedAccessResourceDesc(
+                    (DataFormat)_output.Configuration.BackBufferFormat,
+                    TextureDimension.Tex2D,
+                    (uint)newOutputSize.Width,
+                    (uint)newOutputSize.Height
+                ).WithMipCount(1),
                 ResourceState.UnorderedAccess
             );
 
-            _device.CreateUnorderedAccessView(_renderTarget, _opaqueTarget[0]);
-            _device.CopyDescriptors(_opaqueTarget[0..1], _target[0..1]);
+            _device.CreateUnorderedAccessView(_renderTarget, _opaqueUav[0]);
+            _device.CopyDescriptors(_opaqueUav[0..1], _target[0..1]);
         }
 
         public override void Update(ApplicationTimer timer) { /* This app doesn't do any updating */ }
@@ -227,21 +225,13 @@ namespace Voltium.Interactive.BasicRaytracingScene
         {
             var context = (ComputeContext)_device.BeginGraphicsContext(_pso);
 
-            context.ClearUnorderedAccessViewSingle(_target[0], _opaqueTarget[0], _renderTarget, Rgba128.CornflowerBlue);
-            context.Barrier(ResourceBarrier.UnorderedAcccess());
+            context.ClearUnorderedAccessViewSingle(_target[0], _opaqueUav[0], _renderTarget, Rgba128.CornflowerBlue);
+            context.Barrier(ResourceBarrier.UnorderedAccess(_renderTarget));
 
-            context.SetShaderResourceBuffer(0, _tlas);
+            context.SetRaytracingAccelerationStructure(0, _tlas);
             context.SetRootDescriptorTable(1, _target[0]);
 
-            context.DispatchRays(new RayDispatchDesc
-            {
-                RayGenerationShaderRecord = _raygen,
-                MissShaderTable = _miss,
-                HitGroupTable = _hitGroup,
-                Width = (uint)_output.Resolution.Width,
-                Height = (uint)_output.Resolution.Height,
-                Depth = 1
-            });
+            context.DispatchRays(_renderWidth, _renderHeight, _raygen, _hitGroup, _miss);
 
             using (context.ScopedBarrier(stackalloc[] {
                 ResourceBarrier.Transition(_renderTarget, ResourceState.UnorderedAccess, ResourceState.CopySource),

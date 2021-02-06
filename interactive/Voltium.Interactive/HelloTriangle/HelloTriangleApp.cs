@@ -22,7 +22,7 @@ namespace Voltium.Interactive.HelloTriangle
         public Vector4 Color;
     }
 
-    public sealed class HelloTriangleApp : Application
+        public sealed class HelloTriangleApp : Application
     {
         private GraphicsDevice _device = null!;
         private Output _output = null!;
@@ -70,6 +70,7 @@ namespace Voltium.Interactive.HelloTriangle
         public unsafe override void Render()
         {
             var context = _device.BeginGraphicsContext(_pso);
+
 
             // We need to transition the back buffer to ResourceState.RenderTarget so we can draw to it
             using (context.ScopedBarrier(ResourceBarrier.Transition(_output.OutputBuffer, ResourceState.Present, ResourceState.RenderTarget)))

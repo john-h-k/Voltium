@@ -19,64 +19,37 @@ using Buffer = Voltium.Core.Memory.Buffer;
 using static Voltium.Core.Pipeline.GraphicsPipelineDesc;
 using TerraFX.Interop;
 using Voltium.Core.Contexts;
+using Voltium.Common;
 
 #if DOUBLE
 using FloatType = System.Double;
 #else
-using FP = System.Single;
+using FloatType = System.Single;
 #endif
 
 namespace Voltium.Interactive.RenderGraphSamples
 {
-    [ExpectsComponent(typeof(PipelineSettings))]
-    internal class MandelbrotRenderPass : GraphicsRenderPass
+    internal unsafe class MandelbrotRenderPass : Application
     {
-        private GraphicsDevice _device;
-        private Size _resolution;
-        private DescriptorHeap _heap;
-
-        public override bool Register(ref RenderPassBuilder builder, ref Resolver resolver)
-        {
-            var settings = resolver.GetComponent<PipelineSettings>();
-
-            PipelineResources resources = default;
-
-            resources.SceneColor = builder.CreatePrimaryOutputRelativeTexture(
-                TextureDesc.CreateRenderTargetDesc(BackBufferFormat.R8G8B8A8UnsignedNormalized, Rgba128.Black, settings.Msaa),
-                ResourceState.PixelShaderResource
-            );
-
-            resolver.CreateComponent(resources);
-
-            return true;
-        }
-
-        public override void Record(GraphicsContext context, ref Resolver resolver)
-        {
-            var renderTarget = resolver.ResolveResource(resolver.GetComponent<PipelineResources>().SceneColor);
-            _device.CreateRenderTargetView(renderTarget, _heap[0]);
-
-            context.Barrier(ResourceBarrier.Transition(renderTarget, ResourceState.PixelShaderResource, ResourceState.RenderTarget));
-
-            context.SetViewportAndScissor(_resolution);
-            context.SetRenderTarget(_heap[0]);
-            context.Discard(renderTarget);
-            context.SetTopology(Topology.TriangleList);
-            context.SetShaderResourceBuffer(0, _colors);
-            context.SetRoot32BitConstants(1, _constants);
-            context.Draw(3);
-        }
-
+        private GraphicsDevice _device = null!;
+        private Output _output = null!;
+        private PipelineStateObject _pso = null!;
         private MandelbrotConstants _constants;
+        private Buffer _colors;
+        private const int IterCount = 1024;
 
-        public unsafe MandelbrotRenderPass(GraphicsDevice device, in Size resolution)
+        public override void Initialize(Size outputSize, IOutputOwner output)
         {
-            _device = device;
-            _resolution = resolution;
+#if DEBUG
+            var debug = DebugLayerConfiguration.Debug.AddDebugFlags(DebugFlags.GpuBasedValidation);
+#else
+            var debug = DebugLayerConfiguration.None;
+#endif
 
-            _heap = _device.CreateDescriptorHeap(DescriptorHeapType.RenderTargetView, 1);
+            _device = GraphicsDevice.Create(FeatureLevel.GraphicsLevel11_0, null, debug);
+            _output = Output.Create(OutputConfiguration.Default, _device, output);
 
-            using (var copy = device.BeginUploadContext())
+            using (var copy = _device.BeginUploadContext())
             {
                 _colors = copy.UploadBuffer(GetColors());
             }
@@ -84,15 +57,16 @@ namespace Voltium.Interactive.RenderGraphSamples
             var @params = new RootParameter[]
             {
                 RootParameter.CreateDescriptor(RootParameterType.ShaderResourceView, 0, 0, ShaderVisibility.Pixel),
-                RootParameter.CreateConstants((uint)sizeof(MandelbrotConstants) / sizeof(uint), 0, 0, ShaderVisibility.Pixel),
+                RootParameter.CreateConstants<MandelbrotConstants>(0, 0, ShaderVisibility.Pixel),
             };
 
             var rootSig = _device.CreateRootSignature(@params, null);
 
             var flags = new ShaderCompileFlag[]
             {
-                ShaderCompileFlag.OptimizationLevel3,
-                ShaderCompileFlag.StripReflect,
+                ShaderCompileFlag.EnableDebugInformation,
+                ShaderCompileFlag.WriteDebugInformationToFile(),
+                ShaderCompileFlag.DefineMacro("ITER", IterCount.ToString()),
 #if DOUBLE
                 ShaderCompileFlag.DefineMacro("DOUBLE")
 #endif
@@ -104,52 +78,84 @@ namespace Voltium.Interactive.RenderGraphSamples
                 Topology = TopologyClass.Triangle,
                 DepthStencil = DepthStencilDesc.DisableDepthStencil,
                 RenderTargetFormats = BackBufferFormat.R8G8B8A8UnsignedNormalized,
-                VertexShader = ShaderManager.CompileShader("Shaders/Mandelbrot/EntireScreenCopyVS.hlsl", ShaderModel.Vs_5_0, flags),
-                PixelShader = ShaderManager.CompileShader("Shaders/Mandelbrot/Mandelbrot.hlsl", ShaderModel.Ps_5_0, flags)
+                VertexShader = ShaderManager.CompileShader("Shaders/Mandelbrot/EntireScreenCopyVS.hlsl", ShaderType.Vertex, flags),
+                PixelShader = ShaderManager.CompileShader("Shaders/Mandelbrot/Mandelbrot.hlsl", ShaderType.Pixel, flags),
+                Rasterizer = RasterizerDesc.Default.WithFrontFaceType(FaceType.Anticlockwise)
             };
 
-            DefaultPipelineState = _device.PipelineManager.CreatePipelineStateObject(psoDesc, "Mandelbrot");
+            _pso = _device.PipelineManager.CreatePipelineStateObject(psoDesc, "Mandelbrot");
 
             _constants = new MandelbrotConstants
             {
                 Scale = (FloatType)1,
                 CenterX = (FloatType)(-1.789169018604823106674468341188838763),
-                CenterY = (FloatType)(0.00000033936851576718256602823026614)
+                CenterY = (FloatType)(0.00000033936851576718256602823026614),
+                ColorCount = _colors.LengthAs<Rgba128>()
             };
 
-            Resize(resolution);
+            OnResize(outputSize);
+        }
+
+        public override void Update(ApplicationTimer timer)
+        {
+            _constants.Scale *= (FloatType)0.99;
+        }
+
+        public override void Render()
+        {
+            var context = _device.BeginGraphicsContext(_pso);
+
+            using (context.ScopedBarrier(ResourceBarrier.Transition(_output.OutputBuffer, ResourceState.Present, ResourceState.RenderTarget)))
+            {
+                context.SetViewportAndScissor(_output.Resolution);
+                context.SetRenderTarget(_output.OutputBufferView);
+                context.SetTopology(Topology.TriangleList);
+                context.SetShaderResourceBuffer(0, _colors);
+                context.SetRoot32BitConstants(1, _constants);
+                context.Draw(3);
+            }
+
+            context.Close();
+            _device.Execute(context).Block();
+            _output.Present();
         }
 
         private Rgba128[] GetColors()
         {
-            const int iters = 256 * 4 * 10;
-            var colors = new Rgba128[iters];
+            return _rgba128s;
 
-            for (int i = 0; i < colors.Length; i += _rgba128s.Length)
-            {
-                _rgba128s.CopyTo(colors.AsSpan(i));
-            }
+            //const int iters = 256 * 4 * 10;
+            //var colors = new Rgba128[iters];
 
-            return colors;
+            //for (int i = 0; i < colors.Length; i += _rgba128s.Length)
+            //{
+            //    _rgba128s.CopyTo(colors.AsSpan(i));
+            //}
+
+            //return colors;
         }
 
-        public void Resize(Size newScreenData)
+        public override void OnResize(Size newScreenData)
         {
+            _output.Resize(newScreenData);
             _constants.AspectRatio = newScreenData.Width / (float)newScreenData.Height;
-            _constants.ColorCount = 256 * 4 * 10;
         }
+
+        public override void Dispose() { }
 
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
         private struct MandelbrotConstants
         {
             public FloatType Scale;
+#if false && DOUBLE
+            private FloatType _pad;
+#endif
             public FloatType CenterX;
             public FloatType CenterY;
             public float AspectRatio;
             public uint ColorCount;
         }
 
-        private Buffer _colors;
 
         private Rgba128[] _rgba128s = new Rgba128[]
         {

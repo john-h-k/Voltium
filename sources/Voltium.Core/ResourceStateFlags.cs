@@ -16,6 +16,7 @@ namespace Voltium.Core
         }
     }
 
+    // DO NOT CHANGE! - must be matched by ResourceStateAnalyzer.cs
     internal enum Access
     {
         Opaque = 0,
@@ -104,11 +105,11 @@ namespace Voltium.Core
         [ResourceStateInfo(Access.Read)]
         PixelShaderResource = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 
-        /// <summary>
-        /// The resource is being used as a stream-out destination. This is a write-only state
-        /// </summary>
-        [ResourceStateInfo(Access.Write)]
-        StreamOut = D3D12_RESOURCE_STATE_STREAM_OUT,
+        ///// <summary>
+        ///// The resource is being used as a stream-out destination. This is a write-only state
+        ///// </summary>
+        //[ResourceStateInfo(Access.Write)]
+        //StreamOut = D3D12_RESOURCE_STATE_STREAM_OUT,
 
         /// <summary>
         /// The resource is being used as an indirect argument. This is a read-only state
@@ -164,7 +165,7 @@ namespace Voltium.Core
         /// The resource is being used as a raytracing acceleration structure. This state can't be moved into or out from, and must persist across the resource's lifetime
         /// </summary>
         [ResourceStateInfo(Access.Opaque)]
-        RayTracingAccelerationStructure = D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,
+        RaytracingAccelerationStructure = D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,
 
         /// <summary>
         /// A bitwise-or of all read-only resource states
@@ -173,11 +174,13 @@ namespace Voltium.Core
         AllReadOnlyFlags = VertexBuffer | ConstantBuffer | IndexBuffer | DepthRead | NonPixelShaderResource | PixelShaderResource | IndirectArgument | CopySource | ResolveSource | VariableShadeRateSource,
         // this currently excludes video states
 
+#pragma warning disable VR0000, VR0001, VR0002
         /// <summary>
         /// A bitwise-or of all write-only or read-write states
         /// </summary>
         [ResourceStateInfo(Access.ReadWrite)]
-        AllWritableFlags = RenderTarget | UnorderedAccess | DepthWrite | StreamOut | CopyDestination | ResolveDestination | Predication
+        AllWritableFlags = RenderTarget | UnorderedAccess | DepthWrite /* | StreamOut */ | CopyDestination | ResolveDestination
+#pragma warning restore VR0000, VR0001, VR0002
     }
 
     /// <summary>

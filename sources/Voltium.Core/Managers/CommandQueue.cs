@@ -21,7 +21,7 @@ namespace Voltium.Core.Devices
         public readonly ExecutionContext Type;
         public readonly ulong Frequency;
 
-        public ID3D12CommandQueue* GetQueue() => _queue.Ptr;
+        internal ID3D12CommandQueue* GetQueue() => _queue.Ptr;
 
         private static ulong StartingFenceForContext(ExecutionContext context) => 0; // context switch
         //{
@@ -100,6 +100,11 @@ namespace Voltium.Core.Devices
 
         public void Wait(in GpuTask waitable)
         {
+            if (waitable.IsCompleted)
+            {
+                return;
+            }
+
             waitable.GetFenceAndMarker(out var fence, out var marker);
             _device.ThrowIfFailed(_queue.Ptr->Wait(fence, marker));
         }
@@ -117,14 +122,5 @@ namespace Voltium.Core.Devices
         }
 
         ID3D12Object* IInternalD3D12Object.GetPointer() => (ID3D12Object*)_queue.Ptr;
-    }
-
-    internal static unsafe class QueueExtensions
-    {
-        public static void Wait(this ref ID3D12CommandQueue queue, in GpuTask waitable)
-        {
-            waitable.GetFenceAndMarker(out var fence, out var marker);
-            Guard.ThrowIfFailed(queue.Wait(fence, marker));
-        }
     }
 }

@@ -5,14 +5,27 @@ using Voltium.Common;
 
 namespace Voltium.Core
 {
+    /// <summary>
+    /// Describes a set of geoemetry, either a <see cref="TriangleGeometryDesc"/> or a <see cref="AxisAlignedBoundingBoxGeometryDesc"/>, for use in
+    /// building acceleration structures
+    /// </summary>
     public struct GeometryDesc
     {
         internal D3D12_RAYTRACING_GEOMETRY_DESC Desc;
 
+        /// <summary>
+        /// Creates a new <see cref="GeometryDesc"/> from a <see cref="TriangleGeometryDesc"/>
+        /// </summary>
+        /// <param name="desc">The <see cref="TriangleGeometryDesc"/> that describes the geometry</param>
+        /// <returns>A new <see cref="GeometryDesc"/></returns>
         public static GeometryDesc FromTriangles(in TriangleGeometryDesc desc)
             => new() { Type = GeometryType.Triangles, Triangles = desc };
 
-
+        /// <summary>
+        /// Creates a new <see cref="GeometryDesc"/> from a <see cref="FromAlignedAxisBoundingBoxes"/>
+        /// </summary>
+        /// <param name="desc">The <see cref="FromAlignedAxisBoundingBoxes"/> that describes the geometry</param>
+        /// <returns>A new <see cref="GeometryDesc"/></returns>
         public static GeometryDesc FromAlignedAxisBoundingBoxes(in AxisAlignedBoundingBoxGeometryDesc desc)
             => new() { Type = GeometryType.AxisAlignedBoundingBoxes, AxisAlignedBoundingBoxes = desc };
 

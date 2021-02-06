@@ -128,7 +128,7 @@ namespace Voltium.Core.Contexts
         /// </summary>
         /// <param name="options">The <see cref="ResourceBarrierOptions"/> for the barrier</param>
         /// <returns>A new <see cref="ResourceBarrier"/> representing a UAV read/writer barrier</returns>
-        public static ResourceBarrier UnorderedAcccess(ResourceBarrierOptions options = ResourceBarrierOptions.Full)
+        public static ResourceBarrier UnorderedAccess(ResourceBarrierOptions options = ResourceBarrierOptions.Full)
             => UnorderedAcccess(null, options);
 
         /// <summary>
@@ -137,8 +137,18 @@ namespace Voltium.Core.Contexts
         /// <param name="buffer">The <see cref="Buffer"/> to barrier</param>
         /// <param name="options">The <see cref="ResourceBarrierOptions"/> for the barrier</param>
         /// <returns>A new <see cref="ResourceBarrier"/> representing a UAV read/writer barrier</returns>
-        public static ResourceBarrier UnorderedAcccess(in Buffer buffer, ResourceBarrierOptions options = ResourceBarrierOptions.Full)
+        public static ResourceBarrier UnorderedAccess(in Buffer buffer, ResourceBarrierOptions options = ResourceBarrierOptions.Full)
             => UnorderedAcccess(buffer.Resource, options);
+
+
+        /// <summary>
+        /// Creates a new <see cref="ResourceBarrier"/> representing a UAV read/writer barrier
+        /// </summary>
+        /// <param name="buffer">The <see cref="Buffer"/> to barrier</param>
+        /// <param name="options">The <see cref="ResourceBarrierOptions"/> for the barrier</param>
+        /// <returns>A new <see cref="ResourceBarrier"/> representing a UAV read/writer barrier</returns>
+        public static ResourceBarrier UnorderedAccess(in RaytracingAccelerationStructure buffer, ResourceBarrierOptions options = ResourceBarrierOptions.Full)
+            => UnorderedAcccess(buffer.Buffer.Resource, options);
 
         /// <summary>
         /// Creates a new <see cref="ResourceBarrier"/> representing a UAV read/writer barrier

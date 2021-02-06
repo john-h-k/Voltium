@@ -516,6 +516,8 @@ namespace Voltium.Common
         {
 #if DEBUG
             throw new Exception("this should, never be reached");
+#else
+            return default!;
 #endif
         }
 #pragma warning restore CS8763

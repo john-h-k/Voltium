@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using TerraFX.Interop;
 using Voltium.Common;
+using Voltium.Core.Memory;
 using Voltium.Core.Pipeline;
 using Buffer = Voltium.Core.Memory.Buffer;
 
@@ -29,7 +30,7 @@ namespace Voltium.Core
             Guard.True(buffer.Length >= recordSize);
             Guard.True(pso.Pointer.TryQueryInterface(out _properties));
             Range = new D3D12_GPU_VIRTUAL_ADDRESS_RANGE { SizeInBytes = recordSize, StartAddress = buffer.GpuAddress };
-            _pRecord = (ulong*)buffer.CpuAddress;
+            _pRecord = (ulong*)buffer.Pointer;
         }
 
         internal ShaderRecord(UniqueComPtr<ID3D12StateObjectProperties> properties, D3D12_GPU_VIRTUAL_ADDRESS_RANGE range, void* pRecord)
@@ -39,6 +40,9 @@ namespace Voltium.Core
             _pRecord = (ulong*)pRecord;
         }
 
+        /// <summary>
+        /// The size, in bytes, of a shader identifier
+        /// </summary>
         public static uint ShaderIdentifierSize => Windows.D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
 
         [StructLayout(LayoutKind.Sequential, Size = Windows.D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES)]
@@ -95,6 +99,17 @@ namespace Voltium.Core
             _pRecord[eightByteOffset + ShaderIdentifierOffset] = buffer.GpuAddress;
         }
 
+
+        /// <summary>
+        /// Write an individual descriptor to the shader table
+        /// </summary>
+        /// <param name="eightByteOffset">The eight-byte offset to write the descriptor to</param>
+        /// <param name="buffer"></param>
+        public void WriteDescriptor(uint eightByteOffset, in RaytracingAccelerationStructure buffer)
+        {
+            _pRecord[eightByteOffset + ShaderIdentifierOffset] = buffer.GpuAddress;
+        }
+
         /// <summary>
         /// Write the constants provided to the shader table
         /// </summary>
@@ -140,7 +155,7 @@ namespace Voltium.Core
             Guard.True(buffer.Length >= numRecords * recordSize);
             Guard.True(pso.Pointer.TryQueryInterface(out _properties));
             RangeAndStride = new D3D12_GPU_VIRTUAL_ADDRESS_RANGE_AND_STRIDE { SizeInBytes = numRecords * recordSize, StartAddress = buffer.GpuAddress, StrideInBytes = recordSize };
-            _pRecord = buffer.CpuAddress;
+            _pRecord = buffer.Pointer;
         }
 
         /// <summary>

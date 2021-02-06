@@ -131,8 +131,17 @@ namespace Voltium.Core.Devices
                     (void**)&resource
             ));
 
+            if (IsInSystemMemory(desc->HeapProperties))
+            {
+                GC.AddMemoryPressure((long)GetAllocationInfo(desc).SizeInBytes);
+            }
+
             return resource.Move();
         }
+
+        private bool IsInSystemMemory(in D3D12_HEAP_PROPERTIES desc) =>
+                   desc.Type is D3D12_HEAP_TYPE.D3D12_HEAP_TYPE_UPLOAD or D3D12_HEAP_TYPE.D3D12_HEAP_TYPE_READBACK
+                || desc.MemoryPoolPreference == D3D12_MEMORY_POOL.D3D12_MEMORY_POOL_L0;
 
         internal void GetAccelerationStructuredPrebuildInfo(D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS* pInputs, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO* pInfo)
         {
@@ -147,6 +156,11 @@ namespace Voltium.Core.Devices
                 heap.Iid,
                 (void**)&heap
             ));
+
+            if (IsInSystemMemory(desc->Properties))
+            {
+                GC.AddMemoryPressure((long)desc->SizeInBytes);
+            }
 
             return heap.Move();
         }
@@ -189,7 +203,6 @@ namespace Voltium.Core.Devices
         internal void GetCopyableFootprint(
             in Texture tex,
             uint firstSubresource,
-            uint numSubresources,
             out D3D12_PLACED_SUBRESOURCE_FOOTPRINT layouts,
             out uint numRows,
             out ulong rowSizesInBytes,
@@ -203,7 +216,7 @@ namespace Voltium.Core.Devices
                 ulong rowSizes;
                 uint rowCount;
                 ulong size;
-                DevicePointer->GetCopyableFootprints(&desc, 0, numSubresources, 0, pLayout, &rowCount, &rowSizes, &size);
+                DevicePointer->GetCopyableFootprints(&desc, 0, 1, 0, pLayout, &rowCount, &rowSizes, &size);
 
                 rowSizesInBytes = rowSizes;
                 numRows = rowCount;

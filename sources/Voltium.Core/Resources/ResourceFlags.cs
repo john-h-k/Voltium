@@ -30,20 +30,21 @@ namespace Voltium.Core.Memory
         AllowUnorderedAccess = D3D12_RESOURCE_FLAGS.D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
 
         /// <summary>
+        /// Allows the resource being simultaneously used on multiple queues at the same time, provided only one queue is writing
+        /// and no queues read the pixels being written
+        /// </summary>
+        AllowSimultaneousAccess = D3D12_RESOURCE_FLAGS.D3D12_RESOURCE_FLAG_ALLOW_SIMULTANEOUS_ACCESS,
+
+        /// <summary>
         /// Prevents the resource being used by shaders
         /// </summary>
         DenyShaderResource = D3D12_RESOURCE_FLAGS.D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE,
-
-        /// <summary>
-        /// Allows the resource to be used as a stream out resource
-        /// </summary>
-        AllowStreamOut = 1 << 30
     }
 
 
     internal static class ResourceFlagsExtensions
     {
         public static bool IsShaderWritable(this ResourceFlags flags)
-            => flags.HasFlag(ResourceFlags.AllowRenderTarget) || flags.HasFlag(ResourceFlags.AllowUnorderedAccess) || flags.HasFlag(ResourceFlags.AllowStreamOut);
+            => flags.HasFlag(ResourceFlags.AllowRenderTarget) || flags.HasFlag(ResourceFlags.AllowUnorderedAccess);
     }
 }

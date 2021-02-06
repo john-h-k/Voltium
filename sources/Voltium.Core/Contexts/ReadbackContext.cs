@@ -48,10 +48,41 @@ namespace Voltium.Core.Contexts
         /// Readbacks a buffer from the CPU to the GPU
         /// </summary>
         /// <param name="source"></param>
-        public IMemoryOwner<byte> ReadbackBuffer<T>(in Buffer source) where T : unmanaged
-        {  
+        public IMemoryOwner<byte> ReadbackBuffer(in Buffer source)
+        {
             var dest = Allocate(source.Length);
             ReadbackBufferToPreexisting(source, dest.Memory);
+            return dest;
+        }
+
+
+        /// <summary>
+        /// Readbacks a buffer from the CPU to the GPU
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="firstSubresource"></param>
+        public IMemoryOwner<byte> ReadbackTexture(in Texture source, uint firstSubresource = 0)
+        {
+            var pDevice = Params.Device.As<ID3D12Device>();
+
+            var desc = source.GetResourcePointer()->GetDesc();
+            var numSubresources = desc.GetSubresources(pDevice);
+
+            var layouts = stackalloc D3D12_PLACED_SUBRESOURCE_FOOTPRINT[(int)numSubresources];
+            var numRows = stackalloc uint[(int)numSubresources];
+            var rowSizes = stackalloc ulong[(int)numSubresources];
+            ulong totalSize;
+
+            pDevice->GetCopyableFootprints(&desc, firstSubresource, numSubresources, 0, layouts, numRows, rowSizes, &totalSize);
+
+            ulong totalDestSize = 0;
+            for (var i = 0; i < numSubresources; i++)
+            {
+                totalDestSize += numRows[i] + rowSizes[i];
+            }
+
+            var dest = Allocate(checked((uint)totalDestSize));
+            ReadbackTextureToPreexisting(source, dest.Memory);
             return dest;
         }
 
@@ -107,7 +138,7 @@ namespace Voltium.Core.Contexts
         {
             var desc = tex.GetResourcePointer()->GetDesc();
             var numSubresources = desc.GetSubresources(Params.Device.As<ID3D12Device>());
-            ReadbackTextureToPreexisting(tex, destination, firstSubresource, numSubresources - firstSubresource); 
+            ReadbackTextureToPreexisting(tex, destination, firstSubresource, numSubresources - firstSubresource);
         }
 
 

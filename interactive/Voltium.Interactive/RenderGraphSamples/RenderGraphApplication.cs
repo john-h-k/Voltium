@@ -17,7 +17,7 @@ namespace Voltium.Interactive.RenderGraphSamples
         public override string Name => "Hello DirectX!";
 
         private GraphicsDevice _device = null!;
-        private MandelbrotRenderPass _renderer = null!;
+        //private MandelbrotRenderPass _renderer = null!;
         private TonemapPass _outputPass = null!;
         private Output _output = null!;
         private PipelineSettings _settings;
@@ -40,7 +40,8 @@ namespace Voltium.Interactive.RenderGraphSamples
 
             _output = Output.Create(desc, _device, output);
 
-            _renderer = new MandelbrotRenderPass(_device, data);
+            //_renderer = null!;
+            //new MandelbrotRenderPass(_device, data);
             _outputPass = new TonemapPass(_output);
         }
 
@@ -53,7 +54,7 @@ namespace Voltium.Interactive.RenderGraphSamples
 
             graph.CreateComponent(_settings);
 
-            graph.AddPass(_renderer);
+            //graph.AddPass(_renderer);
             graph.AddPass(_outputPass);
             graph.ExecuteGraph();
 
@@ -67,7 +68,7 @@ namespace Voltium.Interactive.RenderGraphSamples
         public override void OnResize(Size newScreenData)
         {
             _output.Resize(newScreenData);
-            _renderer.Resize(newScreenData);
+            //_renderer.Resize(newScreenData);
         }
     }
 }

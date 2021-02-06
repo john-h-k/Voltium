@@ -12,13 +12,13 @@ namespace Voltium.Analyzers
         }
 
         private Func<T, bool>? _predicate;
-        public List<(SyntaxTree Tree, T Node)> SyntaxNodes = new List<(SyntaxTree Tree, T Node)>();
+        public List<T> SyntaxNodes = new List<T>();
 
         public void OnVisitSyntaxNode(SyntaxNode syntaxNode)
         {
             if (syntaxNode is T decl && (_predicate?.Invoke(decl) ?? true))
             {
-                SyntaxNodes.Add((decl.SyntaxTree, decl));
+                SyntaxNodes.Add(decl);
             }
         }
     }

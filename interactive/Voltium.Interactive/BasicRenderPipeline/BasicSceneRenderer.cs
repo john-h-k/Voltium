@@ -63,7 +63,6 @@ namespace Voltium.Interactive.BasicRenderPipeline
         private DescriptorAllocation _textureHandle;
 
         private DescriptorHeap _rtvs, _dsvs;
-        private DescriptorAllocation _texViews;
         //private Texture _normals;
         //private DescriptorHandle _normalHandle;
 
@@ -84,9 +83,9 @@ namespace Voltium.Interactive.BasicRenderPipeline
         {
             _device = device;
 
-
             _rtvs = _device.CreateDescriptorHeap(DescriptorHeapType.RenderTargetView, 1);
             _dsvs = _device.CreateDescriptorHeap(DescriptorHeapType.RenderTargetView, 1);
+            _textureHandle = _device.AllocateResourceDescriptors(2);
 
             _texturedObjects = ModelLoader.LoadGl_Old("Assets/Gltf/Handgun_NoTangent.gltf");
             //_texturedObjects = new[] { GeometryGenerator.CreateCube(0.5f) };

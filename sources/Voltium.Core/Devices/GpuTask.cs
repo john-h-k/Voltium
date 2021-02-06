@@ -10,6 +10,8 @@ using Voltium.Core.Devices;
 using System.Diagnostics;
 using Voltium.Common.Pix;
 using System.Diagnostics.CodeAnalysis;
+using System.Collections;
+using System.Collections.Generic;
 
 namespace Voltium.Core.Memory
 {
@@ -146,6 +148,50 @@ namespace Voltium.Core.Memory
             public IntPtr WaitHandle;
         }
 
+        // avoid interface calls for common variants (array/list)
+
+        public void RegisterDisposal<T>(T[] disposables) where T : IDisposable
+        {
+            static void _Dispose(T[] disposables)
+            {
+                foreach (var disposable in disposables)
+                {
+                    disposable.Dispose();
+                }
+            }
+            RegisterCallback(disposables, &_Dispose);
+        }
+
+        public void RegisterDisposal<T>(List<T> disposables) where T : IDisposable
+        {
+            static void _Dispose(List<T> disposables)
+            {
+                for (var i = 0; i < disposables.Count; i++)
+                {
+                    disposables[i].Dispose();
+                }
+            }
+            RegisterCallback(disposables, &_Dispose);
+        }
+
+        public void RegisterDisposal<T>(IEnumerable<T> disposables) where T : IDisposable
+        {
+            static void _Dispose(IEnumerable<T> disposables)
+            {
+                foreach (var disposable in disposables)
+                {
+                    disposable.Dispose();
+                }
+            }
+            RegisterCallback(disposables, &_Dispose);
+        }
+
+        public void RegisterDisposal<T>(T disposable) where T : class?, IDisposable
+        {
+            static void _Dispose(T disposable) => disposable.Dispose();
+            RegisterCallback(disposable, &_Dispose);
+        }
+
         internal void RegisterCallback<T>(T state, delegate*<T, void> onFinished) where T : class?
         {
             if (IsCompleted)
@@ -157,7 +203,7 @@ namespace Voltium.Core.Memory
             if (_hEvent == default)
             {
                 _hEvent = Windows.CreateEventW(null, Windows.FALSE, Windows.FALSE, null);
-                _device!.ThrowIfFailed(_fence.Ptr->SetEventOnCompletion(_reached, _hEvent));
+                _device.ThrowIfFailed(_fence.Ptr->SetEventOnCompletion(_reached, _hEvent));
             }
 
             var gcHandle = GCHandle.Alloc(state);

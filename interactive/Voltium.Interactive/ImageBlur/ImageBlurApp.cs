@@ -19,29 +19,6 @@ using Voltium.TextureLoading;
 
 namespace Voltium.Interactive.FloatMultiplySample
 {
-    //public sealed class D3D12TextureDecoder : IImageDecoder
-    //{
-    //    public Image<TPixel> Decode<TPixel>(Configuration configuration, Stream stream) where TPixel : unmanaged, IPixel<TPixel>
-    //    {
-    //        throw new NotImplementedException();
-    //    }
-
-    //    public Image Decode(Configuration configuration, Stream stream)
-    //    {
-    //        throw new NotImplementedException();
-    //    }
-
-    //    public Task<Image<TPixel>> DecodeAsync<TPixel>(Configuration configuration, Stream stream) where TPixel : unmanaged, IPixel<TPixel>
-    //    {
-    //        throw new NotImplementedException();
-    //    }
-
-    //    public Task<Image> DecodeAsync(Configuration configuration, Stream stream)
-    //    {
-    //        throw new NotImplementedException();
-    //    }
-    //}
-
     public unsafe class ImageBlurApp
     {
         private struct Settings
@@ -50,7 +27,7 @@ namespace Voltium.Interactive.FloatMultiplySample
             public fixed float Weights[11];
         }
 
-        private ComputeDevice _device;
+        private GraphicsDevice _device;
         private PipelineStateObject _horizontalBlurPso;
         private PipelineStateObject _verticalBlurPso;
         private Settings _settings;
@@ -82,8 +59,10 @@ namespace Voltium.Interactive.FloatMultiplySample
             };
             _verticalBlurPso = _device.PipelineManager.CreatePipelineStateObject(psoDesc, "BlurVertical");
 
-            _settings = new Settings();
-            _settings.BlurRadius = 8;
+            _settings = new Settings
+            {
+                BlurRadius = 8
+            };
             GetWeights();
         }
 
@@ -138,18 +117,13 @@ namespace Voltium.Interactive.FloatMultiplySample
             {
                 BlurImage(src, dest);
 
-                var memory = MemoryPool<Bgra32>.Shared.Rent((int)_device.GetRequiredSize(dest, 1));
-
-                using (var data = Image.LoadPixelData((ReadOnlySpan<Bgra32>)memory.Memory.Span, (int)dest.Width, (int)dest.Height))
+                IMemoryOwner<byte> tex;
+                using (var readback = _device.BeginReadbackContext(ContextFlags.BlockOnClose))
                 {
-                    data.Save($"blur_{name}.bmp");
-                    using (var readback = _device.BeginReadbackContext())
-                    {
-
-                    }
+                    tex = readback.ReadbackTexture(dest);
                 }
 
-                using (var data = Image.LoadPixelData((ReadOnlySpan<Bgra32>)memory.Memory.Span, (int)dest.Width, (int)dest.Height))
+                using (var data = Image.LoadPixelData<Bgra32>(tex.Memory.Span, (int)dest.Width, (int)dest.Height))
                 {
                     data.Save($"blur_{name}.bmp");
                 }
@@ -170,12 +144,12 @@ namespace Voltium.Interactive.FloatMultiplySample
             context.SetRootDescriptorTable(2, views[1]);
 
             uint x = (uint)MathF.Ceiling(source.Width / 256.0f);
-            context.Dispatch(x, source.Height, 1);
+            context.Dispatch(x, source.Height);
 
             context.SetPipelineState(_verticalBlurPso);
 
             uint y = (uint)MathF.Ceiling(source.Height / 256.0f);
-            context.Dispatch((uint)source.Width, y, 1);
+            context.Dispatch((uint)source.Width, y);
 
             context.TransitionForCrossContextAccess(source, ResourceState.UnorderedAccess);
 

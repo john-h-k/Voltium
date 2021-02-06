@@ -21,9 +21,37 @@ using Buffer = Voltium.Core.Memory.Buffer;
 
 using SysDebug = System.Diagnostics.Debug;
 using Voltium.Core.Queries;
+using Microsoft.Win32.SafeHandles;
+using System.Runtime.Versioning;
+using Microsoft.Toolkit.HighPerformance.Memory;
+using Voltium.Core.Exceptions;
 
 namespace Voltium.Core.Devices
 {
+
+    public enum FenceFlags
+    {
+        None = D3D12_FENCE_FLAGS.D3D12_FENCE_FLAG_NONE,
+        ProcessShared = D3D12_FENCE_FLAGS.D3D12_FENCE_FLAG_SHARED,
+        AdapterShared = D3D12_FENCE_FLAGS.D3D12_FENCE_FLAG_SHARED_CROSS_ADAPTER
+    }
+
+    public unsafe class Fence : IInternalD3D12Object, IDisposable
+    {
+        private UniqueComPtr<ID3D12Fence> _fence;
+
+        internal Fence(UniqueComPtr<ID3D12Fence> fence)
+        {
+            _fence = fence.Move();
+        }
+
+        public ulong CompletedValue => _fence.Ptr->GetCompletedValue();
+        public void Signal(ulong value) => _fence.Ptr->Signal(value);
+        unsafe ID3D12Object* IInternalD3D12Object.GetPointer() => (ID3D12Object*)_fence.Ptr;
+
+        public void Dispose() => _fence.Dispose();
+    }
+
     /// <summary>
     ///
     /// </summary>
@@ -37,7 +65,15 @@ namespace Voltium.Core.Devices
         /// <summary>
         /// The default allocator for the device
         /// </summary>
-        public GpuAllocator Allocator { get; private protected set; }
+        public ComputeAllocator Allocator { get; private protected set; }
+
+
+
+        /// <summary>
+        /// The default <see cref="IndirectCommand"/> for performing an indirect dispatch.
+        /// It changes no root signature bindings and has a command size of <see langword="sizeof"/>(<see cref="IndirectDispatchArguments"/>)
+        /// </summary>
+        public IndirectCommand DispatchIndirect { get; }
 
         /// <summary>
         /// The default pipeline manager for the device
@@ -50,7 +86,7 @@ namespace Voltium.Core.Devices
         // Because shader visible heaps are created in UPLOAD/WRITE_BACK memory, they are very slow to read from, so a non-shader visible CPU descriptor is required for perf
         // This is the heap for that
         private protected DescriptorHeap OpaqueUavs = null!;
-        private protected DescriptorHeap UavCbvSrvs = null!;
+        private protected DescriptorHeap Resources = null!;
 
         private protected UniqueComPtr<ID3D12Device> Device;
         internal SupportedDevice DeviceLevel;
@@ -63,6 +99,12 @@ namespace Voltium.Core.Devices
 
         public ulong QueueFrequency(ExecutionContext context) => GetQueueForContext(context).Frequency;
 
+        /// <summary>
+        /// Creates a new query heap on the device
+        /// </summary>
+        /// <param name="type">The <see cref="QueryHeapType"/> for the heap</param>
+        /// <param name="numQueries">The number of queries  for the heap to hold</param>
+        /// <returns></returns>
         public QueryHeap CreateQueryHeap(QueryHeapType type, int numQueries)
             => new QueryHeap(this, type, numQueries);
 
@@ -70,13 +112,128 @@ namespace Voltium.Core.Devices
         public DescriptorHeap CreateDescriptorHeap(DescriptorHeapType type, uint descriptorCount, bool shaderVisible = false)
             => new DescriptorHeap(this, type, descriptorCount, shaderVisible);
 
-        public void GetTextureInformation(in TextureDesc desc, out ulong sizeInBytes, out ulong alignment)
+
+
+        internal void ThrowGraphicsException(string message, Exception? inner = null) => throw new GraphicsException(this, message, inner);
+
+
+        public IndirectCommand CreateIndirectCommand(in IndirectArgument argument, int commandStride = -1)
+            => CreateIndirectCommand(MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(in argument), 1), commandStride);
+        public IndirectCommand CreateIndirectCommand(ReadOnlySpan<IndirectArgument> arguments, int commandStride = -1)
+            => CreateIndirectCommand(null, arguments, commandStride);
+
+
+        public IndirectCommand CreateIndirectCommand(RootSignature? rootSignature, in IndirectArgument argument, int commandStride = -1)
+            => CreateIndirectCommand(rootSignature, MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(in argument), 1), commandStride);
+        public virtual IndirectCommand CreateIndirectCommand(RootSignature? rootSignature, ReadOnlySpan<IndirectArgument> arguments, int commandStride = -1)
         {
-            var alloc = new InternalAllocDesc();
-            GpuAllocator.CreateDesc(desc, out alloc.Desc);
-            var info = GetAllocationInfo(&alloc);
-            sizeInBytes = info.SizeInBytes;
-            alignment = info.Alignment;
+            if (commandStride == -1)
+            {
+                commandStride = CalculateCommandStride(arguments);
+            }
+
+            if (arguments.Length == 1 && arguments[0].Desc.Type == D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH && commandStride == sizeof(IndirectDispatchArguments))
+            {
+                return DispatchIndirect;
+            }
+
+            return new IndirectCommand(CreateCommandSignature(rootSignature, arguments, (uint)commandStride).Move(), rootSignature, (uint)commandStride, arguments.ToArray());
+        }
+
+        internal UniqueComPtr<ID3D12CommandSignature> CreateCommandSignature(RootSignature? rootSignature, ReadOnlySpan<IndirectArgument> arguments, uint commandStride)
+        {
+            fixed (void* pArguments = arguments)
+            {
+                var desc = new D3D12_COMMAND_SIGNATURE_DESC
+                {
+                    ByteStride = commandStride,
+                    pArgumentDescs = (D3D12_INDIRECT_ARGUMENT_DESC*)pArguments,
+                    NumArgumentDescs = (uint)arguments.Length,
+                    NodeMask = 0 // TODO: MULTI-GPU
+                };
+
+                using UniqueComPtr<ID3D12CommandSignature> signature = default;
+                ThrowIfFailed(DevicePointer->CreateCommandSignature(&desc, rootSignature is null ? null : rootSignature.Value, signature.Iid, (void**)&signature));
+
+                return signature.Move();
+            }
+        }
+
+        protected int CalculateCommandStride(ReadOnlySpan<IndirectArgument> arguments)
+        {
+            int total = 0;
+            foreach (ref readonly var argument in arguments)
+            {
+                total += argument.Desc.Type switch
+                {
+                    D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DRAW => sizeof(D3D12_DRAW_ARGUMENTS),
+                    D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DRAW_INDEXED => sizeof(D3D12_DRAW_INDEXED_ARGUMENTS),
+                    D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH => sizeof(D3D12_DISPATCH_ARGUMENTS),
+                    D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_VERTEX_BUFFER_VIEW => sizeof(D3D12_VERTEX_BUFFER_VIEW),
+                    D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_INDEX_BUFFER_VIEW => sizeof(D3D12_INDEX_BUFFER_VIEW),
+                    D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_CONSTANT => (int)argument.Desc.Constant.Num32BitValuesToSet * sizeof(uint),
+                    D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_CONSTANT_BUFFER_VIEW => sizeof(ulong),
+                    D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_SHADER_RESOURCE_VIEW => sizeof(ulong),
+                    D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_UNORDERED_ACCESS_VIEW => sizeof(ulong),
+                    D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH_RAYS => sizeof(D3D12_DISPATCH_RAYS_DESC),
+                    D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH_MESH => sizeof(D3D12_DISPATCH_MESH_ARGUMENTS),
+                    _ => 0 // unreachable
+                };
+            }
+
+            return total;
+        }
+
+        public sealed class SafeSharedResourceHandle : SafeHandle
+        {
+            public SafeSharedResourceHandle(IntPtr handle) : base(default, true)
+            {
+                this.handle = handle;
+            }
+
+            public override bool IsInvalid => handle == default;
+
+            protected override bool ReleaseHandle() => CloseHandle(handle) == 0;
+        }
+
+        public SafeHandle CreateSharedHandle(in Buffer buff, string? name = null) => CreateSharedHandle((ID3D12DeviceChild*)buff.GetResourcePointer(), name);
+        public SafeHandle CreateSharedHandle(in Texture tex, string? name = null) => CreateSharedHandle((ID3D12DeviceChild*)tex.GetResourcePointer(), name);
+        public SafeHandle CreateSharedHandle(in Fence fence, string? name = null) => CreateSharedHandle((ID3D12DeviceChild*)((IInternalD3D12Object)fence).GetPointer(), name);
+
+        private SafeHandle CreateSharedHandle(ID3D12DeviceChild* pObject, string? name)
+        {
+            fixed (char* pName = name)
+            {
+                IntPtr handle;
+                ThrowIfFailed(DevicePointer->CreateSharedHandle(pObject, null, GENERIC_ALL, (ushort*)pName, &handle));
+                return new SafeSharedResourceHandle(handle);
+            }
+        }
+
+        public Fence OpenSharedFence(string name) => OpenSharedFence(GetHandleForName(name));
+        public Fence OpenSharedFence(SafeHandle handle) => OpenSharedFence(handle.DangerousGetHandle());
+        private Fence OpenSharedFence(IntPtr handle)
+        {
+            using UniqueComPtr<ID3D12Fence> fence = default;
+            ThrowIfFailed(DevicePointer->OpenSharedHandle(handle, fence.Iid, (void**)&fence));
+            return new Fence(fence.Move());
+        }
+
+        private IntPtr GetHandleForName(string name)
+        {
+            fixed (char* pName = name)
+            {
+                IntPtr handle;
+                ThrowIfFailed(DevicePointer->OpenSharedHandleByName((ushort*)pName, GENERIC_ALL, &handle));
+                return handle;
+            }
+        }
+
+        public Fence CreateFence(ulong initialValue, FenceFlags flags = FenceFlags.None)
+        {
+            using UniqueComPtr<ID3D12Fence> fence = default;
+            ThrowIfFailed(DevicePointer->CreateFence(initialValue, (D3D12_FENCE_FLAGS)flags, fence.Iid, (void**)&fence));
+            return new Fence(fence.Move());
         }
 
         /// <summary>
@@ -86,6 +243,7 @@ namespace Voltium.Core.Devices
         /// <param name="reservation">The reservation, in bytes</param>
         /// <param name="segment">The <see cref="MemorySegment"/> to reserve for</param>
         /// <param name="node">The node to reserve for</param>
+        [SupportedOSPlatform("windows10.0")]
         public unsafe void ReserveVideoMemory(ulong reservation, MemorySegment segment, uint node = 0)
         {
             if (Adapter._adapter.TryQueryInterface<IDXGIAdapter3>(out var adapter3))
@@ -111,7 +269,7 @@ namespace Voltium.Core.Devices
         {
             DXGI_QUERY_VIDEO_MEMORY_INFO info;
 
-            if (Adapter._adapter.TryQueryInterface<IDXGIAdapter3>(out var adapter3))
+            if (/* skip TryQueryInterface if not on windows */ OperatingSystem.IsWindowsVersionAtLeast(10) && Adapter._adapter.TryQueryInterface<IDXGIAdapter3>(out var adapter3))
             {
                 using (adapter3)
                 {
@@ -164,6 +322,7 @@ namespace Voltium.Core.Devices
                 DeviceFeature.InlineRaytracing => QueryFeatureSupport<D3D12_FEATURE_DATA_D3D12_OPTIONS5>(D3D12_FEATURE_D3D12_OPTIONS5).RaytracingTier >= D3D12_RAYTRACING_TIER.D3D12_RAYTRACING_TIER_1_1,
                 DeviceFeature.VariableRateShading => QueryFeatureSupport<D3D12_FEATURE_DATA_D3D12_OPTIONS6>(D3D12_FEATURE_D3D12_OPTIONS6).VariableShadingRateTier >= D3D12_VARIABLE_SHADING_RATE_TIER.D3D12_VARIABLE_SHADING_RATE_TIER_1,
                 DeviceFeature.ExtendedVariableRateShading => QueryFeatureSupport<D3D12_FEATURE_DATA_D3D12_OPTIONS6>(D3D12_FEATURE_D3D12_OPTIONS6).VariableShadingRateTier >= D3D12_VARIABLE_SHADING_RATE_TIER.D3D12_VARIABLE_SHADING_RATE_TIER_2,
+                DeviceFeature.CopyQueueTimestamps => QueryFeatureSupport<D3D12_FEATURE_DATA_D3D12_OPTIONS3>(D3D12_FEATURE_D3D12_OPTIONS3).CopyQueueTimestampQueriesSupported != FALSE,
                 _ => ThrowHelper.ThrowArgumentException<bool>(nameof(feature))
             };
 
@@ -442,10 +601,11 @@ namespace Voltium.Core.Devices
             ContextPool = new ContextPool(this);
             CopyQueue = new CommandQueue(this, ExecutionContext.Copy, true);
             ComputeQueue = new CommandQueue(this, ExecutionContext.Compute, true);
-            Allocator = new GpuAllocator(this);
+            Allocator = this is GraphicsDevice ? null! /* set by child ctor, hacky i know */  : new ComputeAllocator(this);
             PipelineManager = new PipelineManager(this);
-            EmptyRootSignature = RootSignature.Create(this, ReadOnlyMemory<RootParameter>.Empty, ReadOnlyMemory<StaticSampler>.Empty, D3D12_ROOT_SIGNATURE_FLAGS.D3D12_ROOT_SIGNATURE_FLAG_NONE);
+            EmptyRootSignature = CreateRootSignature(ReadOnlyMemory<RootParameter>.Empty, ReadOnlyMemory<StaticSampler>.Empty, RootSignatureFlags.AllowInputAssembler);
             CreateDescriptorHeaps();
+            DispatchIndirect = CreateIndirectCommand(IndirectArgument.CreateDispatch());
 
 
             _metaCommandDescs = new Lazy<MetaCommandDesc[]?>(EnumMetaCommands);
@@ -841,7 +1001,7 @@ namespace Voltium.Core.Devices
             }
 
             const int numHeaps = 1;
-            var heaps = stackalloc ID3D12DescriptorHeap*[1] { UavCbvSrvs.GetHeap() };
+            var heaps = stackalloc ID3D12DescriptorHeap*[1] { Resources.GetHeap() };
 
             context.List->SetDescriptorHeaps(numHeaps, heaps);
         }

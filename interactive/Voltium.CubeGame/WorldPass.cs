@@ -223,6 +223,7 @@ namespace Voltium.CubeGame
                 new Vector3(0.0f, -0.1f, 0.0f),
                 new Vector3(0.0f, 1.0f, 0.0f)
             );
+
             const float defaultFov = 70.0f * (float)Math.PI / 180.0f;
             constants->Projection = Matrix4x4.CreatePerspectiveFieldOfView(defaultFov, 1, 0.01f, 100f);
 
@@ -271,7 +272,6 @@ namespace Voltium.CubeGame
 
             var progressBuffer = _device.Allocator.AllocateBuffer(1024, MemoryAccess.GpuOnly);
 
-            context.SetRootSignature(RootSignature);
             context.SetAndClearRenderTarget(_rtvs[0], DefaultSkyColor, _dsvs[0]);
             context.SetRootDescriptorTable(RootSignatureConstants.TextureIndex, _texViews[0]);
             context.SetConstantBuffer<FrameConstants>(RootSignatureConstants.FrameConstantsIndex, _frameConstants);
@@ -293,7 +293,7 @@ namespace Voltium.CubeGame
                 context.SetVertexBuffers<BlockVertex>(chunk.Mesh.Vertices, (uint)chunk.Mesh.VertexCount, 0);
                 context.SetIndexBuffer<uint>(chunk.Mesh.Indices, (uint)chunk.Mesh.IndexCount);
 
-                context.WriteBufferImmediate(progressBuffer.GpuAddress + (sizeof(int) * i), GetDrawIndex(i), CopyContext.WriteBufferImmediateMode.In);
+                context.WriteBufferImmediate(progressBuffer.GpuAddress + (sizeof(int) * i), GetDrawIndex(i), WriteBufferImmediateMode.In);
                 context.DrawIndexed(chunk.Mesh.IndexCount);
 
 

@@ -35,6 +35,7 @@ namespace Voltium.RenderEngine
             FrameDependencies = new();
             Transitions = new();
             Pass = pass;
+            Context = null!;
         }
 
         internal List<int> FrameDependencies;
@@ -226,13 +227,13 @@ namespace Voltium.RenderEngine
         Discard,
 
         /// <summary>
-        /// The resource persists across frames, but there is a different copy of the resource for each frame index, so that 
+        /// The resource persists across frames, but there is a different copy of the resource for each frame index, so that
         /// the application can safely write to it with multiple latent frames
         /// </summary>
         Persistent,
 
         /// <summary>
-        /// The resource persists across frames, and there is only a single copy of it provided to all frames. Use with caution, to prevent 
+        /// The resource persists across frames, and there is only a single copy of it provided to all frames. Use with caution, to prevent
         /// overwriting of data being used by the GPU in prior latent frames
         /// </summary>
         PersistentPerFrame

@@ -39,14 +39,14 @@ namespace Voltium.Common
 
         public NativeEvent(IntPtr win32Handle)
         {
-            Debug.Assert(PlatformInfo.IsLinux);
+            Debug.Assert(OperatingSystem.IsWindows());
 
             _data = win32Handle;
         }
 
         public NativeEvent(int linuxFileDescriptor)
         {
-            Debug.Assert(PlatformInfo.IsLinux);
+            Debug.Assert(OperatingSystem.IsLinux());
 
             _data = 0;
 
@@ -55,7 +55,7 @@ namespace Voltium.Common
 
         public void Block()
         {
-            if (PlatformInfo.IsLinux)
+            if (OperatingSystem.IsLinux())
             {
                 _ = Linux.read(FileDescriptor, null, 0);
             }
@@ -73,7 +73,7 @@ namespace Voltium.Common
 
         internal bool CheckIsCompleted()
         {
-            if (PlatformInfo.IsLinux)
+            if (OperatingSystem.IsLinux())
             {
                 const int fdRead = Linux.POLLIN | Linux.POLLRDNORM;
 

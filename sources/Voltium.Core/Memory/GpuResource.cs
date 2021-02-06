@@ -22,7 +22,7 @@ namespace Voltium.Core.Memory
             ComputeDevice device,
             UniqueComPtr<ID3D12Resource> resource,
             InternalAllocDesc* desc,
-            GpuAllocator? allocator,
+            ComputeAllocator? allocator,
             int heapIndex = -1 /* no relevant heap block */,
             HeapBlock block = default
         )
@@ -30,43 +30,25 @@ namespace Voltium.Core.Memory
             _device = device;
             _value = resource.Move();
             Desc = *desc;
-            State = (ResourceState)desc->InitialState;
             HeapIndex = heapIndex;
             Block = block;
             _allocator = allocator;
-            MemoryKind = (MemoryAccess)desc->HeapType;
         }
 
         private GpuResource() { }
 
-        /// <summary>
-        /// The format of the buffer, if typed, else <see cref="DataFormat.Unknown"/>
-        /// </summary>
-        public DataFormat ResourceFormat => (DataFormat)Desc.Desc.Format;
-
-        internal InternalAllocDesc Desc;
 
         public unsafe ID3D12Resource* GetResourcePointer() => _value.Ptr;
 
-        /// The current state of the resource
-        public ResourceState State;
-
-        /// Whether a resource transition was began on this resource, making it temporarily inaccessible
-        public bool TransitionBegan;
-
-        private UniqueComPtr<ID3D12Resource> _value;
-        internal AllocFlags AllocFlags => Desc.AllocFlags;
-
-        // Null if the resource is unmapped or not CPU accessible (default heap)
-        public unsafe void* CpuAddress;
-
-
         private ComputeDevice _device = null!;
-
-        public MemoryAccess MemoryKind;
-        private GpuAllocator? _allocator;
+        private ComputeAllocator? _allocator;
+        private UniqueComPtr<ID3D12Resource> _value;
+        internal InternalAllocDesc Desc;
+        public unsafe void* CpuAddress;
         public int HeapIndex;
         public HeapBlock Block;
+
+        // Null if the resource is unmapped or not CPU accessible (default heap)
 
         /// <summary>
         /// If the resource is not currently mapped, maps the resource
@@ -108,14 +90,14 @@ namespace Voltium.Core.Memory
             if (_allocator is not null)
             {
                 _allocator.Return(this);
+
+                // Prevent use after free
+                _value = default;
             }
             else
             {
                 _value.Dispose();
             }
-
-            // Prevent use after free
-            _value = default;
 #if TRACE_DISPOSABLES || DEBUG
             GC.SuppressFinalize(this);
 #endif

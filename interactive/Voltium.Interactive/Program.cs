@@ -21,6 +21,9 @@ using Voltium.Common;
 using Voltium.Core.Exceptions;
 using Microsoft.Extensions.Logging;
 using Voltium.Interactive.Samples.Predication;
+using Voltium.Core.ShaderLang;
+using System.Numerics;
+using Voltium.Interactive.Samples.ExecuteIndirect;
 
 namespace Voltium.Interactive
 {
@@ -28,7 +31,7 @@ namespace Voltium.Interactive
     {
         private static int Main(string[] args)
         {
-            var application = new PredicationSample();
+            var application = new ExecuteIndirectApp();
             return ApplicationRunner.RunWin32(application);
         }
     }
@@ -48,5 +51,37 @@ namespace Voltium.Interactive
         }
     }
 
+    //public class HelloWorldShader : Shader
+    //{
+    //    [StructLayout(LayoutKind.Sequential)]
+    //    struct VertexIn
+    //    {
+    //        [Semantic("Position")] public Vector4 Position;
+    //        [Semantic("Color")] public Vector3 Color;
+    //    }
 
+    //    struct VertexOut
+    //    {
+    //        [SV_Position] public Vector4 Position;
+    //        public Vector3 Color;
+    //    }
+
+    //    [VertexShader]
+    //    VertexOut VertexMain(in VertexIn @in)
+    //    {
+    //        return new VertexOut
+    //        {
+    //            Position = @in.Position,
+    //            Color = @in.Color
+    //        };
+    //    }
+
+
+    //    [PixelShader]
+    //    [return: SV_Target]
+    //    Vector4 PixelMain(in VertexOut @in)
+    //    {
+    //        return new Vector4(@in.Color, 1);
+    //    }
+    //}
 }

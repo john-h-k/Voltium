@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.Intrinsics;
 using TerraFX.Interop;
 using Voltium.Common;
+using Voltium.Core.Contexts;
 using Voltium.Core.Memory;
 using Voltium.Core.Pipeline;
 using Voltium.Core.Pool;
@@ -11,6 +12,149 @@ using Buffer = Voltium.Core.Memory.Buffer;
 
 namespace Voltium.Core
 {
+    public struct IndirectArgument
+    {
+        internal D3D12_INDIRECT_ARGUMENT_DESC Desc;
+
+        private IndirectArgument(D3D12_INDIRECT_ARGUMENT_TYPE type) => Desc = new() { Type = type };
+
+        public static IndirectArgument CreateDraw() => new(D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DRAW);
+        public static IndirectArgument CreateDrawIndexed() => new(D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DRAW_INDEXED);
+        public static IndirectArgument CreateDispatch() => new(D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH);
+        public static IndirectArgument CreateDispatchRays() => new(D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH_RAYS);
+        public static IndirectArgument CreateDispatchMesh() => new(D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH_MESH);
+        public static IndirectArgument CreateIndexBuffer() => new(D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_INDEX_BUFFER_VIEW);
+
+
+        public static IndirectArgument CreateVertexBuffer(uint slot)
+        {
+            var desc = new IndirectArgument(D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH_MESH);
+            desc.Desc.VertexBuffer.Slot = slot;
+            return desc;
+        }
+
+        public static unsafe IndirectArgument CreateConstants<T>(uint parameterIndex, uint offsetIn32BitValues = 0) where T : unmanaged
+        {
+            if (sizeof(T) % 4 != 0)
+            {
+                ThrowHelper.ThrowArgumentException(
+                    $"Type '{typeof(T).Name}' has size '{sizeof(T)}' but {nameof(CreateConstants)} requires typeparam '{nameof(T)} '" +
+                    "to have size divisble by 4"
+                );
+            }
+
+            return CreateConstants(parameterIndex, (uint)sizeof(T), offsetIn32BitValues);
+        }
+
+        public static IndirectArgument CreateConstants(uint parameterIndex, uint num32BitsValues, uint offsetIn32BitValues = 0)
+        {
+            var desc = new IndirectArgument(D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_CONSTANT);
+            desc.Desc.Constant.RootParameterIndex = parameterIndex;
+            desc.Desc.Constant.DestOffsetIn32BitValues = offsetIn32BitValues;
+            desc.Desc.Constant.Num32BitValuesToSet = num32BitsValues;
+            return desc;
+        }
+
+        public static IndirectArgument CreateConstantBufferView(uint parameterIndex)
+        {
+            var desc = new IndirectArgument(D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_CONSTANT_BUFFER_VIEW);
+            desc.Desc.ConstantBufferView.RootParameterIndex = parameterIndex;
+            return desc;
+        }
+
+        public static IndirectArgument CreateShaderResourceView(uint parameterIndex)
+        {
+            var desc = new IndirectArgument(D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_CONSTANT_BUFFER_VIEW);
+            desc.Desc.ShaderResourceView.RootParameterIndex = parameterIndex;
+            return desc;
+        }
+
+        public static IndirectArgument CreateUnorderedAccessView(uint parameterIndex)
+        {
+            var desc = new IndirectArgument(D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_CONSTANT_BUFFER_VIEW);
+            desc.Desc.UnorderedAccessView.RootParameterIndex = parameterIndex;
+            return desc;
+        }
+    }
+
+    public struct IndirectDrawArguments
+    {
+        public uint VertexCountPerInstance;
+        public uint InstanceCount;
+        public uint StartVertexLocation;
+        public uint StartInstanceLocation;
+    }
+
+
+    public struct IndirectDrawIndexedArguments
+    {
+        public uint IndexCountPerInstance;
+        public uint InstanceCount;
+        public uint StartIndexLocation;
+        public int BaseVertexLocation;
+        public uint StartInstanceLocation;
+    }
+
+    public struct IndirectDispatchArguments
+    {
+        public uint X, Y, Z;
+    }
+
+    public struct IndirectDispatchMeshArguments
+    {
+        public uint X, Y, Z;
+    }
+
+    public struct IndirectVertexBufferViewArguments
+    {
+        public ulong BufferLocation;
+        public uint SizeInBytes;
+        public uint StrideInBytes;
+    }
+
+    public struct IndirectIndexBufferViewArguments
+    {
+        public ulong BufferLocation;
+        public uint SizeInBytes;
+        public IndexFormat Format;
+    }
+
+    // TODO
+    public struct IndirectDispatchRaysArguments
+    {
+        //private RayDispatchDesc Desc;
+    }
+
+    public struct IndirectConstantArgument<T>
+    {
+        public T Constant;
+    }
+
+    public struct IndirectConstantBufferViewArguments { public ulong BufferLocation; }
+    public struct IndirectShaderResourceViewArguments { public ulong BufferLocation; }
+    public struct IndirectUnorderedAccessViewArguments { public ulong BufferLocation; }
+
+    public unsafe sealed class IndirectCommand : IInternalD3D12Object
+    {
+        private UniqueComPtr<ID3D12CommandSignature> _value;
+
+        internal IndirectCommand(UniqueComPtr<ID3D12CommandSignature> value, RootSignature? rootSignature, uint commandSizeInBytes, ReadOnlyMemory<IndirectArgument> indirectArguments)
+        {
+            _value = value;
+            RootSignature = rootSignature;
+            CommandSizeInBytes = commandSizeInBytes;
+            IndirectArguments = indirectArguments;
+        }
+
+        public RootSignature? RootSignature { get; }
+        public uint CommandSizeInBytes { get; }
+        public ReadOnlyMemory<IndirectArgument> IndirectArguments { get; }
+
+
+        internal ID3D12CommandSignature* GetCommandSignature() => _value.Ptr;
+        ID3D12Object* IInternalD3D12Object.GetPointer() => (ID3D12Object*)GetCommandSignature();
+    }
+
     /// <summary>
     /// Represents a context on which GPU commands can be recorded
     /// </summary>
@@ -86,6 +230,78 @@ namespace Voltium.Core
         //SetPipelineState
         //SetPredication
 
+        public void ExecuteIndirect(
+            IndirectCommand command,
+            [RequiresResourceState(ResourceState.IndirectArgument)] in Buffer commandBuffer,
+            uint maxCommandCount = 1
+        ) => ExecuteIndirect(command, commandBuffer, 0, maxCommandCount);
+
+
+        public void ExecuteIndirect(
+            IndirectCommand command,
+            [RequiresResourceState(ResourceState.IndirectArgument)] in Buffer commandBuffer,
+            uint commandBufferOffset,
+            uint maxCommandCount = 1
+        )
+        {
+            List->ExecuteIndirect(
+                command.GetCommandSignature(),
+                maxCommandCount,
+                commandBuffer.GetResourcePointer(),
+                commandBufferOffset,
+                null,
+                0
+            );
+        }
+
+        public void ExecuteIndirect(
+            IndirectCommand command,
+           [RequiresResourceState(ResourceState.IndirectArgument)] in Buffer commandBuffer,
+            [RequiresResourceState(ResourceState.IndirectArgument)] in Buffer commandCountBuffer,
+            uint maxCommandCount = 1
+        ) => ExecuteIndirect(command, commandBuffer, 0, commandCountBuffer, 0, maxCommandCount);
+
+        public void ExecuteIndirect(
+            IndirectCommand command,
+            [RequiresResourceState(ResourceState.IndirectArgument)] in Buffer commandBuffer,
+            uint commandBufferOffset,
+            [RequiresResourceState(ResourceState.IndirectArgument)] in Buffer commandCountBuffer,
+            uint maxCommandCount = 1
+        ) => ExecuteIndirect(command, commandBuffer, commandBufferOffset, commandCountBuffer, 0, maxCommandCount);
+
+        public void ExecuteIndirect(
+            IndirectCommand command,
+           [RequiresResourceState(ResourceState.IndirectArgument)] in Buffer commandBuffer,
+            [RequiresResourceState(ResourceState.IndirectArgument)] in Buffer commandCountBuffer,
+            uint commandCountBufferOffset,
+            uint maxCommandCount = 1
+        ) => ExecuteIndirect(command, commandBuffer, 0, commandCountBuffer, commandCountBufferOffset, maxCommandCount);
+
+        public void ExecuteIndirect(
+            IndirectCommand command,
+            [RequiresResourceState(ResourceState.IndirectArgument)] in Buffer commandBuffer,
+            uint commandBufferOffset,
+            [RequiresResourceState(ResourceState.IndirectArgument)] in Buffer commandCountBuffer,
+            in uint commandCountBufferOffset,
+            uint maxCommandCount = 1
+        )
+        {
+            List->ExecuteIndirect(
+                command.GetCommandSignature(),
+                maxCommandCount,
+                commandBuffer.GetResourcePointer(),
+                commandBufferOffset,
+                commandCountBuffer.GetResourcePointer(),
+                commandCountBufferOffset
+            );
+        }
+
+        /// <summary>
+        /// Sets the bound <see cref="DescriptorHeap"/> for the command list
+        /// </summary>
+        /// <param name="resources"></param>
+        /// <param name="samplers"></param>
+        /// <remarks>Minimise changing the bound heaps, as on some hardware they can force a full hardware flush</remarks>
         public void SetDescriptorHeaps(DescriptorHeap? resources = null, DescriptorHeap? samplers = null)
         {
             var pHeaps = stackalloc ID3D12DescriptorHeap*[2];
@@ -102,13 +318,38 @@ namespace Voltium.Core
 
             List->SetDescriptorHeaps(numHeaps, pHeaps);
         }
-        public void ClearUnorderedAccessViewUInt32(DescriptorHandle shaderVisible, DescriptorHandle shaderOpaque, in Texture tex, Vector128<uint> values = default)
+
+        /// <summary>
+        /// Clears an unordered-access view to a specified <see cref="Vector128{UInt32}"/> of values
+        /// </summary>
+        /// <param name="shaderVisible">A <see cref="DescriptorHandle"/> to <paramref name="tex"/> which <b>must</b> be shader-visible</param>
+        /// <param name="shaderOpaque">A <see cref="DescriptorHandle"/> to <paramref name="tex"/> which <b>must not</b> be shader-visible</param>
+        /// <param name="tex">The <see cref="Texture"/> to clear</param>
+        /// <param name="values">The <see cref="Vector128{UInt32}"/> to clear <paramref name="tex"/> to</param>
+        public void ClearUnorderedAccessViewUInt32(
+            DescriptorHandle shaderVisible,
+            DescriptorHandle shaderOpaque,
+            [RequiresResourceState(ResourceState.UnorderedAccess)] in Texture tex,
+            Vector128<uint> values = default
+        )
         {
             List->ClearUnorderedAccessViewUint(shaderVisible.GpuHandle, shaderOpaque.CpuHandle, tex.GetResourcePointer(), (uint*)&values, 0, null);
         }
 
 
-        public void ClearUnorderedAccessViewSingle(DescriptorHandle shaderVisible, DescriptorHandle shaderOpaque, in Texture tex, Rgba128 values = default)
+        /// <summary>
+        /// Clears an unordered-access view to a specified <see cref="Rgba128"/> of values
+        /// </summary>
+        /// <param name="shaderVisible">A <see cref="DescriptorHandle"/> to <paramref name="tex"/> which <b>must</b> be shader-visible</param>
+        /// <param name="shaderOpaque">A <see cref="DescriptorHandle"/> to <paramref name="tex"/> which <b>must not</b> be shader-visible</param>
+        /// <param name="tex">The <see cref="Texture"/> to clear</param>
+        /// <param name="values">The <see cref="Rgba128"/> to clear <paramref name="tex"/> to</param>
+        public void ClearUnorderedAccessViewSingle(
+            DescriptorHandle shaderVisible,
+            DescriptorHandle shaderOpaque,
+            [RequiresResourceState(ResourceState.UnorderedAccess)] in Texture tex,
+            Rgba128 values = default
+        )
         {
             List->ClearUnorderedAccessViewFloat(shaderVisible.GpuHandle, shaderOpaque.CpuHandle, tex.GetResourcePointer(), (float*)&values, 0, null);
         }
@@ -119,14 +360,13 @@ namespace Voltium.Core
         /// <param name="pso">The <see cref="PipelineStateObject"/> to set</param>
         public void SetPipelineState(PipelineStateObject pso)
         {
-            if (pso.Pointer.TryQueryInterface<ID3D12PipelineState>(out var pState))
+            if (pso is RaytracingPipelineStateObject rtPso)
             {
-                List->SetPipelineState(pState.Ptr);
-                pState.Dispose();
+                List->SetPipelineState1((ID3D12StateObject*)rtPso.Pointer.Ptr);
             }
             else
             {
-                List->SetPipelineState1(pso.Pointer.As<ID3D12StateObject>().Ptr);
+                List->SetPipelineState((ID3D12PipelineState*)pso.Pointer.Ptr);
             }
         }
 
@@ -135,8 +375,17 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
-        public void SetShaderResourceBuffer(uint paramIndex, in Buffer cbuffer)
+        public void SetShaderResourceBuffer(uint paramIndex, [RequiresResourceState(ResourceState.NonPixelShaderResource, ResourceState.PixelShaderResource)] in Buffer cbuffer)
             => SetShaderResourceBuffer<byte>(paramIndex, cbuffer, 0);
+
+
+        /// <summary>
+        /// Sets a directly-bound shader resource buffer view descriptor to the graphics pipeline
+        /// </summary>
+        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
+        /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
+        public void SetRaytracingAccelerationStructure(uint paramIndex, in RaytracingAccelerationStructure cbuffer)
+            => SetShaderResourceBuffer<byte>(paramIndex, cbuffer.Buffer, 0);
 
         /// <summary>
         /// Sets a directly-bound shader resource buffer view descriptor to the graphics pipeline
@@ -144,7 +393,7 @@ namespace Voltium.Core
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
         /// <param name="offset">The offset in elements of <typeparamref name="T"/> to start the view at</param>
-        public void SetShaderResourceBuffer<T>(uint paramIndex, in Buffer cbuffer, uint offset = 0) where T : unmanaged
+        public void SetShaderResourceBuffer<T>(uint paramIndex, [RequiresResourceState(ResourceState.NonPixelShaderResource, ResourceState.PixelShaderResource)] in Buffer cbuffer, uint offset = 0) where T : unmanaged
         {
             List->SetComputeRootShaderResourceView(paramIndex, cbuffer.GpuAddress + (ulong)(sizeof(T) * offset));
         }
@@ -155,7 +404,7 @@ namespace Voltium.Core
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
         /// <param name="offset">The offset in bytes to start the view at</param>
-        public void SetShaderResourceBufferByteOffset(uint paramIndex, in Buffer cbuffer, uint offset = 0)
+        public void SetShaderResourceBufferByteOffset(uint paramIndex, [RequiresResourceState(ResourceState.NonPixelShaderResource, ResourceState.PixelShaderResource)] in Buffer cbuffer, uint offset = 0)
         {
             List->SetComputeRootUnorderedAccessView(paramIndex, cbuffer.GpuAddress + offset);
         }
@@ -167,7 +416,7 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
-        public void SetUnorderedAccessBuffer(uint paramIndex, in Buffer cbuffer)
+        public void SetUnorderedAccessBuffer(uint paramIndex, [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer cbuffer)
             => SetUnorderedAccessBuffer<byte>(paramIndex, cbuffer, 0);
 
         /// <summary>
@@ -176,7 +425,7 @@ namespace Voltium.Core
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
         /// <param name="offset">The offset in elements of <typeparamref name="T"/> to start the view at</param>
-        public void SetUnorderedAccessBuffer<T>(uint paramIndex, in Buffer cbuffer, uint offset = 0) where T : unmanaged
+        public void SetUnorderedAccessBuffer<T>(uint paramIndex, [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer cbuffer, uint offset = 0) where T : unmanaged
         {
             List->SetComputeRootUnorderedAccessView(paramIndex, cbuffer.GpuAddress + (ulong)(sizeof(T) * offset));
         }
@@ -187,7 +436,7 @@ namespace Voltium.Core
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
         /// <param name="offset">The offset in bytes to start the view at</param>
-        public void SetUnorderedAccessBuffer(uint paramIndex, in Buffer cbuffer, uint offset = 0)
+        public void SetUnorderedAccessBuffer(uint paramIndex, [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer cbuffer, uint offset = 0)
         {
             List->SetComputeRootUnorderedAccessView(paramIndex, cbuffer.GpuAddress + offset);
         }
@@ -197,7 +446,7 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
-        public void SetConstantBuffer(uint paramIndex, in Buffer cbuffer)
+        public void SetConstantBuffer(uint paramIndex, [RequiresResourceState(ResourceState.ConstantBuffer)] in Buffer cbuffer)
             => SetConstantBuffer<byte>(paramIndex, cbuffer, 0);
 
         /// <summary>
@@ -206,7 +455,7 @@ namespace Voltium.Core
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
         /// <param name="offset">The offset in elements of <typeparamref name="T"/> to start the view at</param>
-        public void SetConstantBuffer<T>(uint paramIndex, in Buffer cbuffer, uint offset = 0) where T : unmanaged
+        public void SetConstantBuffer<T>(uint paramIndex, [RequiresResourceState(ResourceState.ConstantBuffer)] in Buffer cbuffer, uint offset = 0) where T : unmanaged
         {
             var alignedSize = (sizeof(T) + 255) & ~255;
 
@@ -219,7 +468,7 @@ namespace Voltium.Core
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
         /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
         /// <param name="offset">The offset in bytes to start the view at</param>
-        public void SetConstantBufferByteOffset(uint paramIndex, in Buffer cbuffer, uint offset = 0)
+        public void SetConstantBufferByteOffset(uint paramIndex, [RequiresResourceState(ResourceState.ConstantBuffer)] in Buffer cbuffer, uint offset = 0)
         {
             List->SetComputeRootConstantBufferView(paramIndex, cbuffer.GpuAddress + offset);
         }
@@ -306,6 +555,10 @@ namespace Voltium.Core
         {
             List->SetComputeRootSignature(signature.Value);
         }
+
+        /// <inheritdoc cref="Dispatch(uint, uint, uint)"/>
+        public void Dispatch(int x, int y = 1, int z = 1)
+            => Dispatch((uint)x, (uint)y, (uint)z);
 
         /// <summary>
         /// Dispatches thread groups

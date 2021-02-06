@@ -1,5 +1,6 @@
 using System;
 using TerraFX.Interop;
+using Voltium.Common;
 using Voltium.Core.Configuration.Graphics;
 using Rectangle = System.Drawing.Rectangle;
 
@@ -8,7 +9,8 @@ namespace Voltium.Core.Memory
     /// <summary>
     /// Describes a buffer, for use by the <see cref="GpuAllocator"/>
     /// </summary>
-    public struct TextureDesc
+    [Fluent]
+    public partial struct TextureDesc
     {
 
         public static TextureDesc CreateShadingRateTextureDesc(uint width, uint height, uint tileSize, ResourceFlags flags = ResourceFlags.None)
@@ -173,6 +175,7 @@ namespace Voltium.Core.Memory
                 DepthOrArraySize = depthOrArraySize,
                 Dimension = dimension,
                 Format = format,
+                Layout = TextureLayout.Optimal
             };
         }
 
@@ -257,13 +260,33 @@ namespace Voltium.Core.Memory
         /// </summary>
         public MsaaDesc Msaa { get; set; }
 
+        /// <summary>
+        /// The <see cref="TextureLayout"/> for the texture
+        /// </summary>
         public TextureLayout Layout { get; set; }
     }
 
+
+    /// <summary>
+    /// Defines the layout of a texture
+    /// </summary>
     public enum TextureLayout
     {
+        /// <summary>
+        /// Allow the driver to determine the texture layout, meaning the entire layout is opaque to the application
+        /// </summary>
         Optimal = D3D12_TEXTURE_LAYOUT.D3D12_TEXTURE_LAYOUT_UNKNOWN,
+
+        /// <summary>
+        /// Split the texture into 64kb tiles, for use with reserved resources, but keeping an optimal layout within the tiles which is opaque
+        /// to the application
+        /// </summary>
         Optimal64KbTile = D3D12_TEXTURE_LAYOUT.D3D12_TEXTURE_LAYOUT_64KB_UNDEFINED_SWIZZLE,
+
+        /// <summary>
+        /// Split the texture into 64kb tiles, for use with reserved resources, and use the standard-swizzle pattern so the application
+        /// can understand and access the layout directly
+        /// </summary>
         StandardSwizzle64KbTile = D3D12_TEXTURE_LAYOUT.D3D12_TEXTURE_LAYOUT_64KB_STANDARD_SWIZZLE
     }
 }

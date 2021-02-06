@@ -11,29 +11,12 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <CheckForOverflowUnderflow>false</CheckForOverflowUnderflow>
     <NoWarn>1701;1702;1591</NoWarn>
+    <DefineConstants>TRACE;ENABLE_EXPERIMENTAL_FEATURES</DefineConstants>
   </PropertyGroup>
 
-  <ItemGroup>
-    <Compile Remove="Raytracing\**" />
-    <EmbeddedResource Remove="Raytracing\**" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Compile Include="Raytracing\AxisAlignedBoundingBoxGeometryDesc.cs" />
-    <Compile Include="Raytracing\BuildAccelerationStructureFlags.cs" />
-    <Compile Include="Raytracing\GeometryDesc.cs" />
-    <Compile Include="Raytracing\GeometryFlags.cs" />
-    <Compile Include="Raytracing\GeometryInstance.cs" />
-    <Compile Include="Raytracing\GeometryType.cs" />
-    <Compile Include="Raytracing\IndexFormat.cs" />
-    <Compile Include="Raytracing\Layout.cs" />
-    <Compile Include="Raytracing\RayDispatchDesc.cs" />
-    <Compile Include="Raytracing\RaytracingPipelineDesc.cs" />
-    <Compile Include="Raytracing\RaytracingPipelineStateObject.cs" />
-    <Compile Include="Raytracing\ShaderRecordTable.cs" />
-    <Compile Include="Raytracing\TriangleGeometryDesc.cs" />
-    <Compile Include="Raytracing\VertexFormat.cs" />
-  </ItemGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <NoWarn>1701;1702;1591</NoWarn>
+  </PropertyGroup>
 
   <ItemGroup>
     <None Include="Text\FontPixelShader.hlsl" />

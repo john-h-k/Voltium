@@ -148,6 +148,10 @@ namespace Voltium.Core
         public DescriptorHandle this[uint index] => _allDescriptors[index];
         public DescriptorHandle this[int index] => _allDescriptors[index];
 
+        public int Length => _allDescriptors.Length;
+        public DescriptorSpan Slice(int start) => _allDescriptors.Slice(start);
+        public DescriptorSpan Slice(int start, int length) => _allDescriptors.Slice(start, length);
+
         internal DescriptorHeap(
             ComputeDevice device,
             DescriptorHeapType type,
@@ -203,13 +207,13 @@ namespace Voltium.Core
 
             foreach (ref var block in _freeBlocks.AsSpan())
             {
-                if (block.Length > count)
+                if (block.Length >= count)
                 {
                     var offset = (int)block.Offset;
                     block.Offset += count;
                     block.Length -= count;
 
-                    return new DescriptorAllocation(this, _allDescriptors[offset..(int)count], (uint)offset);
+                    return new DescriptorAllocation(this, _allDescriptors[offset..(offset + (int)count)], (uint)offset);
                 }
             }
 
