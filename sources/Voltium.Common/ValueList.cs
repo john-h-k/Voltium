@@ -6,43 +6,6 @@ using System.Runtime.InteropServices;
 
 namespace Voltium.Common
 {
-    internal struct ValueLinkedList<T>
-    {
-        public ValueLinkedListNode<T> Add(in T value)
-        {
-            Tail.Next = new ValueLinkedListNode<T>(value, Tail, null);
-            Tail = Tail.Next;
-            return Tail;
-        }
-
-        public ValueLinkedListNode<T> Emplace(in T value)
-        {
-            Head.Previous = new ValueLinkedListNode<T>(value, null, Head);
-            Head = Head.Previous;
-            return Head;
-        }
-
-        public ValueLinkedListNode<T> Head { get; private set; }
-        public ValueLinkedListNode<T> Tail { get; private set; }
-    }
-
-    internal sealed class ValueLinkedListNode<T>
-    {
-        internal ValueLinkedListNode(in T value, ValueLinkedListNode<T>? previous, ValueLinkedListNode<T>? next)
-        {
-            Value = value;
-            Previous = previous;
-            Next = next;
-        }
-
-        public ValueLinkedListNode<T>? Previous;
-        public ValueLinkedListNode<T>? Next;
-
-        [AllowNull]
-        public T Value;
-    }
-
-
     internal struct ValueList<T>
     {
         private ArrayPool<T>? _pool;
