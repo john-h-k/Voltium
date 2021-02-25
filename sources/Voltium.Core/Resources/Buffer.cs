@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using TerraFX.Interop;
 using Voltium.Common;
+using Voltium.Core.CommandBuffer;
 using Voltium.Core.Devices;
 using Voltium.Core.Memory;
 
@@ -91,219 +92,179 @@ namespace Voltium.Core.Memory
 
     //}
 
-    public unsafe struct RaytracingAccelerationStructure : IInternalD3D12Object, IDisposable
+
+
+
+    [StructLayout(LayoutKind.Explicit)]
+    public unsafe struct Disposal<T>
     {
-        internal RaytracingAccelerationStructure(in Buffer buffer)
+        public Disposal(delegate*<ref T, void> ptr)
         {
-            Buffer = buffer;
+            Value = 0;
+            FnPtr = ptr;
         }
 
-        internal Buffer Buffer;
+        [FieldOffset(0)]
+        public nint Value;
+        [FieldOffset(0)]
+        public delegate*<ref T, void> FnPtr;
 
-        public uint Length => Buffer.Length;
-        public ulong GpuAddress => Buffer.GpuAddress;
-
-        ID3D12Object* IInternalD3D12Object.GetPointer() => (ID3D12Object*)Buffer.GetResourcePointer();
-        public void Dispose() => Buffer.Dispose();
+        public void Dispose(ref T val)
+        {
+            var dispose = (delegate*<ref T, void>)Interlocked.Exchange(ref Value, (nint)0);
+            if (dispose != null)
+            {
+                dispose(ref val);
+            }
+        }
     }
 
-    /// <summary>
-    /// Represents a single-dimension untyped buffer of GPU data
-    /// </summary>
-    public unsafe struct Buffer : IInternalD3D12Object, IDisposable
+
+    public readonly struct IndirectCommandHandle : IHandle<IndirectCommandHandle>
     {
-        ID3D12Object* IInternalD3D12Object.GetPointer() => _resource.GetPointer();
+        private readonly GenerationalHandle Handle;
 
-        private GpuResource _resource;
-        private uint _offset;
-        private void* _cpuAddress;
-        private ulong _gpuAddress;
+        public IndirectCommandHandle(GenerationalHandle handle) => Handle = handle;
 
-        /// <summary>
-        /// Whether this buffer has been allocated or is uninitialized or disposed
-        /// </summary>
-        public bool IsAllocated => _resource != null;
+        public GenerationalHandle Generational => Handle;
+        public IndirectCommandHandle FromGenerationHandle(GenerationalHandle handle) => new(handle);
+    }
 
+    public readonly struct DescriptorSetHandle : IHandle<DescriptorSetHandle>
+    {
+        private readonly GenerationalHandle Handle;
+
+        public DescriptorSetHandle(GenerationalHandle handle) => Handle = handle;
+
+        public GenerationalHandle Generational => Handle;
+        public DescriptorSetHandle FromGenerationHandle(GenerationalHandle handle) => new(handle);
+    }
+
+    public readonly struct ViewSetHandle : IHandle<ViewSetHandle>
+    {
+        private readonly GenerationalHandle Handle;
+
+        public ViewSetHandle(GenerationalHandle handle) => Handle = handle;
+
+        public GenerationalHandle Generational => Handle;
+        public ViewSetHandle FromGenerationHandle(GenerationalHandle handle) => new(handle);
+    }
+
+    public readonly struct ViewHandle : IHandle<ViewHandle>
+    {
+        private readonly GenerationalHandle Handle;
+
+        public ViewHandle(GenerationalHandle handle) => Handle = handle;
+
+        public GenerationalHandle Generational => Handle;
+        public ViewHandle FromGenerationHandle(GenerationalHandle handle) => new(handle);
+    }
+
+    public readonly struct RootSignatureHandle : IHandle<RootSignatureHandle>
+    {
+        private readonly GenerationalHandle Handle;
+
+        public RootSignatureHandle(GenerationalHandle handle) => Handle = handle;
+
+        public GenerationalHandle Generational => Handle;
+        public RootSignatureHandle FromGenerationHandle(GenerationalHandle handle) => new(handle);
+    }
+    
+    public readonly struct PipelineHandle : IHandle<PipelineHandle>
+    {
+        private readonly GenerationalHandle Handle;
+
+        public PipelineHandle(GenerationalHandle handle) => Handle = handle;
+
+        public GenerationalHandle Generational => Handle;
+        public PipelineHandle FromGenerationHandle(GenerationalHandle handle) => new(handle);
+    }
+
+
+    public readonly struct RaytracingAccelerationStructureHandle : IHandle<RaytracingAccelerationStructureHandle>
+    {
+        private readonly GenerationalHandle Handle;
+
+        public RaytracingAccelerationStructureHandle(GenerationalHandle handle) => Handle = handle;
+
+        public GenerationalHandle Generational => Handle;
+        public RaytracingAccelerationStructureHandle FromGenerationHandle(GenerationalHandle handle) => new(handle);
+    }
+
+    public unsafe struct RaytracingAccelerationStructure : IDisposable
+    {
         /// <summary>
         /// The size, in bytes, of the buffer
         /// </summary>
         public readonly uint Length;
 
-        internal uint Offset => _offset;
+        public RaytracingAccelerationStructureHandle Handle;
+        private Disposal<RaytracingAccelerationStructureHandle> _dispose;
 
-        public readonly uint LengthAs<T>() => Length / (uint)Unsafe.SizeOf<T>();
-
-        internal Buffer(ComputeDevice device, GpuResource resource, ulong offset, in InternalAllocDesc pDesc)
-        {
-            _resource = resource;
-            _offset = (uint)offset;
-
-            Length = (uint)pDesc.Desc.Width;
-
-            _gpuAddress = _resource.GetResourcePointer()->GetGPUVirtualAddress() + _offset;
-
-            // Don't map CPU-opaque buffers or raytracing acceleration buffers
-            if (pDesc.HeapProperties.IsCPUAccessible && pDesc.InitialState != D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE)
-            {
-                void* pData;
-                device.ThrowIfFailed(_resource.GetResourcePointer()->Map(0, null, &pData));
-
-                _cpuAddress = pData;
-            }
-            else
-            {
-                _cpuAddress = null;
-            }
-        }
-
-        private void ThrowIfDead()
-        {
-            if (_resource is null)
-            {
-                ThrowHelper.ThrowObjectDisposedException(this.GetName());
-            }
-        }
-
-        /// <summary>
-        /// The buffer data. This may be empty if the data is not CPU writable
-        /// </summary>
-        public Span<T> AsSpan<T>() where T : unmanaged => new(Pointer, (int)LengthAs<T>());
-
-        /// <summary>
-        /// The buffer data. This may be empty if the data is not CPU writable
-        /// </summary>
-        public T* As<T>() where T : unmanaged => (T*)Pointer;
-
-        /// <summary>
-        /// The buffer data. This may be empty if the data is not CPU writable
-        /// </summary>
-        public ref T AsRef<T>() where T : unmanaged => ref *As<T>();
-
-        /// <summary>
-        /// The buffer data. This may be <see langword="null"/> if the data is not CPU writable
-        /// </summary>
-        public void* Pointer
-        {
-            get
-            {
-                ThrowIfDead();
-                return _cpuAddress;
-            }
-        }
-
-        /// <summary>
-        /// The GPU address
-        /// </summary>
-        public ulong GpuAddress => _gpuAddress;
-
-        /// <summary>
-        /// The buffer data. This may be empty if the data is not CPU writable
-        /// </summary>
-        public Span<byte> Span => new Span<byte>(_cpuAddress, _cpuAddress is null ? 0 : (int)Length);
-
-        /// <summary>
-        /// Writes the <typeparamref name="T"/> to the buffer
-        /// </summary>
-        /// <typeparam name="T">The type to write</typeparam>
-        public void WriteData<T>(ref T data, uint offset = 0, bool leaveMapped = false) where T : unmanaged
-        {
-            ((T*)_cpuAddress)[offset] = data;
-        }
-
-        /// <summary>
-        /// Writes the <typeparamref name="T"/> to the buffer
-        /// </summary>
-        /// <typeparam name="T">The type to write</typeparam>
-        public void WriteConstantBufferData<T>(ref T data, uint offset, bool leaveMapped = false) where T : unmanaged
-        {
-            var alignedSize = (sizeof(T) + 255) & ~255;
-
-            *(T*)((byte*)_cpuAddress + (alignedSize * offset)) = data;
-        }
-
-        /// <summary>
-        /// Writes the <typeparamref name="T"/> to the buffer
-        /// </summary>
-        /// <typeparam name="T">The type to write</typeparam>
-        public void WriteDataByteOffset<T>(ref T data, uint offset, bool leaveMapped = false) where T : unmanaged
-        {
-            *(T*)((byte*)_cpuAddress + offset) = data;
-        }
-
-        /// <summary>
-        /// Writes the <typeparamref name="T"/> to the buffer
-        /// </summary>
-        /// <typeparam name="T">The type to write</typeparam>
-        public void WriteData<T>(ReadOnlySpan<T> data, uint offset = 0, bool leaveMapped = false) where T : unmanaged
-        {
-            data.CopyTo(new Span<T>((byte*)_cpuAddress + offset, (int)Length));
-        }
-
-        /// <inheritdoc/>
-        public void Dispose()
-        {
-            Interlocked.Exchange(ref _resource, null!)?.Dispose();
-
-            _cpuAddress = null;
-            _gpuAddress = 0;
-        }
-
-
-
-        /// <inheritdoc/>
-        public void Dispose(in GpuTask disposeAfter)
-        {
-            static void _Dispose(GpuResource? resource) => resource?.Dispose();
-
-            disposeAfter.RegisterCallback(Interlocked.Exchange(ref _resource, null!), &_Dispose);
-
-            _resource = null!;
-            _cpuAddress = null;
-            _gpuAddress = 0;
-        }
-
-        internal GpuResource Resource => _resource;
-
-        /// <summary>
-        /// blah
-        /// </summary>
-        /// <returns></returns>
-        internal ID3D12Resource* GetResourcePointer() => _resource.GetResourcePointer();
+        public void Dispose() => _dispose.Dispose(ref Handle);
     }
 
-    //public unsafe static class BufferExtensions
-    //{
-    //public static void CopyTo<T>(this Span<T> src, in Buffer<T> dest) where T : unmanaged
-    //    => CopyTo((ReadOnlySpan<T>)src, dest);
+    public readonly struct BufferHandle : IHandle<BufferHandle>
+    {
+        private readonly GenerationalHandle Handle;
 
-    //public static void CopyTo<T>(this ReadOnlySpan<T> src, in Buffer<T> dest) where T : unmanaged
-    //{
-    //    if (dest.Kind != BufferKind.Constant && dest.GetElementSize() == sizeof(T))
-    //    {
-    //        src.CopyTo(MemoryMarshal.Cast<byte, T>(dest.GetUnderlyingDataSpan()));
-    //    }
-    //    else
-    //    {
-    //        for (var i = 0; i < src.Length; i++)
-    //        {
-    //            dest[(uint)i] = src[i];
-    //        }
-    //    }
-    //}
+        public BufferHandle(GenerationalHandle handle) => Handle = handle;
 
-    //public static void CopyTo<T>(this Buffer<T> src, Span<T> dest) where T : unmanaged
-    //{
-    //    if (src.Kind != BufferKind.Constant && src.GetElementSize() == sizeof(T))
-    //    {
-    //        src.GetUnderlyingDataSpan().CopyTo(MemoryMarshal.Cast<T, byte>(dest));
-    //    }
-    //    else
-    //    {
-    //        for (var i = 0; i < src.Count; i++)
-    //        {
-    //            src[(uint)i] = dest[i];
-    //        }
-    //    }
-    //}
-    //}
+        public GenerationalHandle Generational => Handle;
+        public BufferHandle FromGenerationHandle(GenerationalHandle handle) => new(handle);
+    }
+
+    public readonly struct RenderPassHandle : IHandle<RenderPassHandle>
+    {
+        private readonly GenerationalHandle Handle;
+
+        public RenderPassHandle(GenerationalHandle handle) => Handle = handle;
+
+        public GenerationalHandle Generational => Handle;
+        public RenderPassHandle FromGenerationHandle(GenerationalHandle handle) => new(handle);
+    }
+
+    public readonly struct QuerySetHandle : IHandle<QuerySetHandle>
+    {
+        private readonly GenerationalHandle Handle;
+
+        public QuerySetHandle(GenerationalHandle handle) => Handle = handle;
+
+        public GenerationalHandle Generational => Handle;
+        public QuerySetHandle FromGenerationHandle(GenerationalHandle handle) => new(handle);
+    }
+
+
+
+    public readonly struct HeapHandle : IHandle<HeapHandle>
+    {
+        private readonly GenerationalHandle Handle;
+
+        public HeapHandle(GenerationalHandle handle) => Handle = handle;
+
+        public GenerationalHandle Generational => Handle;
+        public HeapHandle FromGenerationHandle(GenerationalHandle handle) => new(handle);
+    }
+
+
+    /// <summary>
+    /// Represents an untyped buffer of GPU data
+    /// </summary>
+    public unsafe struct Buffer : IDisposable
+    {
+        /// <summary>
+        /// The size, in bytes, of the buffer
+        /// </summary>
+        public readonly uint Length;
+
+        internal BufferHandle Handle;
+        private Disposal<BufferHandle> _dispose;
+
+
+        public void SetName(string s) { }
+
+        /// <inheritdoc/>
+        public void Dispose() => _dispose.Dispose(ref Handle);
+    }
+
 }

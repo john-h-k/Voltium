@@ -17,7 +17,8 @@ namespace Voltium.Common
         /// </summary>
         /// <param name="elementType">The <see cref="Type"/> of the element of the fixed buffer</param>
         /// <param name="elementCount">The number of elements of the buffer</param>
-        public FixedBufferTypeAttribute(Type elementType, int elementCount)
+        /// <param name="implicitSingleElementConversion">Whether the type should have an implicit conversion from a single instance of <paramref name="elementType"/></param>
+        public FixedBufferTypeAttribute(Type elementType, int elementCount, bool implicitSingleElementConversion = false)
         {
 
         }

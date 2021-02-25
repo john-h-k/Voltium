@@ -6,6 +6,7 @@ using Voltium.Common;
 using Voltium.Core.Configuration.Graphics;
 using Voltium.Core.Devices;
 using Voltium.Core.Devices.Shaders;
+using Voltium.Core.Memory;
 
 namespace Voltium.Core.Pipeline
 {
@@ -17,7 +18,7 @@ namespace Voltium.Core.Pipeline
     {
 
         [StructLayout(LayoutKind.Sequential)]
-        private struct _PsoDesc
+        internal struct _PsoDesc
         {
             public _RootSig RootSig;
 
@@ -114,7 +115,8 @@ namespace Voltium.Core.Pipeline
         internal ref byte GetPinnableReference() => ref Unsafe.As<_PsoDesc, byte>(ref Desc);
         internal nuint DescSize => (nuint)sizeof(_PsoDesc);
 
-        private _PsoDesc Desc;
+        internal RootSignatureHandle Sig;
+        internal _PsoDesc Desc;
 
         /// <summary>
         /// The root signature for the pipeline
@@ -185,6 +187,8 @@ namespace Voltium.Core.Pipeline
         /// The <see cref="MsaaDesc"/>
         /// </summary>
         public ref MsaaDesc Msaa => ref Desc.Msaa.Type.Inner;
+
+        //public RenderPass RenderPass { get; set; }
 
         /* public TODO: MULTI-GPU */
         //internal uint NodeMask;

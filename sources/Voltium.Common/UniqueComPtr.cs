@@ -254,6 +254,13 @@ namespace Voltium.Common
     /// </summary>
     public unsafe static class ComPtr
     {
+        public static void Dispose<T>(ref T* ptr) where T : unmanaged
+        {
+            var p = ptr;
+            ((IUnknown*)p)->Release();
+            ptr = null;
+        }
+
         /// <summary>
         /// Returns the address of the underlying pointer in the <see cref="UniqueComPtr{T}"/>.
         /// </summary>

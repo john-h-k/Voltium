@@ -32,7 +32,7 @@ namespace Voltium.Core.Contexts
         internal UploadContext(in ContextParams @params) : base(@params)
         {
             _listBuffers = new();
-            _transientAllocator = new DynamicAllocator(Device, MemoryAccess.CpuUpload);
+            _transientAllocator = new DynamicAllocator(_device, MemoryAccess.CpuUpload);
         }
 
 
@@ -81,7 +81,7 @@ namespace Voltium.Core.Contexts
         /// <param name="buffer"></param>
         public Buffer UploadBuffer<T>(ReadOnlySpan<T> buffer) where T : unmanaged
         {
-            var destination = Device.Allocator.AllocateBuffer(buffer.Length * sizeof(T), MemoryAccess.GpuOnly);
+            var destination = _device.Allocator.AllocateBuffer(buffer.Length * sizeof(T), MemoryAccess.GpuOnly);
             UploadBufferToPreexisting(buffer, destination);
             return destination;
         }
@@ -94,7 +94,7 @@ namespace Voltium.Core.Contexts
         /// <param name="tex"></param>
         public Texture UploadTexture(ReadOnlySpan<byte> texture, ReadOnlySpan<SubresourceData> subresources, in TextureDesc tex)
         {
-            var destination = Unsafe.As<GraphicsDevice>(Device).Allocator.AllocateTexture(tex, ResourceState.Common);
+            var destination = Unsafe.As<GraphicsDevice>(_device).Allocator.AllocateTexture(tex, ResourceState.Common);
             UploadTextureToPreexisting(texture, subresources, destination);
             return destination;
         }
@@ -174,7 +174,7 @@ namespace Voltium.Core.Contexts
             // we execute list so we need to stop GpuContext.Dispose doing so
             Params.Flags = Devices.ContextFlags.None;
             base.Dispose();
-            var task = Device.Execute(this);
+            var task = _device.Execute(this);
             _transientAllocator.Dispose(task);
 
             if (_listBuffers?.Count > 0)

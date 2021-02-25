@@ -37,26 +37,44 @@ namespace Voltium.Core.Devices
         AdapterShared = D3D12_FENCE_FLAGS.D3D12_FENCE_FLAG_SHARED_CROSS_ADAPTER
     }
 
-    public unsafe class Fence : IInternalD3D12Object, IDisposable
+    public unsafe abstract class Fence : IDisposable
+    {
+        public bool IsSharedProcess { get; }
+        public bool IsSharedAdapter { get; }
+
+        public abstract ulong CompletedValue { get; }
+
+        public abstract void SetValue(ulong value);
+
+        public abstract IntPtr GetEventForValue(ulong value);
+
+        public abstract void Dispose();
+    }
+
+    public unsafe sealed class D3D12Fence : Fence
     {
         private UniqueComPtr<ID3D12Fence> _fence;
 
-        internal Fence(UniqueComPtr<ID3D12Fence> fence)
+        public D3D12Fence(UniqueComPtr<ID3D12Fence> fence) => _fence = fence;
+
+        internal ID3D12Fence* GetPointer() => _fence.Ptr;
+
+        public override ulong CompletedValue => _fence.Ptr->GetCompletedValue();
+        public override void SetValue(ulong value) => _fence.Ptr->Signal(value);
+
+        public override void Dispose() => _fence.Dispose();
+        public override IntPtr GetEventForValue(ulong value)
         {
-            _fence = fence.Move();
+            var hEvent = CreateEventW(null, FALSE, FALSE, null);
+            _fence.Ptr->SetEventOnCompletion(value, hEvent);
+            return hEvent;
         }
-
-        public ulong CompletedValue => _fence.Ptr->GetCompletedValue();
-        public void Signal(ulong value) => _fence.Ptr->Signal(value);
-        unsafe ID3D12Object* IInternalD3D12Object.GetPointer() => (ID3D12Object*)_fence.Ptr;
-
-        public void Dispose() => _fence.Dispose();
     }
 
     /// <summary>
     ///
     /// </summary>
-    public unsafe partial class ComputeDevice : IDisposable, IInternalD3D12Object
+    public unsafe partial class ComputeDevice : IDisposable
     {
         /// <summary>
         /// The <see cref="Adapter"/> this device uses
@@ -68,39 +86,18 @@ namespace Voltium.Core.Devices
         /// </summary>
         public ComputeAllocator Allocator { get; private protected set; }
 
-
-
         /// <summary>
         /// The default pipeline manager for the device
         /// </summary>
         public PipelineManager PipelineManager { get; private protected set; }
 
-        // ClearUnorderedAccessView methods require a CPU descriptor handle that is not shader visible and a GPU descriptor handle that is shader visible
-        // These methods can be implemented by the driver as a Dispatch (which requires a shader visible handle)
-        // But also may be implemented by fixed-function hardware like ClearRenderTargetView which require a CPU descriptor
-        // Because shader visible heaps are created in UPLOAD/WRITE_BACK memory, they are very slow to read from, so a non-shader visible CPU descriptor is required for perf
-        // This is the heap for that
-        private protected DescriptorHeap OpaqueUavs = null!;
-        private protected DescriptorHeap Resources = null!;
-
-        private protected UniqueComPtr<ID3D12Device> Device;
-        internal SupportedDevice DeviceLevel;
-        internal enum SupportedDevice { Unknown, Device, Device1, Device2, Device3, Device4, Device5, Device6, Device7, Device8 }
-        private protected static Dictionary<Adapter, ComputeDevice> AdapterDeviceMap = new(1);
-        private protected DebugLayer? Debug;
-        private protected ContextPool ContextPool;
-
-        private protected UniqueComPtr<ID3D12DeviceDownlevel> _deviceDownlevel;
-
-        public ulong QueueFrequency(ExecutionContext context) => GetQueueForContext(context).Frequency;
-
         /// <summary>
         /// Creates a new query heap on the device
         /// </summary>
-        /// <param name="type">The <see cref="QueryHeapType"/> for the heap</param>
+        /// <param name="type">The <see cref="QuerySetType"/> for the heap</param>
         /// <param name="numQueries">The number of queries  for the heap to hold</param>
         /// <returns></returns>
-        public QueryHeap CreateQueryHeap(QueryHeapType type, int numQueries)
+        public QueryHeap CreateQueryHeap(QuerySetType type, int numQueries)
             => new QueryHeap(this, type, numQueries);
 
 
@@ -111,57 +108,13 @@ namespace Voltium.Core.Devices
         [DoesNotReturn]
         internal void ThrowGraphicsException(string message, Exception? inner = null) => throw new GraphicsException(this, message, inner);
 
-
-        public sealed class SafeSharedResourceHandle : SafeHandle
-        {
-            public SafeSharedResourceHandle(IntPtr handle) : base(default, true)
-            {
-                this.handle = handle;
-            }
-
-            public override bool IsInvalid => handle == default;
-
-            protected override bool ReleaseHandle() => CloseHandle(handle) == 0;
-        }
-
-        public SafeHandle CreateSharedHandle(in Buffer buff, string? name = null) => CreateSharedHandle((ID3D12DeviceChild*)buff.GetResourcePointer(), name);
-        public SafeHandle CreateSharedHandle(in Texture tex, string? name = null) => CreateSharedHandle((ID3D12DeviceChild*)tex.GetResourcePointer(), name);
-        public SafeHandle CreateSharedHandle(in Fence fence, string? name = null) => CreateSharedHandle((ID3D12DeviceChild*)((IInternalD3D12Object)fence).GetPointer(), name);
-
-        private SafeHandle CreateSharedHandle(ID3D12DeviceChild* pObject, string? name)
-        {
-            fixed (char* pName = name)
-            {
-                IntPtr handle;
-                ThrowIfFailed(DevicePointer->CreateSharedHandle(pObject, null, GENERIC_ALL, (ushort*)pName, &handle));
-                return new SafeSharedResourceHandle(handle);
-            }
-        }
-
-        public Fence OpenSharedFence(string name) => OpenSharedFence(GetHandleForName(name));
-        public Fence OpenSharedFence(SafeHandle handle) => OpenSharedFence(handle.DangerousGetHandle());
-        private Fence OpenSharedFence(IntPtr handle)
-        {
-            using UniqueComPtr<ID3D12Fence> fence = default;
-            ThrowIfFailed(DevicePointer->OpenSharedHandle(handle, fence.Iid, (void**)&fence));
-            return new Fence(fence.Move());
-        }
-
-        private IntPtr GetHandleForName(string name)
-        {
-            fixed (char* pName = name)
-            {
-                IntPtr handle;
-                ThrowIfFailed(DevicePointer->OpenSharedHandleByName((ushort*)pName, GENERIC_ALL, &handle));
-                return handle;
-            }
-        }
+        public void ThrowIfDeviceRemoved() => ThrowIfFailed(DevicePointer->GetDeviceRemovedReason());
 
         public Fence CreateFence(ulong initialValue, FenceFlags flags = FenceFlags.None)
         {
             using UniqueComPtr<ID3D12Fence> fence = default;
             ThrowIfFailed(DevicePointer->CreateFence(initialValue, (D3D12_FENCE_FLAGS)flags, fence.Iid, (void**)&fence));
-            return new Fence(fence.Move());
+            return new D3D12Fence(fence.Move());
         }
 
         /// <summary>
@@ -403,10 +356,6 @@ namespace Voltium.Core.Devices
         internal CommandQueue ComputeQueue;
         internal CommandQueue GraphicsQueue;
 
-        private protected ulong CpuFrequency;
-
-        private protected SupportedGraphicsCommandList SupportedList;
-
         internal DeviceArchitecture Architecture { get; private set; }
 
         internal ID3D12Device5* DevicePointer => (ID3D12Device5*)Device.Ptr;
@@ -418,12 +367,6 @@ namespace Voltium.Core.Devices
         public uint NodeCount { get; }
 
 
-        private protected static readonly Lazy<Adapter> DefaultAdapter = new(() =>
-        {
-            using DeviceFactory.Enumerator factory = new DxgiDeviceFactory().GetEnumerator();
-            _ = factory.MoveNext();
-            return factory.Current;
-        });
 
         /// <summary>
         /// The highest <see cref="ShaderModel"/> supported by this device
@@ -648,21 +591,6 @@ namespace Voltium.Core.Devices
 
                 LogHelper.LogInformation("New D3D12 device created from adapter: \n", adapter);
 
-                this.SetName("Primary Device");
-
-                DeviceLevel = Device switch
-                {
-                    _ when Device.HasInterface<ID3D12Device8>() => SupportedDevice.Device8,
-                    _ when Device.HasInterface<ID3D12Device7>() => SupportedDevice.Device7,
-                    _ when Device.HasInterface<ID3D12Device6>() => SupportedDevice.Device6,
-                    _ when Device.HasInterface<ID3D12Device5>() => SupportedDevice.Device5,
-                    _ when Device.HasInterface<ID3D12Device4>() => SupportedDevice.Device4,
-                    _ when Device.HasInterface<ID3D12Device3>() => SupportedDevice.Device3,
-                    _ when Device.HasInterface<ID3D12Device2>() => SupportedDevice.Device2,
-                    _ when Device.HasInterface<ID3D12Device1>() => SupportedDevice.Device1,
-                    _ => SupportedDevice.Device
-                };
-
                 AdapterDeviceMap[adapter] = this;
             }
         }
@@ -785,45 +713,6 @@ namespace Voltium.Core.Devices
         }
 
         /// <summary>
-        /// Returns a <see cref="UploadContext"/> used for recording upload commands
-        /// </summary>
-        /// <returns>A new <see cref="UploadContext"/></returns>
-        public UploadContext BeginUploadContext(ContextFlags flags = 0)
-        {
-            ContextParams context;
-            if (!Architecture.IsCacheCoherentUma)
-            {
-                context = ContextPool.Rent(ExecutionContext.Copy, null, 0);
-            }
-            else
-            {
-                context = new ContextParams { Device = this, Flags = flags };
-            }
-
-            return new UploadContext(context);
-        }
-
-
-        /// <summary>
-        /// Returns a <see cref="ReadbackContext"/> used for recording readback commands
-        /// </summary>
-        /// <returns>A new <see cref="ReadbackContext"/></returns>
-        public ReadbackContext BeginReadbackContext(ContextFlags flags = 0)
-        {
-            ContextParams context;
-            if (!Architecture.IsCacheCoherentUma)
-            {
-                context = ContextPool.Rent(ExecutionContext.Copy, null, 0);
-            }
-            else
-            {
-                context = new ContextParams { Device = this, Flags = flags };
-            }
-
-            return new ReadbackContext(context);
-        }
-
-        /// <summary>
         /// Returns a <see cref="ComputeContext"/> used for recording compute commands
         /// </summary>
         public ComputeContext BeginComputeContext(PipelineStateObject? pso = null, ContextFlags flags = 0)
@@ -831,140 +720,7 @@ namespace Voltium.Core.Devices
             var @params = ContextPool.Rent(ExecutionContext.Compute, pso, flags);
 
             var context = new ComputeContext(@params);
-            SetDefaultState(context, pso);
             return context;
-        }
-
-        /// <summary>
-        /// Submit a set of recorded commands to the list
-        /// </summary>
-        /// <param name="context">The commands to submit for execution</param>
-        public GpuTask Execute(GpuContext context)
-            => Execute(context, context switch
-            {
-                GraphicsContext => ExecutionContext.Graphics,
-                ComputeContext => ExecutionContext.Compute,
-                CopyContext => ExecutionContext.Copy,
-                _ => ThrowHelper.ThrowArgumentException<ExecutionContext>(nameof(context)),
-            });
-
-        /// <summary>
-        /// Submit a set of recorded commands to the list
-        /// </summary>
-        /// <param name="context">The commands to submit for execution</param>
-        /// <param name="targetQueue">The <see cref="ExecutionContext"/> which indicates which GPU work queue this should be executed on</param>
-        public GpuTask Execute(GpuContext context, ExecutionContext targetQueue)
-        {
-            var list = context.List;
-
-            // Null list is present on Upload/Readback context with UMA architecture (as no GPU ops need to occur)
-            if (list is null)
-            {
-                return GpuTask.Completed;
-            }
-
-            ref var queue = ref GetQueueForContext(targetQueue);
-            if (Unsafe.IsNullRef(ref queue))
-            {
-                ThrowHelper.ThrowInvalidOperationException("Invalid to try and execute a GpuContext that is not a CopyContext or ComputeContext on a ComputeDevice");
-            }
-
-            var finish = queue.ExecuteCommandLists(new(&list, 1));
-
-            ContextPool.Return(context, finish);
-
-            return finish;
-        }
-
-        /// <summary>
-        /// Execute all provided command lists
-        /// </summary>
-        public GpuTask Execute(Span<GpuContext> contexts, ExecutionContext targetQueue)
-        {
-            if (contexts.IsEmpty)
-            {
-                return GpuTask.Completed;
-            }
-
-            StackSentinel.StackAssert(StackSentinel.SafeToStackallocPointers(contexts.Length));
-
-            int numContexts = 0;
-            Span<UniqueComPtr<ID3D12CommandList>> lists = stackalloc UniqueComPtr<ID3D12CommandList>[contexts.Length];
-
-            for (var i = 0; i < contexts.Length; i++)
-            {
-                if (contexts[i].List is not null)
-                {
-                    lists[numContexts++] = (UniqueComPtr<ID3D12CommandList>)(ID3D12CommandList*)contexts[i].List;
-                }
-            }
-
-            ref var queue = ref GetQueueForContext(targetQueue);
-            if (Unsafe.IsNullRef(ref queue))
-            {
-                ThrowHelper.ThrowInvalidOperationException("Invalid to try and execute a GpuContext that is not a CopyContext or ComputeContext on a ComputeDevice");
-            }
-
-            var finish = queue.ExecuteCommandLists(lists[0..numContexts]);
-
-            for (var i = 0; i < contexts.Length; i++)
-            {
-                if (contexts[i].List is not null)
-                {
-                    ContextPool.Return(contexts[i], finish);
-                }
-                contexts[i].Params.List = default;
-            }
-
-            return finish;
-        }
-
-        public void AddQueueDependency(ExecutionContext hasDependency, in GpuTask task)
-        {
-            GetQueueForContext(hasDependency).Wait(task);
-        }
-
-
-        private unsafe void SetDefaultState(GpuContext context, PipelineStateObject? pso)
-        {
-            if (pso is not null)
-            {
-                context.List->SetComputeRootSignature(pso.GetRootSig());
-            }
-
-            const int numHeaps = 1;
-            var heaps = stackalloc ID3D12DescriptorHeap*[1] { Resources.GetHeap() };
-
-            context.List->SetDescriptorHeaps(numHeaps, heaps);
-        }
-
-        /// <summary>
-        /// Queries the GPU and timestamp
-        /// </summary>
-        /// <param name="context">The <see cref="ExecutionContext"/> indicating which queue should be queried</param>
-        /// <param name="gpu">The <see cref="TimeSpan"/> representing the GPU clock</param>
-        public void QueryTimestamp(ExecutionContext context, out TimeSpan gpu)
-            => QueryTimestamps(context, out gpu, out _);
-
-        /// <summary>
-        /// Queries the GPU and CPU timestamps in close succession
-        /// </summary>
-        /// <param name="context">The <see cref="ExecutionContext"/> indicating which queue should be queried</param>
-        /// <param name="gpu">The <see cref="TimeSpan"/> representing the GPU clock</param>
-        /// <param name="cpu">The <see cref="TimeSpan"/> representing the CPU clock</param>
-        public void QueryTimestamps(ExecutionContext context, out TimeSpan gpu, out TimeSpan cpu)
-        {
-            ref var queue = ref GetQueueForContext(context);
-
-            ulong gpuTick, cpuTick;
-
-            if (!queue.TryQueryTimestamps(&gpuTick, &cpuTick))
-            {
-                ThrowHelper.ThrowExternalException("GPU timestamp query failed");
-            }
-
-            gpu = TimeSpan.FromSeconds(gpuTick / (double)queue.Frequency);
-            cpu = TimeSpan.FromSeconds(cpuTick / (double)CpuFrequency);
         }
 
 
@@ -975,57 +731,5 @@ namespace Voltium.Core.Devices
             PipelineManager.Dispose();
             Device.Dispose();
         }
-
-        ID3D12Object* IInternalD3D12Object.GetPointer() => (ID3D12Object*)DevicePointer;
-
-        //CheckFeatureSupport
-        //CopyDescriptors
-        //CopyDescriptorsSimple
-        //CreateCommandAllocator
-        //CreateCommandList
-        //CreateCommandQueue
-        //CreateCommandSignature
-        //CreateCommittedResource
-        //CreateComputePipelineState
-        //CreateConstantBufferView
-        //CreateDescriptorHeap
-        //CreateFence
-        //CreateHeap
-        //CreatePlacedResource
-        //CreateQueryHeap
-        //CreateRootSignature
-        //CreateShaderResourceView
-        //CreateSharedHandle
-        //CreateUnorderedAccessView
-        //Evict
-        //GetAdapterLuid
-        //GetCopyableFootprints
-        //GetCustomHeapProperties
-        //GetDescriptorHandleIncrementSize
-        //GetDeviceRemovedReason
-        //GetNodeCount
-        //GetResourceAllocationInfo
-        //MakeResident
-        //OpenSharedHandle
-        //OpenSharedHandleByName
-        //SetStablePowerState
-
-        //CreatePipelineLibrary
-        //SetEventOnMultipleFenceCompletion
-        //SetResidencyPriority
-
-        //CreatePipelineState
-
-        //OpenExistingHeapFromAddress
-        //OpenExistingHeapFromFileMapping
-        //EnqueueMakeResident
-
-        //GetResourceAllocationInfo1
-
-        //CreateMetaCommand
-        //CreateStateObject
-        //EnumerateMetaCommandParameters
-        //EnumerateMetaCommands
-        //RemoveDevice
     }
 }

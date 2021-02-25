@@ -5,7 +5,8 @@ namespace Voltium.Common.Debugging
     /// <summary>
     /// Defines the set of environment variables used by Voltium
     /// </summary>
-    public static class EnvVars
+    public static class Configuration
+
     {
         /// <summary>
         /// Whether the build was compiled with DEBUG
@@ -13,16 +14,27 @@ namespace Voltium.Common.Debugging
         public static bool IsDebug =>
 #if DEBUG
             true;
-#else
+#elif AOT
             false;
+#else
+            AppContext.GetData("IsDebug") is 1;
 #endif
 
+
+
         /// <summary>
-        /// If true or 1,
-        /// the debug layer internal helper type is enabled,
-        /// for improved DirectX debugging in an environment where
-        /// native debugging output is not supported
+        /// Whether the build should be built for profiling
         /// </summary>
-        public static readonly bool IsD3D12ShimEnabled = Environment.GetEnvironmentVariable("DISABLE_D3D12_SHIM") is not "1";
+        public static bool EnableProfiling =>
+#if DEBUG
+            false;
+#elif AOT && ENABLE_PROFILING
+            true;
+#elif AOT
+            false;
+#else
+            AppContext.GetData("EnableProfiling") is 1;
+#endif
+
     }
 }

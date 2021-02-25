@@ -295,7 +295,8 @@ namespace Voltium.Common
                 return;
             }
 
-            if (!EnvVars.IsD3D12ShimEnabled)
+            if (!ConfigurationA
+.IsD3D12ShimEnabled)
             {
                 return;
             }

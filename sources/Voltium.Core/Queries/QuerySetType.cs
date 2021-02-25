@@ -2,7 +2,7 @@ using TerraFX.Interop;
 
 namespace Voltium.Core.Queries
 {
-    public enum QueryHeapType
+    public enum QuerySetType
     {
         GraphicsOrComputeTimestamp = D3D12_QUERY_HEAP_TYPE.D3D12_QUERY_HEAP_TYPE_TIMESTAMP,
         CopyTimestamp = D3D12_QUERY_HEAP_TYPE.D3D12_QUERY_HEAP_TYPE_COPY_QUEUE_TIMESTAMP,

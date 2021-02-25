@@ -1,8 +1,10 @@
 using System;
+using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Runtime.Intrinsics;
 using TerraFX.Interop;
 using Voltium.Common;
+using Voltium.Core.CommandBuffer;
 using Voltium.Core.Contexts;
 using Voltium.Core.Memory;
 using Voltium.Core.Pipeline;
@@ -12,6 +14,31 @@ using Buffer = Voltium.Core.Memory.Buffer;
 
 namespace Voltium.Core
 {
+    public readonly struct Devirt_ArrayBufferWriter<T>
+    {
+        public readonly ArrayBufferWriter<T> Base;
+
+        public Devirt_ArrayBufferWriter(ArrayBufferWriter<T> @base) => Base = @base;
+        public Devirt_ArrayBufferWriter(int initialCapacity) => Base = new(initialCapacity);
+
+        public int Capacity => Base.Capacity;
+
+        public int FreeCapacity => Base.FreeCapacity;
+
+        public int WrittenCount => Base.WrittenCount;
+
+        public ReadOnlyMemory<T> WrittenMemory => Base.WrittenMemory;
+
+        public ReadOnlySpan<T> WrittenSpan => Base.WrittenSpan;
+
+        public void Advance(int count) => Base.Advance(count);
+
+        public void Clear() => Base.Clear();
+
+        public Memory<T> GetMemory(int sizeHint = 0) => Base.GetMemory(sizeHint);
+        public Span<T> GetSpan(int sizeHint = 0) => Base.GetSpan(sizeHint);
+    }
+
     public struct IndirectArgument
     {
         internal D3D12_INDIRECT_ARGUMENT_DESC Desc;
@@ -134,13 +161,17 @@ namespace Voltium.Core
     public struct IndirectShaderResourceViewArguments { public ulong BufferLocation; }
     public struct IndirectUnorderedAccessViewArguments { public ulong BufferLocation; }
 
-    public unsafe sealed class IndirectCommand : IInternalD3D12Object
-    {
-        private UniqueComPtr<ID3D12CommandSignature> _value;
 
-        internal IndirectCommand(UniqueComPtr<ID3D12CommandSignature> value, RootSignature? rootSignature, uint commandSizeInBytes, ReadOnlyMemory<IndirectArgument> indirectArguments)
+
+    public unsafe struct IndirectCommand : IDisposable
+    {
+        internal IndirectCommandHandle Handle;
+        private Disposal<IndirectCommandHandle> _dispose;
+
+        internal IndirectCommand(IndirectCommandHandle value, Disposal<IndirectCommandHandle> dispose ,RootSignature? rootSignature, uint commandSizeInBytes, ReadOnlyMemory<IndirectArgument> indirectArguments)
         {
-            _value = value;
+            Handle = value;
+            _dispose = dispose;
             RootSignature = rootSignature;
             CommandSizeInBytes = commandSizeInBytes;
             IndirectArguments = indirectArguments;
@@ -151,8 +182,7 @@ namespace Voltium.Core
         public ReadOnlyMemory<IndirectArgument> IndirectArguments { get; }
 
 
-        internal ID3D12CommandSignature* GetCommandSignature() => _value.Ptr;
-        ID3D12Object* IInternalD3D12Object.GetPointer() => (ID3D12Object*)GetCommandSignature();
+        public void Dispose() => _dispose.Dispose(ref Handle);
     }
 
     /// <summary>
@@ -160,7 +190,7 @@ namespace Voltium.Core
     /// </summary>
     public unsafe partial class ComputeContext : CopyContext
     {
-        internal ComputeContext(in ContextParams @params) : base(@params)
+        internal ComputeContext() : base()
         {
 
         }
@@ -231,38 +261,39 @@ namespace Voltium.Core
         //SetPredication
 
         public void ExecuteIndirect(
-            IndirectCommand command,
+            in IndirectCommand command,
             [RequiresResourceState(ResourceState.IndirectArgument)] in Buffer commandBuffer,
             uint maxCommandCount = 1
         ) => ExecuteIndirect(command, commandBuffer, 0, maxCommandCount);
 
 
         public void ExecuteIndirect(
-            IndirectCommand command,
+            in IndirectCommand command,
             [RequiresResourceState(ResourceState.IndirectArgument)] in Buffer commandBuffer,
             uint commandBufferOffset,
             uint maxCommandCount = 1
         )
         {
-            List->ExecuteIndirect(
-                command.GetCommandSignature(),
-                maxCommandCount,
-                commandBuffer.GetResourcePointer(),
-                commandBufferOffset,
-                null,
-                0
-            );
+            var executeIndirect = new CommandExecuteIndirect
+            {
+                IndirectCommand = command.Handle,
+                Arguments = commandBuffer.Handle,
+                Offset = commandBufferOffset,
+                Count = maxCommandCount
+            };
+
+            _encoder.Emit(&executeIndirect);
         }
 
         public void ExecuteIndirect(
-            IndirectCommand command,
+            in IndirectCommand command,
            [RequiresResourceState(ResourceState.IndirectArgument)] in Buffer commandBuffer,
             [RequiresResourceState(ResourceState.IndirectArgument)] in Buffer commandCountBuffer,
             uint maxCommandCount = 1
         ) => ExecuteIndirect(command, commandBuffer, 0, commandCountBuffer, 0, maxCommandCount);
 
         public void ExecuteIndirect(
-            IndirectCommand command,
+            in IndirectCommand command,
             [RequiresResourceState(ResourceState.IndirectArgument)] in Buffer commandBuffer,
             uint commandBufferOffset,
             [RequiresResourceState(ResourceState.IndirectArgument)] in Buffer commandCountBuffer,
@@ -270,7 +301,7 @@ namespace Voltium.Core
         ) => ExecuteIndirect(command, commandBuffer, commandBufferOffset, commandCountBuffer, 0, maxCommandCount);
 
         public void ExecuteIndirect(
-            IndirectCommand command,
+            in IndirectCommand command,
            [RequiresResourceState(ResourceState.IndirectArgument)] in Buffer commandBuffer,
             [RequiresResourceState(ResourceState.IndirectArgument)] in Buffer commandCountBuffer,
             uint commandCountBufferOffset,
@@ -278,7 +309,7 @@ namespace Voltium.Core
         ) => ExecuteIndirect(command, commandBuffer, 0, commandCountBuffer, commandCountBufferOffset, maxCommandCount);
 
         public void ExecuteIndirect(
-            IndirectCommand command,
+            in IndirectCommand command,
             [RequiresResourceState(ResourceState.IndirectArgument)] in Buffer commandBuffer,
             uint commandBufferOffset,
             [RequiresResourceState(ResourceState.IndirectArgument)] in Buffer commandCountBuffer,
@@ -286,55 +317,40 @@ namespace Voltium.Core
             uint maxCommandCount = 1
         )
         {
-            List->ExecuteIndirect(
-                command.GetCommandSignature(),
-                maxCommandCount,
-                commandBuffer.GetResourcePointer(),
-                commandBufferOffset,
-                commandCountBuffer.GetResourcePointer(),
-                commandCountBufferOffset
-            );
+            var executeIndirect = new CommandExecuteIndirect
+            {
+                IndirectCommand = command.Handle,
+                Arguments = commandBuffer.Handle,
+                Offset = commandBufferOffset,
+                Count = maxCommandCount,
+                HasCountSpecifier = true,
+            };
+
+            var countSpecifier = new CountSpecifier
+            {
+                CountBuffer = commandCountBuffer.Handle,
+                Offset = commandBufferOffset,
+            };
+
+            _encoder.EmitVariable(&executeIndirect, &countSpecifier, 1);
         }
 
-        /// <summary>
-        /// Sets the bound <see cref="DescriptorHeap"/> for the command list
-        /// </summary>
-        /// <param name="resources"></param>
-        /// <param name="samplers"></param>
-        /// <remarks>Minimise changing the bound heaps, as on some hardware they can force a full hardware flush</remarks>
-        public void SetDescriptorHeaps(DescriptorHeap? resources = null, DescriptorHeap? samplers = null)
-        {
-            var pHeaps = stackalloc ID3D12DescriptorHeap*[2];
-            uint numHeaps = 0;
-
-            if (resources is not null)
-            {
-                pHeaps[numHeaps++] = resources.GetHeap();
-            }
-            if (samplers is not null)
-            {
-                pHeaps[numHeaps++] = samplers.GetHeap();
-            }
-
-            List->SetDescriptorHeaps(numHeaps, pHeaps);
-        }
-
-        /// <summary>
-        /// Clears an unordered-access view to a specified <see cref="Vector128{UInt32}"/> of values
-        /// </summary>
-        /// <param name="shaderVisible">A <see cref="DescriptorHandle"/> to <paramref name="tex"/> which <b>must</b> be shader-visible</param>
-        /// <param name="shaderOpaque">A <see cref="DescriptorHandle"/> to <paramref name="tex"/> which <b>must not</b> be shader-visible</param>
-        /// <param name="tex">The <see cref="Texture"/> to clear</param>
-        /// <param name="values">The <see cref="Vector128{UInt32}"/> to clear <paramref name="tex"/> to</param>
         [IllegalBundleMethod, IllegalRenderPassMethod]
-        public void ClearUnorderedAccessViewUInt32(
+        public void ClearBuffer(
+            in View shaderOpaque,
             DescriptorHandle shaderVisible,
-            DescriptorHandle shaderOpaque,
-            [RequiresResourceState(ResourceState.UnorderedAccess)] in Texture tex,
             Vector128<uint> values = default
         )
         {
-            List->ClearUnorderedAccessViewUint(shaderVisible.GpuHandle, shaderOpaque.CpuHandle, tex.GetResourcePointer(), (uint*)&values, 0, null);
+            var command = new CommandClearBufferInteger
+            {
+                View = shaderOpaque.Handle,
+                Descriptor = shaderVisible
+            };
+
+            *(Vector128<uint>*)command.ClearValue = values;
+
+            _encoder.Emit(&command);
         }
 
 
@@ -346,14 +362,23 @@ namespace Voltium.Core
         /// <param name="tex">The <see cref="Texture"/> to clear</param>
         /// <param name="values">The <see cref="Rgba128"/> to clear <paramref name="tex"/> to</param>
         [IllegalBundleMethod, IllegalRenderPassMethod]
-        public void ClearUnorderedAccessViewSingle(
+        public void ClearTexture(
+            in View shaderOpaque,
             DescriptorHandle shaderVisible,
-            DescriptorHandle shaderOpaque,
             [RequiresResourceState(ResourceState.UnorderedAccess)] in Texture tex,
             Rgba128 values = default
         )
         {
-            List->ClearUnorderedAccessViewFloat(shaderVisible.GpuHandle, shaderOpaque.CpuHandle, tex.GetResourcePointer(), (float*)&values, 0, null);
+            var command = new CommandClearTextureInteger
+            {
+                View = shaderOpaque.Handle,
+                Descriptor = shaderVisible,
+                RectangleCount = 0
+            };
+
+            *(Rgba128*)command.ClearValue = values;
+
+            _encoder.Emit(&command);
         }
 
         /// <summary>
@@ -362,200 +387,125 @@ namespace Voltium.Core
         /// <param name="pso">The <see cref="PipelineStateObject"/> to set</param>
         public void SetPipelineState(PipelineStateObject pso)
         {
-            if (pso is RaytracingPipelineStateObject rtPso)
+            var command = new CommandSetPipeline
             {
-                List->SetPipelineState1((ID3D12StateObject*)rtPso.Pointer.Ptr);
-            }
-            else
+                Pipeline = pso.Handle
+            };
+
+            _encoder.Emit(&command);
+        }
+
+        public void BindDescriptors(uint paramIndex, in DescriptorAllocation set)
+        {
+            var command = new CommandBindDescriptors
             {
-                List->SetPipelineState((ID3D12PipelineState*)pso.Pointer.Ptr);
+                FirstSetIndex = paramIndex,
+                BindPoint = BindPoint.Compute,
+                SetCount = 1
+            };
+
+            var handle = set[0];
+
+            _encoder.EmitVariable(&command, &handle, 1);
+        }
+
+        public void BindDescriptors(uint paramIndex, ReadOnlySpan<DescriptorAllocation> sets)
+        {
+            StackSentinel.SafeToStackalloc<DescriptorHandle>(sets.Length);
+
+            var handles = stackalloc DescriptorHandle[sets.Length];
+            uint i = 0;
+
+            foreach (ref readonly var set in sets)
+            {
+                handles[i++] = set[0];
+            }
+
+            var command = new CommandBindDescriptors
+            {
+                FirstSetIndex = paramIndex,
+                BindPoint = BindPoint.Compute,
+                SetCount = (uint)sets.Length
+            };
+
+            _encoder.EmitVariable(&command, handles, (uint)sets.Length);
+        }
+
+        public void BindDynamicDescriptors(uint paramIndex, in DescriptorAllocation set, ReadOnlySpan<uint> offsets)
+        {
+            fixed (uint* pOffsets = offsets)
+            {
+                var command = new CommandBindDescriptors
+                {
+                    FirstSetIndex = paramIndex,
+                    BindPoint = BindPoint.Compute,
+                    SetCount = 1
+                };
+
+                var handle = set[0];
+
+                _encoder.EmitVariable(&command, &handle, pOffsets, 1);
             }
         }
 
         /// <summary>
-        /// Sets a directly-bound shader resource buffer view descriptor to the graphics pipeline
-        /// </summary>
-        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
-        /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
-        public void SetShaderResourceBuffer(uint paramIndex, [RequiresResourceState(ResourceState.NonPixelShaderResource, ResourceState.PixelShaderResource)] in Buffer cbuffer)
-            => SetShaderResourceBuffer<byte>(paramIndex, cbuffer, 0);
-
-
-        /// <summary>
-        /// Sets a directly-bound shader resource buffer view descriptor to the graphics pipeline
-        /// </summary>
-        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
-        /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
-        public void SetRaytracingAccelerationStructure(uint paramIndex, in RaytracingAccelerationStructure cbuffer)
-            => SetShaderResourceBuffer<byte>(paramIndex, cbuffer.Buffer, 0);
-
-        /// <summary>
-        /// Sets a directly-bound shader resource buffer view descriptor to the graphics pipeline
-        /// </summary>
-        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
-        /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
-        /// <param name="offset">The offset in elements of <typeparamref name="T"/> to start the view at</param>
-        public void SetShaderResourceBuffer<T>(uint paramIndex, [RequiresResourceState(ResourceState.NonPixelShaderResource, ResourceState.PixelShaderResource)] in Buffer cbuffer, uint offset = 0) where T : unmanaged
-        {
-            List->SetComputeRootShaderResourceView(paramIndex, cbuffer.GpuAddress + (ulong)(sizeof(T) * offset));
-        }
-
-        /// <summary>
-        /// Sets a directly-bound constant buffer view descriptor to the graphics pipeline
-        /// </summary>
-        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
-        /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
-        /// <param name="offset">The offset in bytes to start the view at</param>
-        public void SetShaderResourceBufferByteOffset(uint paramIndex, [RequiresResourceState(ResourceState.NonPixelShaderResource, ResourceState.PixelShaderResource)] in Buffer cbuffer, uint offset = 0)
-        {
-            List->SetComputeRootUnorderedAccessView(paramIndex, cbuffer.GpuAddress + offset);
-        }
-
-
-
-        /// <summary>
-        /// Sets a directly-bound unordered access buffer view descriptor to the graphics pipeline
-        /// </summary>
-        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
-        /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
-        public void SetUnorderedAccessBuffer(uint paramIndex, [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer cbuffer)
-            => SetUnorderedAccessBuffer<byte>(paramIndex, cbuffer, 0);
-
-        /// <summary>
-        /// Sets a directly-bound unordered access buffer view descriptor to the graphics pipeline
-        /// </summary>
-        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
-        /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
-        /// <param name="offset">The offset in elements of <typeparamref name="T"/> to start the view at</param>
-        public void SetUnorderedAccessBuffer<T>(uint paramIndex, [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer cbuffer, uint offset = 0) where T : unmanaged
-        {
-            List->SetComputeRootUnorderedAccessView(paramIndex, cbuffer.GpuAddress + (ulong)(sizeof(T) * offset));
-        }
-
-        /// <summary>
-        /// Sets a directly-bound unordered access view descriptor to the graphics pipeline
-        /// </summary>
-        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
-        /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
-        /// <param name="offset">The offset in bytes to start the view at</param>
-        public void SetUnorderedAccessBuffer(uint paramIndex, [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer cbuffer, uint offset = 0)
-        {
-            List->SetComputeRootUnorderedAccessView(paramIndex, cbuffer.GpuAddress + offset);
-        }
-
-        /// <summary>
-        /// Sets a directly-bound constant buffer view descriptor to the graphics pipeline
-        /// </summary>
-        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
-        /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
-        public void SetConstantBuffer(uint paramIndex, [RequiresResourceState(ResourceState.ConstantBuffer)] in Buffer cbuffer)
-            => SetConstantBuffer<byte>(paramIndex, cbuffer, 0);
-
-        /// <summary>
-        /// Sets a directly-bound constant buffer view descriptor to the graphics pipeline
-        /// </summary>
-        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
-        /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
-        /// <param name="offset">The offset in elements of <typeparamref name="T"/> to start the view at</param>
-        public void SetConstantBuffer<T>(uint paramIndex, [RequiresResourceState(ResourceState.ConstantBuffer)] in Buffer cbuffer, uint offset = 0) where T : unmanaged
-        {
-            var alignedSize = (sizeof(T) + 255) & ~255;
-
-            List->SetComputeRootConstantBufferView(paramIndex, cbuffer.GpuAddress + (ulong)(alignedSize * offset));
-        }
-
-        /// <summary>
-        /// Sets a directly-bound constant buffer view descriptor to the graphics pipeline
-        /// </summary>
-        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
-        /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
-        /// <param name="offset">The offset in bytes to start the view at</param>
-        public void SetConstantBufferByteOffset(uint paramIndex, [RequiresResourceState(ResourceState.ConstantBuffer)] in Buffer cbuffer, uint offset = 0)
-        {
-            List->SetComputeRootConstantBufferView(paramIndex, cbuffer.GpuAddress + offset);
-        }
-
-        /// <summary>
-        /// Sets a descriptor table to the graphics pipeline
-        /// </summary>
-        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
-        /// <param name="handle">The <see cref="DescriptorHandle"/> containing the first view</param>
-        public void SetRootDescriptorTable(uint paramIndex, DescriptorHandle handle)
-        {
-            List->SetComputeRootDescriptorTable(paramIndex, handle.GpuHandle);
-        }
-
-        /// <summary>
-        /// Sets a group of 32 bit values to the graphics pipeline
+        /// Sets a group of 32 bit values to the compute pipeline
         /// </summary>
         /// <typeparam name="T">The type of the elements used. This must have a size that is a multiple of 4</typeparam>
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which these constants represents</param>
         /// <param name="value">The 32 bit values to set</param>
         /// <param name="offset">The offset, in 32 bit offsets, to bind this at</param>
-        public void SetRoot32BitConstants<T>(uint paramIndex, T value, uint offset = 0) where T : unmanaged
+        public void BindConstants<T>(uint paramIndex, ref T value, uint offset = 0) where T : unmanaged
         {
             if (sizeof(T) % 4 != 0)
             {
                 ThrowHelper.ThrowArgumentException(
-                    $"Type '{typeof(T).Name}' has size '{sizeof(T)}' but {nameof(SetRoot32BitConstants)} requires param '{nameof(value)} '" +
+                    $"Type '{typeof(T).Name}' has size '{sizeof(T)}' but {nameof(BindConstants)} requires param '{nameof(value)} '" +
                     "to have size divisble by 4"
                 );
             }
 
-            List->SetComputeRoot32BitConstants(paramIndex, (uint)sizeof(T) / 4, &value, offset);
+            fixed (T* pValue = &value)
+            {
+                var command = new CommandBind32BitConstants
+                {
+                    BindPoint = BindPoint.Compute,
+                    OffsetIn32BitValues = offset,
+                    ParameterIndex = paramIndex,
+                    Num32BitValues = (uint)sizeof(T) % 4
+                };
+
+                _encoder.EmitVariable(&command, pValue, 1);
+            }
         }
 
+        
         /// <summary>
-        /// Sets a group of 32 bit values to the graphics pipeline
+        /// Sets a group of 32 bit values to the compute pipeline
         /// </summary>
         /// <typeparam name="T">The type of the elements used. This must have a size that is a multiple of 4</typeparam>
         /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which these constants represents</param>
         /// <param name="value">The 32 bit values to set</param>
         /// <param name="offset">The offset, in 32 bit offsets, to bind this at</param>
-        public void SetRoot32BitConstants<T>(uint paramIndex, ref T value, uint offset = 0) where T : unmanaged
+        public void BindConstants<T>(uint paramIndex, T value, uint offset = 0) where T : unmanaged
         {
             if (sizeof(T) % 4 != 0)
             {
                 ThrowHelper.ThrowArgumentException(
-                    $"Type '{typeof(T).Name}' has size '{sizeof(T)}' but {nameof(SetRoot32BitConstants)} requires param '{nameof(value)} '" +
+                    $"Type '{typeof(T).Name}' has size '{sizeof(T)}' but {nameof(BindConstants)} requires param '{nameof(value)} '" +
                     "to have size divisble by 4"
                 );
             }
 
-            fixed (void* pValue = &value)
+            var command = new CommandBind32BitConstants
             {
-                List->SetComputeRoot32BitConstants(paramIndex, (uint)sizeof(T) / 4, pValue, offset);
-            }
-        }
+                BindPoint = BindPoint.Compute,
+                OffsetIn32BitValues = offset,
+                ParameterIndex = paramIndex,
+                Num32BitValues = (uint)sizeof(T) % 4
+            };
 
-
-        /// <summary>
-        /// Sets a 32 bit value to the graphics pipeline
-        /// </summary>
-        /// <typeparam name="T">The type of the element used. This must have a size that is 4</typeparam>
-        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which these constants represents</param>
-        /// <param name="value">The 32 bit value to set</param>
-        /// <param name="offset">The offset, in 32 bit offsets, to bind this at</param>
-        public void SetRoot32BitConstant<T>(uint paramIndex, T value, uint offset = 0) where T : unmanaged
-        {
-            if (sizeof(T) != 4)
-            {
-                ThrowHelper.ThrowArgumentException(
-                    $"Type '{typeof(T).Name}' has size '{sizeof(T)}' but {nameof(SetRoot32BitConstant)} requires param '{nameof(value)} '" +
-                    "to have size 4"
-                );
-            }
-
-            List->SetComputeRoot32BitConstant(paramIndex, Unsafe.As<T, uint>(ref value), offset);
-        }
-
-        /// <summary>
-        /// Set the graphics root signature for the command list
-        /// </summary>
-        /// <param name="signature">The signature to set to</param>
-        public void SetRootSignature(RootSignature signature)
-        {
-            List->SetComputeRootSignature(signature.Value);
+            _encoder.EmitVariable(&command, &value, 1);
         }
 
         /// <inheritdoc cref="Dispatch(uint, uint, uint)"/>
@@ -573,7 +523,15 @@ namespace Voltium.Core
         public void Dispatch(uint x, uint y = 1, uint z = 1)
         {
             FlushBarriers();
-            List->Dispatch(x, y, z);
+
+            var command = new CommandDispatch
+            {
+                X = x,
+                Y = y,
+                Z = z
+            };
+
+            _encoder.Emit(&command);
         }
     }
 }

@@ -10,7 +10,8 @@ namespace Voltium.Core.Pool
 {
     internal abstract class ThreadSafeComPool<T, TRentState> : IDisposable where T : unmanaged
     {
-        private SpinLock _poolLock = new(EnvVars.IsDebug);
+        private SpinLock _poolLock = new(ConfigurationA
+.IsDebug);
         private Queue<UniqueComPtr<T>> _pool;
 
         public ThreadSafeComPool(int capacity = 0)

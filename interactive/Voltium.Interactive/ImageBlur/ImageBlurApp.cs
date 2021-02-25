@@ -139,7 +139,7 @@ namespace Voltium.Interactive.FloatMultiplySample
 
             var context = _device.BeginComputeContext(_horizontalBlurPso);
 
-            context.SetRoot32BitConstants(0, _settings);
+            context.BindConstants(0, _settings);
             context.SetRootDescriptorTable(1, views[0]);
             context.SetRootDescriptorTable(2, views[1]);
 

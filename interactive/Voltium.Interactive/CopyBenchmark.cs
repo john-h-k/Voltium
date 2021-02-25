@@ -59,8 +59,8 @@ namespace Voltium.Interactive
 
             int numQueries = contexts.Length * 4;
 
-            _copyQueryHeap = _device.CreateQueryHeap(QueryHeapType.CopyTimestamp, 2 * numQueries);
-            _queryHeap = _device.CreateQueryHeap(QueryHeapType.GraphicsOrComputeTimestamp, 2 * numQueries);
+            _copyQueryHeap = _device.CreateQueryHeap(QuerySetType.CopyTimestamp, 2 * numQueries);
+            _queryHeap = _device.CreateQueryHeap(QuerySetType.GraphicsOrComputeTimestamp, 2 * numQueries);
             _queryDestination = _device.Allocator.AllocateReadbackBuffer<ulong>(numQueries, flags);
 
             ulong bufferSize = BuffLength;

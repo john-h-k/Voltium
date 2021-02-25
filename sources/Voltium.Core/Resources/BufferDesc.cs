@@ -13,7 +13,7 @@ namespace Voltium.Core.Memory
         /// <param name="length">The length, in bytes, of the desired buffer</param>
         /// <param name="resourceFlags">Any <see cref="ResourceFlags"/> for the resource</param>
         /// <returns>A new <see cref="BufferDesc"/></returns>
-        public static BufferDesc Create(long length, ResourceFlags resourceFlags = ResourceFlags.None)
+        public static BufferDesc Create(ulong length, ResourceFlags resourceFlags = ResourceFlags.None)
         {
             return new BufferDesc { Length = length, ResourceFlags = resourceFlags };
         }
@@ -25,13 +25,13 @@ namespace Voltium.Core.Memory
         /// <param name="elemCount">The number of elements of type <typeparamref name="T"/> of the desired buffer</param>
         /// <param name="resourceFlags">Any <see cref="ResourceFlags"/> for the resource</param>
         /// <returns>A new <see cref="BufferDesc"/></returns>
-        public static BufferDesc Create<T>(long elemCount, ResourceFlags resourceFlags = ResourceFlags.None)
-            => Create(Unsafe.SizeOf<T>() * elemCount, resourceFlags);
+        public static BufferDesc Create<T>(ulong elemCount, ResourceFlags resourceFlags = ResourceFlags.None)
+            => Create((uint)Unsafe.SizeOf<T>() * elemCount, resourceFlags);
 
         /// <summary>
         /// The size of the buffer, in bytes
         /// </summary>
-        public long Length;
+        public ulong Length;
 
         /// <summary>
         /// Any addition resource flags

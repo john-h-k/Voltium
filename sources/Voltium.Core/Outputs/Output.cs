@@ -92,7 +92,7 @@ namespace Voltium.Core.Devices
         /// <summary>
         /// The current output buffer texture view
         /// </summary>
-        public DescriptorHandle OutputBufferView => _views[_backBufferIndex];
+        public View OutputBufferView => _views[_backBufferIndex];
 
         private protected Output(GraphicsDevice device, OutputConfiguration desc)
         {

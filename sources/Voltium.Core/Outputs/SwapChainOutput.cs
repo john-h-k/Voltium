@@ -222,19 +222,28 @@ namespace Voltium.Core.Devices
         }
 
 
-        internal override void InternalPresent(in GpuTask presentAfter)
+
+        internal override void InternalPartialPresent(in GpuTask presentAfter, System.ReadOnlySpan<Rectangle> dirtyRects, Rectangle scrollRect, Point scrollOffset)
         {
             _presentQueue.Wait(presentAfter);
 
-            if (_presentQueueIsSeperate)
+            fixed (Rectangle* pDirty = dirtyRects)
             {
-                var context = _device.BeginGraphicsContext();
-                context.CopyResource(_backBuffers[_backBufferIndex], _actualBackBuffers[_backBufferIndex]);
-                context.Close();
-                var list = context.List;
+                var present = new DXGI_PRESENT_PARAMETERS
+                {
+                    DirtyRectsCount = (uint)dirtyRects.Length,
+                    pDirtyRects = (RECT*)pDirty,
+                    pScrollOffset = (POINT*)&scrollOffset,
+                    pScrollRect = (RECT*)&scrollRect,
+                };
 
-                _presentQueue.ExecuteCommandLists(new(&list, 1));
+                _device.ThrowIfFailed(_swapChain.Ptr->Present1(_desc.SyncInterval, 0, &present));
             }
+        }
+
+        internal override void InternalPresent(in GpuTask presentAfter)
+        {
+            _presentQueue.Wait(presentAfter);
 
             _device.ThrowIfFailed(_swapChain.Ptr->Present(_desc.SyncInterval, 0));
         }

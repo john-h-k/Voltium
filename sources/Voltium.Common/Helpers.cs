@@ -170,6 +170,20 @@ namespace Voltium.Common
         }
 
 
+        public static uint Pack2x16To32(ushort lo, ushort hi) => lo | ((uint)hi << 16);
+        public static (ushort Lo, ushort Hi) Unpack32To2x16(uint value) => ((ushort)value, (ushort)(value >> 16));
+
+
+        public static (uint Lo32, uint Hi32) Pack2x24_16To2x32(uint lo24, uint mid24, ushort hi16) => (lo24 | (mid24 << 24), (mid24 >> 8) | ((uint)hi16 << 16));
+        public static (uint Lo24, uint Mid24, ushort Hi16) Unpack2x32To2x24_16(uint lo32, uint hi32) => (lo32 & Lo24Mask, (lo32 >> 24) | ((hi32 << 8) & Lo16Mask), (ushort)(hi32 >> 16));
+
+        public static ulong Pack2x24_16To64(uint lo24, uint mid24, ushort hi16) => lo24 | ((ulong)mid24 >> 24) | ((ulong)hi16 >> 48);
+        public static (uint Lo24, uint Mid24, ushort Hi16) Unpack64To2x24_16(ulong value) => ((uint)value & Lo24Mask, (uint)(value << 24) & Lo24Mask, (ushort)(value << 48));
+
+        private const uint Lo24Mask = 0b0000_0000__1111_1111__1111_1111__1111_1111;
+        private const uint Lo16Mask = 0b0000_0000__0000_0000__1111_1111__1111_1111;
+        private const uint Lo8Mask = 0b0000_0000__0000_0000__0000_0000__1111_1111;
+
         public static uint SizeOf<T>() => (uint)Unsafe.SizeOf<T>();
 
         // for type inference
@@ -184,6 +198,8 @@ namespace Voltium.Common
 
             return AddressOf(buff);
         }
+
+        public static ulong LargeIntegerToUInt64(in LARGE_INTEGER li) => ((ulong)li.HighPart << 32) | li.LowPart;
 
         public static bool Int32ToBool(int val) => val != 0;
         public static int BoolToInt32(bool val) => (int)(uint)Unsafe.As<bool, byte>(ref val);

@@ -60,6 +60,11 @@ namespace Voltium.Core.Memory
             // else we need to ensure all non-null devices are the same
             foreach (var task in tasks)
             {
+                if (task.IsCompleted)
+                {
+                    continue;
+                }
+
                 task.GetFenceAndMarker(out fences[i], out values[i]);
                 if (device is null && task._device is not null)
                 {
@@ -80,25 +85,23 @@ namespace Voltium.Core.Memory
             device.ThrowIfFailed(device.As<ID3D12Device1>()->SetEventOnMultipleFenceCompletion(fences, values, (uint)tasks.Length, flags, default));
         }
 
-        private ComputeDevice? _device;
-        private UniqueComPtr<ID3D12Fence> _fence;
+        private Fence? _fence;
         private TaskScheduler _scheduler;
         private IntPtr _hEvent;
         private ulong _reached;
         //private bool _finished;
 
-        internal GpuTask(ComputeDevice? device, UniqueComPtr<ID3D12Fence> fence, ulong marker)
-            : this(device, fence, marker, TaskScheduler.Default)
+        internal GpuTask(Fence fence, ulong marker)
+            : this(fence, marker, TaskScheduler.Default)
         {
         }
 
-        internal GpuTask(ComputeDevice? device, UniqueComPtr<ID3D12Fence> fence, ulong reached, TaskScheduler scheduler)
+        internal GpuTask(Fence fence, ulong reached, TaskScheduler scheduler)
         {
-            _device = device;
             _fence = fence;
             _reached = reached;
             _scheduler = scheduler;
-           // _finished =  /* if the fence is null, this is a dummy completed task */ !fence.Exists;
+            // _finished =  /* if the fence is null, this is a dummy completed task */ !fence.Exists;
             _hEvent = default;
         }
 
@@ -108,14 +111,8 @@ namespace Voltium.Core.Memory
         [EditorBrowsable(EditorBrowsableState.Never)]
         public void OnCompleted(Action continuation)
         {
-            if (_scheduler == TaskScheduler.Default)
-            {
-                ThreadPool.QueueUserWorkItem(state => Unsafe.As<Action>(state)!.Invoke(), continuation);
-            }
-            else
-            {
-                Task.Factory.StartNew(continuation, CancellationToken.None, TaskCreationOptions.None, _scheduler);
-            }
+            static void _Invoke(Action continuation) => continuation();
+            RegisterCallback(continuation, &_Invoke);
         }
 
         /// <summary>
@@ -124,29 +121,16 @@ namespace Voltium.Core.Memory
         [EditorBrowsable(EditorBrowsableState.Never)]
         public void UnsafeOnCompleted(Action continuation)
         {
-            if (_scheduler == TaskScheduler.Default)
-            {
-                _ = ThreadPool.UnsafeQueueUserWorkItem(state => Unsafe.As<Action>(state)!.Invoke(), continuation);
-            }
-            else
-            {
-                _ = Task.Factory.StartNew(continuation, CancellationToken.None, TaskCreationOptions.None, _scheduler);
-            }
+            static void _Invoke(Action continuation) => continuation();
+            RegisterCallback(continuation, &_Invoke);
         }
 
         /// <summary>
         /// Whether the GPU has reached the point represented by this <see cref="GpuTask"/>
         /// </summary>
-        [MemberNotNullWhen(false, nameof(_device))]
-        public bool IsCompleted => /* null device/fence = completed */ _device is null || !_fence.Exists || (_device = _fence.Ptr->GetCompletedValue() >= _reached ? null : _device) is null;
+        [MemberNotNullWhen(false, nameof(_fence))]
+        public bool IsCompleted => /* nullfence = completed */ _fence is null || _fence.CompletedValue >= _reached;
 
-        private struct CallbackData
-        {
-            public delegate*<object?, void> FnPtr;
-            public IntPtr ObjectHandle;
-            public IntPtr Event;
-            public IntPtr WaitHandle;
-        }
 
         // avoid interface calls for common variants (array/list)
 
@@ -192,6 +176,15 @@ namespace Voltium.Core.Memory
             RegisterCallback(disposable, &_Dispose);
         }
 
+        
+        private struct CallbackData
+        {
+            public delegate*<object?, void> FnPtr;
+            public IntPtr ObjectHandle;
+            public IntPtr Event;
+            public IntPtr WaitHandle;
+        }
+
         internal void RegisterCallback<T>(T state, delegate*<T, void> onFinished) where T : class?
         {
             if (IsCompleted)
@@ -202,8 +195,7 @@ namespace Voltium.Core.Memory
 
             if (_hEvent == default)
             {
-                _hEvent = Windows.CreateEventW(null, Windows.FALSE, Windows.FALSE, null);
-                _device.ThrowIfFailed(_fence.Ptr->SetEventOnCompletion(_reached, _hEvent));
+                _hEvent = _fence.GetEventForValue(_reached);
             }
 
             var gcHandle = GCHandle.Alloc(state);

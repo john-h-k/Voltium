@@ -1,10 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using TerraFX.Interop;
 using Voltium.Common;
+using Voltium.Core.CommandBuffer;
 using Voltium.Core.Contexts;
 using Voltium.Core.Memory;
 using Voltium.Core.Pipeline;
@@ -35,15 +37,171 @@ namespace Voltium.Core
         Sum = D3D12_SHADING_RATE_COMBINER.D3D12_SHADING_RATE_COMBINER_SUM,
     }
 
+
+    public unsafe struct DepthStencil
+    {
+        public View Resource;
+        public LoadOperation DepthLoad;
+        public StoreOperation DepthStore;
+        public LoadOperation StencilLoad;
+        public StoreOperation StencilStore;
+        public float DepthClear;
+        public byte StencilClear;
+    }
+
+    public unsafe struct RenderTarget
+    {
+        public View Resource;
+        public LoadOperation Load;
+        public StoreOperation Store;
+        public Rgba128 ColorClear;
+    }
     /// <summary>
     /// Represents a context on which GPU commands can be recorded
     /// </summary>
     public unsafe partial class GraphicsContext : ComputeContext
     {
-        internal GraphicsContext(in ContextParams @params) : base(@params)
+        internal GraphicsContext() : base()
         {
 
         }
+
+        public readonly struct EndRenderPassMarker : IDisposable
+        {
+            private readonly GraphicsContext _context;
+
+            internal EndRenderPassMarker(GraphicsContext context) => _context = context;
+
+            public void Dispose() => _context.EndRenderPass();
+        }
+
+
+        public EndRenderPassMarker ScopedRenderPass(in RenderTarget renderTarget)
+        {
+            BeginRenderPass(renderTarget);
+            return new(this);
+        }
+        public EndRenderPassMarker ScopedRenderPass(in DepthStencil depthStencil)
+        {
+            BeginRenderPass(depthStencil);
+            return new(this);
+        }
+        public EndRenderPassMarker ScopedRenderPass(in RenderTarget renderTarget, in DepthStencil depthStencil)
+        {
+            BeginRenderPass(renderTarget, depthStencil);
+            return new(this);
+        }
+        public EndRenderPassMarker ScopedRenderPass(ReadOnlySpan<RenderTarget> renderTargets)
+        {
+            BeginRenderPass(renderTargets);
+            return new(this);
+        }
+        public EndRenderPassMarker ScopedRenderPass(ReadOnlySpan<RenderTarget> renderTargets, in DepthStencil depthStencil)
+        {
+            BeginRenderPass(renderTargets, depthStencil);
+            return new(this);
+        }
+
+        public void BeginRenderPass(in RenderTarget renderTarget)
+        {
+            var command = new CommandBeginRenderPass
+            {
+                RenderTargetCount = 1,
+            };
+
+            RenderPassRenderTarget rp;
+            EncodeRenderTarget(renderTarget, &rp);
+
+            _encoder.EmitVariable(&command, &rp, 1);
+        }
+
+        public void BeginRenderPass(in DepthStencil depthStencil)
+        {
+            var command = new CommandBeginRenderPass
+            {
+                RenderTargetCount = 0,
+                HasDepthStencil = true
+            };
+
+
+            EncodeDepthStencil(depthStencil, &command.DepthStencil);
+
+            _encoder.Emit(&command);
+        }
+
+        public void BeginRenderPass(in RenderTarget renderTarget, in DepthStencil depthStencil)
+        {
+            var command = new CommandBeginRenderPass
+            {
+                RenderTargetCount = 0,
+                HasDepthStencil = true
+            };
+
+            RenderPassRenderTarget rp;
+            EncodeRenderTarget(renderTarget, &rp);
+            EncodeDepthStencil(depthStencil, &command.DepthStencil);
+
+            _encoder.EmitVariable(&command, &rp, 1);
+        }
+
+
+        public void BeginRenderPass(ReadOnlySpan<RenderTarget> renderTargets)
+        {
+            if (renderTargets.Length > 8)
+            {
+                _device.ThrowGraphicsException("Too many render targets!!");
+            }
+
+            var command = new CommandBeginRenderPass
+            {
+                RenderTargetCount = (uint)renderTargets.Length,
+            };
+
+            var rps = stackalloc RenderPassRenderTarget[8];
+
+            uint i = 0;
+            foreach (ref readonly var renderTarget in renderTargets)
+            {
+                EncodeRenderTarget(renderTarget, &rps[i++]);
+            }
+
+            _encoder.EmitVariable(&command, rps, i);
+        }
+
+        public void BeginRenderPass(ReadOnlySpan<RenderTarget> renderTargets, in DepthStencil depthStencil)
+        {
+            var command = new CommandBeginRenderPass
+            {
+                RenderTargetCount = (uint)renderTargets.Length,
+                HasDepthStencil = true
+            };
+
+            EncodeDepthStencil(depthStencil, &command.DepthStencil);
+            var rps = stackalloc RenderPassRenderTarget[8];
+
+            uint i = 0;
+            foreach (ref readonly var renderTarget in renderTargets)
+            {
+                EncodeRenderTarget(renderTarget, &rps[i++]);
+            }
+
+            _encoder.EmitVariable(&command, rps, i);
+        }
+
+        private void EncodeDepthStencil(in DepthStencil pDepth, RenderPassDepthStencil* pRp)
+        {
+            // Currently identical formats
+            *(DepthStencil*)pRp = pDepth;
+        }
+        private void EncodeRenderTarget(in RenderTarget pDepth, RenderPassRenderTarget* pRp)
+        {
+            // Currently identical formats
+            *(RenderTarget*)pRp = pDepth;
+        }
+
+
+
+        public void EndRenderPass() => _encoder.EmitEmpty(CommandType.EndRenderPass);
 
         /// <summary>
         /// If depth bounds testing is enabled, sets the depth bounds
@@ -51,45 +209,46 @@ namespace Voltium.Core
         /// <param name="min">The <see cref="float"/> which indicates the minimum depth value which won't be discarded</param>
         /// <param name="max">The <see cref="float"/> which indicates the maximum depth value which won't be discarded</param>
         public void SetDepthsBounds(float min, float max)
-            => List->OMSetDepthBounds(min, max);
-
-        /// <summary>
-        /// Discard the entire resource value
-        /// </summary>
-        public void Discard([RequiresResourceState(ResourceState.RenderTarget)] in Buffer buffer)
-            => Discard(buffer.Resource);
-
-        /// <summary>
-        /// Discard the entire resource value
-        /// </summary>
-        public void Discard([RequiresResourceState(ResourceState.RenderTarget)] in Texture texture)
-            => Discard(texture.Resource);
-
-        private void Discard(GpuResource resource)
         {
-            FlushBarriers();
-            List->DiscardResource(resource.GetResourcePointer(), null);
+            var command = new CommandSetDepthBounds
+            {
+                Min = min,
+                Max = max
+            };
+
+            _encoder.Emit(&command);
         }
 
-        /// <summary>
-        /// Executes a <see cref="GraphicsContext"/>
-        /// </summary>
-        /// <param name="bundle"></param>
-        [ /* no nested bundles */ IllegalBundleMethod]
-        public void ExecuteBundle(GraphicsContext bundle)
-        {
-            List->ExecuteBundle(bundle.GetListPointer());
-        }
+        ///// <summary>
+        ///// Executes a <see cref="GraphicsContext"/>
+        ///// </summary>
+        ///// <param name="bundle"></param>
+        //[ /* no nested bundles */ IllegalBundleMethod]
+        //public void ExecuteBundle(GraphicsContext bundle)
+        //{
+        //    List->ExecuteBundle(bundle.GetListPointer());
+        //}
 
         public void SetShadingRate(ShadingRate defaultShadingRate, Combiner defaultRateAndPerPrimitiveRateCombiner, Combiner shadingRateTextureCombiner)
         {
-            var pCombiners = stackalloc[] { defaultRateAndPerPrimitiveRateCombiner, shadingRateTextureCombiner };
-            List->RSSetShadingRate((D3D12_SHADING_RATE)defaultShadingRate, (D3D12_SHADING_RATE_COMBINER*)pCombiners);
+            var command = new CommandSetShadingRate
+            {
+                BaseRate = defaultShadingRate,
+                ShaderCombiner = defaultRateAndPerPrimitiveRateCombiner,
+                ImageCombiner = shadingRateTextureCombiner
+            };
+
+            _encoder.Emit(&command);
         }
 
         public void SetShadingRateTexture([RequiresResourceState(ResourceState.VariableShadeRateSource)] in Texture tex)
         {
-            List->RSSetShadingRateImage(tex.GetResourcePointer());
+            var command = new CommandSetShadingRateImage
+            {
+                ShadingRateImage = tex.Handle
+            };
+
+            _encoder.Emit(&command);
         }
 
         /// <summary>
@@ -118,7 +277,10 @@ namespace Voltium.Core
         /// <param name="value">The value of the blend factor</param>
         public void SetBlendFactor(Rgba128 value)
         {
-            List->OMSetBlendFactor(&value.R);
+            var command = new CommandSetBlendFactor();
+            Unsafe.As<float, Rgba128>(ref command.BlendFactor[0]) = value;
+
+            _encoder.Emit(&command);
         }
 
         /// <summary>
@@ -127,300 +289,13 @@ namespace Voltium.Core
         /// <param name="value">The value of the stencil ref</param>
         public void SetStencilRef(uint value)
         {
-            List->OMSetStencilRef(value);
-        }
-
-        /// <summary>
-        /// Sets a directly-bound shader resource buffer view descriptor to the graphics pipeline
-        /// </summary>
-        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
-        /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
-        public new void SetShaderResourceBuffer(uint paramIndex, in Buffer cbuffer)
-            => SetShaderResourceBuffer<byte>(paramIndex, cbuffer, 0);
-
-        /// <summary>
-        /// Sets a directly-bound shader resource buffer view descriptor to the graphics pipeline
-        /// </summary>
-        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
-        /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
-        /// <param name="offset">The offset in elements of <typeparamref name="T"/> to start the view at</param>
-        public new void SetShaderResourceBuffer<T>(uint paramIndex, in Buffer cbuffer, uint offset = 0) where T : unmanaged
-        {
-            List->SetGraphicsRootShaderResourceView(paramIndex, cbuffer.GpuAddress + (ulong)(sizeof(T) * offset));
-        }
-
-        /// <summary>
-        /// Sets a directly-bound constant buffer view descriptor to the graphics pipeline
-        /// </summary>
-        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
-        /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
-        /// <param name="offset">The offset in bytes to start the view at</param>
-        public new void SetShaderResourceBufferByteOffset(uint paramIndex, in Buffer cbuffer, uint offset = 0)
-        {
-            List->SetGraphicsRootShaderResourceView(paramIndex, cbuffer.GpuAddress + offset);
-        }
-
-        /// <summary>
-        /// Sets a directly-bound constant buffer view descriptor to the graphics pipeline
-        /// </summary>
-        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
-        /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
-        public new void SetConstantBuffer(uint paramIndex, in Buffer cbuffer)
-            => SetConstantBuffer<byte>(paramIndex, cbuffer, 0);
-
-        /// <summary>
-        /// Sets a directly-bound constant buffer view descriptor to the graphics pipeline
-        /// </summary>
-        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
-        /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
-        /// <param name="offset">The offset in elements of <typeparamref name="T"/> to start the view at</param>
-        public new void SetConstantBuffer<T>(uint paramIndex, in Buffer cbuffer, uint offset = 0) where T : unmanaged
-        {
-            var alignedSize = (sizeof(T) + 255) & ~255;
-
-            List->SetGraphicsRootConstantBufferView(paramIndex, cbuffer.GpuAddress + (ulong)(alignedSize * offset));
-        }
-
-        /// <summary>
-        /// Sets a directly-bound constant buffer view descriptor to the graphics pipeline
-        /// </summary>
-        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
-        /// <param name="cbuffer">The <see cref="Buffer"/> containing the buffer to add</param>
-        /// <param name="offset">The offset in bytes to start the view at</param>
-        public new void SetConstantBufferByteOffset(uint paramIndex, in Buffer cbuffer, uint offset = 0)
-        {
-            List->SetGraphicsRootConstantBufferView(paramIndex, cbuffer.GpuAddress + offset);
-        }
-
-        /// <summary>
-        /// Sets a descriptor table to the graphics pipeline
-        /// </summary>
-        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which this view represents</param>
-        /// <param name="handle">The <see cref="DescriptorHandle"/> containing the first view</param>
-        public new void SetRootDescriptorTable(uint paramIndex, DescriptorHandle handle)
-        {
-            List->SetGraphicsRootDescriptorTable(paramIndex, handle.GpuHandle);
-        }
-
-        /// <summary>
-        /// Sets a group of 32 bit values to the graphics pipeline
-        /// </summary>
-        /// <typeparam name="T">The type of the elements used. This must have a size that is a multiple of 4</typeparam>
-        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which these constants represents</param>
-        /// <param name="value">The 32 bit values to set</param>
-        /// <param name="offset">The offset, in 32 bit offsets, to bind this at</param>
-        public new void SetRoot32BitConstants<T>(uint paramIndex, T value, uint offset = 0) where T : unmanaged
-        {
-            if (sizeof(T) % 4 != 0)
+            var command = new CommandSetStencilRef
             {
-                ThrowHelper.ThrowArgumentException(
-                    $"Type '{typeof(T).Name}' has size '{sizeof(T)}' but {nameof(SetRoot32BitConstants)} requires param '{nameof(value)} '" +
-                    "to have size divisble by 4"
-                );
-            }
+                StencilRef = value
+            };
 
-            List->SetGraphicsRoot32BitConstants(paramIndex, (uint)sizeof(T) / 4, &value, offset);
+            _encoder.Emit(&command);
         }
-
-        /// <summary>
-        /// Sets a group of 32 bit values to the graphics pipeline
-        /// </summary>
-        /// <typeparam name="T">The type of the elements used. This must have a size that is a multiple of 4</typeparam>
-        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which these constants represents</param>
-        /// <param name="value">The 32 bit values to set</param>
-        /// <param name="offset">The offset, in 32 bit offsets, to bind this at</param>
-        public new void SetRoot32BitConstants<T>(uint paramIndex, ref T value, uint offset = 0) where T : unmanaged
-        {
-            if (sizeof(T) % 4 != 0)
-            {
-                ThrowHelper.ThrowArgumentException(
-                    $"Type '{typeof(T).Name}' has size '{sizeof(T)}' but {nameof(SetRoot32BitConstants)} requires param '{nameof(value)} '" +
-                    "to have size divisble by 4"
-                );
-            }
-
-            if (sizeof(T) == 4)
-            {
-                SetRoot32BitConstant(paramIndex, value, offset);
-            }
-            else
-            {
-                fixed (void* pValue = &value)
-                {
-                    List->SetGraphicsRoot32BitConstants(paramIndex, (uint)sizeof(T) / 4, pValue, offset);
-                }
-            }
-        }
-
-
-        /// <summary>
-        /// Sets a 32 bit value to the graphics pipeline
-        /// </summary>
-        /// <typeparam name="T">The type of the element used. This must have a size that is 4</typeparam>
-        /// <param name="paramIndex">The index in the <see cref="RootSignature"/> which these constants represents</param>
-        /// <param name="value">The 32 bit value to set</param>
-        /// <param name="offset">The offset, in 32 bit offsets, to bind this at</param>
-        public new void SetRoot32BitConstant<T>(uint paramIndex, T value, uint offset = 0) where T : unmanaged
-        {
-            if (sizeof(T) != 4)
-            {
-                ThrowHelper.ThrowArgumentException(
-                    $"Type '{typeof(T).Name}' has size '{sizeof(T)}' but {nameof(SetRoot32BitConstant)} requires param '{nameof(value)} '" +
-                    "to have size 4"
-                );
-            }
-
-            List->SetGraphicsRoot32BitConstant(paramIndex, Unsafe.As<T, uint>(ref value), offset);
-        }
-
-        /// <summary>
-        /// Set the graphics root signature for the command list
-        /// </summary>
-        /// <param name="signature">The signature to set to</param>
-        public new void SetRootSignature(RootSignature signature)
-        {
-            List->SetGraphicsRootSignature(signature.Value);
-        }
-
-
-        /// <summary>
-        /// Sets a single render target
-        /// </summary>
-        /// <param name="renderTargetHandle">The handle to the render target descriptor</param>
-        /// <param name="clearValue">The <see cref="Rgba128"/> colors to clear the render targets to</param>
-        /// <param name="depthStencilHandle">The handle to the depth stencil descriptor</param>
-        /// <param name="depthClear">The <see cref="float"/> values to clear the depth buffer to</param>
-        /// <param name="stencilClear">The <see cref="byte"/> values to clear the stencil to</param> 
-        [IllegalBundleMethod, IllegalRenderPassMethod]
-        public void SetAndClearRenderTarget(in DescriptorHandle renderTargetHandle, Rgba128 clearValue = default, in DescriptorHandle? depthStencilHandle = null, float depthClear = 1, byte stencilClear = 0)
-        {
-            SetRenderTarget(renderTargetHandle, depthStencilHandle);
-            ClearRenderTarget(renderTargetHandle, clearValue);
-
-            if (depthStencilHandle is DescriptorHandle dsv)
-            {
-                ClearDepthStencil(dsv, depthClear, stencilClear);
-            }
-        }
-
-        /// <summary>
-        /// Sets a range of continuous render targets
-        /// </summary>
-        /// <param name="renderTargetHandles">The handle to the start of the continuous array of render targets</param>
-        /// <param name="clearValue">The <see cref="Rgba128"/> colors to clear the render targets to</param>
-        /// <param name="depthStencilHandle">The handle to the depth stencil descriptor</param>
-        /// <param name="depthClear">The <see cref="float"/> values to clear the depth buffer to</param>
-        /// <param name="stencilClear">The <see cref="byte"/> values to clear the stencil to</param> 
-        [IllegalBundleMethod, IllegalRenderPassMethod]
-        public void SetAndClearRenderTargets(in DescriptorSpan renderTargetHandles, Rgba128 clearValue = default, in DescriptorHandle? depthStencilHandle = null, float depthClear = 1, byte stencilClear = 0)
-        {
-            SetRenderTargets(renderTargetHandles, depthStencilHandle);
-
-            for (var i = 0; i < renderTargetHandles.Length; i++)
-            {
-                ClearRenderTarget(renderTargetHandles[i], clearValue);
-            }
-
-            if (depthStencilHandle is DescriptorHandle dsv)
-            {
-                ClearDepthStencil(dsv, depthClear, stencilClear);
-            }
-        }
-
-        /// <summary>
-        /// Sets a range of non-continuous render targets
-        /// </summary>
-        /// <param name="renderTargetHandles">A span of <see cref="DescriptorHandle"/>s representing each render target</param>
-        /// <param name="clearValue">The <see cref="Rgba128"/> colors to clear the render targets to</param>
-        /// <param name="depthStencilHandle">The handle to the depth stencil descriptor</param>
-        /// <param name="depthClear">The <see cref="float"/> values to clear the depth buffer to</param>
-        /// <param name="stencilClear">The <see cref="byte"/> values to clear the stencil to</param> 
-        [IllegalBundleMethod, IllegalRenderPassMethod]
-        public void SetAndClearRenderTargets(ReadOnlySpan<DescriptorHandle> renderTargetHandles, Rgba128 clearValue = default, in DescriptorHandle? depthStencilHandle = null, float depthClear = 1, byte stencilClear = 0)
-        {
-            SetRenderTargets(renderTargetHandles, depthStencilHandle);
-
-            for (var i = 0; i < renderTargetHandles.Length; i++)
-            {
-                ClearRenderTarget(renderTargetHandles[i], clearValue);
-            }
-
-            if (depthStencilHandle is DescriptorHandle dsv)
-            {
-                ClearDepthStencil(dsv, depthClear, stencilClear);
-            }
-        }
-
-        /// <summary>
-        /// Sets a single render target
-        /// </summary>
-        /// <param name="renderTargetHandle">The handle to the render target descriptor</param>
-        /// <param name="depthStencilHandle">The handle to the depth stencil descriptor</param>
-        [IllegalBundleMethod, IllegalRenderPassMethod]
-        public void SetRenderTarget(in DescriptorHandle? renderTargetHandle = null, in DescriptorHandle? depthStencilHandle = null)
-        {
-            var rtv = renderTargetHandle.GetValueOrDefault().CpuHandle;
-            var dsv = depthStencilHandle.GetValueOrDefault().CpuHandle;
-
-            FlushBarriers();
-            List->OMSetRenderTargets(
-                1,
-                renderTargetHandle is null ? null : &rtv,
-                Windows.TRUE,
-                depthStencilHandle is null ? null : &dsv
-            );
-        }
-
-
-        /// <summary>
-        /// Sets a range of non-continuous render targets
-        /// </summary>
-        /// <param name="renderTargets">A span of <see cref="DescriptorHandle"/>s representing each render target</param>
-        /// <param name="depthStencilHandle">The handle to the depth stencil descriptor</param>
-        [IllegalBundleMethod, IllegalRenderPassMethod]
-        public void SetRenderTargets(ReadOnlySpan<DescriptorHandle> renderTargets, DescriptorHandle? depthStencilHandle = null)
-        {
-            StackSentinel.StackAssert(StackSentinel.SafeToStackalloc<D3D12_CPU_DESCRIPTOR_HANDLE>(renderTargets.Length));
-
-            D3D12_CPU_DESCRIPTOR_HANDLE* pRenderTargets = stackalloc D3D12_CPU_DESCRIPTOR_HANDLE[renderTargets.Length];
-
-            for (var i = 0; i < renderTargets.Length; i++)
-            {
-                pRenderTargets[i] = renderTargets[i].CpuHandle;
-            }
-
-            var depthStencil = depthStencilHandle.GetValueOrDefault();
-            FlushBarriers();
-            List->OMSetRenderTargets(
-                (uint)renderTargets.Length,
-                pRenderTargets,
-                Windows.FALSE,
-                depthStencilHandle is null ? null : &depthStencil.CpuHandle
-            );
-        }
-
-        /// <summary>
-        /// Sets a range of continuous render targets
-        /// </summary>
-        /// <param name="renderTargetHandles">The render target handles</param>
-        /// <param name="depthStencilHandle">The handle to the depth stencil descriptor</param>
-        [IllegalBundleMethod, IllegalRenderPassMethod]
-        public void SetRenderTargets(in DescriptorSpan renderTargetHandles, in DescriptorHandle? depthStencilHandle = null)
-        {
-            var dsv = depthStencilHandle.GetValueOrDefault().CpuHandle;
-
-            fixed (D3D12_CPU_DESCRIPTOR_HANDLE* pHandles = &renderTargetHandles.Cpu)
-            {
-                FlushBarriers();
-                List->OMSetRenderTargets(
-                    (uint)renderTargetHandles.Length,
-                    pHandles,
-                    Windows.TRUE,
-                    depthStencilHandle is null ? null : &dsv
-                );
-            }
-        }
-
 
         /// <summary>
         /// Sets the primitive toplogy for geometry
@@ -428,7 +303,12 @@ namespace Voltium.Core
         /// <param name="topology">The <see cref="D3D_PRIMITIVE_TOPOLOGY"/> to use</param>
         public void SetTopology(Topology topology)
         {
-            List->IASetPrimitiveTopology((D3D_PRIMITIVE_TOPOLOGY)topology);
+            var command = new CommandSetTopology
+            {
+                Topology = topology,
+            };
+
+            _encoder.Emit(&command);
         }
 
         /// <summary>
@@ -438,99 +318,20 @@ namespace Voltium.Core
         public void SetControlPatchPointCount(byte count)
         {
             Guard.InRangeInclusive(1, 32, count);
-            List->IASetPrimitiveTopology((D3D_PRIMITIVE_TOPOLOGY_1_CONTROL_POINT_PATCHLIST - 1) + count);
-        }
 
-        /// <summary>
-        /// Clear the render target
-        /// </summary>
-        /// <param name="rtv">The render target to clear</param>
-        /// <param name="color">The RGBA color to clear it to</param>
-        /// <param name="rect">The rectangle representing the section to clear</param>
-        [IllegalBundleMethod, IllegalRenderPassMethod]
-        public void ClearRenderTarget(DescriptorHandle rtv, Rgba128 color, Rectangle rect)
-        {
-            FlushBarriers();
-            List->ClearRenderTargetView(rtv.CpuHandle, &color.R, 1, (RECT*)&rect);
-        }
-
-        /// <summary>
-        /// Clear the render target
-        /// </summary>
-        /// <param name="rtv">The render target to clear</param>
-        /// <param name="color">The RGBA color to clear it to</param>
-        /// <param name="rect">The rectangles representing the sections to clear. By default, this will clear the entire resource</param>
-        [IllegalBundleMethod, IllegalRenderPassMethod]
-        public void ClearRenderTarget(DescriptorHandle rtv, Rgba128 color, ReadOnlySpan<Rectangle> rect = default)
-        {
-            fixed (Rectangle* p = rect)
+            var command = new CommandSetPatchListCount
             {
-                FlushBarriers();
-                List->ClearRenderTargetView(rtv.CpuHandle, &color.R, (uint)rect.Length, (RECT*)p);
-            }
-        }
+                PatchListCount = count,
+            };
 
-        /// <summary>
-        /// Clear the depth element of the depth stencil
-        /// </summary>
-        /// <param name="dsv">The depth stencil target to clear</param>
-        /// <param name="depth">The <see cref="float"/> value to set the depth resource to. By default, this is <c>1</c></param>
-        /// <param name="rect">The rectangles representing the sections to clear. By default, this will clear the entire resource</param>
-        [IllegalBundleMethod, IllegalRenderPassMethod]
-        public void ClearDepth(DescriptorHandle dsv, float depth = 1, ReadOnlySpan<Rectangle> rect = default)
-        {
-            fixed (Rectangle* p = rect)
-            {
-                FlushBarriers();
-                List->ClearDepthStencilView(dsv.CpuHandle, D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH, depth, 0, (uint)rect.Length, (RECT*)p);
-            }
+            _encoder.Emit(&command);
         }
-
-        /// <summary>
-        /// Clear the stencil element of the depth stencil
-        /// </summary>
-        /// <param name="dsv">The depth stencil target to clear</param>
-        /// <param name="stencil">The <see cref="byte"/> value to set the stencil resource to. By default, this is <c>0</c></param>
-        /// <param name="rect">The rectangles representing the sections to clear. By default, this will clear the entire resource</param>
-        [IllegalBundleMethod, IllegalRenderPassMethod]
-        public void ClearStencil(DescriptorHandle dsv, byte stencil = 0, ReadOnlySpan<Rectangle> rect = default)
-        {
-            fixed (Rectangle* p = rect)
-            {
-                FlushBarriers();
-                List->ClearDepthStencilView(dsv.CpuHandle, D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_STENCIL, 0, stencil, (uint)rect.Length, (RECT*)p);
-            }
-        }
-
-        /// <summary>
-        /// Clear the render target
-        /// </summary>
-        /// <param name="dsv">The depth stencil target to clear</param>
-        /// <param name="depth">The <see cref="float"/> value to set the depth resource to. By default, this is <c>1</c></param>
-        /// <param name="stencil">The <see cref="byte"/> value to set the stencil resource to. By default, this is <c>0</c></param>
-        /// <param name="rect">The rectangles representing the sections to clear. By default, this will clear the entire resource</param>
-        [IllegalBundleMethod, IllegalRenderPassMethod]
-        public void ClearDepthStencil(DescriptorHandle dsv, float depth = 1, byte stencil = 0, ReadOnlySpan<Rectangle> rect = default)
-        {
-            fixed (Rectangle* p = rect)
-            {
-                FlushBarriers();
-                List->ClearDepthStencilView(dsv.CpuHandle, D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_STENCIL | D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH, depth, stencil, (uint)rect.Length, (RECT*)p);
-            }
-        }
-
         /// <summary>
         /// Set the viewports
         /// </summary>
         /// <param name="viewport">The viewport to set</param>
         [IllegalBundleMethod]
-        public void SetViewports(in Viewport viewport)
-        {
-            fixed (Viewport* pViewport = &viewport)
-            {
-                List->RSSetViewports(1, (D3D12_VIEWPORT*)pViewport);
-            }
-        }
+        public void SetViewports(in Viewport viewport) => SetViewports(MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(in viewport), 1));
 
         /// <summary>
         /// Set the scissor rectangles
@@ -539,9 +340,14 @@ namespace Voltium.Core
         [IllegalBundleMethod]
         public void SetScissorRectangles(ReadOnlySpan<Rectangle> rectangles)
         {
-            fixed (Rectangle* pRects = rectangles)
+            fixed (Rectangle* pRectangles = rectangles)
             {
-                List->RSSetScissorRects((uint)rectangles.Length, (RECT*)pRects);
+                var command = new CommandSetScissorRectangles
+                {
+                    Count = (uint)rectangles.Length
+                };
+
+                _encoder.EmitVariable(&command, pRectangles, (uint)rectangles.Length);
             }
         }
 
@@ -560,7 +366,12 @@ namespace Voltium.Core
         [IllegalBundleMethod]
         public void SetScissorRectangles(Rectangle rectangle)
         {
-            List->RSSetScissorRects(1, (RECT*)&rectangle);
+            var command = new CommandSetScissorRectangles
+            {
+                Count = 1
+            };
+
+            _encoder.EmitVariable(&command, &rectangle, 1);
         }
 
         /// <summary>
@@ -572,7 +383,12 @@ namespace Voltium.Core
         {
             fixed (Viewport* pViewports = viewports)
             {
-                List->RSSetViewports((uint)viewports.Length, (D3D12_VIEWPORT*)pViewports);
+                var command = new CommandSetViewports
+                {
+                    Count = (uint)viewports.Length
+                };
+
+                _encoder.EmitVariable(&command, pViewports, (uint)viewports.Length);
             }
         }
 
@@ -584,12 +400,7 @@ namespace Voltium.Core
         /// <typeparam name="T">The type of the vertex in <see cref="Buffer"/></typeparam>
         public void SetVertexBuffers<T>([RequiresResourceState(ResourceState.VertexBuffer)] in Buffer vertexResource, uint startSlot = 0)
             where T : unmanaged
-        {
-            var desc = CreateVertexBufferView<T>(vertexResource);
-
-            FlushBarriers();
-            List->IASetVertexBuffers(startSlot, 1, &desc);
-        }
+        => SetVertexBuffers<T>(vertexResource, vertexResource.Length / (uint)sizeof(T), startSlot);
 
         /// <summary>
         /// Set the vertex buffers
@@ -601,42 +412,20 @@ namespace Voltium.Core
         public void SetVertexBuffers<T>([RequiresResourceState(ResourceState.VertexBuffer)] in Buffer vertexResource, uint numVertices, uint startSlot = 0)
             where T : unmanaged
         {
-            var desc = CreateVertexBufferView<T>(vertexResource, numVertices);
-
-            FlushBarriers();
-            List->IASetVertexBuffers(startSlot, 1, &desc);
-        }
-
-        /// <summary>
-        /// Set the vertex buffers
-        /// </summary>
-        /// <param name="vertexBuffers">The vertex buffers to set</param>
-        /// <param name="startSlot">The slot on the device array to start setting the vertex buffers to</param>
-        /// <typeparam name="T">The type of the vertex in <see cref="Buffer"/></typeparam>
-        public void SetVertexBuffers<T>([RequiresResourceState(ResourceState.VertexBuffer)] ReadOnlySpan<Buffer> vertexBuffers, uint startSlot = 0)
-            where T : unmanaged
-        {
-            StackSentinel.StackAssert(StackSentinel.SafeToStackalloc<D3D12_VERTEX_BUFFER_VIEW>(vertexBuffers.Length));
-
-            D3D12_VERTEX_BUFFER_VIEW* views = stackalloc D3D12_VERTEX_BUFFER_VIEW[vertexBuffers.Length];
-            for (int i = 0; i < vertexBuffers.Length; i++)
+            var command = new CommandSetVertexBuffers
             {
-                views[i] = CreateVertexBufferView<T>(vertexBuffers[i]);
-            }
-
-            FlushBarriers();
-            List->IASetVertexBuffers(startSlot, (uint)vertexBuffers.Length, views);
-        }
-
-        private static D3D12_VERTEX_BUFFER_VIEW CreateVertexBufferView<T>(in Buffer buffer, uint numVertices = uint.MaxValue)
-            where T : unmanaged
-        {
-            return new D3D12_VERTEX_BUFFER_VIEW
-            {
-                BufferLocation = buffer.GpuAddress,
-                SizeInBytes = numVertices == uint.MaxValue ? buffer.Length : (uint)sizeof(T) * numVertices,
-                StrideInBytes = (uint)sizeof(T)
+                FirstBufferIndex = startSlot,
+                Count = 1
             };
+
+            var view = new VertexBuffer
+            {
+                Buffer = vertexResource.Handle,
+                Length = numVertices * (uint)sizeof(T),
+                Stride = (uint)sizeof(T)
+            };
+
+            _encoder.EmitVariable(&command, &view, 1);
         }
 
         /// <summary>
@@ -648,79 +437,18 @@ namespace Voltium.Core
         public void SetIndexBuffer<T>([RequiresResourceState(ResourceState.IndexBuffer)] in Buffer indexResource, uint numIndices = uint.MaxValue)
             where T : unmanaged
         {
-            var desc = CreateIndexBufferView<T>(indexResource, numIndices);
-            List->IASetIndexBuffer(&desc);
-        }
-
-        private static D3D12_INDEX_BUFFER_VIEW CreateIndexBufferView<T>(in Buffer buffer, uint numIndices = uint.MaxValue) where T : unmanaged
-        {
-            return new D3D12_INDEX_BUFFER_VIEW
+            var command = new CommandSetIndexBuffer
             {
-                BufferLocation = buffer.GpuAddress,
-                SizeInBytes = numIndices == uint.MaxValue ? buffer.Length : (uint)sizeof(T) * numIndices,
-                Format = GetDxgiIndexType()
+                Buffer = indexResource.Handle,
+                Format = IndexFormatForT<T>(),
+                Length = Math.Min(numIndices, indexResource.Length)
             };
 
-            static DXGI_FORMAT GetDxgiIndexType()
-            {
-                if (typeof(T) == typeof(int))
-                {
-                    return DXGI_FORMAT.DXGI_FORMAT_R32_SINT;
-                }
-                else if (typeof(T) == typeof(uint))
-                {
-                    return DXGI_FORMAT.DXGI_FORMAT_R32_UINT;
-                }
-                else if (typeof(T) == typeof(short))
-                {
-                    return DXGI_FORMAT.DXGI_FORMAT_R16_SINT;
-                }
-                else if (typeof(T) == typeof(ushort))
-                {
-                    return DXGI_FORMAT.DXGI_FORMAT_R16_UINT;
-                }
-
-                ThrowHelper.ThrowNotSupportedException("Unsupported index type, must be UInt32/Int32/UInt16/Int16");
-                return default;
-            }
+            _encoder.Emit(&command);
         }
 
-        /// <summary>
-        /// Resolves a multi-sampled resource to a single-sampled resource
-        /// </summary>
-        /// <param name="source">The multi-sampled source <see cref="Texture"/></param>
-        /// <param name="dest">The single-sampled dest <see cref="Texture"/></param>
-        /// <param name="sourceSubresource">The index of the subresource from <paramref name="source"/> to use</param>
-        /// <param name="destSubresource">The index of the subresource from <paramref name="dest"/> to use</param>
-        [IllegalBundleMethod, IllegalRenderPassMethod]
-        public void ResolveSubresource([RequiresResourceState(ResourceState.ResolveSource)] in Texture source, [RequiresResourceState(ResourceState.ResolveDestination)] in Texture dest, uint sourceSubresource = 0, uint destSubresource = 0)
-        {
-            DataFormat format = source.Format == DataFormat.Unknown ? dest.Format : source.Format;
-
-            //ResourceTransition(source, ResourceState.ResolveSource, sourceSubresource);
-            //ResourceTransition(dest, ResourceState.ResolveDestination, destSubresource);
-
-            FlushBarriers();
-            List->ResolveSubresource(dest.GetResourcePointer(), destSubresource, source.GetResourcePointer(), sourceSubresource, (DXGI_FORMAT)format);
-        }
-
-        /// <summary>
-        /// Resolves a multi-sampled resource to a single-sampled resource
-        /// </summary>
-        /// <param name="source">The multi-sampled source <see cref="Texture"/></param>
-        /// <param name="dest">The single-sampled dest <see cref="Texture"/></param>
-        /// <param name="format">The <see cref="DataFormat"/> to resolve as</param>
-        /// <param name="sourceSubresource">The index of the subresource from <paramref name="source"/> to use</param>
-        /// <param name="destSubresource">The index of the subresource from <paramref name="dest"/> to use</param>
-        [IllegalBundleMethod, IllegalRenderPassMethod]
-        public void ResolveSubresource([RequiresResourceState(ResourceState.ResolveSource)] in Texture source, [RequiresResourceState(ResourceState.ResolveDestination)] in Texture dest, DataFormat format, uint sourceSubresource = 0, uint destSubresource = 0)
-        {
-            //ResourceTransition(source, ResourceState.ResolveSource, sourceSubresource);
-            //ResourceTransition(dest, ResourceState.ResolveDestination, destSubresource);
-
-            FlushBarriers();
-            List->ResolveSubresource(dest.GetResourcePointer(), destSubresource, source.GetResourcePointer(), sourceSubresource, (DXGI_FORMAT)format);
-        }
+        private static IndexFormat IndexFormatForT<T>()
+             => default(T) switch { uint => IndexFormat.R32UInt, ushort => IndexFormat.R16UInt, _ => IndexFormat.NoIndexBuffer };
 
         /// <summary>
         /// Submits a draw call
@@ -751,13 +479,15 @@ namespace Voltium.Core
         /// </summary>
         public void DrawInstanced(uint vertexCountPerInstance, uint instanceCount, uint startVertexLocation, uint startInstanceLocation)
         {
-            FlushBarriers();
-            List->DrawInstanced(
-                vertexCountPerInstance,
-                instanceCount,
-                startVertexLocation,
-                startInstanceLocation
-            );
+            var command = new CommandDraw
+            {
+                VertexCountPerInstance = vertexCountPerInstance,
+                InstanceCount = instanceCount,
+                StartVertexLocation = startVertexLocation,
+                StartInstanceLocation = startInstanceLocation
+            };
+
+            _encoder.Emit(&command);
         }
 
         /// <summary>
@@ -765,14 +495,16 @@ namespace Voltium.Core
         /// </summary>
         public void DrawIndexedInstanced(uint indexCountPerInstance, uint instanceCount, uint startIndexLocation, int baseVertexLocation, uint startInstanceLocation)
         {
-            FlushBarriers();
-            List->DrawIndexedInstanced(
-                indexCountPerInstance,
-                instanceCount,
-                startIndexLocation,
-                baseVertexLocation,
-                startInstanceLocation
-            );
+            var command = new CommandDrawIndexed
+            {
+                IndexCountPerInstance = indexCountPerInstance,
+                InstanceCount = instanceCount,
+                StartIndexLocation = startIndexLocation,
+                BaseVertexLocation = baseVertexLocation,
+                StartInstanceLocation = startInstanceLocation,
+            };
+
+            _encoder.Emit(&command);
         }
 
         /// <summary>
@@ -782,6 +514,15 @@ namespace Voltium.Core
         /// <param name="y">The number of thread groups to execute in the y direction</param>
         /// <param name="z">The number of thread groups to execute in the z direction</param>
         public void DispatchMeshes(uint x, uint y, uint z)
-            => List->DispatchMesh(x, y, z);
+        {
+            var command = new CommandDispatchMesh
+            {
+                X = x,
+                Y = y,
+                Z = z
+            };
+
+            _encoder.Emit(&command);
+        }
     }
 }

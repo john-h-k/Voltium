@@ -70,7 +70,7 @@ namespace Voltium.Interactive.Samples.Predication
             _depthView = _views.AllocateHandle();
             _device.CreateDepthStencilView(_depth, _depthView.Span[0]);
 
-            _occlusionQueries = _device.CreateQueryHeap(QueryHeapType.Occlusion, 1);
+            _occlusionQueries = _device.CreateQueryHeap(QuerySetType.Occlusion, 1);
 
             _predicationBuffer = _device.Allocator.AllocateDefaultBuffer<TQuery>();
             _readbackBuffer = _device.Allocator.AllocateReadbackBuffer<TQuery>();
@@ -204,7 +204,7 @@ namespace Voltium.Interactive.Samples.Predication
                 // Set the predicate so that operations are only performed if BinaryOcclusionQuery is false, which means that no
                 // samples would be drawn
                 // this means the entire triangle is drawn until it is *entirely* occluded.
-                context.SetPredication(false, _predicationBuffer);
+                context.BeginConditionalRendering(false, _predicationBuffer);
 
                 // Clear the depth because we want to draw the entire triangle unless it is fully occluded
                 // Else we don't really see predication and we just see the depth buffer at work

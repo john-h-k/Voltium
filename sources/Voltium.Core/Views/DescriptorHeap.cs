@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using Microsoft.Toolkit.HighPerformance.Extensions;
 using TerraFX.Interop;
 using Voltium.Common;
@@ -11,15 +12,138 @@ using static TerraFX.Interop.D3D12_DESCRIPTOR_HEAP_TYPE;
 
 namespace Voltium.Core
 {
-    public readonly struct DescriptorAllocation : IDisposable
+    public enum ShaderComponentMapping
     {
-        internal DescriptorAllocation(DescriptorHeap heap, DescriptorSpan span, uint offset)
-        {
-            Heap = heap;
-            Span = span;
+        Default,
+        Red,
+        Green,
+        Blue,
+        Alpha,
+        One,
+        Zero
+    }
 
-            Offset = offset;
+    public readonly struct DepthStencilView
+    {
+        internal readonly D3D12_CPU_DESCRIPTOR_HANDLE Handle;
+
+        public DepthStencilView(D3D12_CPU_DESCRIPTOR_HANDLE handle) => Handle = handle;
+    }
+
+    public unsafe sealed class DepthViewPool : IDisposable
+    {
+        private GraphicsDevice _device;
+        private UniqueComPtr<ID3D12DescriptorHeap> _dsvs;
+        private D3D12_CPU_DESCRIPTOR_HANDLE _first;
+        private uint _incrementSize;
+        private readonly int _length;
+        private int _next;
+
+        internal DepthViewPool(GraphicsDevice device, int minimumLength)
+        {
+            _device = device;
+            var desc = new D3D12_DESCRIPTOR_HEAP_DESC
+            {
+                Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV,
+                NumDescriptors = (uint)minimumLength,
+                NodeMask = 0 // TODO: MULTI-GPU
+            };
+
+            _incrementSize = _device.GetIncrementSizeForDescriptorType(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+            _length = minimumLength;
+            _dsvs = device.CreateDescriptorHeap(&desc);
         }
+
+        private D3D12_CPU_DESCRIPTOR_HANDLE Next()
+        {
+            var alloc = Interlocked.Increment(ref _next);
+            if (alloc >= _length)
+            {
+                ThrowHelper.ThrowInvalidOperationException("Ran out of views!");
+            }
+
+            return new(_first, alloc, _incrementSize);
+        }
+
+        public DepthStencilView CreateView(in Texture texture) => CreateView(texture, null);
+
+        public DepthStencilView CreateView(in Texture texture, uint mip) => CreateView(texture, mip, 0..(texture.IsArray ? texture.DepthOrArraySize : 1));
+        public DepthStencilView CreateView(in Texture texture, Range array) => CreateView(texture, 0, array);
+
+        public DepthStencilView CreateView(in Texture texture, uint mip, Range array)
+        {
+            var desc = new D3D12_DEPTH_STENCIL_VIEW_DESC();
+            if (texture.Msaa.IsMultiSampled && mip != 0)
+            {
+                _device.ThrowGraphicsException("MSAA textures can only have a single mip, yet a mip >0 was requested");
+            }
+
+            var (offset, length) = array.GetOffsetAndLength(texture.IsArray ? texture.DepthOrArraySize : 1);
+            if (!texture.IsArray && offset != 0 && length != 1)
+            {
+                _device.ThrowGraphicsException("Non-array textures can only have a single array slice, yet an array slice of >0 was requested");
+            }
+
+            switch (texture.Dimension)
+            {
+                case TextureDimension.Tex1D when texture.IsArray:
+                    desc.ViewDimension = D3D12_DSV_DIMENSION.D3D12_DSV_DIMENSION_TEXTURE1DARRAY;
+                    desc.Texture1DArray.MipSlice = mip;
+                    desc.Texture1DArray.FirstArraySlice = (uint)offset;
+                    desc.Texture1DArray.ArraySize = (uint)length;
+                    break;
+
+                case TextureDimension.Tex1D:
+                    desc.ViewDimension = D3D12_DSV_DIMENSION.D3D12_DSV_DIMENSION_TEXTURE1D;
+                    desc.Texture1D.MipSlice = mip;
+                    break;
+
+                case TextureDimension.Tex2D when texture.Msaa.IsMultiSampled && texture.IsArray:
+                    desc.ViewDimension = D3D12_DSV_DIMENSION.D3D12_DSV_DIMENSION_TEXTURE2DMSARRAY;
+                    desc.Texture2DMSArray.FirstArraySlice = (uint)offset;
+                    desc.Texture2DMSArray.ArraySize = (uint)length;
+                    break;
+
+                case TextureDimension.Tex2D when texture.IsArray:
+                    desc.ViewDimension = D3D12_DSV_DIMENSION.D3D12_DSV_DIMENSION_TEXTURE2DARRAY;
+                    desc.Texture2DArray.MipSlice = mip;
+                    desc.Texture2DArray.FirstArraySlice = (uint)offset;
+                    desc.Texture2DArray.ArraySize = (uint)length;
+                    break;
+
+                case TextureDimension.Tex2D when texture.Msaa.IsMultiSampled:
+                    desc.ViewDimension = D3D12_DSV_DIMENSION.D3D12_DSV_DIMENSION_TEXTURE2DMS;
+                    desc.Texture2D.MipSlice = mip;
+                    break;
+
+                case TextureDimension.Tex2D:
+                    desc.ViewDimension = D3D12_DSV_DIMENSION.D3D12_DSV_DIMENSION_TEXTURE2D;
+                    desc.Texture2D.MipSlice = mip;
+                    break;
+            }
+
+            return CreateView(texture, &desc);
+        }
+
+        private DepthStencilView CreateView(in Texture texture, D3D12_DEPTH_STENCIL_VIEW_DESC* desc)
+        {
+            var handle = Next();
+            _device.DevicePointer->CreateDepthStencilView(texture.GetResourcePointer(), desc, handle);
+            return new (handle);
+        }
+    }
+
+    public enum ViewPoolType
+    {
+        Depth,
+        Writable,
+        ReadOnly
+    }
+
+    public readonly struct DescriptorAllocation
+    {
+        internal DescriptorSetHandle Handle;
+        private Disposal<DescriptorSetHandle> _dispose;
 
         public DescriptorHandle this[int index] => Span[index];
         public DescriptorHandle this[uint index] => Span[index];
@@ -31,46 +155,37 @@ namespace Voltium.Core
         public uint Offset { get; }
         public int Length => Span.Length;
 
-        public DescriptorHeap Heap { get; }
         public DescriptorSpan Span { get; }
-
-        public void Dispose()
-        {
-            Heap.Return(ref Unsafe.AsRef(in this));
-        }
     }
 
     public readonly struct DescriptorSpan
      {
         public readonly int Length => (int)_length;
 
-        internal readonly D3D12_CPU_DESCRIPTOR_HANDLE Cpu;
         internal readonly D3D12_GPU_DESCRIPTOR_HANDLE Gpu;
         private readonly uint _length;
         internal readonly ushort IncrementSize;
         internal readonly byte Type;
 
-        internal DescriptorSpan(D3D12_CPU_DESCRIPTOR_HANDLE cpu, D3D12_GPU_DESCRIPTOR_HANDLE gpu, uint length, ushort incrementSize, byte type)
+        internal DescriptorSpan(D3D12_GPU_DESCRIPTOR_HANDLE gpu, uint length, ushort incrementSize, byte type)
         {
             _length = length;
-            Cpu = cpu;
             Gpu = gpu;
             IncrementSize = incrementSize;
             Type = type;
         }
 
         public DescriptorHandle this[uint index] => this[(int)index];
-        public DescriptorHandle this[int index] => new DescriptorHandle(OffsetCpu(index), OffsetGpu(index));
+        public DescriptorHandle this[int index] => new DescriptorHandle(OffsetGpu(index));
 
-        private D3D12_CPU_DESCRIPTOR_HANDLE OffsetCpu(int count) => Cpu.Offset(count, IncrementSize);
-        private D3D12_GPU_DESCRIPTOR_HANDLE OffsetGpu(int count) => Gpu.Offset(Gpu.ptr == default ? 0 : count, IncrementSize);
+        private D3D12_GPU_DESCRIPTOR_HANDLE OffsetGpu(int count) => Gpu.Offset(count, IncrementSize);
 
         public DescriptorSpan Slice(int start)
         {
             if ((uint)start > (uint)_length)
                 ThrowHelper.ThrowArgumentOutOfRangeException(nameof(start));
 
-            return new DescriptorSpan(OffsetCpu(start), OffsetGpu(start), _length - (uint)start, IncrementSize, Type);
+            return new DescriptorSpan(OffsetGpu(start), _length - (uint)start, IncrementSize, Type);
         }
 
         public DescriptorSpan Slice(int start, int length)
@@ -78,7 +193,7 @@ namespace Voltium.Core
             if ((ulong)(uint)start + (ulong)(uint)length > (ulong)(uint)_length)
                 ThrowHelper.ThrowArgumentOutOfRangeException("start/length");
 
-            return new DescriptorSpan(OffsetCpu(start), OffsetGpu(start), (uint)length, IncrementSize, Type);
+            return new DescriptorSpan(OffsetGpu(start), (uint)length, IncrementSize, Type);
         }
     }
 
@@ -112,7 +227,7 @@ namespace Voltium.Core
     /// <summary>
     /// A heap of descriptors for resources
     /// </summary>
-    public unsafe class DescriptorHeap : IInternalD3D12Object
+    public unsafe class DescriptorHeap : IInternalGraphicsObject
     {
         private ComputeDevice _device;
         private UniqueComPtr<ID3D12DescriptorHeap> _heap;
@@ -237,7 +352,7 @@ namespace Voltium.Core
         /// <inheritdoc cref="IComType.Dispose"/>
         public void Dispose() => _heap.Dispose();
 
-        ID3D12Object* IInternalD3D12Object.GetPointer() => (ID3D12Object*)_heap.Ptr;
+        ID3D12Object* IInternalGraphicsObject.GetPointer() => (ID3D12Object*)_heap.Ptr;
     }
 
     /// <summary>

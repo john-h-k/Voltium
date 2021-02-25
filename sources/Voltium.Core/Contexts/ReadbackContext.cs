@@ -35,7 +35,7 @@ namespace Voltium.Core.Contexts
         internal ReadbackContext(in ContextParams @params, MemoryPool<byte>? allocator = null) : base(@params)
         {
             _listBuffers = new();
-            _transientAllocator = new DynamicAllocator(Device, MemoryAccess.CpuReadback);
+            _transientAllocator = new DynamicAllocator(_device, MemoryAccess.CpuReadback);
             _allocator = allocator ?? MemoryPool<byte>.Shared;
         }
 
@@ -155,7 +155,7 @@ namespace Voltium.Core.Contexts
             // we execute list so we need to stop GpuContext.Dispose doing so
             Params.Flags = ContextFlags.None;
             base.Dispose();
-            var task = Device.Execute(this);
+            var task = _device.Execute(this);
 
             if (_listBuffers?.Count > 0)
             {

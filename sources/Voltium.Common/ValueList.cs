@@ -54,9 +54,30 @@ namespace Voltium.Common
         public ValueList(int capacity, ArrayPool<T>? pool = null)
         {
             Guard.Positive(capacity);
-            _items = new T[capacity];
-            _length = 0;
             _pool = pool;
+            _length = 0;
+            _items = null!;
+            _items = AllocateArray(capacity);
+        }
+
+        public void Clear()
+        {
+            if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
+            {
+                AsSpan().Clear();
+            }
+            _length = 0;
+        }
+
+        public void Trim()
+        {
+            var old = _items;
+
+            _items = AllocateArray(_length);
+
+            old.AsSpan(0, _length).CopyTo(AsSpan());
+
+            FreeArray(_items);
         }
 
         public void AddRange(int count)
@@ -105,16 +126,7 @@ namespace Voltium.Common
         private void Resize(int size)
         {
             var old = _items;
-            _items = null!;
-
-            if (_pool is null)
-            {
-                _items = new T[size];
-            }
-            else
-            {
-                _items = _pool.Rent(size);
-            }
+            _items = AllocateArray(size);
 
             old.AsSpan(0, _length).CopyTo(_items);
 
@@ -122,12 +134,29 @@ namespace Voltium.Common
             {
                 old.AsSpan().Clear();
             }
-            
-            if (_pool is not null)
+
+            FreeArray(_items);
+        }
+
+        private T[] AllocateArray(int size)
+        {
+            if (_pool is null)
             {
-                _pool.Return(old);
+                return new T[size];
+            }
+            else
+            {
+                return _pool.Rent(size);
             }
         }
+        private void FreeArray(T[] arr)
+        {
+            if (_pool is not null)
+            {
+                _pool.Return(arr);
+            }
+        }
+
 
         public T this[int index]
         {
@@ -142,5 +171,6 @@ namespace Voltium.Common
         }
 
         public int Length => _length;
+        public int Count => _length;
     }
 }

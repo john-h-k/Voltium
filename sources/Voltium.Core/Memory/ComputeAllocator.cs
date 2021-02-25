@@ -42,27 +42,6 @@ namespace Voltium.Core.Memory
         public bool IsBufferSuballocationCandidate;
     }
 
-    internal enum ResourceType
-    {
-        Texture,
-        RenderTargetOrDepthStencilTexture,
-        Buffer
-    }
-
-    internal enum Alignment : ulong
-    {
-        _4KB = 4 * 1024,
-        _64KB = 64 * 1024,
-        _4MB = 4 * 1024 * 1024
-    }
-
-    internal struct HeapInfo
-    {
-        public Alignment Alignment;
-        public MemoryAccess Access;
-        public ResourceType Type;
-    }
-
     /// <summary>
     /// An allocator used for allocating temporary and long
     /// </summary>

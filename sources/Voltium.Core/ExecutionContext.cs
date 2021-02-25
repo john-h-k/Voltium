@@ -11,19 +11,34 @@ namespace Voltium.Core
     public enum ExecutionContext : ulong
     {
         /// <summary>
-        /// A context where copy commands can occur
+        /// A context used for copy operations
         /// </summary>
         Copy = D3D12_COMMAND_LIST_TYPE_COPY,
 
         /// <summary>
-        /// A context where copy or compute commands can occur
+        /// A context used for copy or compute operations
         /// </summary>
         Compute = D3D12_COMMAND_LIST_TYPE_COMPUTE,
 
         /// <summary>
-        /// A context where any GPU command can occur
+        /// A context used for copy, compute, or graphical operations
         /// </summary>
         Graphics = D3D12_COMMAND_LIST_TYPE_DIRECT,
+
+        /// <summary>
+        /// A context used for video decode operations
+        /// </summary>
+        VideoDecode = D3D12_COMMAND_LIST_TYPE_VIDEO_DECODE,
+
+        /// <summary>
+        /// A context used for video decode operations
+        /// </summary>
+        VideoEncode = D3D12_COMMAND_LIST_TYPE_VIDEO_ENCODE,
+
+        /// <summary>
+        /// A context used for video processing operations
+        /// </summary>
+        VideoProcess = D3D12_COMMAND_LIST_TYPE_VIDEO_PROCESS,
 
         /// <summary>
         /// We should execute Patrick

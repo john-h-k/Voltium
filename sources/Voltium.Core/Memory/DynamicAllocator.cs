@@ -157,7 +157,8 @@ namespace Voltium.Core.Memory
                 _access = access;
             }
 
-            private LockedQueue<InUsePage, SpinLock> _pages = new(new SpinLock(EnvVars.IsDebug));
+            private LockedQueue<InUsePage, SpinLock> _pages = new(new SpinLock(ConfigurationA
+.IsDebug));
 
             public const nuint PageSize = 4 * 1024 * 1024; // 4mb
 

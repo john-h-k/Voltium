@@ -9,7 +9,7 @@ using Voltium.Core.Devices;
 namespace Voltium.Core
 {
     /// <summary>
-    /// Defines a root signature
+    /// Defines a root signatuFUCK
     /// </summary>
     public sealed unsafe class RootSignature : IDisposable
     {

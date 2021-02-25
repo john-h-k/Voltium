@@ -6,49 +6,21 @@ using System.Threading.Tasks;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Devices;
+using Voltium.Core.Memory;
 using static TerraFX.Interop.Windows;
 using Buffer = Voltium.Core.Memory.Buffer;
 
 namespace Voltium.Core.Queries
 {
-    public unsafe struct QueryHeap : IEvictable, IInternalD3D12Object
+    public unsafe struct QueryHeap
     {
-        private ComputeDevice _device;
-        private UniqueComPtr<ID3D12QueryHeap> _queryHeap;
-        private uint _numQueries;
-        private uint _nextQuery;
+        internal QuerySetHandle Handle;
+        public readonly uint Length;
 
-        public uint Length => _numQueries;
+        private Disposal<QuerySetHandle> _dispose;
 
-        internal int NextQueryIndex => (int)_nextQuery++;
-
-        internal QueryHeap(ComputeDevice device, QueryHeapType type, int numQueries)
-        {
-            _device = device;
-            _nextQuery = 0;
-
-            if (type == QueryHeapType.CopyTimestamp
-                && _device.QueryFeatureSupport<D3D12_FEATURE_DATA_D3D12_OPTIONS3>(D3D12_FEATURE.D3D12_FEATURE_D3D12_OPTIONS3).CopyQueueTimestampQueriesSupported != TRUE)
-            {
-                ThrowHelper.ThrowNotSupportedException("Device does not support copy queue timestamps");
-            }
-
-            var desc = new D3D12_QUERY_HEAP_DESC
-            {
-                Count = (uint)numQueries,
-                Type = (D3D12_QUERY_HEAP_TYPE)type,
-                NodeMask = 0, // TODO: MULTI-GPU
-            };
-
-            _queryHeap = device.CreateQueryHeap(desc);
-            _numQueries = (uint)numQueries;
-        }
-
-        internal ID3D12QueryHeap* GetQueryHeap() => _queryHeap.Ptr;
-
-        bool IEvictable.IsBlittableToPointer => false;
-        ID3D12Pageable* IEvictable.GetPageable() => (ID3D12Pageable*)_queryHeap.Ptr;
-        ID3D12Object* IInternalD3D12Object.GetPointer() => (ID3D12Object*)_queryHeap.Ptr;
+        /// <inheritdoc/>
+        public void Dispose() => _dispose.Dispose(ref Handle);
     }
 
 }

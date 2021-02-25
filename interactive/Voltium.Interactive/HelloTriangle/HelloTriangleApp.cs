@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.Drawing;
 using System.Numerics;
 using Microsoft.Extensions.Logging;
@@ -22,7 +23,7 @@ namespace Voltium.Interactive.HelloTriangle
         public Vector4 Color;
     }
 
-        public sealed class HelloTriangleApp : Application
+    public sealed class HelloTriangleApp : Application
     {
         private GraphicsDevice _device = null!;
         private Output _output = null!;
@@ -40,6 +41,12 @@ namespace Voltium.Interactive.HelloTriangle
             _output = Output.Create(OutputConfiguration.Default, _device, output);
 
             OnResize(outputSize);
+
+            var renderPassDesc = new RenderPassInfo
+            {
+                RenderTargetLoad = { [0] = LoadOperation.Clear },
+                RenderTargetStore = { [0] = StoreOperation.Preserve }
+            };
 
             ReadOnlySpan<HelloWorldVertex> vertices = stackalloc HelloWorldVertex[3]
             {
@@ -65,22 +72,26 @@ namespace Voltium.Interactive.HelloTriangle
             _pso = _device.PipelineManager.CreatePipelineStateObject(psoDesc, nameof(_pso));
         }
 
+
         public override void OnResize(Size newOutputSize) => _output.Resize(newOutputSize);
         public override void Update(ApplicationTimer timer) { /* This app doesn't do any updating */ }
         public unsafe override void Render()
         {
             var context = _device.BeginGraphicsContext(_pso);
 
-
             // We need to transition the back buffer to ResourceState.RenderTarget so we can draw to it
             using (context.ScopedBarrier(ResourceBarrier.Transition(_output.OutputBuffer, ResourceState.Present, ResourceState.RenderTarget)))
+            using (context.ScopedRenderPass(new RenderTarget
+            {
+                Resource = _output.OutputBufferView,
+                Load = LoadOperation.Clear,
+                Store = StoreOperation.Preserve,
+                ColorClear = Rgba128.CornflowerBlue
+            }))
             {
                 // Set that we render to the entire screen, clear the render target, set the vertex buffer, and set the topology we will use
-                context.SetViewportAndScissor(_output.Resolution);
-                context.SetAndClearRenderTarget(_output.OutputBufferView, Rgba128.CornflowerBlue);
                 context.SetVertexBuffers<HelloWorldVertex>(_vertices);
-                context.SetTopology(Topology.TriangleList);
-                context.Draw(_vertices.LengthAs<HelloWorldVertex>());
+                context.Draw(3);
             }
 
             context.Close();

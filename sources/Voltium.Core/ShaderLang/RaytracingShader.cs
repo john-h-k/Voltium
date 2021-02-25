@@ -25,26 +25,26 @@ namespace Voltium.Core.ShaderLang
             ProceduralPrimitive
         }
 
-        protected class RayQuery
-        {
-            public RayQuery()
+            protected class RayQuery
             {
+                public RayQuery()
+                {
 
+                }
+
+                public void TraceRayInline(
+                    RaytracingAccelerationStructure accelerationStructure,
+                    RayDesc ray,
+                    uint instanceInclusionMask,
+                    TraceRayFlags flags = TraceRayFlags.None
+                ) => throw null!;
+
+                public bool Proceed() => throw null!;
+
+                public void Abort() => throw null!;
+
+                public CommittedType CommittedType => throw null!;
             }
-
-            public void TraceRayInline(
-                RaytracingAccelerationStructure accelerationStructure,
-                RayDesc ray,
-                uint instanceInclusionMask,
-                TraceRayFlags flags = TraceRayFlags.None
-            ) => throw null!;
-
-            public bool Proceed() => throw null!;
-
-            public void Abort() => throw null!;
-
-            public CommittedType CommittedType => throw null!;
-        }
 
 
 

@@ -9,17 +9,17 @@ namespace Voltium.Common.Debugging
     {
         private const string DoNotUseWithoutDebugger = "Should not use this without a debugger";
 
-        public static bool HasSingleRef<T>(in T value) where T : IInternalD3D12Object
+        public static bool HasSingleRef<T>(in T value) where T : IInternalGraphicsObject
             => GetRefCount(value) == 1;
 
-        public static int GetRefCount<T>(in T value) where T : IInternalD3D12Object
+        public static int GetRefCount<T>(in T value) where T : IInternalGraphicsObject
         {
             var ptr = value.GetPointer();
             _ = ptr->AddRef();
             return (int)ptr->Release();
         }
 
-        public static void RegisterForDeletionCallback<T>(in T ptr, delegate* unmanaged<void*, void> callback, object? data = null) where T : unmanaged, IInternalD3D12Object
+        public static void RegisterForDeletionCallback<T>(in T ptr, delegate* unmanaged<void*, void> callback, object? data = null) where T : unmanaged, IInternalGraphicsObject
             => RegisterForDeletionCallback(ptr.GetPointer(), callback, data);
 
         internal static void RegisterForDeletionCallback<T>(T* ptr, delegate* unmanaged<void*, void> callback, object? data = null) where T : unmanaged
@@ -46,7 +46,7 @@ namespace Voltium.Common.Debugging
             }
         }
 
-        public static void BreakOnDeletion<T>(in T ptr, object? data = null) where T : unmanaged, IInternalD3D12Object
+        public static void BreakOnDeletion<T>(in T ptr, object? data = null) where T : unmanaged, IInternalGraphicsObject
             => BreakOnDeletion(ptr.GetPointer(), data);
 
         internal static void BreakOnDeletion<T>(T* ptr, object? data = null) where T : unmanaged

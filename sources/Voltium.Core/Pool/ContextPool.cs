@@ -18,22 +18,19 @@ using SpinLock = Voltium.Common.Threading.SpinLockWrapped;
 
 namespace Voltium.Core.Pool
 {
-    internal struct ContextParams
+    internal struct ContextParams<TCommandList>
     {
         public ComputeDevice Device;
-        public PipelineStateObject? PipelineStateObject;
         public ExecutionContext Context;
         public ContextFlags Flags;
 
         public ContextParams(
             ComputeDevice device,
-            PipelineStateObject? pipelineStateObject,
             ExecutionContext context,
             ContextFlags flags
         )
         {
             Device = device;
-            PipelineStateObject = pipelineStateObject;
             Context = context;
             Flags = flags;
         }
@@ -43,7 +40,7 @@ namespace Voltium.Core.Pool
     {
         private ComputeDevice _device;
 
-        private static SpinLock GetLock() => new SpinLock(EnvVars.IsDebug);
+        private static SpinLock GetLock() => new SpinLock(Configuration.IsDebug);
 
         private struct CommandAllocator
         {
@@ -55,11 +52,17 @@ namespace Voltium.Core.Pool
         private LockedQueue<CommandAllocator, SpinLock> _computeAllocators = new(GetLock());
         private LockedQueue<CommandAllocator, SpinLock> _directAllocators = new(GetLock());
 
+        private LockedQueue<CommandAllocator, SpinLock> _encodeAllocators = new(GetLock());
+        private LockedQueue<CommandAllocator, SpinLock> _processAllocators = new(GetLock());
+        private LockedQueue<CommandAllocator, SpinLock> _decodeAllocators = new(GetLock());
+
         private LockedQueue<UniqueComPtr<ID3D12GraphicsCommandList6>, SpinLock> _copyLists = new(GetLock());
         private LockedQueue<UniqueComPtr<ID3D12GraphicsCommandList6>, SpinLock> _computeLists = new(GetLock());
         private LockedQueue<UniqueComPtr<ID3D12GraphicsCommandList6>, SpinLock> _directLists = new(GetLock());
 
-        public static readonly Guid Guid_AllocatorType = new Guid("5D16E61C-E2BF-4118-BB1D-8F804EC4F03D");
+        private LockedQueue<UniqueComPtr<ID3D12VideoEncodeCommandList1>, SpinLock> _encodeLists = new(GetLock());
+        private LockedQueue<UniqueComPtr<ID3D12VideoProcessCommandList2>, SpinLock> _processLists = new(GetLock());
+        private LockedQueue<UniqueComPtr<ID3D12VideoDecodeCommandList2>, SpinLock> _decodeLists = new(GetLock());
 
         public ContextPool(ComputeDevice device)
         {
@@ -110,29 +113,7 @@ namespace Voltium.Core.Pool
 
         internal SupportedGraphicsCommandList SupportedList { get; }
 
-        private SupportedGraphicsCommandList CheckListSupport(UniqueComPtr<ID3D12GraphicsCommandList6> list)
-        {
-            var supported = SupportedGraphicsCommandList.GraphicsCommandList6;
-            //var supported = list switch
-            //{
-            //    _ when list.HasInterface<ID3D12GraphicsCommandList6>() => SupportedGraphicsCommandList.GraphicsCommandList6,
-            //    _ when list.HasInterface<ID3D12GraphicsCommandList5>() => SupportedGraphicsCommandList.GraphicsCommandList5,
-            //    _ when list.HasInterface<ID3D12GraphicsCommandList4>() => SupportedGraphicsCommandList.GraphicsCommandList4,
-            //    _ when list.HasInterface<ID3D12GraphicsCommandList3>() => SupportedGraphicsCommandList.GraphicsCommandList3,
-            //    _ when list.HasInterface<ID3D12GraphicsCommandList2>() => SupportedGraphicsCommandList.GraphicsCommandList2,
-            //    _ when list.HasInterface<ID3D12GraphicsCommandList1>() => SupportedGraphicsCommandList.GraphicsCommandList1,
-            //    _ => SupportedGraphicsCommandList.GraphicsCommandList
-            //};
-
-            if (supported < SupportedGraphicsCommandList.GraphicsCommandList5)
-            {
-                ThrowHelper.ThrowPlatformNotSupportedException("GraphicsCommandList5 is required");
-            }
-
-            return supported;
-        }
-
-        public void Return(GpuContext context, in GpuTask contextFinish)
+        public void Return(ContextParams context, in GpuTask contextFinish)
         {
             static void FreeAttachedResources(List<IDisposable?> resources)
             {
@@ -187,6 +168,9 @@ namespace Voltium.Core.Pool
                 ExecutionContext.Copy => _copyAllocators,
                 ExecutionContext.Compute => _computeAllocators,
                 ExecutionContext.Graphics => _directAllocators,
+                ExecutionContext.VideoDecode => _decodeAllocators,
+                ExecutionContext.VideoEncode => _encodeAllocators,
+                ExecutionContext.VideoProcess => _processAllocators,
                 _ => default
             };
 

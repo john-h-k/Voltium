@@ -58,7 +58,8 @@ namespace Voltium.Core.Devices
         /// <summary>
         /// The <see cref="DebugFlags"/> that describes the debug for the application
         /// </summary>
-        public DebugFlags DebugFlags { get; set; } = EnvVars.IsDebug ? DebugFlags.DebugLayer : DebugFlags.None;
+        public DebugFlags DebugFlags { get; set; } = ConfigurationA
+.IsDebug ? DebugFlags.DebugLayer : DebugFlags.None;
 
         /// <summary>
         /// The <see cref="DredFlags"/> that describes the metadata created to help debug device removed scenarios
@@ -78,6 +79,7 @@ namespace Voltium.Core.Devices
         /// <summary>
         /// Whether profiling is enabled
         /// </summary>
-        public bool ProfilingEnabled { get; set; } = EnvVars.IsDebug;
+        public bool ProfilingEnabled { get; set; } = ConfigurationA
+.IsDebug;
     }
 }
