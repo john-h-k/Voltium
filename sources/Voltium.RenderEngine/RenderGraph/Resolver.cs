@@ -23,21 +23,12 @@ namespace Voltium.RenderEngine
             CanResolveResources = false;
         }
 
-
-        ///// <summary>
-        ///// Attempts to retrieve the last pass input of type <typeparamref name="TInput"/>
-        ///// </summary>
-        ///// <typeparam name="TInput">The type to retrieve the input as</typeparam>
-        ///// <returns>The input, if existent. Else, an exception will be thrown</returns>
-        //public TInput GetInput<TInput>(RenderPass pass) => _graph.;
-
         /// <summary>
         /// Resolves an individual application-defined component
         /// </summary>
         /// <typeparam name="TComponent">The type of the component to resolve</typeparam>
         /// <returns>The value of the component if it was found</returns>
         public TComponent GetComponent<TComponent>() => _components.Get<TComponent>();
-
 
         /// <summary>
         /// Writes to an existing application-defined component

@@ -221,7 +221,7 @@ namespace Voltium.CubeGame
             foreach (var info in BlockInfo)
             {
                 var texInfo = TextureLoader.LoadTextureDesc(info.File);
-                upload.CopyBufferToTexture()
+                upload.CopyBufferToTexture();
             }
 
 

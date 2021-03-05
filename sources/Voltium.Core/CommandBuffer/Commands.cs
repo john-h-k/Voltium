@@ -7,28 +7,32 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using TerraFX.Interop;
+using Voltium.Common;
 using Voltium.Core.Memory;
 using Voltium.Core.Pipeline;
 using Voltium.Core.Queries;
 
 namespace Voltium.Core.CommandBuffer
 {
-    public readonly struct GenerationalHandle
+    [GenerateEquality]
+    public readonly partial struct GenerationalHandle : IEquatable<GenerationalHandle>
     {
         public readonly uint Generation;
         public readonly uint Id;
-
-        public ulong AsUInt64() => Generation | (Id >> 32);
 
         public GenerationalHandle(uint generation, uint handle)
         {
             Generation = generation;
             Id = handle;
         }
+
+        public override int GetHashCode() => (Generation | ((ulong)Id >> 32)).GetHashCode();
+
+        public bool Equals(GenerationalHandle other) => Generation == other.Generation && Id == other.Id;
     }
 
     public interface IHandle<THandle> where THandle : struct, IHandle<THandle>
-    {   
+    {
         public GenerationalHandle Generational { get; }
 
         public THandle FromGenerationHandle(GenerationalHandle handle);
@@ -37,9 +41,13 @@ namespace Voltium.Core.CommandBuffer
     public struct View
     {
         internal ViewHandle Handle;
-        internal ViewSetHandle Set;
-        internal uint Index;
         private Disposal<ViewHandle> _dispose;
+
+        internal View(ViewHandle handle, Disposal<ViewHandle> dispose)
+        {
+            Handle = handle;
+            _dispose = dispose;
+        }
 
         public void Dispose() => _dispose.Dispose(ref Handle);
     }
@@ -424,7 +432,7 @@ namespace Voltium.Core.CommandBuffer
 
     internal unsafe struct CommandSetVertexBuffers : ICommand
     {
-        public CommandType Type => CommandType.SetIndexBuffer;
+        public CommandType Type => CommandType.SetVertexBuffer;
 
         public uint FirstBufferIndex;
         public uint Count;
@@ -452,7 +460,7 @@ namespace Voltium.Core.CommandBuffer
     }
 
     [StructLayout(LayoutKind.Explicit)]
-    internal unsafe struct ResourceHandle
+    internal unsafe struct ResourceHandle : IEquatable<ResourceHandle>
     {
         [FieldOffset(0)]
         public ResourceHandleType Type;
@@ -463,6 +471,31 @@ namespace Voltium.Core.CommandBuffer
         public TextureHandle Texture;
         [FieldOffset(sizeof(ResourceHandleType))]
         public RaytracingAccelerationStructureHandle RaytracingAccelerationStructure;
+
+        public static implicit operator ResourceHandle(BufferHandle h) => new(h);
+        public static implicit operator ResourceHandle(TextureHandle h) => new(h);
+        public static implicit operator ResourceHandle(RaytracingAccelerationStructureHandle h) => new(h);
+
+        public ResourceHandle(BufferHandle buff)
+        {
+            Unsafe.SkipInit(out this);
+            Type = ResourceHandleType.Buffer;
+            Buffer = buff;
+        }
+        public ResourceHandle(TextureHandle tex)
+        {
+            Unsafe.SkipInit(out this);
+            Type = ResourceHandleType.Texture;
+            Texture = tex;
+        }
+        public ResourceHandle(RaytracingAccelerationStructureHandle accelerationStructure)
+        {
+            Unsafe.SkipInit(out this);
+            Type = ResourceHandleType.RaytracingAccelerationStructure;
+            RaytracingAccelerationStructure = accelerationStructure;
+        }
+
+        public bool Equals(ResourceHandle other) => Type == other.Type && Buffer.Generational == other.Buffer.Generational;
     }
 
     internal unsafe struct CommandSetScissorRectangles : ICommand
@@ -486,8 +519,8 @@ namespace Voltium.Core.CommandBuffer
         public CommandType Type => CommandType.Transition;
 
         public uint Count;
-        public (ResourceHandle Resource, ResourceState Before, ResourceState After, uint Subresource) * Transitions
-            => ((ResourceHandle, ResourceState, ResourceState, uint) *)((uint*)Unsafe.AsPointer(ref Count) + 1);
+        public ResourceTransitionBarrier* Transitions
+            => (ResourceTransitionBarrier*)((uint*) Unsafe.AsPointer(ref Count) + 1);
     }
 
     internal unsafe struct CommandAliasingBarrier : ICommand
@@ -495,7 +528,12 @@ namespace Voltium.Core.CommandBuffer
         public CommandType Type => CommandType.AliasingBarrier;
 
         public uint Count;
-        public (ResourceHandle Before, ResourceHandle After) * Resources => ((ResourceHandle, ResourceHandle) *)((uint*)Unsafe.AsPointer(ref Count) + 1);
+        public ResourceAlias* Resources => (ResourceAlias*)((uint*)Unsafe.AsPointer(ref Count) + 1);
+    }
+
+    internal struct ResourceAlias
+    {
+        public ResourceHandle Before, After;
     }
 
     internal unsafe struct CommandInsertMarker : ICommand
@@ -715,7 +753,7 @@ namespace Voltium.Core.CommandBuffer
         internal BindPoint BindPoint;
         internal uint FirstSetIndex;
         internal uint SetCount;
-        internal DescriptorHandle* Sets => (DescriptorHandle*)((uint*)Unsafe.AsPointer(ref SetCount) + 1);
+        internal DescriptorSetHandle* Sets => (DescriptorSetHandle*)((uint*)Unsafe.AsPointer(ref SetCount) + 1);
     }
 
     internal unsafe struct CommandBind32BitConstants : ICommand
@@ -891,5 +929,13 @@ namespace Voltium.Core.CommandBuffer
     public struct CommandRayTrace
     {
         //private RayDispatchDesc Desc;
+    }
+
+    internal struct ResourceTransitionBarrier
+    {
+        public ResourceHandle Resource;
+        public ResourceState Before;
+        public ResourceState After;
+        public uint Subresource;
     }
 }

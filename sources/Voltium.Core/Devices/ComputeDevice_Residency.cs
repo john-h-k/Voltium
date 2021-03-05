@@ -19,8 +19,8 @@ namespace Voltium.Core.Devices
     public unsafe partial class ComputeDevice
     {
         // this fence is specifically used by the device for MakeResidentAsync. unrelated to queue fences
-        private D3D12Fence _residencyFence;
-        private ulong _lastFenceSignal;
+        //private D3D12Fence _residencyFence;
+        //private ulong _lastFenceSignal;
 
         ///// <summary>
         ///// Asynchronously makes <paramref name="resource"/> resident on the device

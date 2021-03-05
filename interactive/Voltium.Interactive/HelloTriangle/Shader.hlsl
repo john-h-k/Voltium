@@ -4,10 +4,10 @@ struct VertexOut
     float4 Color : COLOR;
 };
 
-VertexOut VertexMain(float4 position : POSITION, float4 color : COLOR)
+VertexOut VertexMain(float3 position : POSITION, float4 color : COLOR)
 {
     VertexOut v;
-    v.Position = position;
+    v.Position = float4(position, 1);
     v.Color = color;
     return v;
 }

@@ -68,12 +68,11 @@ namespace Voltium.Core.Memory
         /// </summary>
         public readonly MsaaDesc Msaa;
 
-        internal Texture(ref TextureHandle handle, in TextureDesc desc, delegate*<ref TextureHandle, void> dispose)
+        internal Texture(TextureHandle handle, in TextureDesc desc, Disposal<TextureHandle> dispose)
         {
             // no null 😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡
             Handle = handle;
-            handle = default;
-            _dispose = new Disposal<TextureHandle>(dispose);
+            _dispose = dispose;
 
             Dimension = desc.Dimension;
             Format = desc.Format;

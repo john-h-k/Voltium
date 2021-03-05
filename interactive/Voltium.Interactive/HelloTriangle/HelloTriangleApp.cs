@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core;
+using Voltium.Core.CommandBuffer;
 using Voltium.Core.Contexts;
 using Voltium.Core.Devices;
 using Voltium.Core.Devices.Shaders;
@@ -27,7 +28,7 @@ namespace Voltium.Interactive.HelloTriangle
     {
         private GraphicsDevice _device = null!;
         private Output _output = null!;
-        private PipelineStateObject _pso = null!;
+        private PipelineStateObject _pso;
         private Buffer _vertices;
 
         public unsafe override void Initialize(Size outputSize, IOutputOwner output)
@@ -37,16 +38,22 @@ namespace Voltium.Interactive.HelloTriangle
                 .WithDredFlags(DredFlags.All)
                 .WithBreakpointLogLevel(LogLevel.None);
 
-            _device = GraphicsDevice.Create(FeatureLevel.GraphicsLevel11_0, null, debug);
-            _output = Output.Create(OutputConfiguration.Default, _device, output);
+            _device = GraphicsDevice.Create(new D3D12NativeDevice(D3D_FEATURE_LEVEL.D3D_FEATURE_LEVEL_11_1));
+            _output = Output.Create(
+                new DXGINativeOutput(
+                    _device.GraphicsQueue.Native,
+                    new NativeOutputDesc
+                    {
+                         Format = BackBufferFormat.B8G8R8A8UnsignedNormalized,
+                         BackBufferCount = 3,
+                         PreserveBackBuffers = false,
+                         VrStereo = false
+                    },
+                    output.GetOutput()
+                )
+            );
 
             OnResize(outputSize);
-
-            var renderPassDesc = new RenderPassInfo
-            {
-                RenderTargetLoad = { [0] = LoadOperation.Clear },
-                RenderTargetStore = { [0] = StoreOperation.Preserve }
-            };
 
             ReadOnlySpan<HelloWorldVertex> vertices = stackalloc HelloWorldVertex[3]
             {
@@ -64,12 +71,13 @@ namespace Voltium.Interactive.HelloTriangle
                 Topology = TopologyClass.Triangle,
                 VertexShader = ShaderManager.CompileShader("HelloTriangle/Shader.hlsl", ShaderType.Vertex, entrypoint: "VertexMain"),
                 PixelShader = ShaderManager.CompileShader("HelloTriangle/Shader.hlsl", ShaderType.Pixel, entrypoint: "PixelMain"),
-                RenderTargetFormats = _output.Configuration.BackBufferFormat,
+                RenderTargetFormats = _output.Format,
                 DepthStencil = DepthStencilDesc.DisableDepthStencil,
                 Inputs = InputLayout.FromType<HelloWorldVertex>(),
+                RootSignature = _device.CreateRootSignature(default, default, RootSignatureFlags.AllowInputAssembler)
             };
 
-            _pso = _device.PipelineManager.CreatePipelineStateObject(psoDesc, nameof(_pso));
+            _pso = _device.CreatePipelineStateObject(psoDesc);
         }
 
 
@@ -80,7 +88,7 @@ namespace Voltium.Interactive.HelloTriangle
             var context = _device.BeginGraphicsContext(_pso);
 
             // We need to transition the back buffer to ResourceState.RenderTarget so we can draw to it
-            using (context.ScopedBarrier(ResourceBarrier.Transition(_output.OutputBuffer, ResourceState.Present, ResourceState.RenderTarget)))
+            using (context.ScopedBarrier(ResourceTransition.Create(_output.OutputBuffer, ResourceState.Present, ResourceState.RenderTarget)))
             using (context.ScopedRenderPass(new RenderTarget
             {
                 Resource = _output.OutputBufferView,
@@ -89,6 +97,7 @@ namespace Voltium.Interactive.HelloTriangle
                 ColorClear = Rgba128.CornflowerBlue
             }))
             {
+                context.SetViewportAndScissor(_output.Resolution);
                 // Set that we render to the entire screen, clear the render target, set the vertex buffer, and set the topology we will use
                 context.SetVertexBuffers<HelloWorldVertex>(_vertices);
                 context.Draw(3);
@@ -97,7 +106,7 @@ namespace Voltium.Interactive.HelloTriangle
             context.Close();
 
             // Execute the context and wait for it to finish
-            _device.Execute(context).Block();
+            _device.GraphicsQueue.Execute(context).Block();
 
             // Present the rendered frame to the output
             _output.Present();

@@ -62,12 +62,12 @@ namespace Voltium.Common.Pix
                 if (_type == ContextType.List)
                 {
                     VerifyCom(_context, Windows.IID_ID3D12GraphicsCommandList);
-                    PIXMethods.EndEvent((ID3D12GraphicsCommandList*)_context);
+                    //PIXMethods.EndEvent((ID3D12GraphicsCommandList*)_context);
                 }
                 else if (_type == ContextType.Queue)
                 {
                     VerifyCom(_context, Windows.IID_ID3D12CommandQueue);
-                    PIXMethods.EndEvent((ID3D12CommandQueue*)_context);
+                    //PIXMethods.EndEvent((ID3D12CommandQueue*)_context);
                 }
                 else if (_type != ContextType.None)
                 {

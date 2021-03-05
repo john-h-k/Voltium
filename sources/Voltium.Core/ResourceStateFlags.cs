@@ -32,7 +32,7 @@ namespace Voltium.Core
     public enum ResourceState : uint
     {
         /// <summary>
-        /// A state used when accessing resources across multiple <see cref="ExecutionContext"/>s
+        /// A state used when accessing resources across multiple <see cref="DeviceContext"/>s
         /// </summary>
         [ResourceStateInfo(Access.ReadWrite)]
         Common = D3D12_RESOURCE_STATE_COMMON,

@@ -51,14 +51,13 @@ namespace Voltium.Core
     /// </summary>
     public unsafe partial class CopyContext : GpuContext
     {
-
         public void FlushBarriers() { }
 
-        public CopyContext(GraphicsDevice device) : base(device)
+        public CopyContext() : base()
         {
 
         }
-        
+
         /// <summary>
         /// Writes a 32-bit value to GPU accessible memory
         /// </summary>
@@ -98,7 +97,7 @@ namespace Voltium.Core
             }
 
 
-            fixed ((ulong Address, uint Value)* pParams = pairs)
+            fixed ((ulong Address, uint Value) * pParams = pairs)
             fixed (WriteBufferImmediateMode* pModes = modes)
             {
                 var command = new CommandWriteConstants
@@ -143,7 +142,7 @@ namespace Voltium.Core
         public ref struct Query
         {
             internal CopyContext _context;
-            internal QueryHeap _queryHeap;
+            internal QuerySet _queryHeap;
             internal QueryType _query;
             internal uint _index;
 
@@ -155,18 +154,18 @@ namespace Voltium.Core
         }
 
         [IllegalBundleMethod]
-        public Query ScopedQuery<TQuery>(in QueryHeap heap, uint index) where TQuery : struct, IQueryType
+        public Query ScopedQuery<TQuery>(in QuerySet heap, uint index) where TQuery : struct, IQueryType
             => ScopedQuery(heap, default(TQuery).Type, index);
 
         [IllegalBundleMethod]
-        public Query ScopedQuery(in QueryHeap heap, QueryType type, uint index)
+        public Query ScopedQuery(in QuerySet heap, QueryType type, uint index)
         {
             BeginQuery(heap, type, index);
             return new() { _context = this, _queryHeap = heap, _index = index, _query = type };
         }
 
         [IllegalBundleMethod]
-        public void BeginQuery(in QueryHeap heap, QueryType type, uint index)
+        public void BeginQuery(in QuerySet heap, QueryType type, uint index)
         {
             var command = new CommandBeginQuery
             {
@@ -179,7 +178,7 @@ namespace Voltium.Core
         }
 
         [IllegalBundleMethod]
-        public void EndQuery(in QueryHeap heap, QueryType type, uint index)
+        public void EndQuery(in QuerySet heap, QueryType type, uint index)
         {
             var command = new CommandEndQuery
             {
@@ -192,7 +191,7 @@ namespace Voltium.Core
         }
 
         [IllegalBundleMethod]
-        public void QueryTimestamp(in QueryHeap heap, uint index)
+        public void QueryTimestamp(in QuerySet heap, uint index)
         {
             var command = new CommandReadTimestamp
             {
@@ -204,11 +203,11 @@ namespace Voltium.Core
         }
 
         [IllegalBundleMethod]
-        public void ResolveQuery<TQuery>(in QueryHeap heap, Range queries, [RequiresResourceState(ResourceState.CopyDestination)] in Buffer dest, uint offset = 0) where TQuery : struct, IQueryType
+        public void ResolveQuery<TQuery>(in QuerySet heap, Range queries, [RequiresResourceState(ResourceState.CopyDestination)] in Buffer dest, uint offset = 0) where TQuery : struct, IQueryType
             => ResolveQuery(heap, default(TQuery).Type, queries, dest, offset);
 
         [IllegalBundleMethod]
-        public void ResolveQuery(in QueryHeap heap, QueryType type, Range queries, [RequiresResourceState(ResourceState.CopyDestination)] in Buffer dest, uint offset = 0)
+        public void ResolveQuery(in QuerySet heap, QueryType type, Range queries, [RequiresResourceState(ResourceState.CopyDestination)] in Buffer dest, uint offset = 0)
         {
             FlushBarriers();
 
@@ -222,29 +221,6 @@ namespace Voltium.Core
             };
 
             _encoder.Emit(&command);
-        }
-
-        /// <summary>
-        /// Transitions a <see cref="Texture"/> for use on a different <see cref="ExecutionContext"/>
-        /// </summary>
-        /// <param name="tex">The <see cref="Texture"/> to transition</param>
-        /// <param name="current">The current <see cref="ResourceState"/> of <paramref name="tex"/></param>
-        /// <param name="subresource">The subresource to transition, by default, all subresources</param>
-        [IllegalBundleMethod]
-        public void TransitionForCrossContextAccess([RequiresResourceState("current")] in Texture tex, ResourceState current, uint subresource = uint.MaxValue)
-        {
-            Barrier(ResourceBarrier.Transition(tex, current, ResourceState.Common, subresource));
-        }
-
-        /// <summary>
-        /// Transitions a <see cref="Buffer"/> for use on a different <see cref="ExecutionContext"/>
-        /// </summary>
-        /// <param name="buffer">The <see cref="Buffer"/> to transition</param>
-        /// <param name="current">The current <see cref="ResourceState"/> of <paramref name="buffer"/></param>
-        [IllegalBundleMethod]
-        public void TransitionForCrossContextAccess([RequiresResourceState("current")] in Buffer buffer, ResourceState current)
-        {
-            Barrier(ResourceBarrier.Transition(buffer, current, ResourceState.Common));
         }
 
 
@@ -433,23 +409,23 @@ namespace Voltium.Core
         //}
 
         /// <summary>
-        /// Describes a set of barriers scoped over a certain region, created by <see cref="ScopedBarrier(ReadOnlySpan{ResourceBarrier})"/>
+        /// Describes a set of barriers scoped over a certain region, created by <see cref="ScopedBarrier(ReadOnlySpan{ResourceTransition})"/>
         /// </summary>
         public ref struct ScopedBarrierSet
         {
             private CopyContext _context;
-            private ResourceBarrier? _single;
-            private ReadOnlySpan<ResourceBarrier> _barriers;
+            private ResourceTransition? _single;
+            private ReadOnlySpan<ResourceTransition> _barriers;
 
 
-            internal ScopedBarrierSet(CopyContext context, in ResourceBarrier barrier)
+            internal ScopedBarrierSet(CopyContext context, in ResourceTransition barrier)
             {
                 _context = context;
                 _barriers = default;
                 _single = barrier;
             }
 
-            internal ScopedBarrierSet(CopyContext context, ReadOnlySpan<ResourceBarrier> barriers)
+            internal ScopedBarrierSet(CopyContext context, ReadOnlySpan<ResourceTransition> barriers)
             {
                 _context = context;
                 _barriers = barriers;
@@ -463,26 +439,26 @@ namespace Voltium.Core
             /// </summary>
             public void Dispose()
             {
-                if (_single is ResourceBarrier single)
+                if (_single is ResourceTransition single)
                 {
-                    _context.AddBarrier(Reverse(single));
+                    _context.Barrier(Reverse(single));
                     return;
                 }
 
                 int newBarrierCount = 0;
 
-                Span<D3D12_RESOURCE_BARRIER> newBarriers = default;
-                using RentedArray<D3D12_RESOURCE_BARRIER> rent = default;
+                Span<ResourceTransition> newBarriers = default;
+                using RentedArray<ResourceTransition> rent = default;
 
-                if (StackSentinel.SafeToStackalloc<D3D12_RESOURCE_BARRIER>(_barriers.Length))
+                if (StackSentinel.SafeToStackalloc<ResourceTransition>(_barriers.Length))
                 {
                     // avoid stupid stackalloc assignment rules
-                    var p = stackalloc D3D12_RESOURCE_BARRIER[_barriers.Length];
+                    var p = stackalloc ResourceTransition[_barriers.Length];
                     newBarriers = new(p, _barriers.Length);
                 }
                 else
                 {
-                    Unsafe.AsRef(in rent) = RentedArray<D3D12_RESOURCE_BARRIER>.Create(_barriers.Length);
+                    Unsafe.AsRef(in rent) = RentedArray<ResourceTransition>.Create(_barriers.Length);
                     newBarriers = rent.AsSpan();
                 }
 
@@ -491,44 +467,20 @@ namespace Voltium.Core
                     newBarriers[newBarrierCount++] = Reverse(barrier);
                 }
 
-                _context.AddBarriers(newBarriers[0..newBarrierCount]);
+                _context.Barrier(newBarriers[0..newBarrierCount]);
 
-                static D3D12_RESOURCE_BARRIER Reverse(in ResourceBarrier barrier)
+                static ResourceTransition Reverse(in ResourceTransition barrier)
                 {
-                    D3D12_RESOURCE_BARRIER result;
-                    bool isBeginOnly = barrier.Barrier.Flags.HasFlag(D3D12_RESOURCE_BARRIER_FLAGS.D3D12_RESOURCE_BARRIER_FLAG_BEGIN_ONLY);
-                    result.Flags = isBeginOnly ? D3D12_RESOURCE_BARRIER_FLAGS.D3D12_RESOURCE_BARRIER_FLAG_END_ONLY : D3D12_RESOURCE_BARRIER_FLAGS.D3D12_RESOURCE_BARRIER_FLAG_NONE;
-
-                    if (barrier.Barrier.Type == D3D12_RESOURCE_BARRIER_TYPE.D3D12_RESOURCE_BARRIER_TYPE_TRANSITION)
+                    return new ResourceTransition
                     {
-                        ref readonly var transition = ref barrier.Barrier.Transition;
-
-                        var (before, after) = isBeginOnly ? (transition.StateBefore, transition.StateAfter) : (transition.StateAfter, transition.StateBefore);
-                        result = D3D12_RESOURCE_BARRIER.InitTransition(transition.pResource, before, after, transition.Subresource);
-                    }
-                    else if (barrier.Barrier.Type == D3D12_RESOURCE_BARRIER_TYPE.D3D12_RESOURCE_BARRIER_TYPE_ALIASING)
-                    {
-                        ref readonly var aliasing = ref barrier.Barrier.Aliasing;
-                        ID3D12Resource* before, after;
-                        if (isBeginOnly)
+                        Transition = new()
                         {
-                            before = aliasing.pResourceBefore;
-                            after = aliasing.pResourceAfter;
+                            Resource = barrier.Transition.Resource,
+                            Before = barrier.Transition.After,
+                            After = barrier.Transition.Before,
+                            Subresource = barrier.Transition.Subresource
                         }
-                        else
-                        {
-                            before = aliasing.pResourceAfter;
-                            after = aliasing.pResourceBefore;
-                        }
-
-                        result = D3D12_RESOURCE_BARRIER.InitAliasing(before, after);
-                    }
-                    else /* D3D12_RESOURCE_BARRIER_TYPE_UAV */
-                    {
-                        result = D3D12_RESOURCE_BARRIER.InitUAV(barrier.Barrier.UAV.pResource);
-                    }
-
-                    return result;
+                    };
                 }
             }
         }
@@ -536,10 +488,10 @@ namespace Voltium.Core
         /// <summary>
         /// Begins a set of scoped barriers which will be reversed when <see cref="ScopedBarrierSet.Dispose"/> is called
         /// </summary>
-        /// <param name="barrier">The <see cref="ResourceBarrier"/> to perform and reverse</param>
+        /// <param name="barrier">The <see cref="ResourceTransition"/> to perform and reverse</param>
         /// <returns>A new <see cref="ScopedBarrierSet"/></returns>
         [IllegalBundleMethod]
-        public ScopedBarrierSet ScopedBarrier(in ResourceBarrier barrier)
+        public ScopedBarrierSet ScopedBarrier(in ResourceTransition barrier)
         {
             Barrier(barrier);
             return new(this, barrier);
@@ -549,10 +501,10 @@ namespace Voltium.Core
         /// <summary>
         /// Begins a set of scoped barriers which will be reversed when <see cref="ScopedBarrierSet.Dispose"/> is called
         /// </summary>
-        /// <param name="barriers">The <see cref="ResourceBarrier"/>s to perform and reverse</param>
+        /// <param name="barriers">The <see cref="ResourceTransition"/>s to perform and reverse</param>
         /// <returns>A new <see cref="ScopedBarrierSet"/></returns>
         [IllegalBundleMethod]
-        public ScopedBarrierSet ScopedBarrier(ReadOnlySpan<ResourceBarrier> barriers)
+        public ScopedBarrierSet ScopedBarrier(ReadOnlySpan<ResourceTransition> barriers)
         {
             Barrier(barriers);
             return new(this, barriers);
@@ -563,9 +515,17 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="barrier">The barrier</param>
         [IllegalBundleMethod]
-        public void Barrier(in ResourceBarrier barrier)
+        public void Barrier(in ResourceTransition barrier)
         {
-            AddBarrier(barrier.Barrier);
+            fixed (ResourceTransition* pBarrier = &barrier)
+            {
+                var command = new CommandTransitions
+                {
+                    Count = 1,
+                };
+
+                _encoder.EmitVariable(&command, pBarrier, command.Count);
+            }
         }
 
         /// <summary>
@@ -573,16 +533,54 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="barriers">The barriers</param>
         [IllegalBundleMethod]
-        public void Barrier(ReadOnlySpan<ResourceBarrier> barriers)
+        public void Barrier(ReadOnlySpan<ResourceTransition> barriers)
         {
-            AddBarriers(MemoryMarshal.Cast<ResourceBarrier, D3D12_RESOURCE_BARRIER>(barriers));
-        }
+            fixed (ResourceTransition* pBarriers = barriers)
+            {
+                var command = new CommandTransitions
+                {
+                    Count = (uint)barriers.Length,
+                };
 
-        /// <inheritdoc/>
-        public override void Dispose()
-        {
-            FlushBarriers();
-            base.Dispose();
+                _encoder.EmitVariable(&command, pBarriers, command.Count);
+            }
         }
+    }
+
+    public struct ResourceTransition
+    {
+        public static ResourceTransition Create(in Buffer buff, ResourceState before, ResourceState after)
+            => new()
+            {
+                Transition = new()
+                {
+                    Resource = new()
+                    {
+                        Type = ResourceHandleType.Buffer,
+                        Buffer = buff.Handle
+                    },
+                    Before = before,
+                    After = after
+                },
+            };
+
+
+        public static ResourceTransition Create(in Texture tex, ResourceState before, ResourceState after, uint subresource = uint.MaxValue)
+            => new()
+            {
+                Transition = new()
+                {
+                    Resource = new()
+                    {
+                        Type = ResourceHandleType.Texture,
+                        Texture = tex.Handle
+                    },
+                    Before = before,
+                    After = after,
+                    Subresource = subresource
+                },
+            };
+
+        internal ResourceTransitionBarrier Transition;
     }
 }

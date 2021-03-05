@@ -11,7 +11,7 @@ using Voltium.Core.Memory;
 
 namespace Voltium.Core.Memory
 {
-    //public readonly struct GpuAddress : IEquatable<GpuAddress>, IComparable<GpuAddress>
+    //public readonly partial struct GpuAddress : IEquatable<GpuAddress>, IComparable<GpuAddress>
     //{
     //    internal readonly ulong Value;
 
@@ -95,32 +95,39 @@ namespace Voltium.Core.Memory
 
 
 
-    [StructLayout(LayoutKind.Explicit)]
     public unsafe struct Disposal<T>
     {
-        public Disposal(delegate*<ref T, void> ptr)
+        public Disposal(object state, delegate*<object, ref T, void> ptr)
         {
-            Value = 0;
-            FnPtr = ptr;
+            State = state;
+            Hack.Value = 0;
+            Hack.FnPtr = (delegate*<object, ref byte, void>)ptr;
         }
 
-        [FieldOffset(0)]
-        public nint Value;
-        [FieldOffset(0)]
-        public delegate*<ref T, void> FnPtr;
+        private NotGenericHack Hack;
+        private object State;
 
         public void Dispose(ref T val)
         {
-            var dispose = (delegate*<ref T, void>)Interlocked.Exchange(ref Value, (nint)0);
+            var dispose = (delegate*<object, ref T, void>)Interlocked.Exchange(ref Hack.Value, (nint)0);
             if (dispose != null)
             {
-                dispose(ref val);
+                dispose(State, ref val);
             }
         }
     }
 
+    [StructLayout(LayoutKind.Explicit)]
+    internal unsafe struct NotGenericHack
+    {
+        [FieldOffset(0)]
+        public nint Value;
+        [FieldOffset(0)]
+        public delegate*<object, ref byte, void> FnPtr;
+    }
 
-    public readonly struct IndirectCommandHandle : IHandle<IndirectCommandHandle>
+    [GenerateEquality]
+    public readonly partial struct IndirectCommandHandle : IHandle<IndirectCommandHandle>
     {
         private readonly GenerationalHandle Handle;
 
@@ -130,7 +137,8 @@ namespace Voltium.Core.Memory
         public IndirectCommandHandle FromGenerationHandle(GenerationalHandle handle) => new(handle);
     }
 
-    public readonly struct DescriptorSetHandle : IHandle<DescriptorSetHandle>
+    [GenerateEquality]
+    public readonly partial struct DescriptorSetHandle : IHandle<DescriptorSetHandle>
     {
         private readonly GenerationalHandle Handle;
 
@@ -140,7 +148,8 @@ namespace Voltium.Core.Memory
         public DescriptorSetHandle FromGenerationHandle(GenerationalHandle handle) => new(handle);
     }
 
-    public readonly struct ViewSetHandle : IHandle<ViewSetHandle>
+    [GenerateEquality]
+    public readonly partial struct ViewSetHandle : IHandle<ViewSetHandle>
     {
         private readonly GenerationalHandle Handle;
 
@@ -150,7 +159,8 @@ namespace Voltium.Core.Memory
         public ViewSetHandle FromGenerationHandle(GenerationalHandle handle) => new(handle);
     }
 
-    public readonly struct ViewHandle : IHandle<ViewHandle>
+    [GenerateEquality]
+    public readonly partial struct ViewHandle : IHandle<ViewHandle>
     {
         private readonly GenerationalHandle Handle;
 
@@ -160,7 +170,8 @@ namespace Voltium.Core.Memory
         public ViewHandle FromGenerationHandle(GenerationalHandle handle) => new(handle);
     }
 
-    public readonly struct RootSignatureHandle : IHandle<RootSignatureHandle>
+    [GenerateEquality]
+    public readonly partial struct RootSignatureHandle : IHandle<RootSignatureHandle>
     {
         private readonly GenerationalHandle Handle;
 
@@ -169,8 +180,9 @@ namespace Voltium.Core.Memory
         public GenerationalHandle Generational => Handle;
         public RootSignatureHandle FromGenerationHandle(GenerationalHandle handle) => new(handle);
     }
-    
-    public readonly struct PipelineHandle : IHandle<PipelineHandle>
+
+    [GenerateEquality]
+    public readonly partial struct PipelineHandle : IHandle<PipelineHandle>
     {
         private readonly GenerationalHandle Handle;
 
@@ -181,7 +193,8 @@ namespace Voltium.Core.Memory
     }
 
 
-    public readonly struct RaytracingAccelerationStructureHandle : IHandle<RaytracingAccelerationStructureHandle>
+    [GenerateEquality]
+    public readonly partial struct RaytracingAccelerationStructureHandle : IHandle<RaytracingAccelerationStructureHandle>
     {
         private readonly GenerationalHandle Handle;
 
@@ -193,10 +206,17 @@ namespace Voltium.Core.Memory
 
     public unsafe struct RaytracingAccelerationStructure : IDisposable
     {
+        internal RaytracingAccelerationStructure(ulong length, RaytracingAccelerationStructureHandle handle, Disposal<RaytracingAccelerationStructureHandle> disposal)
+        {
+            Length = length;
+            Handle = handle;
+            _dispose = disposal;
+        }
+
         /// <summary>
         /// The size, in bytes, of the buffer
         /// </summary>
-        public readonly uint Length;
+        public readonly ulong Length;
 
         public RaytracingAccelerationStructureHandle Handle;
         private Disposal<RaytracingAccelerationStructureHandle> _dispose;
@@ -204,7 +224,8 @@ namespace Voltium.Core.Memory
         public void Dispose() => _dispose.Dispose(ref Handle);
     }
 
-    public readonly struct BufferHandle : IHandle<BufferHandle>
+    [GenerateEquality]
+    public readonly partial struct BufferHandle : IHandle<BufferHandle>
     {
         private readonly GenerationalHandle Handle;
 
@@ -214,7 +235,8 @@ namespace Voltium.Core.Memory
         public BufferHandle FromGenerationHandle(GenerationalHandle handle) => new(handle);
     }
 
-    public readonly struct RenderPassHandle : IHandle<RenderPassHandle>
+    [GenerateEquality]
+    public readonly partial struct RenderPassHandle : IHandle<RenderPassHandle>
     {
         private readonly GenerationalHandle Handle;
 
@@ -224,7 +246,8 @@ namespace Voltium.Core.Memory
         public RenderPassHandle FromGenerationHandle(GenerationalHandle handle) => new(handle);
     }
 
-    public readonly struct QuerySetHandle : IHandle<QuerySetHandle>
+    [GenerateEquality]
+    public readonly partial struct QuerySetHandle : IHandle<QuerySetHandle>
     {
         private readonly GenerationalHandle Handle;
 
@@ -236,7 +259,8 @@ namespace Voltium.Core.Memory
 
 
 
-    public readonly struct HeapHandle : IHandle<HeapHandle>
+    [GenerateEquality]
+    public readonly partial struct HeapHandle : IHandle<HeapHandle>
     {
         private readonly GenerationalHandle Handle;
 
@@ -244,6 +268,19 @@ namespace Voltium.Core.Memory
 
         public GenerationalHandle Generational => Handle;
         public HeapHandle FromGenerationHandle(GenerationalHandle handle) => new(handle);
+    }
+
+
+
+    [GenerateEquality]
+    public readonly partial struct FenceHandle : IHandle<FenceHandle>
+    {
+        private readonly GenerationalHandle Handle;
+
+        public FenceHandle(GenerationalHandle handle) => Handle = handle;
+
+        public GenerationalHandle Generational => Handle;
+        public FenceHandle FromGenerationHandle(GenerationalHandle handle) => new(handle);
     }
 
 
@@ -255,11 +292,26 @@ namespace Voltium.Core.Memory
         /// <summary>
         /// The size, in bytes, of the buffer
         /// </summary>
-        public readonly uint Length;
+        public readonly ulong Length;
+
+        public readonly ulong LengthAs<T>() => Length / (uint)Unsafe.SizeOf<T>();
 
         internal BufferHandle Handle;
         private Disposal<BufferHandle> _dispose;
+        private void* _address;
 
+        public void* Address => _address;
+        public T* As<T>() where T : unmanaged => (T*)_address;
+        public ref T AsRef<T>() where T : unmanaged => ref *(T*)_address;
+        public Span<T> AsSpan<T>() where T : unmanaged => Address is null ? Span<T>.Empty : new(Address, checked((int)Length));
+
+        public Buffer(ulong length, void* address, BufferHandle handle, Disposal<BufferHandle> dispose)
+        {
+            Length = length;
+            Handle = handle;
+            _address = address;
+            _dispose = dispose;
+        }
 
         public void SetName(string s) { }
 

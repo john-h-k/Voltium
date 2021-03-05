@@ -6,6 +6,7 @@ using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.CommandBuffer;
 using Voltium.Core.Contexts;
+using Voltium.Core.Devices;
 using Voltium.Core.Memory;
 using Voltium.Core.Pipeline;
 using Voltium.Core.Pool;
@@ -14,7 +15,7 @@ using Buffer = Voltium.Core.Memory.Buffer;
 
 namespace Voltium.Core
 {
-    public readonly struct Devirt_ArrayBufferWriter<T>
+    public readonly struct Devirt_ArrayBufferWriter<T> : IBufferWriter<T>
     {
         public readonly ArrayBufferWriter<T> Base;
 
@@ -168,7 +169,7 @@ namespace Voltium.Core
         internal IndirectCommandHandle Handle;
         private Disposal<IndirectCommandHandle> _dispose;
 
-        internal IndirectCommand(IndirectCommandHandle value, Disposal<IndirectCommandHandle> dispose ,RootSignature? rootSignature, uint commandSizeInBytes, ReadOnlyMemory<IndirectArgument> indirectArguments)
+        internal IndirectCommand(IndirectCommandHandle value, Disposal<IndirectCommandHandle> dispose ,in RootSignature? rootSignature, uint commandSizeInBytes, ReadOnlyMemory<IndirectArgument> indirectArguments)
         {
             Handle = value;
             _dispose = dispose;
@@ -194,72 +195,6 @@ namespace Voltium.Core
         {
 
         }
-
-        //AtomicCopyBufferUINT
-        //AtomicCopyBufferUINT64
-        //CopyBufferRegion
-        //CopyResource
-        //CopyTextureRegion
-        //CopyTiles
-        //EndQuery
-        //ResolveQueryData
-        //ResourceBarrier
-        //SetProtectedResourceSession
-        //WriteBufferImmediate
-
-        //BuildRaytracingAccelerationStructure
-        //ClearState
-        //ClearUnorderedAccessViewFloat
-        //ClearUnorderedAccessViewUint
-        //CopyRaytracingAccelerationStructure
-        //DiscardResource
-        //Dispatch
-        //DispatchRays
-        //EmitRaytracingAccelerationStructurePostbuildInfo
-        //ExecuteIndirect
-        //ExecuteMetaCommand
-        //InitializeMetaCommand
-        //ResolveQueryData
-        //ResourceBarrier
-        //SetComputeRoot32BitConstant
-        //SetComputeRoot32BitConstants
-        //SetComputeRootConstantBufferView
-        //SetComputeRootDescriptorTable
-        //SetComputeRootShaderResourceView
-        //SetComputeRootSignature
-        //SetComputeRootUnorderedAccessView
-        //SetDescriptorHeaps
-        //SetPipelineState
-        //SetPipelineState1
-        //SetPredication
-
-        //BeginEvent
-        //BeginQuery
-        //ClearState
-        //ClearUnorderedAccessViewFloat
-        //ClearUnorderedAccessViewUint
-        //Close
-        //CopyBufferRegion
-        //CopyResource
-        //CopyTextureRegion
-        //Dispatch
-        //EndEvent
-        //EndQuery
-        //Reset
-        //ResolveQueryData
-        //ResourceBarrier
-        //SetComputeRoot32BitConstant
-        //SetComputeRoot32BitConstants
-        //SetComputeRootConstantBufferView
-        //SetComputeRootDescriptorTable
-        //SetComputeRootShaderResourceView
-        //SetComputeRootSignature
-        //SetComputeRootUnorderedAccessView
-        //SetDescriptorHeaps
-        //SetMarker
-        //SetPipelineState
-        //SetPredication
-
         public void ExecuteIndirect(
             in IndirectCommand command,
             [RequiresResourceState(ResourceState.IndirectArgument)] in Buffer commandBuffer,
@@ -329,7 +264,7 @@ namespace Voltium.Core
             var countSpecifier = new CountSpecifier
             {
                 CountBuffer = commandCountBuffer.Handle,
-                Offset = commandBufferOffset,
+                Offset = commandCountBufferOffset,
             };
 
             _encoder.EmitVariable(&executeIndirect, &countSpecifier, 1);
@@ -404,21 +339,21 @@ namespace Voltium.Core
                 SetCount = 1
             };
 
-            var handle = set[0];
+            var handle = set.Handle;
 
             _encoder.EmitVariable(&command, &handle, 1);
         }
 
         public void BindDescriptors(uint paramIndex, ReadOnlySpan<DescriptorAllocation> sets)
         {
-            StackSentinel.SafeToStackalloc<DescriptorHandle>(sets.Length);
+            StackSentinel.SafeToStackalloc<DescriptorSetHandle>(sets.Length);
 
-            var handles = stackalloc DescriptorHandle[sets.Length];
+            var handles = stackalloc DescriptorSetHandle[sets.Length];
             uint i = 0;
 
             foreach (ref readonly var set in sets)
             {
-                handles[i++] = set[0];
+                handles[i++] = set.Handle;
             }
 
             var command = new CommandBindDescriptors
@@ -442,7 +377,7 @@ namespace Voltium.Core
                     SetCount = 1
                 };
 
-                var handle = set[0];
+                var handle = set.Handle;
 
                 _encoder.EmitVariable(&command, &handle, pOffsets, 1);
             }

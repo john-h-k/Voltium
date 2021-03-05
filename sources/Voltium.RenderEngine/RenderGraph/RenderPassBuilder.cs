@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using Microsoft.Toolkit.HighPerformance.Extensions;
 using Voltium.Common;
 using Voltium.Core;
+using Voltium.Core.Configuration.Graphics;
 using Voltium.Core.Contexts;
 using Voltium.Core.Memory;
 using Voltium.RenderEngine;
@@ -23,23 +25,18 @@ namespace Voltium.RenderEngine
 
         private int _passIndex;
 
-        internal RenderPass Pass;
         internal int Depth;
 
-        internal GpuContext Context; // this is set by the scheduler and used when multi-threading the recording
-
-        internal RenderPassBuilder(RenderGraph graph, int passIndex, RenderPass pass) : this()
+        internal RenderPassBuilder(RenderGraph graph, int passIndex) : this()
         {
             _graph = graph;
             _passIndex = passIndex;
             FrameDependencies = new();
             Transitions = new();
-            Pass = pass;
-            Context = null!;
         }
 
-        internal List<int> FrameDependencies;
-        internal List<(ResourceHandle Resource, ResourceState State, ResourceBarrierOptions Options)> Transitions;
+        internal ValueList<int> FrameDependencies;
+        internal ValueList<(ResourceHandle Resource, ResourceState State)> Transitions;
 
         /// <summary>
         /// Indicates a pass uses a resource in a certain manner
@@ -56,20 +53,6 @@ namespace Voltium.RenderEngine
         /// <param name="flags">The <see cref="ResourceState"/> the pass uses it as</param>
         public void MarkUsage(TextureHandle texture, ResourceState flags)
             => MarkUsage(texture.AsResourceHandle(), flags);
-
-        /// <summary>
-        /// Attempts to retrieve the last pass input of type <typeparamref name="TInput"/>
-        /// </summary>
-        /// <typeparam name="TInput">The type to retrieve the input as</typeparam>
-        /// <returns>The input, if existent. Else, an exception will be thrown</returns>
-        public TInput GetInput<TInput>() => _graph.GetInputAs<TInput>(_passIndex);
-
-        /// <summary>
-        /// Sets the passes output to the given value, so future passes can retrieve it
-        /// </summary>
-        /// <typeparam name="TOutput">The type of the output value</typeparam>
-        /// <param name="val">The value</param>
-        public void SetOutput<TOutput>(TOutput val) => _graph.SetOutput(_passIndex, val);
 
         private void AddDependencies(ReadOnlySpan<int> passIndices)
         {
@@ -124,10 +107,9 @@ namespace Voltium.RenderEngine
 
                 // If we read from it, we need to mark that we do
                 res.LastReadPassIndices.Add(_passIndex);
-
             }
 
-            Transitions.Add((resource, flags, ResourceBarrierOptions.Full));
+            Transitions.Add((resource, flags));
         }
 
         private const string InvalidResourceStateFlags = "ResourceStateFlags is invalid, which means it contains both write and read states, or multiple write states";
@@ -135,30 +117,9 @@ namespace Voltium.RenderEngine
         // TODO: Allow named transients (currently we use null names to mark transients)
 
         internal const int PersistentResourceMask = int.MinValue;
-
-        internal static bool IsPersistent(ResourceHandle handle) => (handle.Index & PersistentResourceMask) != 0;
-        internal static ResourceHandle NormalizeHandle(ResourceHandle handle) => new (handle.Index & ~PersistentResourceMask);
-
-#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
-        public BufferHandle CreatePersistentBuffer(string name, in BufferDesc desc, MemoryAccess memoryAccess, ResourceState initialState = ResourceState.CopyDestination, string? debugName = null)
-#pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
-        {
-            ThrowForUnnamedPersistent(name);
-
-            return _graph.AddResource(new ResourceDesc
-            {
-                //Name = name,
-                Type = ResourceType.Buffer,
-                BufferDesc = desc,
-                MemoryAccess = memoryAccess,
-                InitialState = initialState,
-                DebugName = debugName
-            }, _passIndex).AsBufferHandle();
-        }
-
         private static void ThrowForUnnamedPersistent(string name)
         {
-            if (name is not null)
+            if (name is string { Length: > 0 })
             {
                 return;
             }
@@ -172,14 +133,13 @@ namespace Voltium.RenderEngine
         /// </summary>
         /// <param name="desc">The <see cref="BufferDesc"/> describing the pass's buffer</param>
         /// <param name="memoryAccess">The <see cref="MemoryAccess"/> the buffer will be allocated as</param>
-        /// <param name="initialState">The initial <see cref="ResourceState"/> of the resource</param>
         /// <param name="debugName">The <see cref="string"/> to set the resource name to in debug mode</param>
         /// <returns>A new <see cref="BufferHandle"/> representing the resource that can be later resolved to a <see cref="Buffer"/></returns>
-        public BufferHandle CreateBuffer(in BufferDesc desc, MemoryAccess memoryAccess, ResourceState initialState = ResourceState.CopyDestination, string? debugName = null)
-            => _graph.AddResource(new ResourceDesc { Type = ResourceType.Buffer, BufferDesc = desc, MemoryAccess = memoryAccess, InitialState = initialState, DebugName = debugName }, _passIndex).AsBufferHandle();
+        public BufferHandle CreateBuffer(in BufferDesc desc, MemoryAccess memoryAccess, string? debugName = null)
+            => _graph.AddResource(new ResourceDesc { Type = ResourceType.Buffer, BufferDesc = desc, MemoryAccess = memoryAccess, InitialState = ResourceState.Common, DebugName = debugName }, _passIndex).AsBufferHandle();
 
         /// <summary>
-        /// Indicates a pass creates a new texture
+        /// Indicates a pass creates a new texture9
         /// </summary>
         /// <param name="desc">The <see cref="TextureDesc"/> describing the pass's buffer</param>
         /// <param name="initialState">The initial <see cref="ResourceState"/> of the resource</param>
@@ -188,35 +148,6 @@ namespace Voltium.RenderEngine
         public TextureHandle CreateTexture(in TextureDesc desc, ResourceState initialState = ResourceState.CopyDestination, string? debugName = null)
             => _graph.AddResource(new ResourceDesc { Type = ResourceType.Texture, TextureDesc = desc, InitialState = initialState, DebugName = debugName }, _passIndex).AsTextureHandle();
 
-        /// <summary>
-        /// Indicates a pass creates a new buffer that is relative to the size of the primary output. This is only valid
-        /// if the primary output is a buffer
-        /// </summary>
-        /// <param name="desc">The <see cref="BufferDesc"/> describing the pass's buffer</param>
-        /// <param name="memoryAccess">The <see cref="MemoryAccess"/> the buffer will be allocated as</param>
-        /// <param name="initialState">The initial <see cref="ResourceState"/> of the resource</param>
-        /// <param name="outputRelativeSize">Optionally, the multiplier that specifies how to multiply the size of this resource relative to the primary output.
-        /// By default, this is 1 - the resource is the same size as the primary output</param>
-        /// <param name="debugName">The <see cref="string"/> to set the resource name to in debug mode</param>
-        /// <returns>A new <see cref="BufferHandle"/> representing the resource that can be later resolved to a <see cref="Buffer"/></returns>
-
-        public BufferHandle CreatePrimaryOutputRelativeBuffer(in BufferDesc desc, MemoryAccess memoryAccess, ResourceState initialState = ResourceState.CopyDestination, double outputRelativeSize = 1, string? debugName = null)
-            => _graph.AddResource(new ResourceDesc { Type = ResourceType.Buffer, OutputRelativeSize = outputRelativeSize, BufferDesc = desc, MemoryAccess = memoryAccess, InitialState = initialState, DebugName = debugName }, _passIndex).AsBufferHandle();
-
-
-        /// <summary>
-        /// Indicates a pass creates a new texture that is relative to the size of the primary output. This is only valid
-        /// if the primary output is a texture
-        /// </summary>
-        /// <param name="desc">The <see cref="TextureDesc"/> describing the pass's buffer</param>
-        /// <param name="initialState">The initial <see cref="ResourceState"/> of the resource</param>
-        /// <param name="outputRelativeSize">Optionally, the multiplier that specifies how to multiply the size of this resource relative to the primary output.
-        /// By default, this is 1 - the resource is the same size as the primary output</param>
-        /// <param name="debugName">The <see cref="string"/> to set the resource name to in debug mode</param>
-        /// <returns>A new <see cref="TextureHandle"/> representing the resource that can be later resolved to a <see cref="Buffer"/></returns>
-
-        public TextureHandle CreatePrimaryOutputRelativeTexture(in TextureDesc desc, ResourceState initialState = ResourceState.CopyDestination, double outputRelativeSize = 1, string? debugName = null)
-            => _graph.AddResource(new ResourceDesc { Type = ResourceType.Texture, OutputRelativeSize = outputRelativeSize, TextureDesc = desc, InitialState = initialState, DebugName = debugName }, _passIndex).AsTextureHandle();
     }
 
     enum ResourceUsage

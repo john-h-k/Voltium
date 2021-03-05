@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace Voltium.Common
 {
@@ -42,14 +43,38 @@ namespace Voltium.Common
         public T Value;
     }
 
+    [AttributeUsage(AttributeTargets.Struct)]
+    internal class NonCopyableAttribute : Attribute { }
 
-    internal struct ValueList<T>
+
+    internal struct ReadOnlyValueList<T>
     {
+        private ValueList<T> _list;
+
+        public ReadOnlyValueList(in ValueList<T> list) => _list = list;
+
+        public ref readonly T GetReference() => ref _list.GetReference();
+        public ref T GetPinnableReference() => ref _list.GetPinnableReference();
+
+
+        public T this[int index] => _list[index];
+
+        public ref readonly T RefIndex(int index) => ref _list.RefIndex(index);
+
+        public int Length => _list.Length;
+        public int Count => _list.Count;
+    }
+
+    internal struct ValueList<T> : IDisposable
+    {
+        public bool IsValid => _items is not null;
+
         private ArrayPool<T>? _pool;
         private T[] _items;
         private int _length;
 
         public Span<T> AsSpan() => _items.AsSpan(0, _length);
+        public T[] ToArray() => AsSpan().ToArray();
 
         public ValueList(int capacity, ArrayPool<T>? pool = null)
         {
@@ -157,6 +182,17 @@ namespace Voltium.Common
             }
         }
 
+        public void Dispose()
+        {
+            FreeArray(Interlocked.Exchange(ref _items, null!));
+        }
+
+
+        public T this[uint index]
+        {
+            get => RefIndex((int)index);
+            set => RefIndex((int)index) = value;
+        }
 
         public T this[int index]
         {

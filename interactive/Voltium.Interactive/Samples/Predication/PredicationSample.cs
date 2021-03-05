@@ -10,6 +10,7 @@ using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Common.Pix;
 using Voltium.Core;
+using Voltium.Core.CommandBuffer;
 using Voltium.Core.Contexts;
 using Voltium.Core.Devices;
 using Voltium.Core.Devices.Shaders;
@@ -35,11 +36,11 @@ namespace Voltium.Interactive.Samples.Predication
         private GraphicsDevice _device = null!;
         private Output _output = null!;
         private Buffer _static, _moving, _predicationBuffer, _readbackBuffer;
-        private QueryHeap _occlusionQueries;
-        private GraphicsPipelineStateObject _drawPso = null!, _predicatePso = null!;
+        private QuerySet _occlusionQueries;
+        private PipelineStateObject _drawPso, _predicatePso;
         private Texture _depth;
-        private DescriptorHeap _views = null!;
-        private DescriptorAllocation _depthView;
+        private ViewSet _views;
+        private View _depthView;
 
         public unsafe override void Initialize(Size outputSize, IOutputOwner output)
         {
@@ -61,16 +62,27 @@ namespace Voltium.Interactive.Samples.Predication
                 }
             }
 
-            _device = GraphicsDevice.Create(FeatureLevel.GraphicsLevel11_0, null, debug);
-            _output = Output.Create(OutputConfiguration.Default, _device, output);
+            _device = GraphicsDevice.Create(new D3D12NativeDevice(D3D_FEATURE_LEVEL.D3D_FEATURE_LEVEL_11_1));
+            _output = Output.Create(
+                new DXGINativeOutput(
+                    _device.GraphicsQueue.Native,
+                    new NativeOutputDesc
+                    {
+                        Format = BackBufferFormat.B8G8R8A8UnsignedNormalized,
+                        BackBufferCount = 3,
+                        PreserveBackBuffers = false,
+                        VrStereo = false
+                    },
+                    output.GetOutput()
+                )
+            );
 
             var (width, height) = ((uint)outputSize.Width, (uint)outputSize.Height);
             _depth = _device.Allocator.AllocateTexture(TextureDesc.CreateDepthStencilDesc(DataFormat.Depth32Single, width, height, 1, 0), ResourceState.DepthWrite);
-            _views = _device.CreateDescriptorHeap(DescriptorHeapType.DepthStencilView, 1);
-            _depthView = _views.AllocateHandle();
-            _device.CreateDepthStencilView(_depth, _depthView.Span[0]);
+            _views = _device.CreateViewSet(1);
+            _depthView = _device.CreateDefaultView(_views, 0, _depth);
 
-            _occlusionQueries = _device.CreateQueryHeap(QuerySetType.Occlusion, 1);
+            _occlusionQueries = _device.CreateQuerySet(QuerySetType.Occlusion, 1);
 
             _predicationBuffer = _device.Allocator.AllocateDefaultBuffer<TQuery>();
             _readbackBuffer = _device.Allocator.AllocateReadbackBuffer<TQuery>();
@@ -95,11 +107,20 @@ namespace Voltium.Interactive.Samples.Predication
             _static = _device.Allocator.AllocateUploadBuffer(staticVertices);
             _moving = _device.Allocator.AllocateUploadBuffer(movingVertices);
 
-            var vertexShader = ShaderManager.CompileShader("HelloTriangle/Shader.hlsl", ShaderType.Vertex, entrypoint: "VertexMain");
-            var pixelShader = ShaderManager.CompileShader("HelloTriangle/Shader.hlsl", ShaderType.Pixel, entrypoint: "PixelMain");
+            var flags = new ShaderCompileFlag[]
+            {
+                ShaderCompileFlag.EnableDebugInformation,
+                ShaderCompileFlag.WriteDebugInformationToFile()
+            };
+
+            var vertexShader = ShaderManager.CompileShader("HelloTriangle/Shader.hlsl", ShaderType.Vertex, flags, entrypoint: "VertexMain");
+            var pixelShader = ShaderManager.CompileShader("HelloTriangle/Shader.hlsl", ShaderType.Pixel, flags, entrypoint: "PixelMain");
+
+            RootSignature empty = _device.CreateRootSignature(default, default, RootSignatureFlags.AllowInputAssembler);
 
             var predicationPsoDesc = new GraphicsPipelineDesc
             {
+                RootSignature = empty,
                 Topology = TopologyClass.Triangle,
                 VertexShader = vertexShader,
                 PixelShader = CompiledShader.Empty,
@@ -109,15 +130,16 @@ namespace Voltium.Interactive.Samples.Predication
                 RenderTargetFormats = DataFormat.Unknown
             };
 
-            _predicatePso = _device.PipelineManager.CreatePipelineStateObject(predicationPsoDesc, nameof(_predicatePso));
+            _predicatePso = _device.CreatePipelineStateObject(predicationPsoDesc);
 
             var drawPsoDesc = new GraphicsPipelineDesc
             {
+                RootSignature = empty,
                 Topology = TopologyClass.Triangle,
                 VertexShader = vertexShader,
                 PixelShader = pixelShader,
                 DepthStencilFormat = DataFormat.Depth32Single,
-                RenderTargetFormats = _output.Configuration.BackBufferFormat,
+                RenderTargetFormats = _output.Format,
                 Inputs = InputLayout.FromType<Vertex>(),
                 Blend = new BlendDesc
                 {
@@ -135,7 +157,7 @@ namespace Voltium.Interactive.Samples.Predication
                 }
             };
 
-            _drawPso = _device.PipelineManager.CreatePipelineStateObject(drawPsoDesc, nameof(_drawPso));
+            _drawPso = _device.CreatePipelineStateObject(drawPsoDesc);
         }
 
 
@@ -166,55 +188,89 @@ namespace Voltium.Interactive.Samples.Predication
             }
         }
 
+
+        private GraphicsContext _context = new(true);
         public unsafe override void Render()
         {
-            var context = _device.BeginGraphicsContext(_drawPso);
+            var context = _context;
+            context.Reset();
 
-            using (context.ScopedEvent(Argb32.AliceBlue, nameof(Render)))
-            using (context.ScopedBarrier(ResourceBarrier.Transition(_output.OutputBuffer, ResourceState.Present, ResourceState.RenderTarget)))
+            var renderTarget = new RenderTarget
             {
-                context.SetViewportAndScissor(_output.Resolution);
-                context.SetTopology(Topology.TriangleList);
-                context.SetAndClearRenderTarget(_output.OutputBufferView, Rgba128.CornflowerBlue, _depthView.Span[0]);
-                context.SetVertexBuffers<Vertex>(_static);
-                context.Draw(_static.LengthAs<Vertex>());
+                Load = LoadOperation.Clear,
+                Store = StoreOperation.Preserve,
+                ColorClear = Rgba128.CornflowerBlue,
+                Resource = _output.OutputBufferView
+            };
 
-                // Perform a fake draw of the moving triangle. There is no pixel shader, so no output to a render target
-                // And DepthWriteMask is set to DepthWriteMask.Zero
-                context.SetPipelineState(_predicatePso);
-                context.SetVertexBuffers<Vertex>(_moving);
+            var depthStencil = new DepthStencil
+            {
+                DepthClear = 1,
+                DepthLoad = LoadOperation.Clear,
+                DepthStore = StoreOperation.Preserve,
+                Resource = _depthView
+            };
 
-                // Perform the query, which returns 1 if the object would have been drawn at all, else 0
-                using (context.ScopedQuery<TQuery>(_occlusionQueries, 0))
+            using (context.ScopedBarrier(ResourceTransition.Create(_output.OutputBuffer, ResourceState.Present, ResourceState.RenderTarget)))
+            {
                 {
-                    context.Draw(_moving.LengthAs<Vertex>());
+                    context.BeginRenderPass(renderTarget, depthStencil);
+
+                    context.SetPipelineState(_drawPso);
+
+                    context.SetTopology(Topology.TriangleList);
+                    context.SetVertexBuffers<Vertex>(_static);
+                    context.Draw((int)_static.LengthAs<Vertex>());
+
+                    // Perform a fake draw of the moving triangle. There is no pixel shader, so no output to a render target
+                    // And DepthWriteMask is set to DepthWriteMask.Zero
+                    context.SetPipelineState(_predicatePso);
+                    context.SetVertexBuffers<Vertex>(_moving);
+
+                    // Perform the query, which returns 1 if the object would have been drawn at all, else 0
+                    using (context.ScopedQuery<TQuery>(_occlusionQueries, 0))
+                    {
+                        context.Draw((int)_moving.LengthAs<Vertex>());
+                    }
+
+                    context.EndRenderPass();
                 }
 
                 // Copy the query into a buffer to use
-                using (context.ScopedBarrier(ResourceBarrier.Transition(_predicationBuffer, ResourceState.Predication | ResourceState.CopySource, ResourceState.CopyDestination)))
+                using (context.ScopedBarrier(ResourceTransition.Create(_predicationBuffer, ResourceState.Predication | ResourceState.CopySource, ResourceState.CopyDestination)))
                 {
                     context.ResolveQuery<TQuery>(_occlusionQueries, 0..1, _predicationBuffer);
                 }
-
                 context.CopyBufferRegion(_predicationBuffer, _readbackBuffer, sizeof(TQuery));
 
-                // Actually draw the object
-                context.SetPipelineState(_drawPso);
 
                 // Set the predicate so that operations are only performed if BinaryOcclusionQuery is false, which means that no
                 // samples would be drawn
                 // this means the entire triangle is drawn until it is *entirely* occluded.
                 context.BeginConditionalRendering(false, _predicationBuffer);
 
-                // Clear the depth because we want to draw the entire triangle unless it is fully occluded
-                // Else we don't really see predication and we just see the depth buffer at work
-                context.ClearDepth(_depthView.Span[0]);
-                context.Draw(_moving.LengthAs<Vertex>());
+                {
+                    // Need old back buffer contents
+                    renderTarget = var renderTarget = new RenderTarget
+                    {
+                        Load = LoadOperation.Preserve,
+                        Store = StoreOperation.Preserve,
+                        ColorClear = Rgba128.CornflowerBlue,
+                        Resource = _output.OutputBufferView
+                    };
+                    context.BeginRenderPass(renderTarget, depthStencil);
+
+                    // Actually draw the object
+                    context.SetPipelineState(_drawPso);
+
+                    context.Draw((int)_moving.LengthAs<Vertex>());
+                    context.EndRenderPass();
+                }
             }
 
             context.Close();
 
-            _device.Execute(context).Block();
+            _device.GraphicsQueue.Execute(context).Block();
             _lastQuery = *_readbackBuffer.As<TQuery>();
 
             _output.Present();

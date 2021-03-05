@@ -5,7 +5,7 @@ namespace Voltium.Common.Debugging
     /// <summary>
     /// Defines the set of environment variables used by Voltium
     /// </summary>
-    public static class Configuration
+    public static class ConfigVars
 
     {
         /// <summary>

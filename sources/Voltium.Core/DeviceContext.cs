@@ -8,7 +8,7 @@ namespace Voltium.Core
     /// Represents the context that a GPU command
     /// can execute on
     /// </summary>
-    public enum ExecutionContext : ulong
+    public enum DeviceContext : ulong
     {
         /// <summary>
         /// A context used for copy operations

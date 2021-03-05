@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.CommandBuffer;
@@ -26,24 +28,17 @@ namespace Voltium.Core.Devices
         }
 
 
-        /// <summary>
-        /// Allocates a range of descriptor handles in the resource descriptor heap, used for CBVs, SRVs, and UAVs
-        /// </summary>
-        /// <param name="descriptorCount"></param>
-        /// <returns></returns>
-        public DescriptorAllocation AllocateResourceDescriptors(DescriptorType type, int descriptorCount)
-        {
-            var handles = _device.CreateDescriptorSet(type,  descriptorCount);
-            return handles;
-        }
 
-        public void CreateDefaultView(ref View view, in Buffer buff)
+        public View CreateDefaultView(in ViewSet set, uint index, in Texture buff)
         {
-            view.Handle = _device.CreateView(view.Set, view.Index, buff.Handle);
-        }
-        public void CreateDefaultView(ref View view, in Texture buff)
-        {
-            view.Handle = _device.CreateView(view.Set, view.Index, buff.Handle);
+            static void Dispose(object o, ref ViewHandle handle)
+            {
+                Debug.Assert(o is GraphicsDevice);
+                //Unsafe.As<GraphicsDevice>(o)._device.DisposeView(handle);
+            }
+
+            var view = _device.CreateView(set.Handle, index, buff.Handle);
+            return new(view, new(this, &Dispose));
         }
 
         /// <summary>

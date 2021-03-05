@@ -19,6 +19,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Raytracing\**" />
+    <EmbeddedResource Remove="Raytracing\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!--PrivateAssets="All"-->
     <ProjectReference Include="..\Voltium.Analyzers\Voltium.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\Voltium.Common\Voltium.Common.csproj" />
@@ -30,5 +35,6 @@
 
   <ItemGroup>
     <PackageReference Include="MathSharp" Version="2.0.0-pre" />
+    <PackageReference Include="NonCopyableAnalyzer" Version="0.6.0" />
   </ItemGroup>
 </Project>

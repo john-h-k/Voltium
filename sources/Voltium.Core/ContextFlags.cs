@@ -1,4 +1,6 @@
-﻿namespace Voltium.Core.Devices
+using Voltium.Core.Contexts;
+
+namespace Voltium.Core.Devices
 {
     /// <summary>
     /// Flags used when creating a <see cref="GpuContext"/>

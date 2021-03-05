@@ -10,6 +10,60 @@ namespace Voltium.Core.Devices
     using MessageCallback = Action<GraphicsExceptionMessageType, LogLevel, string>;
 
     /// <summary>
+    /// Defines the settings for Device-Removed Extended Data (DRED)
+    /// </summary>
+    [Flags]
+    public enum DredFlags
+    {
+        /// <summary>
+        /// None. DRED is disabled
+        /// </summary>
+        None = 0,
+
+        /// <summary>
+        /// Auto-breadcrumb metadata to track execution progress is enabled
+        /// </summary>
+        AutoBreadcrumbs = 1,
+
+        /// <summary>
+        /// Allocation metadata to track page faults is enabled
+        /// </summary>
+        PageFaultMetadata = 2,
+
+        /// <summary>
+        /// Watson dump is enabled via Windows Error Reporting (WER)
+        /// </summary>
+        WatsonDumpEnablement = 4,
+
+        /// <summary>
+        /// All DRED settings are enabled
+        /// </summary>
+        All = AutoBreadcrumbs | PageFaultMetadata | WatsonDumpEnablement
+    }
+
+    /// <summary>
+    /// Defines the settings for the debug layer
+    /// </summary>
+    [Flags]
+    public enum DebugFlags
+    {
+        /// <summary>
+        /// None. The debug layer is disabled
+        /// </summary>
+        None = 0,
+
+        /// <summary>
+        /// Enable the debug layer
+        /// </summary>
+        DebugLayer = 1 << 0,
+
+        /// <summary>
+        /// Enable GPU-based validation. This allow more thorough debugging but will significantly slow down your app
+        /// </summary>
+        GpuBasedValidation = 1 << 1,
+    }
+
+    /// <summary>
     /// Describes the debugging state used by the engine
     /// </summary>
     [Fluent]
@@ -58,8 +112,7 @@ namespace Voltium.Core.Devices
         /// <summary>
         /// The <see cref="DebugFlags"/> that describes the debug for the application
         /// </summary>
-        public DebugFlags DebugFlags { get; set; } = ConfigurationA
-.IsDebug ? DebugFlags.DebugLayer : DebugFlags.None;
+        public DebugFlags DebugFlags { get; set; } = ConfigVars.IsDebug ? DebugFlags.DebugLayer : DebugFlags.None;
 
         /// <summary>
         /// The <see cref="DredFlags"/> that describes the metadata created to help debug device removed scenarios
@@ -79,7 +132,6 @@ namespace Voltium.Core.Devices
         /// <summary>
         /// Whether profiling is enabled
         /// </summary>
-        public bool ProfilingEnabled { get; set; } = ConfigurationA
-.IsDebug;
+        public bool ProfilingEnabled { get; set; } = ConfigVars.IsDebug;
     }
 }

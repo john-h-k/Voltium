@@ -486,12 +486,8 @@ namespace Voltium.Common.Pix
 #endif
         }
 
-        public static void WriteContext(ref ulong* destination, ulong* limit, in CopyContext context)
-            => WriteContext(ref destination, limit, context.GetListPointer());
-        public static void WriteContext(ref ulong* destination, ulong* limit, in ComputeContext context)
-            => WriteContext(ref destination, limit, context.GetListPointer());
-        public static void WriteContext(ref ulong* destination, ulong* limit, GraphicsContext context)
-            => WriteContext(ref destination, limit, context.GetListPointer());
+        public static void WriteContext(ref ulong* destination, ulong* limit, in ID3D12CommandList* context)
+            => WriteContext(ref destination, limit, context);
 
         public static void WriteContext(ref ulong* destination, ulong* limit, void* context)
         {

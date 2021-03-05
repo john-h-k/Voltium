@@ -146,6 +146,21 @@ namespace Voltium.Common
         /// <summary>
         /// Try and cast <typeparamref name="T"/> to <typeparamref name="TInterface"/>
         /// </summary>
+        /// <typeparam name="TInterface">The type to cast to</typeparam>
+        /// <returns>A <see cref="UniqueComPtr{T}"/> that encapsulates the casted pointer, if succeeded</returns>
+        [RaiiCopy]
+        public readonly UniqueComPtr<TInterface> QueryInterface<TInterface>() where TInterface : unmanaged
+        {
+            if (!Windows.SUCCEEDED(Cast(out UniqueComPtr<TInterface> result)))
+            {
+                ThrowHelper.ThrowInvalidCastException();
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// Try and cast <typeparamref name="T"/> to <typeparamref name="TInterface"/>
+        /// </summary>
         /// <param name="result">A <see cref="UniqueComPtr{T}"/> that encapsulates the casted pointer, if succeeded</param>
         /// <typeparam name="TInterface">The type to cast to</typeparam>
         /// <returns><code>true</code> if the cast succeeded, else <code>false</code></returns>
@@ -254,6 +269,11 @@ namespace Voltium.Common
     /// </summary>
     public unsafe static class ComPtr
     {
+        /// <summary>
+        /// Safely disposes a COM pointer and sets it to <see langword="null"/>
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="ptr"></param>
         public static void Dispose<T>(ref T* ptr) where T : unmanaged
         {
             var p = ptr;

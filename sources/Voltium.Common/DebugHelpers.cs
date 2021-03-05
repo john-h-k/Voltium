@@ -10,17 +10,6 @@ namespace Voltium.Common
     /// </summary>
     public static unsafe class DebugHelpers
     {
-        /// <summary>
-        /// When <c>DEBUG</c> or <c>EXTENDED_ERROR_INFORMATION</c> is defined, sets the object name
-        /// </summary>
-        /// <typeparam name="T">The type of the object to name</typeparam>
-        /// <param name="value">The object to name</param>
-        /// <param name="name">The name</param>
-        [Conditional("DEBUG")]
-        [Conditional("EXTENDED_ERROR_INFORMATION")]
-        public static unsafe void SetName<T>(this ref T value, string name) where T : struct, IInternalGraphicsObject<T>
-            => SetName(value.GetPointer(), name);
-
         [Conditional("DEBUG")]
         [Conditional("EXTENDED_ERROR_INFORMATION")]
         internal static unsafe void SetName<T>(T* obj, [CallerArgumentExpression("obj")] string name) where T : unmanaged
@@ -32,11 +21,6 @@ namespace Voltium.Common
                 Guard.ThrowIfFailed(result->SetName((ushort*)p));
             }
         }
-
-        [Conditional("DEBUG")]
-        [Conditional("EXTENDED_ERROR_INFORMATION")]
-        internal static unsafe void SetName<T>(this T obj, [CallerArgumentExpression("obj")] string name) where T : class, IInternalGraphicsObject<T>
-            => SetName(obj.GetPointer(), name);
 
         internal static unsafe string GetName<T>(T* obj) where T : unmanaged
         {
@@ -68,9 +52,6 @@ namespace Voltium.Common
             });
         }
 
-        internal static unsafe void SetPrivateData<T, TData>(T obj, in Guid did, in TData data) where T : IInternalGraphicsObject where TData : unmanaged
-            => SetPrivateData(obj.GetPointer(), did, data);
-
         internal static unsafe void SetPrivateData<T, TData>(T* obj, in Guid did, in TData data) where T : unmanaged where TData : unmanaged
         {
             var unknown = (ID3D12Object*)obj;
@@ -82,8 +63,6 @@ namespace Voltium.Common
             }
         }
 
-        internal static unsafe TData GetPrivateData<T, TData>(this ref T obj, in Guid did, out int bytesWritten) where T : struct, IInternalGraphicsObject where TData : unmanaged
-            => GetPrivateData<ID3D12Object, TData>(obj.GetPointer(), did, out bytesWritten);
 
         internal static uint GetPrivateDataSize<T>(T* obj, in Guid did) where T : unmanaged
         {
@@ -118,12 +97,5 @@ namespace Voltium.Common
             bytesWritten = (int)size;
             return data;
         }
-
-        /// <summary>
-        /// Gets the object name
-        /// </summary>
-        /// <typeparam name="T">The type of the object to name</typeparam>
-        public static unsafe string GetName<T>(this T obj) where T : IInternalGraphicsObject
-            => GetName(obj.GetPointer());
     }
 }

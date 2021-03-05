@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using TerraFX.Interop;
 using Voltium.Core.Devices;
+using Voltium.Core.Memory;
 
 namespace Voltium.Core.Pipeline
 {
@@ -44,7 +45,7 @@ namespace Voltium.Core.Pipeline
         /// <summary>
         /// The root signature for the pipeline
         /// </summary>
-        public RootSignature? RootSignature { get => RootSignature.GetRootSig(Desc.RootSig.Pointer); set => Desc.RootSig.Pointer = value is null ? null : value.Value; }
+        public RootSignature RootSignature { set => Desc.RootSig.Pointer = (ID3D12RootSignature*)Unsafe.As<RootSignatureHandle, nuint>(ref value.Handle); }
 
         /// <summary>
         /// The compute shader for the pipeline

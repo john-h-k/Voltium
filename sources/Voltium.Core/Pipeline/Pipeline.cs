@@ -8,30 +8,17 @@ namespace Voltium.Core.Pipeline
     /// <summary>
     /// A pipeline state object
     /// </summary>
-    public unsafe abstract class PipelineStateObject : IDisposable, IInternalGraphicsObject<PipelineStateObject>
+    public unsafe struct PipelineStateObject
     {
+        internal PipelineStateObject(PipelineHandle handle, Disposal<PipelineHandle> dispose)
+        {
+            Handle = handle;
+            _dispose = dispose;
+        }
+
         internal PipelineHandle Handle;
         private Disposal<PipelineHandle> _dispose;
 
-        public ReadOnlyMemory<RootParameter> RootParameters { get; }
-        public ReadOnlyMemory<StaticSampler> StaticSamplers { get;  }
-
-        /// <inheritdoc/>
-        public void Dispose()
-        {
-            _dispose.Dispose(ref Handle);
-        }
-
-        TypedHandle<PipelineStateObject> IInternalGraphicsObject<PipelineStateObject>.GetPointer() => Pointer.Ptr;
-
-#if TRACE_DISPOSABLES || DEBUG
-        /// <summary>
-        /// no :)
-        /// </summary>
-        ~PipelineStateObject()
-        {
-            Guard.MarkDisposableFinalizerEntered();
-        }
-#endif
+        public void Dispose() => _dispose.Dispose(ref Handle);
     }
 }

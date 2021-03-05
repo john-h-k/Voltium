@@ -25,13 +25,13 @@ namespace Voltium.Core.CommandBuffer
         public THandle AllocateHandle() => AllocateHandle(Unsafe.NullRef<THandleData>());
         public THandle AllocateHandle(in THandleData data)
         {
-            for (int i = 0; i < _array.Length; i++)
+            for (uint i = 0u; i < _array.Length; i++)
             {
                 ref var pair = ref _array[i];
                 if (!pair.IsAllocated)
                 {
                     // Next generation
-                    pair.Handle = new GenerationalHandle(pair.Handle.Generation + 1, pair.Handle.Id);
+                    pair.Handle = new GenerationalHandle(pair.Handle.Generation + 1, i);
                     pair.IsAllocated = true;
                     pair.HandleData = Unsafe.IsNullRef(ref Unsafe.AsRef(in data)) ? default! : data; // zero for safety
 

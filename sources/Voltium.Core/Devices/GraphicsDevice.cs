@@ -21,6 +21,8 @@ namespace Voltium.Core.Devices
     /// </summary>
     public unsafe partial class GraphicsDevice : ComputeDevice
     {
+        public DeviceInfo Info { get; }
+
         /// <summary>
         /// The default allocator for the device
         /// </summary>
@@ -56,6 +58,97 @@ namespace Voltium.Core.Devices
         /// It changes no root signature bindings and has a command size of <see langword="sizeof"/>(<see cref="IndirectDispatchMeshArguments"/>)
         /// </summary>
         public IndirectCommand DispatchMeshIndirect { get; }
+
+
+        public RaytracingAccelerationStructure AllocateRaytracingAccelerationStructure(ulong length)
+        {
+            var accelerationStructure = _device.AllocateRaytracingAccelerationStructure(length);
+
+            static void Dispose(object o, ref RaytracingAccelerationStructureHandle handle)
+            {
+                Debug.Assert(o is GraphicsDevice);
+                Unsafe.As<GraphicsDevice>(o)._device.DisposeRaytracingAccelerationStructure(handle);
+            }
+
+            return new RaytracingAccelerationStructure(length, accelerationStructure, new(this, &Dispose));
+        }
+
+        public RaytracingAccelerationStructure AllocateRaytracingAccelerationStructure(ulong length, in Heap heap, ulong offset)
+        {
+            var accelerationStructure = _device.AllocateRaytracingAccelerationStructure(length, heap.Handle, offset);
+
+            static void Dispose(object o, ref RaytracingAccelerationStructureHandle handle)
+            {
+                Debug.Assert(o is GraphicsDevice);
+                Unsafe.As<GraphicsDevice>(o)._device.DisposeRaytracingAccelerationStructure(handle);
+            }
+
+            return new RaytracingAccelerationStructure(length, accelerationStructure, new(this, &Dispose));
+        }
+
+        internal RaytracingAccelerationStructure AllocateRaytracingAccelerationStructure(ulong length, in Heap heap, ulong offset, Disposal<RaytracingAccelerationStructureHandle> dispose)
+        {
+            var accelerationStructure = _device.AllocateRaytracingAccelerationStructure(length, heap.Handle, offset);
+
+            return new RaytracingAccelerationStructure(length, accelerationStructure, dispose);
+        }
+
+        public PipelineStateObject CreatePipelineStateObject(GraphicsPipelineDesc desc)
+        {
+            static void Dispose(object o, ref PipelineHandle handle)
+            {
+                Debug.Assert(o is GraphicsDevice);
+                Unsafe.As<GraphicsDevice>(o)._device.DisposePipeline(handle);
+            }
+
+            return new PipelineStateObject(_device.CreatePipeline(desc), new(this, &Dispose));
+        }
+
+
+        public RootSignature CreateRootSignature(ReadOnlySpan<RootParameter> rootParams, ReadOnlySpan<StaticSampler> samplers, RootSignatureFlags flags = RootSignatureFlags.None)
+        {
+            static void Dispose(object o, ref RootSignatureHandle handle)
+            {
+                Debug.Assert(o is GraphicsDevice);
+                Unsafe.As<GraphicsDevice>(o)._device.DisposeRootSignature(handle);
+            }
+
+            return new RootSignature(_device.CreateRootSignature(rootParams, samplers, flags), new(this, &Dispose));
+        }
+
+        public Texture AllocateTexture(in TextureDesc desc, ResourceState initialState)
+        {
+            var texture = _device.AllocateTexture(desc, initialState);
+
+            static void Dispose(object o, ref TextureHandle handle)
+            {
+                Debug.Assert(o is GraphicsDevice);
+                Unsafe.As<GraphicsDevice>(o)._device.DisposeTexture(handle);
+            }
+
+            return new Texture(texture, desc, new(this, &Dispose));
+        }
+
+        public Texture AllocateTexture(in TextureDesc desc, ResourceState initialState, in Heap heap, ulong offset)
+        {
+            var texture = _device.AllocateTexture(desc, initialState, heap.Handle, offset);
+
+            static void Dispose(object o, ref TextureHandle handle)
+            {
+                Debug.Assert(o is GraphicsDevice);
+                Unsafe.As<GraphicsDevice>(o)._device.DisposeTexture(handle);
+            }
+
+            return new Texture(texture, desc, new(this, &Dispose));
+        }
+
+        internal Texture AllocateTexture(in TextureDesc desc, ResourceState initialState, in Heap heap, ulong offset, Disposal<TextureHandle> dispose)
+        {
+            var texture = _device.AllocateTexture(desc, initialState, heap.Handle, offset);
+
+            return new Texture(texture, desc, dispose);
+        }
+
 
         //internal UniqueComPtr<ID3D12CommandSignature> CreateCommandSignature(RootSignature? rootSignature, ReadOnlySpan<IndirectArgument> arguments, uint commandStride)
         //{
@@ -139,22 +232,30 @@ namespace Voltium.Core.Devices
         //    return new IndirectCommand(CreateCommandSignature(rootSignature, arguments, (uint)commandStride).Move(), rootSignature, (uint)commandStride, arguments.ToArray());
         //}
 
+        public CommandQueue GraphicsQueue { get; }
+        public CommandQueue ComputeQueue { get; }
+        public CommandQueue CopyQueue { get; }
 
         public void GetTextureInformation(in TextureDesc desc, out ulong sizeInBytes, out ulong alignment)
         {
             InternalAllocDesc alloc;
             Allocator.CreateAllocDesc(desc, &alloc, ResourceState.Common, AllocFlags.None);
             sizeInBytes = alloc.Size;
-            alignment = alloc.Desc.Alignment;
+            alignment = alloc.Alignment;
         }
 
         /// <summary>
         /// Returns a <see cref="GraphicsContext"/> used for recording graphical commands
         /// </summary>
         /// <returns>A new <see cref="GraphicsContext"/></returns>
-        public GraphicsContext BeginGraphicsContext(PipelineStateObject? pso = null, ContextFlags flags = ContextFlags.None)
+        public GraphicsContext BeginGraphicsContext(in PipelineStateObject? pso = null, ContextFlags flags = ContextFlags.None)
         {
-            return new();
+            var ctx = new GraphicsContext();
+            if (pso is not null)
+            {
+                ctx.SetPipelineState(pso.Value);
+            }
+            return ctx;
         }
 
 

@@ -1,8 +1,10 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Threading;
 using TerraFX.Interop;
 using Voltium.Common;
@@ -17,64 +19,106 @@ namespace Voltium.Core.Devices
 {
     
 
-    public class Heap
+    public struct Heap
     {
+        internal HeapHandle Handle;
 
+        public readonly ulong Length;
+        public HeapInfo Info;
+
+        private Disposal<HeapHandle> _disposal;
+
+        public Heap(HeapHandle handle, ulong length, HeapInfo info, Disposal<HeapHandle> disposal)
+        {
+            Handle = handle;
+            Length = length;
+            Info = info;
+            _disposal = disposal;
+        }
     }
 
-    public unsafe abstract class CommandQueue : IDisposable
+    public unsafe sealed class CommandQueue : IDisposable
     {
         public ulong? QueueFrequency { get; }
         public ulong CpuFrequency { get; }
-        public ExecutionContext Context { get; }
+        public DeviceContext Context { get; }
 
-        protected Fence Fence;
+        private INativeQueue _queue;
 
-        public CommandQueue(ExecutionContext context, Fence fence)
+        public INativeQueue Native => _queue;
+
+        public CommandQueue(INativeQueue queue, DeviceContext context, ArrayPool<CommandBuffer>? cmdBufPool = null)
         {
+            _queue = queue;
             Context = context;
-            CpuFrequency = GetCpuFrequency();
-            QueueFrequency = GetGpuFrequency();
-            Fence = fence;
+            _cmdBuffPool = cmdBufPool ?? ArrayPool<CommandBuffer>.Shared;
         }
 
-        protected abstract ulong? GetGpuFrequency();
-        protected abstract ulong GetCpuFrequency();
-
-        public void QueryTimestamps(out TimeSpan gpu, out TimeSpan cpu)
+        public void QueryTimestamps(out TimeSpan cpu, out TimeSpan gpu)
         {
             ulong gpuTick, cpuTick;
 
-            QueryTimestamps(&gpuTick, &cpuTick);
+            QueryTimestamps(&cpuTick, &gpuTick);
 
             gpu = TimeSpan.FromSeconds(gpuTick / (double)QueueFrequency!.Value);
             cpu = TimeSpan.FromSeconds(cpuTick / (double)CpuFrequency);
         }
 
-        public void QueryTimestamps(out ulong gpu, out ulong cpu)
+        public void QueryTimestamps(out ulong cpu, out ulong gpu)
         {
             fixed (ulong* pGpu = &gpu)
             fixed (ulong* pCpu = &cpu)
             {
-                QueryTimestamps(pGpu, pCpu);
+                QueryTimestamps(pCpu, pGpu);
             }
         }
 
         [MemberNotNull(nameof(QueueFrequency))]
-        public void QueryTimestamps(ulong* gpu, ulong* cpu)
+        public void QueryTimestamps(ulong* cpu, ulong* gpu)
         {
             if (QueueFrequency is null)
             {
                 ThrowHelper.ThrowPlatformNotSupportedException($"Queue type '{Context}' does not support timestamps on this device");
             }
 
-            InternalQueryTimestamps(gpu, cpu);
+            _queue.QueryTimestamps(cpu, gpu);
+        }
+
+        private readonly object _lock = new();
+        private readonly CommandBuffer[] _cmdBuffCache = new CommandBuffer[1];
+        private readonly ArrayPool<CommandBuffer> _cmdBuffPool;
+
+        public GpuTask Execute(GpuContext context) => Execute(context, ReadOnlySpan<GpuTask>.Empty);
+        public GpuTask Execute(GpuContext context, in GpuTask dependency) => Execute(context, MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(in dependency), 1));
+        public GpuTask Execute(GpuContext context, ReadOnlySpan<GpuTask> dependencies)
+        {
+            lock (_lock)
+            {
+                _cmdBuffCache[0] = new CommandBuffer { FirstPipeline = context.FirstPipeline, Buffer = context.Commands };
+
+                return _queue.Execute(_cmdBuffCache, dependencies);
+            }
         }
 
 
-        public abstract GpuTask Execute(ReadOnlySpan<GpuContext> contexts);
 
-        protected abstract void InternalQueryTimestamps(ulong* gpu, ulong* cpu);
+        public GpuTask Execute(ReadOnlySpan<GpuContext> contexts) => Execute(contexts, default);
+        public GpuTask Execute(ReadOnlySpan<GpuContext> contexts, in GpuTask dependency) => Execute(contexts, MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(in dependency), 1));
+        public GpuTask Execute(ReadOnlySpan<GpuContext> contexts, ReadOnlySpan<GpuTask> dependencies)
+        {
+            lock (_lock)
+            {
+                var cmdBuffers = _cmdBuffPool.Rent(contexts.Length);
+
+                int i = 0;
+                foreach (ref readonly var context in contexts)
+                {
+                    cmdBuffers[i] = new CommandBuffer { FirstPipeline = context.FirstPipeline, Buffer = context.Commands };
+                }
+
+                return _queue.Execute(cmdBuffers, dependencies);
+            }
+        }
 
         public readonly struct WorkLock : IDisposable
         {
@@ -82,161 +126,22 @@ namespace Voltium.Core.Devices
 
             internal WorkLock(CommandQueue queue)
             {
-                queue.Lock();
                 _queue = queue;
             }
 
             public void Release() => Dispose();
             public void Dispose()
             {
-                _queue.Unlock();
             }
         }
 
         public void Idle(ref WorkLock blocker)
         {
             blocker = new(this);
-            var idle = IdleTask;
-            idle.Block();
+            //var idle = IdleTask;
+            //idle.Block();
         }
 
-        protected abstract GpuTask IdleTask { get; }
-
-        private readonly object _defaultLock = new();
-
-        protected virtual void Lock() => Monitor.Enter(_defaultLock);
-        protected virtual void Unlock() => Monitor.Exit(_defaultLock);
-
-        public abstract void Wait(in GpuTask waitable);
-
-        public abstract void Dispose();
-    }
-
-    internal unsafe class D3D12CommandQueue : CommandQueue
-    {
-        private readonly ComputeDevice _device;
-        private UniqueComPtr<ID3D12CommandQueue> _queue;
-
-        [ThreadStatic]
-        private UniqueComPtr<ID3D12CommandList> _list;
-
-        private LockedQueue<(UniqueComPtr<ID3D12CommandAllocator> Allocator, GpuTask Task), SpinLockWrapped> _allocators = new(new(true));
-
-        internal ID3D12CommandQueue* GetQueue() => _queue.Ptr;
-
-        public D3D12CommandQueue(ComputeDevice device, ExecutionContext context) : base(context)
-        {
-            Debug.Assert(device is object);
-
-            _device = device;
-            _queue = device.CreateQueue(context, 0);
-        }
-
-        public GpuTask ExecuteCommandLists(ReadOnlySpan<GpuContext> contexts)
-        {
-            static bool IsAllocatorFinished(ref (UniqueComPtr<ID3D12CommandAllocator> Allocator, GpuTask Task) allocator) => allocator.Task.IsCompleted;
-
-            if (_allocators.TryDequeue(out var allocator, &IsAllocatorFinished))
-            {
-                _device.ThrowIfFailed(allocator.Allocator.Ptr->Reset());
-            }
-            else
-            {
-                allocator = (_device.CreateAllocator(Context), GpuTask.Completed);
-            }
-
-
-            var list = _list;
-
-            if (!list.Exists)
-            {
-                list = _list = _device.CreateList(Context, allocator.Allocator.Ptr);
-            }
-            else
-            {
-                list = _list;
-
-                _device.ThrowIfFailed(Context switch
-                {
-                    ExecutionContext.Copy or ExecutionContext.Compute or ExecutionContext.Graphics => list.As<ID3D12GraphicsCommandList>().Ptr->Reset(allocator.Allocator.Ptr, null),
-                    ExecutionContext.VideoDecode => list.As<ID3D12VideoDecodeCommandList>().Ptr->Reset(allocator.Allocator.Ptr),
-                    ExecutionContext.VideoEncode => list.As<ID3D12VideoEncodeCommandList>().Ptr->Reset(allocator.Allocator.Ptr),
-                    ExecutionContext.VideoProcess => list.As<ID3D12VideoProcessCommandList>().Ptr->Reset(allocator.Allocator.Ptr),
-                    _ => E_INVALIDARG,
-                }
-                );
-            }
-
-            foreach (var context in contexts)
-            {
-                _encoder.Encode(context, list);
-            }
-
-            _queue.Ptr->ExecuteCommandLists(1, (ID3D12CommandList**)&list);
-            _device.ThrowIfDeviceRemoved();
-            return Signal();
-        }
-
-        protected override void InternalQueryTimestamps(ulong* gpu, ulong* cpu)
-        {
-            if (FAILED(_queue.Ptr->GetClockCalibration(gpu, cpu)))
-            {
-                ThrowHelper.ThrowPlatformNotSupportedException("Copy-queue timestamps not supported");
-            }
-        }
-
-        private static string GetListTypeName(ExecutionContext type) => type switch
-        {
-            ExecutionContext.Graphics => nameof(ExecutionContext.Graphics),
-            ExecutionContext.Compute => nameof(ExecutionContext.Compute),
-            ExecutionContext.Copy => nameof(ExecutionContext.Copy),
-            _ => "Unknown"
-        };
-
-        protected override GpuTask IdleTask => Signal();
-
-        public override void Wait(in GpuTask waitable)
-        {
-            if (waitable.IsCompleted)
-            {   
-                return;
-            }
-
-            waitable.GetFenceAndMarker(out var fence, out var marker);
-            _device.ThrowIfFailed(_queue.Ptr->Wait(fence, marker));
-        }
-
-        private GpuTask Signal()
-        {
-            _fence.SetValue(Interlocked.Increment(ref _lastFence));
-            return new GpuTask(_fence, _lastFence);
-        }
-
-        public override void Dispose()
-        {
-            _queue.Dispose();
-            _fence.Dispose();
-        }
-
-        protected override ulong? GetGpuFrequency()
-        {
-            if (Context != ExecutionContext.Copy
-                || _device.QueryFeatureSupport<D3D12_FEATURE_DATA_D3D12_OPTIONS3>(D3D12_FEATURE.D3D12_FEATURE_D3D12_OPTIONS3).CopyQueueTimestampQueriesSupported != FALSE)
-            {
-                ulong frequency = 0;
-                _device.ThrowIfFailed(_queue.Ptr->GetTimestampFrequency(&frequency));
-                return frequency;
-            }
-            return null;
-        }
-
-        protected override ulong GetCpuFrequency()
-        {
-            LARGE_INTEGER cpuFrequency = default;
-            QueryPerformanceFrequency(&cpuFrequency);
-            return Helpers.LargeIntegerToUInt64(cpuFrequency);
-        }
-
-        public override GpuTask Execute(ReadOnlySpan<GpuContext> contexts) => throw new NotImplementedException();
+        public void Dispose() => _queue.Dispose();
     }
 }

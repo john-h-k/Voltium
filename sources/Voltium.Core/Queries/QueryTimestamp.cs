@@ -24,8 +24,8 @@ namespace Voltium.Core.Queries
             Value = value;
         }
 
-        public readonly TimeSpan ToTimeSpan(ComputeDevice device, ExecutionContext context)
-            => ToTimeSpan(device.QueueFrequency(context));
+        public readonly TimeSpan ToTimeSpan(INativeQueue queue)
+            => ToTimeSpan(queue.Frequency);
 
         public readonly TimeSpan ToTimeSpan(ulong frequency)
             => TimeSpan.FromSeconds((double)Value / frequency);

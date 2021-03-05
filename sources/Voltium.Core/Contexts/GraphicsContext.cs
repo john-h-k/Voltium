@@ -8,6 +8,8 @@ using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.CommandBuffer;
 using Voltium.Core.Contexts;
+using Voltium.Core.Devices;
+using Voltium.Core.Exceptions;
 using Voltium.Core.Memory;
 using Voltium.Core.Pipeline;
 using Voltium.Core.Pool;
@@ -61,9 +63,12 @@ namespace Voltium.Core
     /// </summary>
     public unsafe partial class GraphicsContext : ComputeContext
     {
-        internal GraphicsContext() : base()
+        public GraphicsContext(bool closed = false) : base()
         {
-
+            if (closed)
+            {
+                Close();
+            }
         }
 
         public readonly struct EndRenderPassMarker : IDisposable
@@ -133,7 +138,7 @@ namespace Voltium.Core
         {
             var command = new CommandBeginRenderPass
             {
-                RenderTargetCount = 0,
+                RenderTargetCount = 1,
                 HasDepthStencil = true
             };
 
@@ -149,7 +154,7 @@ namespace Voltium.Core
         {
             if (renderTargets.Length > 8)
             {
-                _device.ThrowGraphicsException("Too many render targets!!");
+                ThrowGraphicsException("Too many render targets!!");
             }
 
             var command = new CommandBeginRenderPass
@@ -191,15 +196,33 @@ namespace Voltium.Core
         private void EncodeDepthStencil(in DepthStencil pDepth, RenderPassDepthStencil* pRp)
         {
             // Currently identical formats
-            *(DepthStencil*)pRp = pDepth;
+            pRp->View = pDepth.Resource.Handle;
+            pRp->DepthLoad = pDepth.DepthLoad;
+            pRp->DepthStore = pDepth.DepthStore;
+            pRp->StencilLoad = pDepth.StencilLoad;
+            pRp->StencilStore = pDepth.StencilStore;
+            pRp->Depth = pDepth.DepthClear;
+            pRp->Stencil = pDepth.StencilClear;
         }
         private void EncodeRenderTarget(in RenderTarget pDepth, RenderPassRenderTarget* pRp)
         {
-            // Currently identical formats
-            *(RenderTarget*)pRp = pDepth;
+            pRp->View = pDepth.Resource.Handle;
+            pRp->Load = pDepth.Load;
+            pRp->Store = pDepth.Store;
+            Unsafe.Write(pRp->ClearValue, pDepth.ColorClear);
         }
 
+        public void ClearDepth(in View depth, float value = 1)
+        {
+            var command = new CommandClearDepthStencil
+            {
+                Depth = value,
+                Flags = DepthStencilClearFlags.ClearDepth,
+                View = depth.Handle
+            };
 
+            _encoder.Emit(&command);
+        }
 
         public void EndRenderPass() => _encoder.EmitEmpty(CommandType.EndRenderPass);
 
@@ -400,7 +423,7 @@ namespace Voltium.Core
         /// <typeparam name="T">The type of the vertex in <see cref="Buffer"/></typeparam>
         public void SetVertexBuffers<T>([RequiresResourceState(ResourceState.VertexBuffer)] in Buffer vertexResource, uint startSlot = 0)
             where T : unmanaged
-        => SetVertexBuffers<T>(vertexResource, vertexResource.Length / (uint)sizeof(T), startSlot);
+        => SetVertexBuffers<T>(vertexResource, (uint)vertexResource.Length / (uint)sizeof(T), startSlot);
 
         /// <summary>
         /// Set the vertex buffers
@@ -441,7 +464,7 @@ namespace Voltium.Core
             {
                 Buffer = indexResource.Handle,
                 Format = IndexFormatForT<T>(),
-                Length = Math.Min(numIndices, indexResource.Length)
+                Length = (uint)(Math.Min(numIndices, indexResource.Length))
             };
 
             _encoder.Emit(&command);
@@ -524,5 +547,7 @@ namespace Voltium.Core
 
             _encoder.Emit(&command);
         }
+
+        private void ThrowGraphicsException(string s) => new GraphicsException(null!, s);
     }
 }

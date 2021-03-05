@@ -16,7 +16,9 @@
     <PackageReference Include="Microsoft.Experimental.Collections" Version="1.0.6-e190117-3" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="5.0.0-preview.4.20251.6" />
     <PackageReference Include="Microsoft.Toolkit.HighPerformance" Version="7.0.0-build.531" />
+    <PackageReference Include="NonCopyableAnalyzer" Version="0.6.0" />
     <PackageReference Include="SixLabors.ImageSharp" Version="1.0.0" />
+    <PackageReference Include="TerraFX.Interop.Mimalloc" Version="1.6.0-beta1-605928657" />
     <PackageReference Include="TerraFX.Interop.Windows" Version="10.0.19041-beta2-528020472" />
     <PackageReference Include="TerraFX.Interop.Libc" Version="1.2017.0-alpha-235193088" />
     <PackageReference Include="RaiiSharp.Annotations" Version="1.0.1" />

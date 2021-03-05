@@ -1,8 +1,8 @@
 namespace Voltium.Core.Devices
 {
-    /// <summary>
-    /// Information needed for an acceleration structure build, retrieved from <see cref="ComputeDevice.GetBuildInfo(Layout, uint, BuildAccelerationStructureFlags)"/>
-    /// </summary>
+    ///// <summary>
+    ///// Information needed for an acceleration structure build, retrieved from <see cref="ComputeDevice.GetBuildInfo(Layout, uint, BuildAccelerationStructureFlags)"/>
+    ///// </summary>
     public readonly struct AccelerationStructureBuildInfo
     {
         /// <summary>

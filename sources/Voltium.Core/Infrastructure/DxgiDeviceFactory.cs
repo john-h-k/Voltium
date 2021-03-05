@@ -30,7 +30,7 @@ namespace Voltium.Core.Infrastructure
             {
                 using UniqueComPtr<IDXGIAdapter1> adapter = default;
                 Guard.ThrowIfFailed(_factory.Ptr->EnumWarpAdapter(adapter.Iid, (void**)&adapter));
-                return CreateAdapter(adapter.Move());
+                return CreateAdapter(adapter.QueryInterface<IDXGIAdapter2>());
             });
         }
 

@@ -14,7 +14,7 @@ namespace Voltium.CubeGame
 {
     internal class TonemapPass : GraphicsRenderPass
     {
-        public override OutputDesc Output => OutputDesc.FromBackBuffer(OutputClass.Primary, _output);
+        public override RenderPassExternalOutput Output => RenderPassExternalOutput.FromBackBuffer(OutputClass.Primary, _output);
 
         private Output _output;
 

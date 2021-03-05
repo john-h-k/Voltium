@@ -14,16 +14,13 @@ using Voltium.Interactive.BasicRenderPipeline;
 using Voltium.Interactive.RenderGraphSamples;
 using Voltium.RenderEngine;
 using Voltium.Interactive.HelloTriangle;
-using Voltium.Interactive.HelloTriangleRaytracing;
-using Voltium.Interactive.FloatMultiplySample;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Exceptions;
 using Microsoft.Extensions.Logging;
-using Voltium.Interactive.Samples.Predication;
 using Voltium.Core.ShaderLang;
 using System.Numerics;
-using Voltium.Interactive.Samples.ExecuteIndirect;
+using Voltium.Interactive.Samples.Predication;
 
 namespace Voltium.Interactive
 {
@@ -31,9 +28,7 @@ namespace Voltium.Interactive
     {
         private static int Main(string[] args)
         {
-            //var b = new CommandListMethodBenchmark();
-            //b.Setup();
-            BenchmarkRunner.Run<CommandListMethodBenchmark>();
+            ApplicationRunner.RunWin32(new PredicationSample());
             return 0;
         }
     }

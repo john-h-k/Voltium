@@ -169,6 +169,7 @@ namespace Voltium.Common
                    Unsafe.As<Guid, ulong>(ref Unsafe.AddByteOffset(ref Unsafe.AsRef(in lhs), (nint)8)) == Unsafe.As<Guid, ulong>(ref Unsafe.AddByteOffset(ref Unsafe.AsRef(in rhs), (nint)8));
         }
 
+        public static bool IsReferenceType<T>() => !typeof(T).IsValueType;
 
         public static uint Pack2x16To32(ushort lo, ushort hi) => lo | ((uint)hi << 16);
         public static (ushort Lo, ushort Hi) Unpack32To2x16(uint value) => ((ushort)value, (ushort)(value >> 16));

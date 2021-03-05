@@ -177,6 +177,8 @@ namespace Voltium.Core.Infrastructure
             DriverVersion = driverVersion;
             IsSoftware = isSoftware;
             Type = type;
+            ComputePreemptionGranularity = computePreemption;
+            GraphicsPreemptionGranularity = graphicsPreemption;
         }
 
         /// <inheritdoc/>

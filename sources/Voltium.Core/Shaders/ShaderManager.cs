@@ -66,7 +66,7 @@ namespace Voltium.Core.Devices
             }
         }
 
-        private static void Link(ShaderReflection reflection, RootSignature rootSig)
+        private static void Link(ShaderReflection reflection, in RootSignature rootSig)
         {
 
         }
