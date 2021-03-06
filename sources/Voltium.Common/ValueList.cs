@@ -107,14 +107,18 @@ namespace Voltium.Common
 
         public void AddRange(int count)
         {
-            ResizeIfNecessary(_length += count);
+            var newLength = _length + count;
+            ResizeIfNecessary(newLength);
+            _length = newLength;
         }
 
         public void AddRange(ReadOnlySpan<T> values)
         {
             var length = _length;
-            ResizeIfNecessary(_length += values.Length);
+            var newLength = length + values.Length;
+            ResizeIfNecessary(newLength);
             values.CopyTo(_items.AsSpan(length));
+            _length = newLength;
         }
 
         public ref T GetReference() => ref MemoryMarshal.GetArrayDataReference(_items);

@@ -120,22 +120,21 @@ namespace Voltium.Interactive.Samples.Predication
 
             var predicationPsoDesc = new GraphicsPipelineDesc
             {
-                RootSignature = empty,
-                Topology = TopologyClass.Triangle,
+                Topology = Topology.TriangleList,
                 VertexShader = vertexShader,
                 PixelShader = CompiledShader.Empty,
                 DepthStencilFormat = DataFormat.Depth32Single,
                 DepthStencil = DepthStencilDesc.Default.WithDepthWriteMask(DepthWriteMask.Zero),
                 Inputs = InputLayout.FromType<Vertex>(),
-                RenderTargetFormats = DataFormat.Unknown
+                RenderTargetFormats = DataFormat.Unknown,
+                Rasterizer = RasterizerDesc.Default
             };
 
-            _predicatePso = _device.CreatePipelineStateObject(predicationPsoDesc);
+            _predicatePso = _device.CreatePipelineStateObject(empty, predicationPsoDesc);
 
             var drawPsoDesc = new GraphicsPipelineDesc
             {
-                RootSignature = empty,
-                Topology = TopologyClass.Triangle,
+                Topology = Topology.TriangleList,
                 VertexShader = vertexShader,
                 PixelShader = pixelShader,
                 DepthStencilFormat = DataFormat.Depth32Single,
@@ -157,7 +156,7 @@ namespace Voltium.Interactive.Samples.Predication
                 }
             };
 
-            _drawPso = _device.CreatePipelineStateObject(drawPsoDesc);
+            _drawPso = _device.CreatePipelineStateObject(empty, drawPsoDesc);
         }
 
 
@@ -251,13 +250,13 @@ namespace Voltium.Interactive.Samples.Predication
 
                 {
                     // Need old back buffer contents
-                    renderTarget = var renderTarget = new RenderTarget
+                    renderTarget = new RenderTarget
                     {
                         Load = LoadOperation.Preserve,
                         Store = StoreOperation.Preserve,
-                        ColorClear = Rgba128.CornflowerBlue,
                         Resource = _output.OutputBufferView
                     };
+
                     context.BeginRenderPass(renderTarget, depthStencil);
 
                     // Actually draw the object

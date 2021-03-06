@@ -13,6 +13,7 @@ using Voltium.Core.Pipeline;
 using Voltium.Core.Queries;
 using static TerraFX.Interop.Windows;
 using static TerraFX.Interop.D3D12_FEATURE;
+using static TerraFX.Interop.D3D12_PIPELINE_STATE_SUBOBJECT_TYPE;
 using System.Runtime.InteropServices;
 using System.Collections.Immutable;
 
@@ -664,44 +665,293 @@ namespace Voltium.Core.Devices
         }
 
 
-        public PipelineHandle CreatePipeline(in ComputePipelineDesc desc) => throw new NotImplementedException();
-
-
-        public PipelineHandle CreatePipeline(in GraphicsPipelineDesc desc)
+        public PipelineHandle CreatePipeline(in RootSignatureHandle rootSignature, in ComputePipelineDesc pipelineDesc)
         {
-            desc.SetMarkers(null);
-            nuint a = (nuint)desc.Desc.RootSig.Pointer;
-            desc.Desc.RootSig.Pointer = _mapper.GetInfo(Unsafe.As<nuint, RootSignatureHandle>(ref a)).RootSignature;
+            var rootSig = _mapper.GetInfo(rootSignature);
 
-            fixed (void* p = desc)
+            var desc = new D3D12_COMPUTE_PIPELINE_STATE_DESC
             {
-                UniqueComPtr<ID3D12PipelineState> pso = default;
-                var psoDesc = new D3D12_PIPELINE_STATE_STREAM_DESC
-                {
-                    pPipelineStateSubobjectStream = p,
-                    SizeInBytes = desc.DescSize
-                };
+                CS = new D3D12_SHADER_BYTECODE(pipelineDesc.ComputeShader.Pointer, pipelineDesc.ComputeShader.Length),
+                pRootSignature = rootSig.RootSignature,
+                NodeMask = pipelineDesc.NodeMask
+            };
 
-                ThrowIfFailed(_device.Ptr->CreatePipelineState(
-                    &psoDesc,
-                    pso.Iid,
-                    (void**)&pso
+
+            UniqueComPtr<ID3D12PipelineState> pso = default;
+            ThrowIfFailed(_device.Ptr->CreateComputePipelineState(&desc, pso.Iid, (void**)&pso));
+
+            var info = new D3D12PipelineState
+            {
+                BindPoint = BindPoint.Compute,
+                IsRaytracing = false,
+                PipelineState = (ID3D12Object*)pso.Ptr,
+                RootSignature = rootSig.RootSignature,
+                RootParameters = rootSig.RootParameters
+            };
+
+            return _mapper.Create(info);
+        }
+
+        private struct PipelineStreamBuilder
+        {
+            private ValueList<byte> _buffer;
+            public ReadOnlySpan<byte> PipelineStream => _buffer.AsSpan();
+
+            public static PipelineStreamBuilder Create() => new() { _buffer = new(1) };
+
+            public void AddShader(in CompiledShader shader)
+                => AddShader(new() { pShaderBytecode = shader.Pointer, BytecodeLength = shader.Length }, shader.Type);
+
+            public void AddShader(in D3D12_SHADER_BYTECODE bytecode, ShaderType type)
+            {
+                _buffer.AddRange(AsBytes(
+                    type switch
+                    {
+                        ShaderType.Vertex => D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_VS,
+                        ShaderType.Pixel => D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_PS,
+                        ShaderType.Domain => D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_DS,
+                        ShaderType.Hull => D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_HS,
+                        ShaderType.Geometry => D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_GS,
+                        ShaderType.Compute => D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_CS,
+                        ShaderType.Mesh => D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_MS,
+                        ShaderType.Amplification => D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_AS,
+                        ShaderType.Unspecified or _ => throw new InvalidOperationException("Unspecified shader type is not valid in a pipeline desc"),
+                    }
                 ));
 
-                var pipelineState = new D3D12PipelineState
+
+                _buffer.AddRange(sizeof(void*) - sizeof(D3D12_PIPELINE_STATE_SUBOBJECT_TYPE));
+
+                _buffer.AddRange(AsBytes(bytecode));
+            }
+
+            public void Add<T>(in T val) where T : unmanaged
+            {
+                var (type, subobjectAlignment) = val switch
                 {
-                    BindPoint = BindPoint.Graphics,
-                    PipelineState = (ID3D12Object*)pso.Ptr,
-                    RootSignature = desc.Desc.RootSig.Pointer,
-                    RootParameters = _mapper.GetInfo(Unsafe.As<nuint, RootSignatureHandle>(ref a)).RootParameters
+                    D3D12_GLOBAL_ROOT_SIGNATURE => (D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_ROOT_SIGNATURE, sizeof(void*)),
+                    D3D12_BLEND_DESC => (D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_BLEND, 4),
+                    uint => (D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_SAMPLE_MASK, 4),
+                    D3D12_RASTERIZER_DESC => (D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_RASTERIZER, 4),
+                    D3D12_DEPTH_STENCIL_DESC => (D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_DEPTH_STENCIL, 4),
+                    D3D12_INPUT_LAYOUT_DESC => (D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_INPUT_LAYOUT, sizeof(void*)),
+                    D3D12_INDEX_BUFFER_STRIP_CUT_VALUE => (D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_IB_STRIP_CUT_VALUE, 4),
+                    D3D12_PRIMITIVE_TOPOLOGY_TYPE => (D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_PRIMITIVE_TOPOLOGY, 4),
+                    D3D12_RT_FORMAT_ARRAY => (D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_RENDER_TARGET_FORMATS, 4),
+                    DXGI_FORMAT => (D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_DEPTH_STENCIL_FORMAT, 4),
+                    DXGI_SAMPLE_DESC => (D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_SAMPLE_DESC, 4),
+                    D3D12_NODE_MASK => (D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_NODE_MASK, 4),
+                    D3D12_CACHED_PIPELINE_STATE => (D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_CACHED_PSO, sizeof(void*)),
+                    D3D12_DEPTH_STENCIL_DESC1 => (D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_DEPTH_STENCIL1, 4),
+                    D3D12_VIEW_INSTANCING_DESC => (D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_VIEW_INSTANCING, sizeof(void*)),
+                    _ => (ThrowHelper.ThrowInvalidOperationException<D3D12_PIPELINE_STATE_SUBOBJECT_TYPE>("unrecognised subobject"), 0)
                 };
 
-                return _mapper.Create(pipelineState);
+                _buffer.AddRange(AsBytes(type));
+
+                // Align the subobject (some need void* alignment so need padding after enum on 64 bit platforms)
+                _buffer.AddRange(subobjectAlignment - sizeof(D3D12_PIPELINE_STATE_SUBOBJECT_TYPE));
+                _buffer.AddRange(AsBytes(val));
+
+                var pad = (sizeof(D3D12_PIPELINE_STATE_SUBOBJECT_TYPE)
+                    + (subobjectAlignment == sizeof(D3D12_PIPELINE_STATE_SUBOBJECT_TYPE) ? 0 : subobjectAlignment - sizeof(D3D12_PIPELINE_STATE_SUBOBJECT_TYPE)) + sizeof(T)) % sizeof(void*);
+                _buffer.AddRange(pad);
+            }
+
+
+            private static ReadOnlySpan<byte> AsBytes<T>(in T val)
+                    => MemoryMarshal.CreateReadOnlySpan(ref Unsafe.As<T, byte>(ref Unsafe.AsRef(in val)), Unsafe.SizeOf<T>());
+        }
+
+
+        public PipelineHandle CreatePipeline(in RootSignatureHandle rootSignature, in GraphicsPipelineDesc desc)
+        {
+            var builder = PipelineStreamBuilder.Create();
+
+            builder.Add(new D3D12_GLOBAL_ROOT_SIGNATURE { pGlobalRootSignature = _mapper.GetInfo(rootSignature).RootSignature });
+
+            builder.AddShader(desc.VertexShader);
+            if (desc.HullShader.Length > 0)
+            {
+                builder.AddShader(desc.HullShader);
+                builder.AddShader(desc.DomainShader);
+            }
+            if (desc.GeometryShader.Length > 0)
+            {
+                builder.AddShader(desc.GeometryShader);
+            }
+            if (desc.PixelShader.Length > 0)
+            {
+                builder.AddShader(desc.PixelShader);
+            }
+
+            ref readonly var depthStencil = ref desc.DepthStencil;
+
+            builder.Add(new D3D12_DEPTH_STENCIL_DESC1
+            {
+                DepthEnable = Helpers.BoolToInt32(depthStencil.EnableDepthTesting),
+                DepthWriteMask = (D3D12_DEPTH_WRITE_MASK)depthStencil.DepthWriteMask,
+                DepthFunc = (D3D12_COMPARISON_FUNC)depthStencil.DepthComparison,
+                StencilEnable = Helpers.BoolToInt32(depthStencil.EnableStencilTesting),
+                StencilReadMask = depthStencil.StencilReadMask,
+                StencilWriteMask = depthStencil.StencilWriteMask,
+                FrontFace = new D3D12_DEPTH_STENCILOP_DESC
+                {
+                    StencilFailOp = (D3D12_STENCIL_OP)depthStencil.FrontFace.StencilTestFailOp,
+                    StencilDepthFailOp = (D3D12_STENCIL_OP)depthStencil.FrontFace.StencilTestDepthTestFailOp,
+                    StencilPassOp = (D3D12_STENCIL_OP)depthStencil.FrontFace.StencilPasslOp,
+                    StencilFunc = (D3D12_COMPARISON_FUNC)depthStencil.FrontFace.ExistingDataOp,
+                },
+                BackFace = new D3D12_DEPTH_STENCILOP_DESC
+                {
+                    StencilFailOp = (D3D12_STENCIL_OP)depthStencil.BackFace.StencilTestFailOp,
+                    StencilDepthFailOp = (D3D12_STENCIL_OP)depthStencil.BackFace.StencilTestDepthTestFailOp,
+                    StencilPassOp = (D3D12_STENCIL_OP)depthStencil.BackFace.StencilPasslOp,
+                    StencilFunc = (D3D12_COMPARISON_FUNC)depthStencil.BackFace.ExistingDataOp,
+                },
+                DepthBoundsTestEnable = Helpers.BoolToInt32(depthStencil.EnableDepthBoundsTesting)
+            });
+
+            ref readonly var rasterizer = ref desc.Rasterizer;
+
+            builder.Add(new D3D12_RASTERIZER_DESC
+            {
+                FillMode = rasterizer.EnableWireframe ? D3D12_FILL_MODE.D3D12_FILL_MODE_WIREFRAME : D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID,
+                CullMode = (D3D12_CULL_MODE)rasterizer.FaceCullMode,
+                FrontCounterClockwise = Helpers.BoolToInt32(rasterizer.FrontFaceType == FaceType.Anticlockwise),
+                DepthBias = rasterizer.DepthBias,
+                DepthBiasClamp = rasterizer.MaxDepthBias,
+                SlopeScaledDepthBias = rasterizer.SlopeScaledDepthBias,
+                DepthClipEnable = Helpers.BoolToInt32(rasterizer.EnableDepthClip),
+                MultisampleEnable = Helpers.BoolToInt32(rasterizer.LineRenderAlgorithm == LineRenderAlgorithm.Quadrilateral),
+                AntialiasedLineEnable = Helpers.BoolToInt32(rasterizer.LineRenderAlgorithm == LineRenderAlgorithm.AlphaAntiAliased),
+                ForcedSampleCount = rasterizer.ForcedSampleCount,
+                ConservativeRaster = rasterizer.EnableConservativerRasterization ? D3D12_CONSERVATIVE_RASTERIZATION_MODE.D3D12_CONSERVATIVE_RASTERIZATION_MODE_ON : D3D12_CONSERVATIVE_RASTERIZATION_MODE.D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF,
+            });
+
+            ref readonly var blend = ref desc.Blend;
+
+            Unsafe.SkipInit(out D3D12_BLEND_DESC nativeBlendDesc);
+            nativeBlendDesc.AlphaToCoverageEnable = Helpers.BoolToInt32(blend.UseAlphaToCoverage);
+            nativeBlendDesc.IndependentBlendEnable = Helpers.BoolToInt32(blend.UseIndependentBlend);
+
+            var blendDescCount = blend.UseIndependentBlend ? 1 : desc.RenderTargetFormats.Count;
+            for (var i = 0; i < blendDescCount; i++)
+            {
+                ref readonly var renderTargetBlendDesc = ref blend.RenderTargets[i];
+                nativeBlendDesc.RenderTarget[i] = new D3D12_RENDER_TARGET_BLEND_DESC
+                {
+                    BlendEnable = Helpers.BoolToInt32(renderTargetBlendDesc.EnableBlendOp),
+                    LogicOpEnable = Helpers.BoolToInt32(renderTargetBlendDesc.EnableLogicOp),
+                    SrcBlend = (D3D12_BLEND)renderTargetBlendDesc.SrcBlend,
+                    DestBlend = (D3D12_BLEND)renderTargetBlendDesc.SrcBlend,
+                    BlendOp = (D3D12_BLEND_OP)renderTargetBlendDesc.BlendOp,
+                    SrcBlendAlpha = (D3D12_BLEND)renderTargetBlendDesc.SrcBlendAlpha,
+                    DestBlendAlpha = (D3D12_BLEND)renderTargetBlendDesc.DestBlendAlpha,
+                    BlendOpAlpha = (D3D12_BLEND_OP)renderTargetBlendDesc.AlphaBlendOp,
+                    LogicOp = (D3D12_LOGIC_OP)renderTargetBlendDesc.SrcBlend,
+                    RenderTargetWriteMask = (byte)renderTargetBlendDesc.RenderTargetWriteMask,
+                };
+            }
+
+            builder.Add(nativeBlendDesc);
+
+            ref readonly var msaa = ref desc.Msaa;
+
+            builder.Add(new DXGI_SAMPLE_DESC
+            {
+                Count = msaa.SampleCount,
+                Quality = msaa.QualityLevel
+            });
+
+            builder.Add((DXGI_FORMAT)desc.DepthStencilFormat);
+
+            ref readonly var renderTargets = ref desc.RenderTargetFormats;
+            builder.Add(new D3D12_RT_FORMAT_ARRAY
+            {
+                NumRenderTargets = renderTargets.Count,
+                RTFormats = new()
+                {
+                    e0 = (DXGI_FORMAT)renderTargets[0],
+                    e1 = (DXGI_FORMAT)renderTargets[1],
+                    e2 = (DXGI_FORMAT)renderTargets[2],
+                    e3 = (DXGI_FORMAT)renderTargets[3],
+                    e4 = (DXGI_FORMAT)renderTargets[4],
+                    e5 = (DXGI_FORMAT)renderTargets[5],
+                    e6 = (DXGI_FORMAT)renderTargets[6],
+                    e7 = (DXGI_FORMAT)renderTargets[7],
+                }
+            });
+
+            builder.Add(new D3D12_NODE_MASK { NodeMask = desc.NodeMask });
+
+            builder.Add(desc.Topology switch
+            {
+                Topology.PointList => D3D12_PRIMITIVE_TOPOLOGY_TYPE.D3D12_PRIMITIVE_TOPOLOGY_TYPE_UNDEFINED,
+                Topology.LineList or Topology.LineStrip => D3D12_PRIMITIVE_TOPOLOGY_TYPE.D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE,
+                Topology.TriangleList or Topology.TriangleStrip => D3D12_PRIMITIVE_TOPOLOGY_TYPE.D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE,
+                Topology.Unknown or _ => D3D12_PRIMITIVE_TOPOLOGY_TYPE.D3D12_PRIMITIVE_TOPOLOGY_TYPE_UNDEFINED,
+            });
+
+            var pInputs = stackalloc D3D12_INPUT_ELEMENT_DESC[32]; // max
+            var pNames = stackalloc sbyte*[32]; // max
+
+
+            ref readonly var inputLayout = ref desc.Inputs;
+            var span = inputLayout.ShaderInputs.Span;
+            StackSentinel.StackAssert(span.Length <= 32);
+            for (var i = 0; i < span.Length; i++)
+            {
+                ref readonly var input = ref span[i];
+
+                var name = pNames[i] = StringHelpers.MarshalToUnmanagedAscii(input.Name);
+                pInputs[i] = new D3D12_INPUT_ELEMENT_DESC
+                {
+                    SemanticName = name,
+                    SemanticIndex = input.NameIndex,
+                    Format = (DXGI_FORMAT)input.Type,
+                    InputSlot = input.Channel,
+                    AlignedByteOffset = input.Offset,
+                    InputSlotClass = (D3D12_INPUT_CLASSIFICATION)input.InputClass,
+                    InstanceDataStepRate = input.VerticesPerInstanceChange
+                };
+            }
+
+            builder.Add(new D3D12_INPUT_LAYOUT_DESC
+            {
+                pInputElementDescs = pInputs,
+                NumElements = (uint)span.Length
+            });
+
+            fixed (void* pDesc = builder.PipelineStream)
+            {
+                var rootSig = _mapper.GetInfo(rootSignature);
+
+                var nativeDesc = new D3D12_PIPELINE_STATE_STREAM_DESC
+                {
+                    pPipelineStateSubobjectStream = pDesc,
+                    SizeInBytes = (uint)builder.PipelineStream.Length
+                };
+
+                UniqueComPtr<ID3D12PipelineState> pso = default;
+                ThrowIfFailed(_device.Ptr->CreatePipelineState(&nativeDesc, pso.Iid, (void**)&pso));
+
+                var info = new D3D12PipelineState
+                {
+                    BindPoint = BindPoint.Graphics,
+                    IsRaytracing = false,
+                    PipelineState = (ID3D12Object*)pso.Ptr,
+                    RootSignature = rootSig.RootSignature,
+                    Topology = (D3D_PRIMITIVE_TOPOLOGY)desc.Topology,
+                    RootParameters = rootSig.RootParameters
+                };
+
+                return _mapper.Create(info);
             }
         }
 
         //public PipelineHandle CreatePipeline(in RaytracingPipelineDesc desc) => throw new NotImplementedException();
-        public PipelineHandle CreatePipeline(in MeshPipelineDesc desc) => throw new NotImplementedException();
+        public PipelineHandle CreatePipeline(in RootSignatureHandle rootSignature, in MeshPipelineDesc desc) => throw new NotImplementedException();
 
         public QuerySetHandle CreateQuerySet(QuerySetType type, uint length)
         {

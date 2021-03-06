@@ -93,7 +93,7 @@ namespace Voltium.Core.Devices
             return new RaytracingAccelerationStructure(length, accelerationStructure, dispose);
         }
 
-        public PipelineStateObject CreatePipelineStateObject(GraphicsPipelineDesc desc)
+        public PipelineStateObject CreatePipelineStateObject(in RootSignature rootSignature, in GraphicsPipelineDesc desc)
         {
             static void Dispose(object o, ref PipelineHandle handle)
             {
@@ -101,7 +101,7 @@ namespace Voltium.Core.Devices
                 Unsafe.As<GraphicsDevice>(o)._device.DisposePipeline(handle);
             }
 
-            return new PipelineStateObject(_device.CreatePipeline(desc), new(this, &Dispose));
+            return new PipelineStateObject(_device.CreatePipeline(rootSignature.Handle, desc), new(this, &Dispose));
         }
 
 

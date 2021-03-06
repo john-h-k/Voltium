@@ -78,10 +78,10 @@ namespace Voltium.Core.Devices
         RootSignatureHandle CreateRootSignature(ReadOnlySpan<RootParameter> rootParams, ReadOnlySpan<StaticSampler> samplers, RootSignatureFlags flags);
         void DisposeRootSignature(RootSignatureHandle sig);
 
-        PipelineHandle CreatePipeline(in ComputePipelineDesc desc);
-        PipelineHandle CreatePipeline(in GraphicsPipelineDesc desc);
+        PipelineHandle CreatePipeline(in RootSignatureHandle rootSignature, in ComputePipelineDesc desc);
+        PipelineHandle CreatePipeline(in RootSignatureHandle rootSignature, in GraphicsPipelineDesc desc);
         //PipelineHandle CreatePipeline(in RaytracingPipelineDesc desc);
-        PipelineHandle CreatePipeline(in MeshPipelineDesc desc);
+        PipelineHandle CreatePipeline(in RootSignatureHandle rootSignature, in MeshPipelineDesc desc);
         void DisposePipeline(PipelineHandle handle);
 
 

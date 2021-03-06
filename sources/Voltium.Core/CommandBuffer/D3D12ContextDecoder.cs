@@ -148,6 +148,7 @@ namespace Voltium.Core.Contexts
     {
         public ID3D12Object* PipelineState;
         public ID3D12RootSignature* RootSignature;
+        public D3D_PRIMITIVE_TOPOLOGY Topology;
         public BindPoint BindPoint;
         public bool IsRaytracing;
         public ImmutableArray<RootParameter> RootParameters;

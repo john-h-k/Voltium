@@ -531,6 +531,7 @@ namespace Voltium.Core.Devices
                                 {
                                     case BindPoint.Graphics:
                                         pEncode->SetGraphicsRootSignature(rootSig);
+                                        pEncode->IASetPrimitiveTopology(pipelineState.Topology);
                                         break;
                                     case BindPoint.Compute:
                                         pEncode->SetComputeRootSignature(rootSig);

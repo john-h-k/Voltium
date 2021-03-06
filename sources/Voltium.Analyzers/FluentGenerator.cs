@@ -20,7 +20,7 @@ namespace Voltium.Analyzers
             foreach (var member in symbol.GetMembers())
             {
                 if (member.IsStatic
-                    || member is not IPropertySymbol or IFieldSymbol
+                    || member is not IPropertySymbol and not IFieldSymbol
                     || member.DeclaredAccessibility is not Accessibility.Public or Accessibility.Internal
                     || (member is IPropertySymbol { IsIndexer: true }))
                 {

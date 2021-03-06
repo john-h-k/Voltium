@@ -28,7 +28,7 @@ namespace Voltium.Interactive
     {
         private static int Main(string[] args)
         {
-            ApplicationRunner.RunWin32(new PredicationSample());
+            ApplicationRunner.RunWin32(new HelloTriangleApp());
             return 0;
         }
     }

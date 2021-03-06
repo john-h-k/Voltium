@@ -7,6 +7,7 @@ using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core;
 using Voltium.Core.CommandBuffer;
+using Voltium.Core.Configuration.Graphics;
 using Voltium.Core.Contexts;
 using Voltium.Core.Devices;
 using Voltium.Core.Devices.Shaders;
@@ -68,16 +69,18 @@ namespace Voltium.Interactive.HelloTriangle
             // The pipeline description. We compile shaders at runtime here, which is simpler but less efficient
             var psoDesc = new GraphicsPipelineDesc
             {
-                Topology = TopologyClass.Triangle,
+                Topology = Topology.TriangleList,
                 VertexShader = ShaderManager.CompileShader("HelloTriangle/Shader.hlsl", ShaderType.Vertex, entrypoint: "VertexMain"),
                 PixelShader = ShaderManager.CompileShader("HelloTriangle/Shader.hlsl", ShaderType.Pixel, entrypoint: "PixelMain"),
                 RenderTargetFormats = _output.Format,
                 DepthStencil = DepthStencilDesc.DisableDepthStencil,
                 Inputs = InputLayout.FromType<HelloWorldVertex>(),
-                RootSignature = _device.CreateRootSignature(default, default, RootSignatureFlags.AllowInputAssembler)
+                Rasterizer = RasterizerDesc.Default,
+                Msaa = MsaaDesc.None,
+                Blend = BlendDesc.Default
             };
 
-            _pso = _device.CreatePipelineStateObject(psoDesc);
+            _pso = _device.CreatePipelineStateObject(_device.CreateRootSignature(default, default, RootSignatureFlags.AllowInputAssembler), psoDesc);
         }
 
 
@@ -97,7 +100,6 @@ namespace Voltium.Interactive.HelloTriangle
                 ColorClear = Rgba128.CornflowerBlue
             }))
             {
-                context.SetViewportAndScissor(_output.Resolution);
                 // Set that we render to the entire screen, clear the render target, set the vertex buffer, and set the topology we will use
                 context.SetVertexBuffers<HelloWorldVertex>(_vertices);
                 context.Draw(3);
