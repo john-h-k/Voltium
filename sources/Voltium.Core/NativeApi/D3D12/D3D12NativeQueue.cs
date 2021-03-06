@@ -9,6 +9,7 @@ using System.Diagnostics;
 using Voltium.Core.CommandBuffer;
 using Microsoft.Toolkit.HighPerformance.Extensions;
 using System.Runtime.CompilerServices;
+using Voltium.Core.NativeApi;
 
 namespace Voltium.Core.Devices
 {

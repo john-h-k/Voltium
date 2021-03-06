@@ -12,6 +12,7 @@ using Voltium.Common.Pix;
 using System.Diagnostics.CodeAnalysis;
 using System.Collections;
 using System.Collections.Generic;
+using Voltium.Core.NativeApi;
 
 namespace Voltium.Core.Memory
 {
@@ -137,77 +138,17 @@ namespace Voltium.Core.Memory
         public void RegisterDisposal<T>(T disposable) where T : class?, IDisposable
         {
             static void _Dispose(T disposable) => disposable.Dispose();
+
             RegisterCallback(disposable, &_Dispose);
         }
 
-
-        private struct CallbackData
+        public void RegisterCallback<T>(T state, delegate* <T, void> callback) where T : class?
         {
-            public delegate*<object?, void> FnPtr;
-            public IntPtr ObjectHandle;
-            public IntPtr Event;
-            public IntPtr WaitHandle;
-        }
-
-        internal void RegisterCallback<T>(T state, delegate*<T, void> onFinished) where T : class?
-        {
-            if (IsCompleted)
-            {
-                onFinished(state);
-                return;
-            }
-
-            var hEvent = _device.GetEventForWait(
+            _device.GetEventForWait(
                 stackalloc[] { _fence },
                 stackalloc[] { _reached },
                 WaitMode.WaitForAll
-            );
-
-            var gcHandle = GCHandle.Alloc(state);
-
-            // see below, we store the managed object handle and fnptr target in this little block
-            var context = Helpers.Alloc<CallbackData>();
-            IntPtr newHandle;
-
-            int err = Windows.RegisterWaitForSingleObject(
-                &newHandle,
-                hEvent,
-                &CallbackWrapper,
-                context,
-                Windows.INFINITE,
-                0
-            );
-
-            if (err == 0)
-            {
-                ThrowHelper.ThrowWin32Exception("RegisterWaitForSingleObject failed");
-            }
-
-            context->FnPtr = (delegate*<object?, void>)onFinished;
-            context->ObjectHandle = GCHandle.ToIntPtr(gcHandle);
-            context->Event = hEvent;
-            context->WaitHandle = newHandle;
-        }
-
-        [UnmanagedCallersOnly]
-        private static void CallbackWrapper(void* pContext, byte _)
-        {
-            var context = (CallbackData*)pContext;
-
-            PIXMethods.NotifyWakeFromFenceSignal(context->Event);
-
-            // we know it takes a T which is a ref type. provided no one does something weird and hacky to invoke this method, we can safely assume it is a T
-            delegate*<object?, void> fn = context->FnPtr;
-            var val = GCHandle.FromIntPtr(context->ObjectHandle);
-
-            // the user specified callback
-            fn(val.Target);
-
-            val.Free();
-            Helpers.Free(context);
-
-            // is this ok ???
-            Windows.UnregisterWait(context->WaitHandle);
+            ).RegisterCallback(state, callback);
         }
 
         /// <summary>

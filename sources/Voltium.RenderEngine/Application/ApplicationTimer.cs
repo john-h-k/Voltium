@@ -107,7 +107,7 @@ namespace Voltium.Core
         /// in fixed timestep mode, or immediately, in variable timestep mode
         /// </summary>
         public void Tick(Action update)
-            => Tick(0, (_, _) => update());
+            => Tick(update, static (_, action) => action());
 
 
         /// <summary>
@@ -115,7 +115,7 @@ namespace Voltium.Core
         /// in fixed timestep mode, or immediately, in variable timestep mode
         /// </summary>
         public void Tick(Action<ApplicationTimer> update)
-            => Tick(0, (timer, _) => update(timer));
+            => Tick(update, static (timer, action) => action(timer));
 
         /// <summary>
         /// Ticks the timer, indicating a single frame has elapsed

@@ -19,6 +19,7 @@ using Voltium.Common.Pix;
 using Voltium.Core.CommandBuffer;
 using Voltium.Core.Devices;
 using Voltium.Core.Memory;
+using Voltium.Core.NativeApi;
 using Voltium.Core.Pipeline;
 using Voltium.Core.Queries;
 using Vector = MathSharp.Vector;
@@ -271,23 +272,5 @@ namespace Voltium.Core.Contexts
         public ID3D12Resource* GetResourcePointer(RaytracingAccelerationStructureHandle handle) => _accelarationStructures.GetHandleData(handle).RaytracingAccelerationStructure;
 
         public D3D12_GPU_DESCRIPTOR_HANDLE GetShaderDescriptor(DescriptorHandle handle) => handle.GpuHandle;
-    }
-
-
-    internal interface IDecoderContext
-    {
-
-    }
-
-    internal abstract partial class CommandBufferDecoder<TDecoder, TDecoderContext>
-        where TDecoder : unmanaged, IDecoderContext
-        where TDecoderContext : unmanaged
-    {
-        // Each command in CommandType has a method generated for it
-        // E.g
-        // CommandType.DrawInstanced becomes
-        // private abstract void VisitDrawInstanced(TDecoderContext* pContext, CommandDrawInstanced* pDrawInstanced);
-        // Then, the command buffer walker is generated seperately for each child type, which removes the cost of constant virtual calls
-        // you get in a standard visitor pattern
     }
 }

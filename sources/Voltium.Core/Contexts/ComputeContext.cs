@@ -8,8 +8,8 @@ using Voltium.Core.CommandBuffer;
 using Voltium.Core.Contexts;
 using Voltium.Core.Devices;
 using Voltium.Core.Memory;
+using Voltium.Core.NativeApi;
 using Voltium.Core.Pipeline;
-using Voltium.Core.Pool;
 using Voltium.TextureLoading;
 using Buffer = Voltium.Core.Memory.Buffer;
 

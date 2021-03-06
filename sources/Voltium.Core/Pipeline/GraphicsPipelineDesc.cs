@@ -61,7 +61,7 @@ namespace Voltium.Core.Pipeline
         public InputLayout Inputs;
 
         /// <summary>
-        /// The <see cref="TopologyClass"/> for this type 
+        /// The <see cref="Topology"/> for this type 
         /// </summary>
         public Topology Topology;
 
@@ -122,7 +122,7 @@ namespace Voltium.Core.Pipeline
         /// <summary>
         /// The <see c="TopologyClass"/> for this type 
         /// </summary>
-        public TopologyClass Topology;
+        public Topology Topology;
 
         /// <summary>
         /// The formats of the render targets used

@@ -13,7 +13,6 @@ using Voltium.Core.Contexts;
 using Voltium.Core.Devices;
 using Voltium.Core.Exceptions;
 using Voltium.Core.Memory;
-using Voltium.Core.Pool;
 using Voltium.Core.Queries;
 using Voltium.TextureLoading;
 using Buffer = Voltium.Core.Memory.Buffer;

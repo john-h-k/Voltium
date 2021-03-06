@@ -9,6 +9,7 @@ using Voltium.Core.Memory;
 using static TerraFX.Interop.Windows;
 using static TerraFX.Interop.DXGI_SWAP_CHAIN_FLAG;
 using static TerraFX.Interop.DXGI_SWAP_EFFECT;
+using Voltium.Core.NativeApi;
 
 namespace Voltium.Core.Devices
 {

@@ -6,6 +6,7 @@ using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Devices;
 using Voltium.Core.Memory;
+using Voltium.Core.NativeApi;
 
 namespace Voltium.Core
 {

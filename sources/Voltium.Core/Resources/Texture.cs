@@ -10,18 +10,10 @@ using Voltium.Core.Configuration.Graphics;
 using Voltium.Core.Contexts;
 using Voltium.Core.Devices;
 using Voltium.Core.Memory;
+using Voltium.Core.NativeApi;
 
 namespace Voltium.Core.Memory
 {
-    public readonly struct TextureHandle : IHandle<TextureHandle>
-    {
-        private readonly GenerationalHandle Handle;
-
-        public TextureHandle(GenerationalHandle handle) => Handle = handle;
-
-        public GenerationalHandle Generational => Handle;
-        public TextureHandle FromGenerationHandle(GenerationalHandle handle) => new(handle);
-    }
 
     /// <summary>
     /// Represents an in-memory texture

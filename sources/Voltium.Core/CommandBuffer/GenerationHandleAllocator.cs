@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.CompilerServices;
 using Voltium.Common;
+using Voltium.Core.NativeApi;
 
 namespace Voltium.Core.CommandBuffer
 {

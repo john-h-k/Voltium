@@ -2,6 +2,7 @@ using System;
 using System.Drawing;
 using System.Threading.Tasks;
 using Voltium.Core.Memory;
+using Voltium.Core.NativeApi;
 using static TerraFX.Interop.Windows;
 
 namespace Voltium.Core.Devices

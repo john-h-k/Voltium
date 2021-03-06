@@ -12,14 +12,12 @@ using Voltium.Common.Threading;
 using Voltium.Core.Contexts;
 using Voltium.Core.Devices;
 using Voltium.Core.Memory;
-using Voltium.Core.Pool;
+using Voltium.Core.NativeApi;
 using static TerraFX.Interop.Windows;
 
 namespace Voltium.Core.Devices
 {
-    
-
-    public struct Heap
+    public struct Heap : IDisposable
     {
         internal HeapHandle Handle;
 
@@ -35,6 +33,8 @@ namespace Voltium.Core.Devices
             Info = info;
             _disposal = disposal;
         }
+
+        public void Dispose() => _disposal.Dispose(ref Handle);
     }
 
     public unsafe sealed class CommandQueue : IDisposable
@@ -116,7 +116,11 @@ namespace Voltium.Core.Devices
                     cmdBuffers[i] = new CommandBuffer { FirstPipeline = context.FirstPipeline, Buffer = context.Commands };
                 }
 
-                return _queue.Execute(cmdBuffers, dependencies);
+                var execute = _queue.Execute(cmdBuffers, dependencies);
+
+                _cmdBuffPool.Return(cmdBuffers);
+
+                return execute;
             }
         }
 

@@ -12,7 +12,6 @@ using Voltium.Core.Devices;
 using Voltium.Core.Exceptions;
 using Voltium.Core.Memory;
 using Voltium.Core.Pipeline;
-using Voltium.Core.Pool;
 using Voltium.TextureLoading;
 using static TerraFX.Interop.D3D_PRIMITIVE_TOPOLOGY;
 using Buffer = Voltium.Core.Memory.Buffer;

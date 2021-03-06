@@ -15,8 +15,8 @@ namespace Voltium.Core
         internal static unsafe void Initializer()
         {
 #if ENABLE_EXPERIMENTAL_FEATURES
-            var features = stackalloc[] { Windows.D3D12ExperimentalShaderModels, Windows.D3D12MetaCommand };
-            Guard.ThrowIfFailed(Windows.D3D12EnableExperimentalFeatures(2, features, null, null));
+            var features = stackalloc[] { Windows.D3D12ExperimentalShaderModels };
+            Guard.ThrowIfFailed(Windows.D3D12EnableExperimentalFeatures(1, features, null, null));
 #endif
         }
     }

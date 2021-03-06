@@ -25,6 +25,7 @@ using SysDebug = System.Diagnostics.Debug;
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.Collections.Extensions;
 using Voltium.Core.CommandBuffer;
+using Voltium.Core.NativeApi;
 
 namespace Voltium.Core.Memory
 {

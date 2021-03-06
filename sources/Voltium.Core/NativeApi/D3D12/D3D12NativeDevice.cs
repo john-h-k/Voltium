@@ -16,6 +16,7 @@ using static TerraFX.Interop.D3D12_FEATURE;
 using static TerraFX.Interop.D3D12_PIPELINE_STATE_SUBOBJECT_TYPE;
 using System.Runtime.InteropServices;
 using System.Collections.Immutable;
+using Voltium.Core.NativeApi;
 
 namespace Voltium.Core.Devices
 {
@@ -141,13 +142,13 @@ namespace Voltium.Core.Devices
         public void Wait(ReadOnlySpan<FenceHandle> fences, ReadOnlySpan<ulong> values, WaitMode mode)
             => SetEvent(default, fences, values, mode);
 
-        public IntPtr GetEventForWait(ReadOnlySpan<FenceHandle> fences, ReadOnlySpan<ulong> values, WaitMode mode)
+        public OSEvent GetEventForWait(ReadOnlySpan<FenceHandle> fences, ReadOnlySpan<ulong> values, WaitMode mode)
         {
             var @event = CreateEventW(null, FALSE, FALSE, null);
 
             SetEvent(@event, fences, values, mode);
 
-            return @event;
+            return new (@event);
         }
 
         private void SetEvent(IntPtr hEvent, ReadOnlySpan<FenceHandle> fences, ReadOnlySpan<ulong> values, WaitMode mode)
@@ -229,7 +230,7 @@ namespace Voltium.Core.Devices
 
             void* cpu = null;
 
-            if (access != MemoryAccess.GpuOnly)
+            if (props.IsCPUAccessible)
             {
                 ThrowIfFailed(res.Ptr->Map(0, null, &cpu));
             }

@@ -9,34 +9,12 @@ using System.Threading.Tasks;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Memory;
+using Voltium.Core.NativeApi;
 using Voltium.Core.Pipeline;
 using Voltium.Core.Queries;
 
 namespace Voltium.Core.CommandBuffer
 {
-    [GenerateEquality]
-    public readonly partial struct GenerationalHandle : IEquatable<GenerationalHandle>
-    {
-        public readonly uint Generation;
-        public readonly uint Id;
-
-        public GenerationalHandle(uint generation, uint handle)
-        {
-            Generation = generation;
-            Id = handle;
-        }
-
-        public override int GetHashCode() => (Generation | ((ulong)Id >> 32)).GetHashCode();
-
-        public bool Equals(GenerationalHandle other) => Generation == other.Generation && Id == other.Id;
-    }
-
-    public interface IHandle<THandle> where THandle : struct, IHandle<THandle>
-    {
-        public GenerationalHandle Generational { get; }
-
-        public THandle FromGenerationHandle(GenerationalHandle handle);
-    }
 
     public struct View
     {

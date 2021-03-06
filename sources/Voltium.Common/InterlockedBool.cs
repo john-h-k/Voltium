@@ -2,7 +2,6 @@ using System.Drawing;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Extensions;
-using Voltium.Core.Memory;
 using static TerraFX.Interop.Windows;
 using System.Threading;
 using Voltium.Common.Threading;

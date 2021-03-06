@@ -9,10 +9,10 @@ using Voltium.Core.Memory;
 using Voltium.Core.Infrastructure;
 using Voltium.Core.Pipeline;
 using static TerraFX.Interop.Windows;
-using Voltium.Core.Pool;
 using Voltium.Core.Contexts;
 using System.Runtime.InteropServices;
 using Voltium.Common.Threading;
+using Voltium.Core.NativeApi;
 
 namespace Voltium.Core.Devices
 {
@@ -248,7 +248,7 @@ namespace Voltium.Core.Devices
         /// Returns a <see cref="GraphicsContext"/> used for recording graphical commands
         /// </summary>
         /// <returns>A new <see cref="GraphicsContext"/></returns>
-        public GraphicsContext BeginGraphicsContext(in PipelineStateObject? pso = null, ContextFlags flags = ContextFlags.None)
+        public GraphicsContext BeginGraphicsContext(in PipelineStateObject? pso = null)
         {
             var ctx = new GraphicsContext();
             if (pso is not null)

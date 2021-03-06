@@ -109,7 +109,7 @@ namespace Voltium.Core.Devices
             IntPtr newWait;
             if (RegisterWaitForSingleObject(&newWait, hEvent, &Callback, &callbackContext, (uint)timeout.TotalMilliseconds, 0) == 0)
             {
-                ThrowHelper.ThrowWin32Exception(/* TODO use native */ "RegisterWaitForSingleObject failed [unexpected]");
+                ThrowHelper.ThrowWin32Exception("RegisterWaitForSingleObject failed [unexpected]");
             }
 
 

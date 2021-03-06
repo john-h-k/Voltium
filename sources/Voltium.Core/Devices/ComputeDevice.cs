@@ -13,6 +13,7 @@ using Voltium.Core.Queries;
 using Voltium.Core.Exceptions;
 using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics;
+using Voltium.Core.NativeApi;
 
 namespace Voltium.Core.Devices
 {
@@ -189,12 +190,12 @@ namespace Voltium.Core.Devices
         /// <summary>
         /// Returns a <see cref="CopyContext"/> used for recording copy commands
         /// </summary>
-        public CopyContext BeginCopyContext(ContextFlags flags = ContextFlags.None) => new();
+        public CopyContext BeginCopyContext() => new();
 
         /// <summary>
         /// Returns a <see cref="ComputeContext"/> used for recording compute commands
         /// </summary>
-        public ComputeContext BeginComputeContext(in PipelineStateObject? pso = null, ContextFlags flags = 0)
+        public ComputeContext BeginComputeContext(in PipelineStateObject? pso = null)
         {
             var c = new ComputeContext();
             if (pso is not null)

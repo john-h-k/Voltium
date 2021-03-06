@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using Voltium.Common;
 using Voltium.Core.CommandBuffer;
 using Voltium.Core.Memory;
+using Voltium.Core.NativeApi;
 using Buffer = Voltium.Core.Memory.Buffer;
 
 

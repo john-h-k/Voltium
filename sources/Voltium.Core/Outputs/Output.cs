@@ -17,6 +17,7 @@ using static TerraFX.Interop.Windows;
 using Rectangle = System.Drawing.Rectangle;
 using Voltium.Core.CommandBuffer;
 using Voltium.Core.Configuration.Graphics;
+using Voltium.Core.NativeApi;
 
 namespace Voltium.Core.Devices
 {

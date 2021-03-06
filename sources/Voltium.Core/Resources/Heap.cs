@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using Voltium.Core.Memory;
+using Voltium.Core.NativeApi;
 
 namespace Voltium.Core.Contexts
 {

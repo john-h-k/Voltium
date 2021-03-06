@@ -114,13 +114,7 @@ namespace Voltium.CubeGame
         public Matrix4x4 TexTransform;
     }
 
-    internal sealed class ChunkGeneratorPass : ComputeRenderPass
-    {
-        public override void Record(ComputeContext context, ref Resolver resolver) => throw new NotImplementedException();
-        public override bool Register(ref RenderPassBuilder builder, ref Resolver resolver) => throw new NotImplementedException();
-    }
-
-    internal sealed class WorldPass : GraphicsRenderPass
+    internal sealed class WorldPass
     {
         private GraphicsDevice _device;
         private RenderChunk[] Chunks;
