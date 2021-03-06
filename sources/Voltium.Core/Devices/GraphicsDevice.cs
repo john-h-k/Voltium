@@ -236,28 +236,6 @@ namespace Voltium.Core.Devices
         public CommandQueue ComputeQueue { get; }
         public CommandQueue CopyQueue { get; }
 
-        public void GetTextureInformation(in TextureDesc desc, out ulong sizeInBytes, out ulong alignment)
-        {
-            InternalAllocDesc alloc;
-            Allocator.CreateAllocDesc(desc, &alloc, ResourceState.Common, AllocFlags.None);
-            sizeInBytes = alloc.Size;
-            alignment = alloc.Alignment;
-        }
-
-        /// <summary>
-        /// Returns a <see cref="GraphicsContext"/> used for recording graphical commands
-        /// </summary>
-        /// <returns>A new <see cref="GraphicsContext"/></returns>
-        public GraphicsContext BeginGraphicsContext(in PipelineStateObject? pso = null)
-        {
-            var ctx = new GraphicsContext();
-            if (pso is not null)
-            {
-                ctx.SetPipelineState(pso.Value);
-            }
-            return ctx;
-        }
-
 
         /// <inheritdoc cref="IDisposable"/>
         public override void Dispose()

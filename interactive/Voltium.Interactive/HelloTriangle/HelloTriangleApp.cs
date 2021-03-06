@@ -86,9 +86,15 @@ namespace Voltium.Interactive.HelloTriangle
 
         public override void OnResize(Size newOutputSize) => _output.Resize(newOutputSize);
         public override void Update(ApplicationTimer timer) { /* This app doesn't do any updating */ }
+
+        private GraphicsContext _context = new();
         public unsafe override void Render()
         {
-            var context = _device.BeginGraphicsContext(_pso);
+            var context = _context;
+
+            context.Reset();
+
+            context.SetPipelineState(_pso);
 
             // We need to transition the back buffer to ResourceState.RenderTarget so we can draw to it
             using (context.ScopedBarrier(ResourceTransition.Create(_output.OutputBuffer, ResourceState.Present, ResourceState.RenderTarget)))

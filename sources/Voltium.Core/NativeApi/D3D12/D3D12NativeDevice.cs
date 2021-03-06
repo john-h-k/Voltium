@@ -22,16 +22,20 @@ namespace Voltium.Core.Devices
 {
     public unsafe class D3D12NativeDevice : INativeDevice
     {
-        private const uint ShaderVisibleDescriptorCount = 1024 * 512;
+        private const uint ShaderVisibleDescriptorCount = 1024 * 512, ShaderVisibleSamplerCount = 1024;
 
         private UniqueComPtr<ID3D12Device5> _device;
         private GenerationalHandleMapper _mapper;
         private ValueList<FreeBlock> _freeList;
         private int _resDescriptorSize, _rtvDescriptorSize, _dsvDescriptorSize;
         private UniqueComPtr<ID3D12DescriptorHeap> _shaderDescriptors;
+        private UniqueComPtr<ID3D12DescriptorHeap> _samplerDescriptors;
         private D3D12_CPU_DESCRIPTOR_HANDLE _firstShaderDescriptor;
         private D3D12_GPU_DESCRIPTOR_HANDLE _firstShaderDescriptorGpu;
+        private D3D12_CPU_DESCRIPTOR_HANDLE _firstSamplerDescriptor;
+        private D3D12_GPU_DESCRIPTOR_HANDLE _firstSamplerDescriptorGpu;
         private uint _numShaderDescriptors;
+        private uint _numSamplerDescriptors;
 
         public D3D12NativeDevice(D3D_FEATURE_LEVEL fl)
         {
@@ -72,6 +76,21 @@ namespace Voltium.Core.Devices
             _firstShaderDescriptor = shaderVisible.Ptr->GetCPUDescriptorHandleForHeapStart();
             _firstShaderDescriptorGpu = shaderVisible.Ptr->GetGPUDescriptorHandleForHeapStart();
             _numShaderDescriptors = desc.NumDescriptors;
+
+            UniqueComPtr<ID3D12DescriptorHeap> shaderVisibleSamplers = default;
+            desc = new D3D12_DESCRIPTOR_HEAP_DESC
+            {
+                NumDescriptors = ShaderVisibleDescriptorCount,
+                Type = D3D12_DESCRIPTOR_HEAP_TYPE.D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER,
+                Flags = D3D12_DESCRIPTOR_HEAP_FLAGS.D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE
+            };
+
+            ThrowIfFailed(device.Ptr->CreateDescriptorHeap(&desc, shaderVisibleSamplers.Iid, (void**)&shaderVisibleSamplers));
+
+            _samplerDescriptors = shaderVisible;
+            _firstSamplerDescriptor = shaderVisible.Ptr->GetCPUDescriptorHandleForHeapStart();
+            _firstSamplerDescriptorGpu = shaderVisible.Ptr->GetGPUDescriptorHandleForHeapStart();
+            _numSamplerDescriptors = desc.NumDescriptors;
 
             _freeList = new(1, ArrayPool<FreeBlock>.Shared);
 
