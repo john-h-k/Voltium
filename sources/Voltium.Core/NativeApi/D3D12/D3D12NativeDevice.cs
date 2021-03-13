@@ -17,9 +17,13 @@ using static TerraFX.Interop.D3D12_PIPELINE_STATE_SUBOBJECT_TYPE;
 using System.Runtime.InteropServices;
 using System.Collections.Immutable;
 using Voltium.Core.NativeApi;
+using Voltium.Core.NativeApi.D3D12;
 
 namespace Voltium.Core.Devices
 {
+    /// <summary>
+    /// The native device type used to interface with a GPU
+    /// </summary>
     public unsafe class D3D12NativeDevice : INativeDevice
     {
         private const uint ShaderVisibleDescriptorCount = 1024 * 512, ShaderVisibleSamplerCount = 1024;
@@ -37,6 +41,10 @@ namespace Voltium.Core.Devices
         private uint _numShaderDescriptors;
         private uint _numSamplerDescriptors;
 
+        /// <summary>
+        /// Create a new D3D12 device
+        /// </summary>
+        /// <param name="fl">The <see cref="D3D_FEATURE_LEVEL"/> this device requires</param>
         public D3D12NativeDevice(D3D_FEATURE_LEVEL fl)
         {
             _mapper = new(false);
@@ -94,7 +102,6 @@ namespace Voltium.Core.Devices
 
             _freeList = new(1, ArrayPool<FreeBlock>.Shared);
 
-
             CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, out D3D12_FEATURE_DATA_D3D12_OPTIONS opts);
             CheckFeatureSupport(D3D12_FEATURE_ARCHITECTURE1, out D3D12_FEATURE_DATA_ARCHITECTURE1 arch1);
             CheckFeatureSupport(D3D12_FEATURE_GPU_VIRTUAL_ADDRESS_SUPPORT, out D3D12_FEATURE_DATA_GPU_VIRTUAL_ADDRESS_SUPPORT va);
@@ -107,6 +114,7 @@ namespace Voltium.Core.Devices
             };
         }
 
+        /// <inheritdoc />
         public DeviceInfo Info { get; private set; }
 
         private struct FreeBlock
@@ -118,8 +126,10 @@ namespace Voltium.Core.Devices
         internal ID3D12Device5* GetDevice() => _device.Ptr;
         internal D3D12Fence GetFence(FenceHandle fence) => _mapper.GetInfo(fence);
 
-        public INativeQueue CreateQueue(DeviceContext context) => new D3D12NativeQueue(this, context);
+        /// <inheritdoc />
+        public INativeQueue CreateQueue(ExecutionEngine context) => new D3D12NativeQueue(this, context);
 
+        /// <inheritdoc />
         public FenceHandle CreateFromPreexisting(ID3D12Fence* pFence)
         {
             var fence = new D3D12Fence
@@ -131,6 +141,7 @@ namespace Voltium.Core.Devices
             return _mapper.Create(fence);
         }
 
+        /// <inheritdoc />
         public TextureHandle CreateFromPreexisting(ID3D12Resource* pTexture)
         {
             var desc = pTexture->GetDesc();
@@ -147,6 +158,7 @@ namespace Voltium.Core.Devices
             return _mapper.Create(texture);
         }
 
+        /// <inheritdoc />
         public (ulong Alignment, ulong Length) GetTextureAllocationInfo(in TextureDesc desc)
         {
             GetResourceDesc(desc, out var native, out _);
@@ -156,11 +168,15 @@ namespace Voltium.Core.Devices
             return (info.Alignment, info.SizeInBytes);
         }
 
+        /// <inheritdoc />
 
         public ulong GetCompletedValue(FenceHandle fence) => _mapper.GetInfo(fence).Fence->GetCompletedValue();
+        
+        /// <inheritdoc />
         public void Wait(ReadOnlySpan<FenceHandle> fences, ReadOnlySpan<ulong> values, WaitMode mode)
             => SetEvent(default, fences, values, mode);
 
+        /// <inheritdoc />
         public OSEvent GetEventForWait(ReadOnlySpan<FenceHandle> fences, ReadOnlySpan<ulong> values, WaitMode mode)
         {
             var @event = CreateEventW(null, FALSE, FALSE, null);
@@ -208,6 +224,7 @@ namespace Voltium.Core.Devices
             ArrayPool<IntPtr>.Shared.Return(nativeFences);
         }
 
+        /// <inheritdoc />
         public FenceHandle CreateFence(ulong initialValue, FenceFlags flags = FenceFlags.None)
         {
             UniqueComPtr<ID3D12Fence> res = default;
@@ -223,12 +240,16 @@ namespace Voltium.Core.Devices
             return _mapper.Create(fence);
         }
 
+        /// <inheritdoc />
         public void DisposeFence(FenceHandle fence) => _mapper.GetAndFree(fence).Fence->Release();
 
 
+        /// <inheritdoc />
         public void* Map(BufferHandle buffer) => _mapper.GetInfo(buffer).CpuAddress;
+        /// <inheritdoc />
         public void Unmap(BufferHandle buffer) { }
 
+        /// <inheritdoc />
         public BufferHandle AllocateBuffer(in BufferDesc desc, MemoryAccess access)
         {
             UniqueComPtr<ID3D12Resource> res = default;
@@ -265,6 +286,7 @@ namespace Voltium.Core.Devices
             return _mapper.Create(buffer);
         }
 
+        /// <inheritdoc />
         public BufferHandle AllocateBuffer(in BufferDesc desc, HeapHandle heap, ulong offset)
         {
             UniqueComPtr<ID3D12Resource> res = default;
@@ -302,6 +324,7 @@ namespace Voltium.Core.Devices
             return _mapper.Create(buffer);
         }
 
+        /// <inheritdoc />
         public RaytracingAccelerationStructureHandle AllocateRaytracingAccelerationStructure(ulong length)
         {
             UniqueComPtr<ID3D12Resource> res = default;
@@ -330,6 +353,7 @@ namespace Voltium.Core.Devices
             return _mapper.Create(buffer);
         }
 
+        /// <inheritdoc />
         public RaytracingAccelerationStructureHandle AllocateRaytracingAccelerationStructure(ulong length, HeapHandle heap, ulong offset)
         {
             UniqueComPtr<ID3D12Resource> res = default;
@@ -359,6 +383,7 @@ namespace Voltium.Core.Devices
         }
 
 
+        /// <inheritdoc />
         public TextureHandle AllocateTexture(in TextureDesc desc, ResourceState initial)
         {
             GetResourceDesc(desc, out var nativeDesc, out var clearValue);
@@ -390,6 +415,7 @@ namespace Voltium.Core.Devices
             return _mapper.Create(texture);
         }
 
+        /// <inheritdoc />
         public TextureHandle AllocateTexture(in TextureDesc desc, ResourceState initial, HeapHandle heap, ulong offset)
         {
             GetResourceDesc(desc, out var nativeDesc, out var clearValue);
@@ -421,6 +447,7 @@ namespace Voltium.Core.Devices
             return _mapper.Create(texture);
         }
 
+        /// <inheritdoc />
         public HeapHandle CreateHeap(ulong size, in HeapInfo info)
         {
             UniqueComPtr<ID3D12Heap> res = default;
@@ -445,6 +472,7 @@ namespace Voltium.Core.Devices
             return _mapper.Create(heap);
         }
 
+        /// <inheritdoc />
         public DescriptorSetHandle CreateDescriptorSet(DescriptorType type, uint count)
         {
             for (var i = 0; i < _freeList.Length; i++)
@@ -466,6 +494,7 @@ namespace Voltium.Core.Devices
             return default;
         }
 
+        /// <inheritdoc />
         public void DisposeDescriptorSet(DescriptorSetHandle handle)
         {
             var (offset, count, _) = Helpers.Unpack2x32To2x24_16(handle.Generational.Generation, handle.Generational.Id);
@@ -475,6 +504,7 @@ namespace Voltium.Core.Devices
             _freeList.Add(block);
         }
 
+        /// <inheritdoc />
         public void UpdateDescriptors(ViewSetHandle viewSet, uint firstView, DescriptorSetHandle descriptors, uint firstDescriptor, uint count)
         {
             var views = _mapper.GetInfo(viewSet);
@@ -516,8 +546,10 @@ namespace Voltium.Core.Devices
             _device.Ptr->CopyDescriptorsSimple(count, dest, GetCbv(views.FirstShaderResources, firstView, views.Length), D3D12_DESCRIPTOR_HEAP_TYPE.D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
         }
 
+        /// <inheritdoc />
         public void CopyDescriptors(DescriptorSetHandle source, uint firstSource, DescriptorSetHandle dest, uint firstDest, uint count) => throw new NotImplementedException();
 
+        /// <inheritdoc />
         public ViewSetHandle CreateViewSet(uint viewCount)
         {
             var desc = new D3D12_DESCRIPTOR_HEAP_DESC
@@ -555,6 +587,7 @@ namespace Voltium.Core.Devices
         }
 
 
+        /// <inheritdoc />
         public void DisposeViewSet(ViewSetHandle handle)
         {
             var info = _mapper.GetAndFree(handle);
@@ -573,6 +606,7 @@ namespace Voltium.Core.Devices
             }
         }
 
+        /// <inheritdoc />
         public ViewHandle CreateView(ViewSetHandle viewHeap, uint index, BufferHandle handle)
         {
             var views = _mapper.GetInfo(viewHeap);
@@ -610,8 +644,10 @@ namespace Voltium.Core.Devices
             return _mapper.Create(view);
         }
 
+        /// <inheritdoc />
         public ViewHandle CreateView(ViewSetHandle viewHeap, uint index, BufferHandle handle, in BufferViewDesc desc) => throw new NotImplementedException();
 
+        /// <inheritdoc />
         public ViewHandle CreateView(ViewSetHandle viewHeap, uint index, TextureHandle handle)
         {
             var views = _mapper.GetInfo(viewHeap);
@@ -657,7 +693,9 @@ namespace Voltium.Core.Devices
             return _mapper.Create(view);
         }
 
+        /// <inheritdoc />
         public ViewHandle CreateView(ViewSetHandle viewHeap, uint index, TextureHandle handle, in TextureViewDesc desc) => throw new NotImplementedException();
+        /// <inheritdoc />
         public ViewHandle CreateView(ViewSetHandle viewHeap, uint index, RaytracingAccelerationStructureHandle handle)
         {
             var views = _mapper.GetInfo(viewHeap);
@@ -685,6 +723,7 @@ namespace Voltium.Core.Devices
         }
 
 
+        /// <inheritdoc />
         public PipelineHandle CreatePipeline(in RootSignatureHandle rootSignature, in ComputePipelineDesc pipelineDesc)
         {
             var rootSig = _mapper.GetInfo(rootSignature);
@@ -784,6 +823,7 @@ namespace Voltium.Core.Devices
         }
 
 
+        /// <inheritdoc />
         public PipelineHandle CreatePipeline(in RootSignatureHandle rootSignature, in GraphicsPipelineDesc desc)
         {
             var builder = PipelineStreamBuilder.Create();
@@ -971,8 +1011,10 @@ namespace Voltium.Core.Devices
         }
 
         //public PipelineHandle CreatePipeline(in RaytracingPipelineDesc desc) => throw new NotImplementedException();
+        /// <inheritdoc />
         public PipelineHandle CreatePipeline(in RootSignatureHandle rootSignature, in MeshPipelineDesc desc) => throw new NotImplementedException();
 
+        /// <inheritdoc />
         public QuerySetHandle CreateQuerySet(QuerySetType type, uint length)
         {
             var desc = new D3D12_QUERY_HEAP_DESC
@@ -994,6 +1036,7 @@ namespace Voltium.Core.Devices
             return _mapper.Create(queryHeap);
         }
 
+        /// <inheritdoc />
         public RootSignatureHandle CreateRootSignature(ReadOnlySpan<RootParameter> rootParameters, ReadOnlySpan<StaticSampler> staticSamplers, RootSignatureFlags flags)
         {
             using var rootParams = RentedArray<D3D12_ROOT_PARAMETER1>.Create(rootParameters.Length);
@@ -1141,18 +1184,31 @@ namespace Voltium.Core.Devices
             }
         }
 
+        /// <inheritdoc />
         public void DisposeBuffer(BufferHandle handle) => _mapper.GetAndFree(handle).Buffer->Release();
+        /// <inheritdoc />
         public void DisposeHeap(HeapHandle handle) => _mapper.GetAndFree(handle).Heap->Release();
+        /// <inheritdoc />
         public void DisposePipeline(PipelineHandle handle) => _mapper.GetAndFree(handle).PipelineState->Release();
+        /// <inheritdoc />
         public void DisposeQuerySet(QuerySetHandle handle) => _mapper.GetAndFree(handle).QueryHeap->Release();
+        /// <inheritdoc />
         public void DisposeRaytracingAccelerationStructure(RaytracingAccelerationStructureHandle handle) => _mapper.GetAndFree(handle).RaytracingAccelerationStructure->Release();
+        /// <inheritdoc />
         public void DisposeRootSignature(RootSignatureHandle handle) => _mapper.GetAndFree(handle).RootSignature->Release();
+        /// <inheritdoc />
         public void DisposeTexture(TextureHandle handle) => _mapper.GetAndFree(handle).Texture->Release();
+        /// <inheritdoc />
         public void DisposeView(ViewHandle handle) => _mapper.GetAndFree(handle);
 
+        /// <inheritdoc />
         public IndirectCommandHandle CreateIndirectCommand(in RootSignature rootSig, ReadOnlySpan<IndirectArgument> arguments, uint byteStride) => throw new NotImplementedException();
+        /// <inheritdoc />
         public IndirectCommandHandle CreateIndirectCommand(in IndirectArgument arguments, uint byteStride) => throw new NotImplementedException();
+        /// <inheritdoc />
+        public void DisposeIndirectCommand(IndirectCommandHandle handle) => throw new NotImplementedException();
 
+        /// <inheritdoc />
         public void Dispose()
         {
             _device.Dispose();

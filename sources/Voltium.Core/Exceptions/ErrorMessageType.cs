@@ -7,6 +7,7 @@ using static TerraFX.Interop.D3D12_MESSAGE_ID;
 
 namespace Voltium.Core.Devices
 {
+#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
     public enum GraphicsExceptionMessageType
     {
         Unknown = D3D12_MESSAGE_ID_UNKNOWN,

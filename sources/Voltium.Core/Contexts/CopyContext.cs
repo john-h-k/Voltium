@@ -19,8 +19,14 @@ using Buffer = Voltium.Core.Memory.Buffer;
 
 namespace Voltium.Core
 {
+    /// <summary>
+    /// Indicates the given method is illegal within a render pass
+    /// </summary>
     [AttributeUsage(AttributeTargets.Method)]
     public sealed class IllegalRenderPassMethodAttribute : Attribute { }
+    /// <summary>
+    /// Indicates the given method is illegal within a bundle
+    /// </summary>
     [AttributeUsage(AttributeTargets.Method)]
     public sealed class IllegalBundleMethodAttribute : Attribute { }
 
@@ -50,8 +56,11 @@ namespace Voltium.Core
     /// </summary>
     public unsafe partial class CopyContext : GpuContext
     {
-        public void FlushBarriers() { }
+        private protected void FlushBarriers() { }
 
+        /// <summary>
+        /// Creates a new <see cref="CopyContext"/>
+        /// </summary>
         public CopyContext() : base()
         {
 
@@ -138,6 +147,9 @@ namespace Voltium.Core
             _encoder.EmitEmpty(CommandType.EndConditionalRendering);
         }
 
+        /// <summary>
+        /// Represents a scoped query
+        /// </summary>
         public ref struct Query
         {
             internal CopyContext _context;
@@ -145,17 +157,33 @@ namespace Voltium.Core
             internal QueryType _query;
             internal uint _index;
 
-            public void EndQuery() => Dispose();
+            /// <summary>
+            /// Ends the scoped query
+            /// </summary>
             public void Dispose()
             {
                 _context.EndQuery(_queryHeap, _query, _index);
             }
         }
 
+        /// <summary>
+        /// Begins a scoped <see cref="Query"/>
+        /// </summary>
+        /// <typeparam name="TQuery">The type of the query to begin</typeparam>
+        /// <param name="heap">The <see cref="QuerySet"/> this query is within</param>
+        /// <param name="index">The index within <paramref name="heap"/> that this query is</param>
+        /// <returns>A new <see cref="Query"/> which can be disposed to end the scoped query</returns>
         [IllegalBundleMethod]
         public Query ScopedQuery<TQuery>(in QuerySet heap, uint index) where TQuery : struct, IQueryType
             => ScopedQuery(heap, default(TQuery).Type, index);
 
+        /// <summary>
+        /// Begins a scoped <see cref="Query"/>
+        /// </summary>
+        /// <param name="heap">The <see cref="QuerySet"/> this query is within</param>
+        /// <param name="type">The type of the query to begin</param>
+        /// <param name="index">The index within <paramref name="heap"/> that this query is</param>
+        /// <returns>A new <see cref="Query"/> which can be disposed to end the scoped query</returns>
         [IllegalBundleMethod]
         public Query ScopedQuery(in QuerySet heap, QueryType type, uint index)
         {
@@ -163,6 +191,12 @@ namespace Voltium.Core
             return new() { _context = this, _queryHeap = heap, _index = index, _query = type };
         }
 
+        /// <summary>
+        /// Begins a query
+        /// </summary>
+        /// <param name="heap">The <see cref="QuerySet"/> this query is within</param>
+        /// <param name="type">The type of the query to begin</param>
+        /// <param name="index">The index within <paramref name="heap"/> that this query is</param>
         [IllegalBundleMethod]
         public void BeginQuery(in QuerySet heap, QueryType type, uint index)
         {
@@ -176,6 +210,12 @@ namespace Voltium.Core
             _encoder.Emit(&command);
         }
 
+        /// <summary>
+        /// Ends a query
+        /// </summary>
+        /// <param name="heap">The <see cref="QuerySet"/> this query is within</param>
+        /// <param name="type">The type of the query to end</param>
+        /// <param name="index">The index within <paramref name="heap"/> that this query is</param>
         [IllegalBundleMethod]
         public void EndQuery(in QuerySet heap, QueryType type, uint index)
         {
@@ -189,6 +229,11 @@ namespace Voltium.Core
             _encoder.Emit(&command);
         }
 
+        /// <summary>
+        /// Queries the queue timestamp
+        /// </summary>
+        /// <param name="heap">The <see cref="QuerySet"/> this query is within</param>
+        /// <param name="index">The index within <paramref name="heap"/> that this query is</param>
         [IllegalBundleMethod]
         public void QueryTimestamp(in QuerySet heap, uint index)
         {
@@ -201,10 +246,27 @@ namespace Voltium.Core
             _encoder.Emit(&command);
         }
 
+        /// <summary>
+        /// Resolves opaque query set from a <see cref="QuerySet"/> to a <see cref="Buffer"/>
+        /// </summary>
+        /// <typeparam name="TQuery">The type of the query to resolve</typeparam>
+        /// <param name="heap">The <see cref="QuerySet"/> to resolve from</param>
+        /// <param name="queries">The range of queries within <paramref name="heap"/> to resolve</param>
+        /// <param name="dest">The buffer to resolve the queries to</param>
+        /// <param name="offset">The offset, in bytes, where the queries should be resolved to</param>
         [IllegalBundleMethod]
         public void ResolveQuery<TQuery>(in QuerySet heap, Range queries, [RequiresResourceState(ResourceState.CopyDestination)] in Buffer dest, uint offset = 0) where TQuery : struct, IQueryType
             => ResolveQuery(heap, default(TQuery).Type, queries, dest, offset);
 
+
+        /// <summary>
+        /// Resolves opaque query set from a <see cref="QuerySet"/> to a <see cref="Buffer"/>
+        /// </summary>
+        /// <param name="heap">The <see cref="QuerySet"/> to resolve from</param>
+        /// <param name="type">The type of the query to resolve</param>
+        /// <param name="queries">The range of queries within <paramref name="heap"/> to resolve</param>
+        /// <param name="dest">The buffer to resolve the queries to</param>
+        /// <param name="offset">The offset, in bytes, where the queries should be resolved to</param>
         [IllegalBundleMethod]
         public void ResolveQuery(in QuerySet heap, QueryType type, Range queries, [RequiresResourceState(ResourceState.CopyDestination)] in Buffer dest, uint offset = 0)
         {
@@ -221,20 +283,6 @@ namespace Voltium.Core
 
             _encoder.Emit(&command);
         }
-
-
-
-        public struct BufferFootprint
-        {
-            internal D3D12_SUBRESOURCE_FOOTPRINT Footprint;
-
-            public DataFormat Format { get => (DataFormat)Footprint.Format; set => Footprint.Format = (DXGI_FORMAT)value; }
-            public uint Width { get => Footprint.Width; set => Footprint.Width = value; }
-            public uint Height { get => Footprint.Height; set => Footprint.Height = value; }
-            public uint Depth { get => Footprint.Depth; set => Footprint.Depth = value; }
-            public uint RowPitch { get => Footprint.RowPitch; set => Footprint.RowPitch = value; }
-        }
-
 
         /// <summary>
         /// Copy a subresource
@@ -546,8 +594,18 @@ namespace Voltium.Core
         }
     }
 
+    /// <summary>
+    /// Represents a transition of a resource between 2 <see cref="ResourceState"/>s
+    /// </summary>
     public struct ResourceTransition
     {
+        /// <summary>
+        /// Creates a new <see cref="ResourceTransition"/> from a <see cref="Buffer"/>
+        /// </summary>
+        /// <param name="buff">The <see cref="Buffer"/> to transition</param>
+        /// <param name="before">The <see cref="ResourceState"/> of the resource prior to transitioning</param>
+        /// <param name="after">The <see cref="ResourceState"/> of the resource after transitioning</param>
+        /// <returns>A new <see cref="ResourceTransition"/></returns>
         public static ResourceTransition Create(in Buffer buff, ResourceState before, ResourceState after)
             => new()
             {
@@ -564,6 +622,14 @@ namespace Voltium.Core
             };
 
 
+        /// <summary>
+        /// Creates a new <see cref="ResourceTransition"/> from a <see cref="Buffer"/>
+        /// </summary>
+        /// <param name="tex">The <see cref="Buffer"/> to transition</param>
+        /// <param name="before">The <see cref="ResourceState"/> of the resource prior to transitioning</param>
+        /// <param name="after">The <see cref="ResourceState"/> of the resource after transitioning</param>
+        /// <param name="subresource">The subresource to transition</param>
+        /// <returns>A new <see cref="ResourceTransition"/></returns>
         public static ResourceTransition Create(in Texture tex, ResourceState before, ResourceState after, uint subresource = uint.MaxValue)
             => new()
             {

@@ -1,8 +1,11 @@
-﻿using System;
+using System;
 using Voltium.Core.NativeApi;
 
 namespace Voltium.Core.Memory
 {
+    /// <summary>
+    /// Represents an opaque acceleration structure used for raytracing
+    /// </summary>
     public unsafe struct RaytracingAccelerationStructure : IDisposable
     {
         internal RaytracingAccelerationStructure(ulong length, RaytracingAccelerationStructureHandle handle, Disposal<RaytracingAccelerationStructureHandle> disposal)
@@ -17,9 +20,10 @@ namespace Voltium.Core.Memory
         /// </summary>
         public readonly ulong Length;
 
-        public RaytracingAccelerationStructureHandle Handle;
+        internal RaytracingAccelerationStructureHandle Handle;
         private Disposal<RaytracingAccelerationStructureHandle> _dispose;
 
+        /// <inheritdoc/>
         public void Dispose() => _dispose.Dispose(ref Handle);
     }
 

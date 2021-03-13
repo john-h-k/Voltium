@@ -7,31 +7,68 @@ using Voltium.Common;
 
 namespace Voltium.Core.NativeApi
 {
+    /// <summary>
+    /// A handle with a generation and an ID
+    /// </summary>
     [GenerateEquality]
     public readonly partial struct GenerationalHandle : IEquatable<GenerationalHandle>
     {
+        /// <summary>
+        /// The generation of this handle
+        /// </summary>
         public readonly uint Generation;
+
+        /// <summary>
+        /// The ID of this handle
+        /// </summary>
         public readonly uint Id;
 
-        public GenerationalHandle(uint generation, uint handle)
+        /// <summary>
+        /// Creates a new <see cref="GenerationalHandle"/>
+        /// </summary>
+        /// <param name="generation">The generation of this handle</param>
+        /// <param name="id">The ID of this handle</param>
+        public GenerationalHandle(uint generation, uint id)
         {
             Generation = generation;
-            Id = handle;
+            Id = id;
         }
 
+        /// <summary>
+        /// Returns a hash code for this <see cref="GenerationalHandle"/>
+        /// </summary>
+        /// <returns>The hash code of this handle</returns>
         public override int GetHashCode() => (Generation | ((ulong)Id >> 32)).GetHashCode();
 
+        /// <summary>
+        /// Determines whether 2 handles have the same generation and ID
+        /// </summary>
+        /// <param name="other">The other <see cref="GenerationalHandle"/> to compare this one to</param>
+        /// <returns>Whether the 2 handles have the same generation and ID</returns>
         public bool Equals(GenerationalHandle other) => Generation == other.Generation && Id == other.Id;
     }
 
+    /// <summary>
+    /// Represents an opaque handle
+    /// </summary>
+    /// <typeparam name="THandle">The type of the handle</typeparam>
     public interface IHandle<THandle> where THandle : struct, IHandle<THandle>
     {
+        /// <summary>
+        /// The <see cref="GenerationalHandle"/> for this handle. This can't be inspected by user code
+        /// </summary>
         public GenerationalHandle Generational { get; }
 
+        /// <summary>
+        /// Creates a new <typeparamref name="THandle"/> from a given <see cref="GenerationalHandle"/>
+        /// </summary>
+        /// <param name="handle">The <see cref="GenerationalHandle"/> to create this from</param>
+        /// <returns>A new <typeparamref name="THandle"/></returns>
         public THandle FromGenerationHandle(GenerationalHandle handle);
     }
 
 
+#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
     [GenerateEquality]
     public readonly partial struct IndirectCommandHandle : IHandle<IndirectCommandHandle>
     {

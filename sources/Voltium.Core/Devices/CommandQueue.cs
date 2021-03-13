@@ -41,13 +41,13 @@ namespace Voltium.Core.Devices
     {
         public ulong? QueueFrequency { get; }
         public ulong CpuFrequency { get; }
-        public DeviceContext Context { get; }
+        public ExecutionEngine Context { get; }
 
         private INativeQueue _queue;
 
         public INativeQueue Native => _queue;
 
-        public CommandQueue(INativeQueue queue, DeviceContext context, ArrayPool<CommandBuffer>? cmdBufPool = null)
+        public CommandQueue(INativeQueue queue, ExecutionEngine context, ArrayPool<CommandBuffer>? cmdBufPool = null)
         {
             _queue = queue;
             Context = context;

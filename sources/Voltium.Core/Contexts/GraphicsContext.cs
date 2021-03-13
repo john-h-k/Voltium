@@ -29,6 +29,9 @@ namespace Voltium.Core
         Shade4x4 = D3D12_SHADING_RATE.D3D12_SHADING_RATE_4X4
     }
 
+    /// <summary>
+    /// 
+    /// </summary>
     public enum Combiner
     {
         Passthrough = D3D12_SHADING_RATE_COMBINER.D3D12_SHADING_RATE_COMBINER_PASSTHROUGH,

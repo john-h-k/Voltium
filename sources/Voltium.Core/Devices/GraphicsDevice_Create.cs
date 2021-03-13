@@ -22,9 +22,9 @@ namespace Voltium.Core.Devices
 
             if (_device is D3D12NativeDevice d3d12)
             {
-                GraphicsQueue = new CommandQueue(new D3D12NativeQueue(d3d12, DeviceContext.Graphics), DeviceContext.Graphics);
-                ComputeQueue = new CommandQueue(new D3D12NativeQueue(d3d12, DeviceContext.Compute), DeviceContext.Compute);
-                CopyQueue = new CommandQueue(new D3D12NativeQueue(d3d12, DeviceContext.Copy), DeviceContext.Copy);
+                GraphicsQueue = new CommandQueue(new D3D12NativeQueue(d3d12, ExecutionEngine.Graphics), ExecutionEngine.Graphics);
+                ComputeQueue = new CommandQueue(new D3D12NativeQueue(d3d12, ExecutionEngine.Compute), ExecutionEngine.Compute);
+                CopyQueue = new CommandQueue(new D3D12NativeQueue(d3d12, ExecutionEngine.Copy), ExecutionEngine.Copy);
             }
             else
             {

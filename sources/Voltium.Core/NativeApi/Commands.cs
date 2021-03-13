@@ -8,177 +8,384 @@ using System.Text;
 using System.Threading.Tasks;
 using TerraFX.Interop;
 using Voltium.Common;
-using Voltium.Core.Memory;
 using Voltium.Core.NativeApi;
 using Voltium.Core.Pipeline;
 using Voltium.Core.Queries;
 
 namespace Voltium.Core.CommandBuffer
 {
-
-    public struct View
+    /// <summary>
+    /// The pipeline bind point
+    /// </summary>
+    public enum BindPoint
     {
-        internal ViewHandle Handle;
-        private Disposal<ViewHandle> _dispose;
+        /// <summary>
+        /// The graphics pipeline
+        /// </summary>
+        Graphics,
 
-        internal View(ViewHandle handle, Disposal<ViewHandle> dispose)
-        {
-            Handle = handle;
-            _dispose = dispose;
-        }
-
-        public void Dispose() => _dispose.Dispose(ref Handle);
+        /// <summary>
+        /// The compute pipeline
+        /// </summary>
+        Compute
     }
 
-    public struct RenderPass { }
-
-
-    public enum BindPoint { Graphics, Compute }
-
+    /// <summary>
+    /// Provides information for tooling about commands
+    /// </summary>
     [AttributeUsage(AttributeTargets.Field)]
     public sealed class CommandInfoAttribute : Attribute
     {
-        public CommandInfoAttribute(RequiredQueueType type, CommandFlags flags)
+        public CommandInfoAttribute(RequiredQueueType type, CommandFlags flags = CommandFlags.None)
         {
 
         }
     }
 
+    /// <summary>
+    /// The queue type required for a command
+    /// </summary>
     public enum RequiredQueueType
     {
+        /// <summary>
+        /// A copy queue is required
+        /// </summary>
         Copy = 1,
+
+        /// <summary>
+        /// A compute queue is required
+        /// </summary>
         Compute = 2,
+
+        /// <summary>
+        /// A graphics queue is required
+        /// </summary>
         Graphics = 4
     }
 
+    /// <summary>
+    /// Flags about a command
+    /// </summary>
     public enum CommandFlags
     {
-        AllowedInRenderPass = 1,
-        AllowedInBundle = 2,
-        DispatchesWork = 4
+        /// <summary>
+        /// No flags
+        /// </summary>
+        None = 0,
+
+        /// <summary>
+        /// This command is not allowed in pre-processed command buffer
+        /// </summary>
+        ForbiddenInBundle = 1,
+
+        /// <summary>
+        /// This command is not allowed within a render pass
+        /// </summary>
+        ForbiddenInRenderPass = 2
     }
 
+    /// <summary>
+    /// The type of a command buffer command
+    /// </summary>
     public enum CommandType : ulong
     {
         // Debug/profiling
-        [CommandInfo(RequiredQueueType.Copy, CommandFlags.AllowedInBundle | CommandFlags.AllowedInRenderPass)]
+
+        /// <summary>
+        /// Inserts a metadata marker into the command buffer. This is for tooling only
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Copy)]
         InsertMarker,
 
-        [CommandInfo(RequiredQueueType.Copy, CommandFlags.AllowedInBundle | CommandFlags.AllowedInRenderPass)]
+        /// <summary>
+        /// Begins a metadata event. This is for tooling only
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Copy)]
         BeginEvent,
 
-        [CommandInfo(RequiredQueueType.Copy, CommandFlags.AllowedInBundle | CommandFlags.AllowedInRenderPass)]
+        /// <summary>
+        /// Ends a metadata event. This is for tooling only
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Copy)]
         EndEvent,
 
         // Barriers
-        [CommandInfo(RequiredQueueType.Copy, CommandFlags.AllowedInBundle | CommandFlags.AllowedInRenderPass | CommandFlags.DispatchesWork)]
+
+        /// <summary>
+        /// Transitions a resource from one state to another. This might involve cache flushes,
+        /// cache invalidations, or layout changes
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Copy, CommandFlags.ForbiddenInBundle)]
         Transition,
 
-        [CommandInfo(RequiredQueueType.Copy, CommandFlags.AllowedInBundle | CommandFlags.AllowedInRenderPass | CommandFlags.DispatchesWork)]
+        /// <summary>
+        /// Ensures all prior UAV writes are finished before any later commands execute
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Copy, CommandFlags.ForbiddenInBundle)]
         WriteBarrier,
 
-        [CommandInfo(RequiredQueueType.Copy, CommandFlags.AllowedInBundle | CommandFlags.AllowedInRenderPass | CommandFlags.DispatchesWork)]
+        /// <summary>
+        /// Indicates that a resource may have been aliased
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Copy, CommandFlags.ForbiddenInBundle)]
         AliasingBarrier,
 
-        // Pipeline
-        [CommandInfo(RequiredQueueType.Compute, CommandFlags.AllowedInBundle | CommandFlags.AllowedInRenderPass | CommandFlags.DispatchesWork)]
+        /// <summary>
+        /// Sets the currently bound pipeline state
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Compute)]
         SetPipeline,
 
-        // Draw state
-        [CommandInfo(RequiredQueueType.Graphics, CommandFlags.AllowedInBundle | CommandFlags.AllowedInRenderPass | CommandFlags.DispatchesWork)]
+        /// <summary>
+        /// Sets the currently bound index buffer
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Graphics)]
         SetIndexBuffer,
 
-        [CommandInfo(RequiredQueueType.Graphics, CommandFlags.AllowedInBundle | CommandFlags.AllowedInRenderPass | CommandFlags.DispatchesWork)]
+        /// <summary>
+        /// Sets a contigous range of the currently bound vertex buffers
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Graphics)]
         SetVertexBuffer,
 
-        [CommandInfo(RequiredQueueType.Graphics, CommandFlags.AllowedInBundle | CommandFlags.AllowedInRenderPass | CommandFlags.DispatchesWork)]
+        /// <summary>
+        /// Sets the viewports for the draw
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Graphics, CommandFlags.ForbiddenInBundle)]
         SetViewports,
 
-        [CommandInfo(RequiredQueueType.Graphics, CommandFlags.AllowedInBundle | CommandFlags.AllowedInRenderPass | CommandFlags.DispatchesWork)]
+        /// <summary>
+        /// Sets the scissors rectangles for the draw
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Graphics, CommandFlags.ForbiddenInBundle)]
         SetScissorRectangles,
 
-        [CommandInfo(RequiredQueueType.Graphics, CommandFlags.AllowedInBundle | CommandFlags.AllowedInRenderPass | CommandFlags.DispatchesWork)]
+        /// <summary>
+        /// Sets the shading rate and shading rate combiners for the draw
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Graphics)]
         SetShadingRate,
 
-        [CommandInfo(RequiredQueueType.Graphics, CommandFlags.AllowedInBundle | CommandFlags.AllowedInRenderPass | CommandFlags.DispatchesWork)]
+        /// <summary>
+        /// Sets the shading rate image for the draw
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Graphics)]
         SetShadingRateImage,
 
-        [CommandInfo(RequiredQueueType.Graphics, CommandFlags.AllowedInBundle | CommandFlags.AllowedInRenderPass | CommandFlags.DispatchesWork)]
-        SetTopology,
-
-        [CommandInfo(RequiredQueueType.Graphics, CommandFlags.AllowedInBundle | CommandFlags.AllowedInRenderPass | CommandFlags.DispatchesWork)]
+        /// <summary>
+        /// Sets the stencil reference value for the draw
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Graphics)]
         SetStencilRef,
 
-        [CommandInfo(RequiredQueueType.Graphics, CommandFlags.AllowedInBundle | CommandFlags.AllowedInRenderPass | CommandFlags.DispatchesWork)]
+        /// <summary>
+        /// Sets the blend factor value for the draw
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Graphics)]
         SetBlendFactor,
 
-        [CommandInfo(RequiredQueueType.Graphics, CommandFlags.AllowedInBundle | CommandFlags.AllowedInRenderPass | CommandFlags.DispatchesWork)]
+        /// <summary>
+        /// Sets the depth bounds values for the draw
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Graphics)]
         SetDepthBounds,
 
-        [CommandInfo(RequiredQueueType.Graphics, CommandFlags.AllowedInBundle | CommandFlags.AllowedInRenderPass | CommandFlags.DispatchesWork)]
+        /// <summary>
+        /// Sets the sample positions for the draw
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Graphics)]
         SetSamplePositions,
 
-        [CommandInfo(RequiredQueueType.Graphics, CommandFlags.AllowedInBundle | CommandFlags.AllowedInRenderPass | CommandFlags.DispatchesWork)]
+        /// <summary>
+        /// Sets the view instancing mask for the draw
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Graphics)]
         SetViewInstanceMask,
 
 
         // Shader resources
+
+        /// <summary>
+        /// Binds a virtual address to a shader resource
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Compute)]
         BindVirtualAddress,
+
+        /// <summary>
+        /// Binds a set of descriptors to shader resources
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Compute)]
         BindDescriptors,
+
+        /// <summary>
+        /// Binds 32-bit constants to shader resources
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Compute)]
         Bind32BitConstants,
 
         // Render passes
+
+        /// <summary>
+        /// Begins a render pass. Note that nested render passes are illegal
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Graphics, CommandFlags.ForbiddenInBundle | CommandFlags.ForbiddenInRenderPass)]
         BeginRenderPass,
+
+        /// <summary>
+        /// Ends a render pass. Note that nested render passes are illegal
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Graphics, CommandFlags.ForbiddenInBundle | CommandFlags.ForbiddenInRenderPass)]
         EndRenderPass,
 
         // Timestamps and queries
+
+        /// <summary>
+        /// Reads the tick count of the queue's timestamp into a query set
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Copy)]
         ReadTimestamp,
+
+        /// <summary>
+        /// Begins a query
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Graphics)]
         BeginQuery,
+
+        /// <summary>
+        /// Ends a query
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Graphics)]
         EndQuery,
+
+        /// <summary>
+        /// Resolves opaque query data to an application-understood format
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Copy, CommandFlags.ForbiddenInBundle | CommandFlags.ForbiddenInRenderPass)]
         ResolveQuery,
 
         // Conditional rendering/predication
+
+        /// <summary>
+        /// Begins conditional rendering
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Copy, CommandFlags.ForbiddenInBundle)]
         BeginConditionalRendering,
+
+        /// <summary>
+        /// Ends conditional rendering
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Copy, CommandFlags.ForbiddenInBundle)]
         EndConditionalRendering,
 
         // Copies
+
+        /// <summary>
+        /// Copies a region of a buffer
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Copy, CommandFlags.ForbiddenInBundle | CommandFlags.ForbiddenInRenderPass)]
         BufferCopy,
+
+        /// <summary>
+        /// Copies a region of a texture
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Copy, CommandFlags.ForbiddenInBundle | CommandFlags.ForbiddenInRenderPass)]
         TextureCopy,
+
+        /// <summary>
+        /// Copies a region of a buffer to a texture
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Copy, CommandFlags.ForbiddenInBundle | CommandFlags.ForbiddenInRenderPass)]
         BufferToTextureCopy,
+
+        /// <summary>
+        /// Copies a region of a texture to a buffer
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Copy, CommandFlags.ForbiddenInBundle | CommandFlags.ForbiddenInRenderPass)]
         TextureToBufferCopy,
+
+        /// <summary>
+        /// Writes 32-bit constants to a given address
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Copy, CommandFlags.ForbiddenInBundle | CommandFlags.ForbiddenInRenderPass)]
         WriteConstants,
 
         // Clears
+
+
+        /// <summary>
+        /// Clears a buffer to a set of floating-point values
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Compute, CommandFlags.ForbiddenInBundle | CommandFlags.ForbiddenInRenderPass)]
         ClearBuffer,
+
+        /// <summary>
+        /// Clears a buffer to a set of integer values
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Compute, CommandFlags.ForbiddenInBundle | CommandFlags.ForbiddenInRenderPass)]
         ClearBufferInteger,
+
+        /// <summary>
+        /// Clears a texture to a set of floating-point values
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Compute, CommandFlags.ForbiddenInBundle | CommandFlags.ForbiddenInRenderPass)]
         ClearTexture,
+
+        /// <summary>
+        /// Clears a texture to a set of integer values
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Compute, CommandFlags.ForbiddenInBundle | CommandFlags.ForbiddenInRenderPass)]
         ClearTextureInteger,
+
+        /// <summary>
+        /// Clears a depth-stencil to a depth and stencil value
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Graphics, CommandFlags.ForbiddenInBundle | CommandFlags.ForbiddenInRenderPass)]
         ClearDepthStencil,
 
-        // Raytracing acceleration structuresS
-        BuildAccelerationStructure,
-        CopyAccelerationStructure,
-        CompactAccelerationStructure,
-        SerializeAccelerationStructure,
-        DeserializeAccelerationStructure,
+        // Raytracing acceleration structures
+        //BuildAccelerationStructure,
+        //CopyAccelerationStructure,
+        //CompactAccelerationStructure,
+        //SerializeAccelerationStructure,
+        //DeserializeAccelerationStructure,
 
         // Execute
-        [CommandInfo(RequiredQueueType.Graphics, CommandFlags.AllowedInBundle | CommandFlags.AllowedInRenderPass | CommandFlags.DispatchesWork)]
+
+        /// <summary>
+        /// Performs an indirect command with arguments provided by the GPU
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Graphics)]
         ExecuteIndirect,
 
-        [CommandInfo(RequiredQueueType.Graphics, CommandFlags.AllowedInBundle | CommandFlags.AllowedInRenderPass | CommandFlags.DispatchesWork)]
+
+        /// <summary>
+        /// Perform a draw
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Graphics)]
         Draw,
 
-        [CommandInfo(RequiredQueueType.Graphics, CommandFlags.AllowedInBundle | CommandFlags.AllowedInRenderPass | CommandFlags.DispatchesWork)]
+        /// <summary>
+        /// Perform an indexed draw
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Graphics)]
         DrawIndexed,
 
-        [CommandInfo(RequiredQueueType.Compute, CommandFlags.AllowedInBundle | CommandFlags.DispatchesWork)]
+        /// <summary>
+        /// Perform a compute dispatch
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Compute, CommandFlags.ForbiddenInRenderPass)]
         Dispatch,
 
-        [CommandInfo(RequiredQueueType.Compute, CommandFlags.AllowedInBundle | CommandFlags.DispatchesWork)]
+        /// <summary>
+        /// Perform a ray trace operation
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Compute, CommandFlags.ForbiddenInRenderPass)]
         RayTrace,
 
-        [CommandInfo(RequiredQueueType.Graphics, CommandFlags.AllowedInBundle | CommandFlags.AllowedInRenderPass | CommandFlags.DispatchesWork)]
+        /// <summary>
+        /// Perform a mesh dispatch operation
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Graphics)]
         MeshDispatch,
     }
 
@@ -292,9 +499,6 @@ namespace Voltium.Core.CommandBuffer
         public CommandSetShadingRateImage SetShadingRateImage;
 
         [FieldOffset(sizeof(CommandType))]
-        public CommandSetTopology SetTopology;
-
-        [FieldOffset(sizeof(CommandType))]
         public CommandSetStencilRef SetStencilRef;
 
         [FieldOffset(sizeof(CommandType))]
@@ -366,18 +570,55 @@ namespace Voltium.Core.CommandBuffer
         #endregion
     }
 
+    /// <summary>
+    /// The load operation for a given resource
+    /// </summary>
     public enum LoadOperation
     {
+        /// <summary>
+        /// Discard the previous results of the resource, as it will not be read from
+        /// </summary>
         Discard = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE.D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_DISCARD,
+
+        /// <summary>
+        /// Clear the resource, so all reads from it return a fixed value
+        /// </summary>
         Clear = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE.D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_CLEAR,
+
+        /// <summary>
+        /// Preserves the previous values of the resource, so all reads return the value from the resource
+        /// </summary>
         Preserve = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE.D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_PRESERVE,
+
+        /// <summary>
+        /// The resource is not read from, nor written to
+        /// </summary>
         NoAccess = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE.D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_NO_ACCESS,
     }
+
+    /// <summary>
+    /// The store operation for a given resource
+    /// </summary>
     public enum StoreOperation
     {
+        /// <summary>
+        /// Discard the results of the render, as it will not be written to
+        /// </summary>
         Discard = D3D12_RENDER_PASS_ENDING_ACCESS_TYPE.D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_DISCARD,
+
+        /// <summary>
+        /// Resolve the resource from a multisampled resource to a non-multisampled resource
+        /// </summary>
         Resolve = D3D12_RENDER_PASS_ENDING_ACCESS_TYPE.D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_RESOLVE,
+        
+        /// <summary>
+        /// Preserve the resource, so all writes to it can be read afterwards
+        /// </summary>
         Preserve = D3D12_RENDER_PASS_ENDING_ACCESS_TYPE.D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_PRESERVE,
+
+        /// <summary>
+        /// The resource is not read from, nor written to
+        /// </summary>
         NoAccess = D3D12_RENDER_PASS_ENDING_ACCESS_TYPE.D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_NO_ACCESS,
     }
 
@@ -393,7 +634,7 @@ namespace Voltium.Core.CommandBuffer
         public CountSpecifier* CountSpecifier => (CountSpecifier*)((uint*)Unsafe.AsPointer(ref HasCountSpecifier) + 1);
     }
 
-    public struct CountSpecifier
+    internal struct CountSpecifier
     {
         public BufferHandle CountBuffer;
         public uint Offset;
@@ -545,7 +786,7 @@ namespace Voltium.Core.CommandBuffer
         public RenderPassRenderTarget* RenderTargets => (RenderPassRenderTarget*)((uint*)Unsafe.AsPointer(ref RenderTargetCount) + 1);
     }
 
-    public unsafe struct RenderPassDepthStencil
+    internal unsafe struct RenderPassDepthStencil
     {
         public ViewHandle View;
         public LoadOperation DepthLoad;
@@ -556,7 +797,7 @@ namespace Voltium.Core.CommandBuffer
         public byte Stencil;
     }
 
-    public unsafe struct RenderPassRenderTarget
+    internal unsafe struct RenderPassRenderTarget
     {
         public ViewHandle View;
         public LoadOperation Load;
@@ -635,22 +876,6 @@ namespace Voltium.Core.CommandBuffer
         public CommandType Type => CommandType.SetShadingRateImage;
 
         public TextureHandle ShadingRateImage;
-    }
-
-    internal unsafe struct CommandSetTopology : ICommand
-    {
-        public CommandType Type => CommandType.SetTopology;
-
-        public Topology Topology;
-    }
-
-
-
-    internal unsafe struct CommandSetPatchListCount : ICommand
-    {
-        public CommandType Type => CommandType.SetTopology;
-
-        public byte PatchListCount;
     }
 
     internal unsafe struct CommandResolveQuery : ICommand
@@ -746,7 +971,7 @@ namespace Voltium.Core.CommandBuffer
         internal uint* Values => (uint*)Unsafe.AsPointer(ref Num32BitValues) + 1;
     }
 
-    public struct Box
+    internal struct Box
     {
         public uint Left, Top, Front, Right, Bottom, Back;
     }
@@ -887,7 +1112,7 @@ namespace Voltium.Core.CommandBuffer
         public uint X, Y, Z;
     }
 
-    public struct CommandVertexBufferViewArguments : ICommand
+    internal struct CommandVertexBufferViewArguments : ICommand
     {
         public CommandType Type => CommandType.InsertMarker;
 
@@ -896,7 +1121,7 @@ namespace Voltium.Core.CommandBuffer
         public uint StrideInBytes;
     }
 
-    public struct CommandIndexBufferViewArguments
+    internal struct CommandIndexBufferViewArguments
     {
         public ulong BufferLocation;
         public uint SizeInBytes;
@@ -904,7 +1129,7 @@ namespace Voltium.Core.CommandBuffer
     }
 
     // TODO
-    public struct CommandRayTrace
+    internal struct CommandRayTrace
     {
         //private RayDispatchDesc Desc;
     }

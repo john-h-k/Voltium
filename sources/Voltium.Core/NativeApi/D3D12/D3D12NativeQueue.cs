@@ -10,9 +10,11 @@ using Voltium.Core.CommandBuffer;
 using Microsoft.Toolkit.HighPerformance.Extensions;
 using System.Runtime.CompilerServices;
 using Voltium.Core.NativeApi;
+using Voltium.Core.NativeApi.D3D12;
 
 namespace Voltium.Core.Devices
 {
+    /// <inheritdoc />
     public unsafe class D3D12NativeQueue : INativeQueue
     {
         private struct InFlightAllocator
@@ -21,6 +23,7 @@ namespace Voltium.Core.Devices
             public ulong Finish;
         }
 
+        /// <inheritdoc />
         public INativeDevice Device => _device;
 
         private D3D12NativeDevice _device;
@@ -33,7 +36,7 @@ namespace Voltium.Core.Devices
         private readonly object _lock = new();
         private ulong _fenceValue = 0;
 
-        public D3D12NativeQueue(D3D12NativeDevice device, DeviceContext type)
+        internal D3D12NativeQueue(D3D12NativeDevice device, ExecutionEngine type)
         {
             _device = device;
             _type = (D3D12_COMMAND_LIST_TYPE)type;
@@ -62,6 +65,7 @@ namespace Voltium.Core.Devices
 
         }
 
+        /// <inheritdoc />
         public void Dispose()
         {
             if (!_queue.Exists)
@@ -81,10 +85,12 @@ namespace Voltium.Core.Devices
             }
         }
 
-        public IUnknown* GetQueue() => _queue.AsIUnknown().Ptr;
+        internal IUnknown* GetQueue() => _queue.AsIUnknown().Ptr;
 
+        /// <inheritdoc />
         public ulong Frequency { get; }
 
+        /// <inheritdoc />
         public GpuTask Execute(
             ReadOnlySpan<CommandBuffer> cmds,
             ReadOnlySpan<GpuTask> dependencies
@@ -145,7 +151,7 @@ namespace Voltium.Core.Devices
         private void ReturnAllocator(UniqueComPtr<ID3D12CommandAllocator> allocator, ulong finish)
             => _allocators.Enqueue(new InFlightAllocator { Allocator = allocator, Finish = finish });
 
-        public void Encode(ReadOnlySpan<CommandBuffer> cmdBuffs, ID3D12CommandAllocator* pAllocator, ID3D12GraphicsCommandList6* pEncode)
+        private void Encode(ReadOnlySpan<CommandBuffer> cmdBuffs, ID3D12CommandAllocator* pAllocator, ID3D12GraphicsCommandList6* pEncode)
         {
             const uint WIN_EVENT_3BLOB_VERSION = 2;
             const uint D3D12_EVENT_METADATA = WIN_EVENT_3BLOB_VERSION;

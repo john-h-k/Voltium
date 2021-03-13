@@ -115,7 +115,7 @@ namespace Voltium.Core.NativeApi.D3D12
         public uint Length;
     }
 
-    internal unsafe struct GenerationalHandleMapper : IHandleMapper
+    internal unsafe struct GenerationalHandleMapper
     {
         public GenerationalHandleMapper(bool _)
         {

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Runtime.InteropServices;
 using TerraFX.Interop;
 using Voltium.Common;
@@ -7,12 +7,30 @@ using static TerraFX.Interop.Windows;
 
 namespace Voltium.Core.Devices
 {
+    /// <summary>
+    /// Reprents an OS event communicating between the kernelspace and the userspace
+    /// </summary>
     public readonly unsafe struct OSEvent
     {
         private readonly IntPtr _hEvent; // HANDLE on windows. eventfd on linux
 
+        /// <summary>
+        /// Creates a new instance of <see cref="OSEvent"/>
+        /// </summary>
+        /// <param name="hEvent">The event. This has different meanings on different platforms. On windows, this is a HANDLE 
+        /// to an event. On linux, it is an event file descriptor (eventfd)</param>
         public OSEvent(IntPtr hEvent) => _hEvent = hEvent;
 
+        /// <summary>
+        /// Creates a new instance of <see cref="OSEvent"/>
+        /// </summary>
+        /// <param name="hEvent">The event. This has different meanings on different platforms. On windows, this is a HANDLE 
+        /// to an event. On linux, it is an event file descriptor (eventfd)</param>
+        public OSEvent(int hEvent) => _hEvent = (IntPtr)hEvent;
+
+        /// <summary>
+        /// Whether the given <see cref="OSEvent"/> has completed
+        /// </summary>
         public bool IsCompleted
         {
             get
@@ -28,6 +46,9 @@ namespace Voltium.Core.Devices
             }
         }
 
+        /// <summary>
+        /// Synchronously wait for the given <see cref="OSEvent"/> to finish
+        /// </summary>
         public void WaitSync()
         {
             if (_hEvent == default)
@@ -37,7 +58,7 @@ namespace Voltium.Core.Devices
 
             if (OperatingSystem.IsWindows())
             {
-                WaitForSingleObject(_hEvent, INFINITE);
+                _ = WaitForSingleObject(_hEvent, INFINITE);
             }
             else if (OperatingSystem.IsLinux())
             {
@@ -70,6 +91,12 @@ namespace Voltium.Core.Devices
             public IntPtr WaitHandle;
         }
 
+        /// <summary>
+        /// Register a callback to be executed when the given <see cref="OSEvent"/> completes
+        /// </summary>
+        /// <typeparam name="T">The type of the opaque state passed to <paramref name="callback"/>. This must be a reference type</typeparam>
+        /// <param name="state">The opaque stated passed to <paramref name="callback"/></param>
+        /// <param name="callback">The callback to be executed when the gien <see cref="OSEvent"/> completes</param>
         public void RegisterCallback<T>(T state, delegate*<T, void> callback) where T : class?
         {
             if (_hEvent == default)

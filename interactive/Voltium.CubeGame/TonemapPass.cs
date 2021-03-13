@@ -12,9 +12,9 @@ using Voltium.RenderEngine;
 
 namespace Voltium.CubeGame
 {
-    internal class TonemapPass : GraphicsRenderPass
+    internal class TonemapPass 
     {
-        public override RenderPassExternalOutput Output => RenderPassExternalOutput.FromBackBuffer(OutputClass.Primary, _output);
+        public RenderPassExternalOutput Output => RenderPassExternalOutput.FromBackBuffer(OutputClass.Primary, _output);
 
         private Output _output;
 
@@ -23,7 +23,7 @@ namespace Voltium.CubeGame
             _output = output;
         }
 
-        public override bool Register(ref RenderPassBuilder builder, ref Resolver resolver)
+        public bool Register(ref RenderPassBuilder builder, ref Resolver resolver)
         {
             var color = builder.GetInput<TextureHandle>();
             var settings = resolver.GetComponent<RenderSettings>();
@@ -33,7 +33,7 @@ namespace Voltium.CubeGame
             return true;
         }
 
-        public override void Record(GraphicsContext context, ref Resolver resolver)
+        public void Record(GraphicsContext context, ref Resolver resolver)
         {
             using var _ = context.ScopedEvent(Argb32.Green, "Tonemap");
 
