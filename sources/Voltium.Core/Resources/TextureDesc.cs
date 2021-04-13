@@ -12,39 +12,7 @@ namespace Voltium.Core.Memory
     [Fluent]
     public partial struct TextureDesc
     {
-        public static TextureDesc CreateShadingRateTextureDesc(uint width, uint height, uint tileSize, ResourceFlags flags = ResourceFlags.None)
-        {
-            return new TextureDesc
-            {
-                Height = (uint)Math.Ceiling((double)height / tileSize),
-                Width = (uint)Math.Ceiling((double)width / tileSize),
-                DepthOrArraySize = 1,
-                Dimension = TextureDimension.Tex2D,
-                MipCount = 1,
-                Format = DataFormat.R8UInt,
-                Layout = TextureLayout.Optimal,
-                Msaa = MsaaDesc.None,
-                ResourceFlags = flags,
-                ClearValue = null,
-            };
-        }
-
-        public static TextureDesc CreateShadingRateTextureDesc(uint width, uint height, ResourceFlags flags = ResourceFlags.None)
-        {
-            return new TextureDesc
-            {
-                Height = height,
-                Width = width,
-                DepthOrArraySize = 1,
-                Dimension = TextureDimension.Tex2D,
-                MipCount = 1,
-                Format = DataFormat.R8UInt,
-                Layout = TextureLayout.Optimal,
-                Msaa = MsaaDesc.None,
-                ResourceFlags = flags,
-                ClearValue = null,
-            };
-        }
+        public TextureDesc WithAllMips() => WithMipCount(0);
 
         /// <summary>
         /// Creates a new <see cref="TextureDesc"/> representing a 2D render target
@@ -92,10 +60,10 @@ namespace Voltium.Core.Memory
         /// <param name="height">The height, in texels, of the depth stencil</param>
         /// <param name="clearDepth">The <see cref="float"/> to set to be the optimized clear value for the depth element</param>
         /// <param name="clearStencil">The <see cref="byte"/> to set to be the optimized clear value for the stencil element</param>
-        /// <param name="shaderVisible">Whether the <see cref="Texture"/> is shader visible. <see langword="true"/> by default</param>
+        /// <param name="shaderVisible">Whether the <see cref="Texture"/> is shader visible. <see langword="false"/> by default</param>
         /// <param name="msaa">Optionally, the <see cref="MsaaDesc"/> for the depth stencil</param>
         /// <returns>A new <see cref="TextureDesc"/> representing a depth stencil</returns>
-        public static TextureDesc CreateDepthStencilDesc(DataFormat format, uint width, uint height, float clearDepth, byte clearStencil, bool shaderVisible = true, MsaaDesc msaa = default)
+        public static TextureDesc CreateDepthStencilDesc(DataFormat format, uint width, uint height, float clearDepth, byte clearStencil, bool shaderVisible = false, MsaaDesc msaa = default)
         {
             return new TextureDesc
             {

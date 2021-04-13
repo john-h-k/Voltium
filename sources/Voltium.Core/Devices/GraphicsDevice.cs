@@ -21,13 +21,23 @@ namespace Voltium.Core.Devices
     /// </summary>
     public unsafe partial class GraphicsDevice : ComputeDevice
     {
-        public DeviceInfo Info { get; }
+        public DeviceInfo Info => _device.Info;
 
         /// <summary>
         /// The default allocator for the device
         /// </summary>
         public new GraphicsAllocator Allocator => Unsafe.As<GraphicsAllocator>(base.Allocator);
 
+
+        /// <summary>
+        /// An empty <see cref="RootSignature"/>
+        /// </summary>
+        public RootSignature EmptyRootSignature { get; }
+
+        /// <summary>
+        /// An empty <see cref="RootSignature"/>
+        /// </summary>
+        public RootSignature EmptyRootSignatureWithInputAssembler { get; }
 
         /// <summary>
         /// The default <see cref="IndirectCommand"/> for performing an indirect dispatch.
@@ -70,7 +80,7 @@ namespace Voltium.Core.Devices
                 Unsafe.As<GraphicsDevice>(o)._device.DisposeRaytracingAccelerationStructure(handle);
             }
 
-            return new RaytracingAccelerationStructure(length, accelerationStructure, new(this, &Dispose));
+            return new RaytracingAccelerationStructure(length, _device.GetDeviceVirtualAddress(accelerationStructure), accelerationStructure, new(this, &Dispose));
         }
 
         public RaytracingAccelerationStructure AllocateRaytracingAccelerationStructure(ulong length, in Heap heap, ulong offset)
@@ -83,17 +93,22 @@ namespace Voltium.Core.Devices
                 Unsafe.As<GraphicsDevice>(o)._device.DisposeRaytracingAccelerationStructure(handle);
             }
 
-            return new RaytracingAccelerationStructure(length, accelerationStructure, new(this, &Dispose));
+            return new RaytracingAccelerationStructure(length, _device.GetDeviceVirtualAddress(accelerationStructure), accelerationStructure, new(this, &Dispose));
         }
 
         internal RaytracingAccelerationStructure AllocateRaytracingAccelerationStructure(ulong length, in Heap heap, ulong offset, Disposal<RaytracingAccelerationStructureHandle> dispose)
         {
             var accelerationStructure = _device.AllocateRaytracingAccelerationStructure(length, heap.Handle, offset);
 
-            return new RaytracingAccelerationStructure(length, accelerationStructure, dispose);
+            return new RaytracingAccelerationStructure(length, _device.GetDeviceVirtualAddress(accelerationStructure), accelerationStructure, dispose);
         }
 
-        public PipelineStateObject CreatePipelineStateObject(in RootSignature rootSignature, in GraphicsPipelineDesc desc)
+        public void GetRaytracingShaderIdentifier(in PipelineStateObject pso, ReadOnlySpan<char> name, Span<byte> identifier)
+        {
+            _device.GetRaytracingShaderIdentifier(pso.Handle, name, identifier);
+        }
+
+        public PipelineStateObject CreatePipelineStateObject(in RaytracingPipelineDesc desc)
         {
             static void Dispose(object o, ref PipelineHandle handle)
             {
@@ -101,10 +116,70 @@ namespace Voltium.Core.Devices
                 Unsafe.As<GraphicsDevice>(o)._device.DisposePipeline(handle);
             }
 
-            return new PipelineStateObject(_device.CreatePipeline(rootSignature.Handle, desc), new(this, &Dispose));
+            var nativeDesc = new NativeRaytracingPipelineDesc
+            {
+                MaxRecursionDepth = desc.MaxRecursionDepth,
+                MaxAttributeSize = desc.MaxAttributeSize,
+                MaxPayloadSize = desc.MaxPayloadSize,
+                NodeMask = desc.NodeMask,
+                RootSignature = (desc.GlobalRootSignature ?? EmptyRootSignature).Handle,
+
+                Libraries = desc.Libraries.ToArray(),
+                LocalRootSignatures = desc.LocalRootSignatures.ToArray(),
+                TriangleHitGroups = desc.TriangleHitGroups.ToArray(),
+                ProceduralPrimitiveHitGroups = desc.ProceduralPrimitiveHitGroups.ToArray()
+            };
+
+            return new PipelineStateObject(_device.CreatePipeline(nativeDesc), new(this, &Dispose));
+        }
+        public PipelineStateObject CreatePipelineStateObject(in GraphicsPipelineDesc desc)
+        {
+            static void Dispose(object o, ref PipelineHandle handle)
+            {
+                Debug.Assert(o is GraphicsDevice);
+                Unsafe.As<GraphicsDevice>(o)._device.DisposePipeline(handle);
+            }
+
+            var nativeDesc = new NativeGraphicsPipelineDesc
+            {
+                Blend = desc.Blend ?? BlendDesc.Default,
+                Rasterizer = desc.Rasterizer ?? RasterizerDesc.Default,
+                DepthStencil = desc.DepthStencil ?? DepthStencilDesc.Default,
+                DepthStencilFormat = desc.DepthStencilFormat,
+                VertexShader = desc.VertexShader,
+                DomainShader = desc.DomainShader,
+                HullShader = desc.HullShader,
+                GeometryShader = desc.GeometryShader,
+                PixelShader = desc.PixelShader,
+                Inputs = desc.Inputs,
+                Msaa = desc.Msaa,
+                Topology = desc.Topology,
+                NodeMask = desc.NodeMask,
+                RenderTargetFormats = desc.RenderTargetFormats,
+                // Use empty root sig if IA is not used, else empty root sig with IA
+                RootSignature = (desc.RootSignature ?? (desc.Inputs.ShaderInputs.IsEmpty ? EmptyRootSignature : EmptyRootSignatureWithInputAssembler)).Handle
+            };
+
+            return new PipelineStateObject(_device.CreatePipeline(nativeDesc), new(this, &Dispose));
         }
 
 
+        public LocalRootSignature CreateLocalRootSignature(ReadOnlySpan<RootParameter> rootParams, RootSignatureFlags flags = RootSignatureFlags.None)
+            => CreateLocalRootSignature(rootParams, default, flags);
+        public LocalRootSignature CreateLocalRootSignature(ReadOnlySpan<RootParameter> rootParams, ReadOnlySpan<StaticSampler> samplers, RootSignatureFlags flags = RootSignatureFlags.None)
+        {
+            static void Dispose(object o, ref LocalRootSignatureHandle handle)
+            {
+                Debug.Assert(o is GraphicsDevice);
+                Unsafe.As<GraphicsDevice>(o)._device.DisposeLocalRootSignature(handle);
+            }
+
+            return new LocalRootSignature(_device.CreateLocalRootSignature(rootParams, samplers, flags), new(this, &Dispose));
+        }
+
+
+        public RootSignature CreateRootSignature(ReadOnlySpan<RootParameter> rootParams, RootSignatureFlags flags = RootSignatureFlags.None)
+            => CreateRootSignature(rootParams, default, flags);
         public RootSignature CreateRootSignature(ReadOnlySpan<RootParameter> rootParams, ReadOnlySpan<StaticSampler> samplers, RootSignatureFlags flags = RootSignatureFlags.None)
         {
             static void Dispose(object o, ref RootSignatureHandle handle)
@@ -221,7 +296,7 @@ namespace Voltium.Core.Devices
         //            D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH_RAYS when commandStride == sizeof(IndirectDispatchRaysArguments) => DispatchRaysIndirect,
         //            D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH_MESH when commandStride == sizeof(IndirectDispatchMeshArguments) => DispatchMeshIndirect,
         //            _ => null
-        //        };
+        //        };   
 
         //        if (cmd is not null)
         //        {

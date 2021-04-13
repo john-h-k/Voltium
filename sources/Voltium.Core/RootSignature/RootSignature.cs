@@ -13,6 +13,28 @@ namespace Voltium.Core
     /// <summary>
     /// Defines a root signatuFUCK
     /// </summary>
+    public unsafe struct LocalRootSignature : IDisposable
+    {
+        internal LocalRootSignatureHandle Handle;
+        private Disposal<LocalRootSignatureHandle> _disposal;
+
+        internal LocalRootSignature(LocalRootSignatureHandle handle, Disposal<LocalRootSignatureHandle> disposal)
+        {
+            Handle = handle;
+            _disposal = disposal;
+        }
+
+
+        /// <inheritdoc/>
+        public void Dispose()
+        {
+            _disposal.Dispose(ref Handle);
+        }
+    }
+
+    /// <summary>
+    /// Defines a root signatuFUCK
+    /// </summary>
     public unsafe struct RootSignature : IDisposable
     {
         internal RootSignatureHandle Handle;

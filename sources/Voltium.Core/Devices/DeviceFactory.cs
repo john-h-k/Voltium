@@ -4,9 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Voltium.CubeGame
+namespace Voltium.Core.Devices
 {
-    class WorldGenerator
+    class DeviceFactory
     {
     }
 }

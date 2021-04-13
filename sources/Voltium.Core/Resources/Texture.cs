@@ -5,7 +5,6 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using TerraFX.Interop;
 using Voltium.Common;
-using Voltium.Core.CommandBuffer;
 using Voltium.Core.Configuration.Graphics;
 using Voltium.Core.Contexts;
 using Voltium.Core.Devices;
@@ -60,6 +59,8 @@ namespace Voltium.Core.Memory
         /// </summary>
         public readonly MsaaDesc Msaa;
 
+        public readonly uint MipCount;
+
         internal Texture(TextureHandle handle, in TextureDesc desc, Disposal<TextureHandle> dispose)
         {
             // no null 😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡😡
@@ -72,6 +73,7 @@ namespace Voltium.Core.Memory
             Height = desc.Height;
             DepthOrArraySize = desc.DepthOrArraySize;
             Msaa = desc.Msaa;
+            MipCount = desc.MipCount;
         }
 
         /// <inheritdoc/>

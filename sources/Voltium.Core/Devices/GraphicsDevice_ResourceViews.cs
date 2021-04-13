@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using TerraFX.Interop;
 using Voltium.Common;
-using Voltium.Core.CommandBuffer;
 using Voltium.Core.Memory;
 using Voltium.Core.NativeApi;
 using static TerraFX.Interop.Windows;
@@ -28,6 +27,17 @@ namespace Voltium.Core.Devices
         }
 
 
+        public View CreateDefaultView(in ViewSet set, uint index, in RaytracingAccelerationStructure buff)
+        {
+            static void Dispose(object o, ref ViewHandle handle)
+            {
+                Debug.Assert(o is GraphicsDevice);
+                //Unsafe.As<GraphicsDevice>(o)._device.DisposeView(handle);
+            }
+
+            var view = _device.CreateView(set.Handle, index, buff.Handle);
+            return new(view, new(this, &Dispose));
+        }
 
         public View CreateDefaultView(in ViewSet set, uint index, in Texture buff)
         {

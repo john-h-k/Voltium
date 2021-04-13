@@ -1,7 +1,7 @@
-﻿using Voltium.Core.Memory;
+using Voltium.Core.Memory;
 using Voltium.Core.NativeApi;
 
-namespace Voltium.Core.CommandBuffer
+namespace Voltium.Core.NativeApi
 {
     public struct View
     {

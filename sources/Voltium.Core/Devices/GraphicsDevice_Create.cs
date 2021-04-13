@@ -9,9 +9,9 @@ using Voltium.Core.Memory;
 
 namespace Voltium.Core.Devices
 {
-    public partial class GraphicsDevice
+    public partial class GraphicsDevice    
     {
-        public static GraphicsDevice Create<TNativeDevice>(TNativeDevice device) where TNativeDevice : INativeDevice
+        public static new GraphicsDevice Create<TNativeDevice>(TNativeDevice device) where TNativeDevice : INativeDevice
         {
             return new(device);
         }
@@ -19,6 +19,10 @@ namespace Voltium.Core.Devices
         private GraphicsDevice(INativeDevice device) : base(device)
         {
             base.Allocator = new GraphicsAllocator(this);
+
+            EmptyRootSignature = CreateRootSignature(default, default, RootSignatureFlags.None);
+            EmptyRootSignatureWithInputAssembler = CreateRootSignature(default, default, RootSignatureFlags.AllowInputAssembler);
+
 
             if (_device is D3D12NativeDevice d3d12)
             {

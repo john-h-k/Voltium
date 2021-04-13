@@ -29,6 +29,8 @@ namespace Voltium.Common
             };
         }
 
+        public bool IsValid => _array is not null;
+
         public ValueQueue(int capacity) : this()
         {
             Guard.Positive(capacity);

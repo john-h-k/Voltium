@@ -8,7 +8,6 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using TerraFX.Interop;
 using Voltium.Common;
-using Voltium.Core.CommandBuffer;
 using Voltium.Core.Contexts;
 using Voltium.Core.Devices;
 using Voltium.Core.Exceptions;
@@ -321,11 +320,11 @@ namespace Voltium.Core
         /// <param name="dest">The resource to copy to</param>
         /// <param name="subresource">The index of the subresource to copy</param>
         [IllegalBundleMethod, IllegalRenderPassMethod]
-        public void CopySubresource(
+        public void CopyTexture(
             [RequiresResourceState(ResourceState.CopySource)] in Texture source,
             [RequiresResourceState(ResourceState.CopyDestination)] in Texture dest,
             uint subresource
-        ) => CopySubresource(source, dest, subresource, subresource);
+        ) => CopyTexture(source, dest, subresource, subresource);
 
         /// <summary>
         /// Copy a subresource
@@ -335,7 +334,7 @@ namespace Voltium.Core
         /// <param name="sourceSubresource">The index of the subresource to copy from</param>
         /// <param name="destSubresource">The index of the subresource to copy to</param>
         [IllegalBundleMethod, IllegalRenderPassMethod]
-        public void CopySubresource(
+        public void CopyTexture(
             [RequiresResourceState(ResourceState.CopySource)] in Texture source,
             [RequiresResourceState(ResourceState.CopyDestination)] in Texture dest,
             uint sourceSubresource,
@@ -562,6 +561,41 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="barrier">The barrier</param>
         [IllegalBundleMethod]
+        public void WriteBarrier(in ResourceWriteBarrier barrier)
+        {
+            fixed (ResourceWriteBarrier* pBarrier = &barrier)
+            {
+                var command = new CommandWriteBarrier
+                {
+                    Count = 1,
+                };
+
+                _encoder.EmitVariable(&command, pBarrier, command.Count);
+            }
+        }
+        /// <summary>
+        /// Mark a resource barrierson the command list
+        /// </summary>
+        /// <param name="barriers">The barrier</param>
+        [IllegalBundleMethod]
+        public void WriteBarrier(ReadOnlySpan<ResourceWriteBarrier> barriers)
+        {
+            fixed (ResourceWriteBarrier* pBarriers = barriers)
+            {
+                var command = new CommandWriteBarrier
+                {
+                    Count = (uint)barriers.Length,
+                };
+
+                _encoder.EmitVariable(&command, pBarriers, command.Count);
+            }
+        }
+
+        /// <summary>
+        /// Mark a resource barrierson the command list
+        /// </summary>
+        /// <param name="barrier">The barrier</param>
+        [IllegalBundleMethod]
         public void Barrier(in ResourceTransition barrier)
         {
             fixed (ResourceTransition* pBarrier = &barrier)
@@ -592,6 +626,15 @@ namespace Voltium.Core
                 _encoder.EmitVariable(&command, pBarriers, command.Count);
             }
         }
+    }
+
+    public struct ResourceWriteBarrier
+    {
+        internal ResourceHandle Handle;
+
+        public static ResourceWriteBarrier Create(in Buffer buff) => new() { Handle = new ResourceHandle { Type = ResourceHandleType.Buffer, Buffer = buff.Handle } };
+        public static ResourceWriteBarrier Create(in Texture buff) => new() { Handle = new ResourceHandle { Type = ResourceHandleType.Texture, Texture = buff.Handle } };
+        public static ResourceWriteBarrier Create(in RaytracingAccelerationStructure buff) => new() { Handle = new ResourceHandle { Type = ResourceHandleType.RaytracingAccelerationStructure, RaytracingAccelerationStructure = buff.Handle } };
     }
 
     /// <summary>

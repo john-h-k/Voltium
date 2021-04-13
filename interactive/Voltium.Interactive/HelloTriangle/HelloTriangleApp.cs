@@ -74,13 +74,10 @@ namespace Voltium.Interactive.HelloTriangle
                 PixelShader = ShaderManager.CompileShader("HelloTriangle/Shader.hlsl", ShaderType.Pixel, entrypoint: "PixelMain"),
                 RenderTargetFormats = _output.Format,
                 DepthStencil = DepthStencilDesc.DisableDepthStencil,
-                Inputs = InputLayout.FromType<HelloWorldVertex>(),
-                Rasterizer = RasterizerDesc.Default,
-                Msaa = MsaaDesc.None,
-                Blend = BlendDesc.Default
+                Inputs = InputLayout.FromType<HelloWorldVertex>()
             };
 
-            _pso = _device.CreatePipelineStateObject(_device.CreateRootSignature(default, default, RootSignatureFlags.AllowInputAssembler), psoDesc);
+            _pso = _device.CreatePipelineStateObject(psoDesc);
         }
 
 

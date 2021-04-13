@@ -6,7 +6,6 @@ using System.Text;
 using System.Threading.Tasks;
 using TerraFX.Interop;
 using Voltium.Common;
-using Voltium.Core.CommandBuffer;
 using Voltium.Core.Contexts;
 using Voltium.Core.Memory;
 using Voltium.Core.Pipeline;
@@ -18,6 +17,7 @@ using System.Runtime.InteropServices;
 using System.Collections.Immutable;
 using Voltium.Core.NativeApi;
 using Voltium.Core.NativeApi.D3D12;
+using Voltium.Allocators;
 
 namespace Voltium.Core.Devices
 {
@@ -29,7 +29,7 @@ namespace Voltium.Core.Devices
         private const uint ShaderVisibleDescriptorCount = 1024 * 512, ShaderVisibleSamplerCount = 1024;
 
         private UniqueComPtr<ID3D12Device5> _device;
-        private GenerationalHandleMapper _mapper;
+        private D3D12HandleMapper _mapper;
         private ValueList<FreeBlock> _freeList;
         private int _resDescriptorSize, _rtvDescriptorSize, _dsvDescriptorSize;
         private UniqueComPtr<ID3D12DescriptorHeap> _shaderDescriptors;
@@ -40,6 +40,12 @@ namespace Voltium.Core.Devices
         private D3D12_GPU_DESCRIPTOR_HANDLE _firstSamplerDescriptorGpu;
         private uint _numShaderDescriptors;
         private uint _numSamplerDescriptors;
+
+        internal void DefaultDescriptorHeaps(out ID3D12DescriptorHeap* resources, out ID3D12DescriptorHeap* samplers)
+        {
+            resources = _shaderDescriptors.Ptr;
+            samplers = _samplerDescriptors.Ptr;
+        }
 
         /// <summary>
         /// Create a new D3D12 device
@@ -88,19 +94,20 @@ namespace Voltium.Core.Devices
             UniqueComPtr<ID3D12DescriptorHeap> shaderVisibleSamplers = default;
             desc = new D3D12_DESCRIPTOR_HEAP_DESC
             {
-                NumDescriptors = ShaderVisibleDescriptorCount,
+                NumDescriptors = 2048 /* max */,
                 Type = D3D12_DESCRIPTOR_HEAP_TYPE.D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER,
                 Flags = D3D12_DESCRIPTOR_HEAP_FLAGS.D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE
             };
 
             ThrowIfFailed(device.Ptr->CreateDescriptorHeap(&desc, shaderVisibleSamplers.Iid, (void**)&shaderVisibleSamplers));
 
-            _samplerDescriptors = shaderVisible;
+            _samplerDescriptors = shaderVisibleSamplers;
             _firstSamplerDescriptor = shaderVisible.Ptr->GetCPUDescriptorHandleForHeapStart();
             _firstSamplerDescriptorGpu = shaderVisible.Ptr->GetGPUDescriptorHandleForHeapStart();
             _numSamplerDescriptors = desc.NumDescriptors;
 
             _freeList = new(1, ArrayPool<FreeBlock>.Shared);
+            _freeList.Add(new FreeBlock { Offset = 0, Length = ShaderVisibleDescriptorCount });
 
             CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, out D3D12_FEATURE_DATA_D3D12_OPTIONS opts);
             CheckFeatureSupport(D3D12_FEATURE_ARCHITECTURE1, out D3D12_FEATURE_DATA_ARCHITECTURE1 arch1);
@@ -110,7 +117,8 @@ namespace Voltium.Core.Devices
                 IsCacheCoherent = Helpers.Int32ToBool(arch1.CacheCoherentUMA) || !Helpers.Int32ToBool(arch1.UMA),
                 IsUma = Helpers.Int32ToBool(arch1.UMA),
                 VirtualAddressRange = 2UL << (int)va.MaxGPUVirtualAddressBitsPerProcess,
-                MergedHeapSupport = opts.ResourceHeapTier == D3D12_RESOURCE_HEAP_TIER.D3D12_RESOURCE_HEAP_TIER_2
+                MergedHeapSupport = opts.ResourceHeapTier == D3D12_RESOURCE_HEAP_TIER.D3D12_RESOURCE_HEAP_TIER_2,
+                RaytracingShaderIdentifierSize = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES
             };
         }
 
@@ -122,7 +130,7 @@ namespace Voltium.Core.Devices
             public uint Offset, Length;
         }
 
-        internal ref GenerationalHandleMapper GetMapperRef() => ref _mapper;
+        internal ref D3D12HandleMapper GetMapperRef() => ref _mapper;
         internal ID3D12Device5* GetDevice() => _device.Ptr;
         internal D3D12Fence GetFence(FenceHandle fence) => _mapper.GetInfo(fence);
 
@@ -171,7 +179,7 @@ namespace Voltium.Core.Devices
         /// <inheritdoc />
 
         public ulong GetCompletedValue(FenceHandle fence) => _mapper.GetInfo(fence).Fence->GetCompletedValue();
-        
+
         /// <inheritdoc />
         public void Wait(ReadOnlySpan<FenceHandle> fences, ReadOnlySpan<ulong> values, WaitMode mode)
             => SetEvent(default, fences, values, mode);
@@ -183,7 +191,7 @@ namespace Voltium.Core.Devices
 
             SetEvent(@event, fences, values, mode);
 
-            return new (@event);
+            return OSEvent.FromWin32Handle(@event);
         }
 
         private void SetEvent(IntPtr hEvent, ReadOnlySpan<FenceHandle> fences, ReadOnlySpan<ulong> values, WaitMode mode)
@@ -194,6 +202,8 @@ namespace Voltium.Core.Devices
                 var value = values[0];
 
                 ThrowIfFailed(_mapper.GetInfo(fence).Fence->SetEventOnCompletion(value, hEvent));
+
+                return;
             }
 
             var nativeFences = ArrayPool<IntPtr>.Shared.Rent(fences.Length);
@@ -336,7 +346,7 @@ namespace Voltium.Core.Devices
                 &props,
                 D3D12_HEAP_FLAGS.D3D12_HEAP_FLAG_NONE,
                 &nativeDesc,
-                DefaultBufferState(props),
+                D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,
                 null,
                 res.Iid,
                 (void**)&res
@@ -346,7 +356,7 @@ namespace Voltium.Core.Devices
             var buffer = new D3D12RaytracingAccelerationStructure
             {
                 RaytracingAccelerationStructure = res.Ptr,
-                Address = res.Ptr->GetGPUVirtualAddress(),
+                GpuAddress = res.Ptr->GetGPUVirtualAddress(),
                 Length = length
             };
 
@@ -365,7 +375,7 @@ namespace Voltium.Core.Devices
                 nativeHeap.Heap,
                 offset,
                 &nativeDesc,
-                DefaultBufferState(nativeHeap.Properties),
+                D3D12_RESOURCE_STATES.D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,
                 null,
                 res.Iid,
                 (void**)&res
@@ -375,7 +385,7 @@ namespace Voltium.Core.Devices
             var buffer = new D3D12RaytracingAccelerationStructure
             {
                 RaytracingAccelerationStructure = res.Ptr,
-                Address = res.Ptr->GetGPUVirtualAddress(),
+                GpuAddress = res.Ptr->GetGPUVirtualAddress(),
                 Length = length
             };
 
@@ -392,12 +402,14 @@ namespace Voltium.Core.Devices
 
             var props = GetRaytracingAccelerationStructureHeapProperties();
 
+            static bool IsRtOrDs(ResourceFlags flags) => (flags & (ResourceFlags.AllowRenderTarget | ResourceFlags.AllowDepthStencil)) != 0;
+
             ThrowIfFailed(_device.Ptr->CreateCommittedResource(
                 &props,
                 D3D12_HEAP_FLAGS.D3D12_HEAP_FLAG_NONE,
                 &nativeDesc,
                 (D3D12_RESOURCE_STATES)initial,
-                &clearValue,
+                IsRtOrDs(desc.ResourceFlags) ? &clearValue  : null,
                 res.Iid,
                 (void**)&res
             ));
@@ -473,6 +485,28 @@ namespace Voltium.Core.Devices
         }
 
         /// <inheritdoc />
+        public DynamicBufferDescriptorHandle CreateDynamicDescriptor(BufferHandle buffer)
+        {
+            var info = new D3D12DynamicBufferDescriptor
+            {
+                GpuAddress = _mapper.GetInfo(buffer).GpuAddress
+            };
+
+            return _mapper.Create(info);
+        }
+
+        /// <inheritdoc />
+        public DynamicRaytracingAccelerationStructureDescriptorHandle CreateDynamicDescriptor(RaytracingAccelerationStructureHandle buffer)
+        {
+            var info = new D3D12DynamicRaytracingAccelerationStructureDescriptor
+            {
+                GpuAddress = _mapper.GetInfo(buffer).GpuAddress
+            };
+
+            return _mapper.Create(info);
+        }
+
+        /// <inheritdoc />
         public DescriptorSetHandle CreateDescriptorSet(DescriptorType type, uint count)
         {
             for (var i = 0; i < _freeList.Length; i++)
@@ -543,7 +577,7 @@ namespace Voltium.Core.Devices
                     break;
             }
 
-            _device.Ptr->CopyDescriptorsSimple(count, dest, GetCbv(views.FirstShaderResources, firstView, views.Length), D3D12_DESCRIPTOR_HEAP_TYPE.D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+            _device.Ptr->CopyDescriptorsSimple(count, dest, src, D3D12_DESCRIPTOR_HEAP_TYPE.D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
         }
 
         /// <inheritdoc />
@@ -706,9 +740,10 @@ namespace Voltium.Core.Devices
             D3D12_SHADER_RESOURCE_VIEW_DESC desc;
             _ = &desc;
 
+            desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
             desc.Format = DXGI_FORMAT.DXGI_FORMAT_UNKNOWN;
             desc.ViewDimension = D3D12_SRV_DIMENSION.D3D12_SRV_DIMENSION_RAYTRACING_ACCELERATION_STRUCTURE;
-            desc.RaytracingAccelerationStructure.Location = accelerationStructure.Address;
+            desc.RaytracingAccelerationStructure.Location = accelerationStructure.GpuAddress;
 
             _device.Ptr->CreateShaderResourceView(null, &desc, srv);
 
@@ -722,11 +757,304 @@ namespace Voltium.Core.Devices
             return _mapper.Create(view);
         }
 
+        private struct InitialSubObjects
+        {
+            public D3D12_NODE_MASK NodeMask;
+            public D3D12_RAYTRACING_PIPELINE_CONFIG PipelineConfig;
+            public D3D12_RAYTRACING_SHADER_CONFIG ShaderConfig;
+            public D3D12_GLOBAL_ROOT_SIGNATURE GlobalRootSig;
+        }
 
         /// <inheritdoc />
-        public PipelineHandle CreatePipeline(in RootSignatureHandle rootSignature, in ComputePipelineDesc pipelineDesc)
+        public PipelineHandle CreatePipeline(in NativeRaytracingPipelineDesc pipelineDesc)
         {
-            var rootSig = _mapper.GetInfo(rootSignature);
+            var buff = new ValueList<byte>(ArrayPool<byte>.Shared);
+
+            var rootSigCount = pipelineDesc.LocalRootSignatures.Length;
+            var libraryCount = pipelineDesc.Libraries.Length;
+            var triangleHitGroupCount = pipelineDesc.TriangleHitGroups.Length;
+            var proceduralHitGroupCount = pipelineDesc.ProceduralPrimitiveHitGroups.Length;
+
+            var exportLength = 0;
+            foreach (ref readonly var library in pipelineDesc.Libraries.Span)
+            {
+                exportLength += library.Exports.Length;
+            }
+
+            var associationCount = 0;
+            var associationSubobjectCount = 0;
+            foreach (ref readonly var localRootSig in pipelineDesc.LocalRootSignatures.Span)
+            {
+                if (!localRootSig.Associations.IsEmpty)
+                {
+                    associationCount += localRootSig.Associations.Length;
+                    associationSubobjectCount++;
+                }
+            }
+
+            var subObjectCount = 4 + rootSigCount + associationSubobjectCount + libraryCount + exportLength + triangleHitGroupCount + proceduralHitGroupCount;
+
+            var subObjectSizes =
+                sizeof(D3D12_NODE_MASK) +
+                sizeof(D3D12_RAYTRACING_PIPELINE_CONFIG) +
+                sizeof(D3D12_RAYTRACING_SHADER_CONFIG) +
+                sizeof(D3D12_GLOBAL_ROOT_SIGNATURE) +
+
+                (sizeof(D3D12_LOCAL_ROOT_SIGNATURE) * rootSigCount) +
+                (sizeof(D3D12_SUBOBJECT_TO_EXPORTS_ASSOCIATION) * associationSubobjectCount) +
+                (sizeof(char*) * associationCount) +
+                (sizeof(D3D12_DXIL_LIBRARY_DESC) * libraryCount) +
+                (sizeof(D3D12_EXPORT_DESC) * exportLength) +
+                (sizeof(D3D12_HIT_GROUP_DESC) * triangleHitGroupCount) +
+                (sizeof(D3D12_HIT_GROUP_DESC) * proceduralHitGroupCount);
+
+            int
+            MaxStringsPerAssociation = 1,
+            MaxStringsPerExport = 2,
+            MaxStringsPerTriangleHitGroup = 3,
+            MaxStringsPerProceduralPrimitiveHitGroup = 4;
+
+            var requiredHandles =
+                   (exportLength * MaxStringsPerExport) +
+                   (associationCount * MaxStringsPerAssociation) +
+                   (triangleHitGroupCount * MaxStringsPerTriangleHitGroup) +
+                   (proceduralHitGroupCount * MaxStringsPerProceduralPrimitiveHitGroup);
+
+            using var objects = RentedArray<D3D12_STATE_SUBOBJECT>.Create(subObjectCount);
+            using var buffer = RentedArray<byte>.Create(subObjectSizes);
+            using var handles = RentedArray<MemoryHandle>.Create(requiredHandles);
+
+            var objSpan = objects.AsSpan();
+            var bufferSpan = buffer.AsSpan();
+            var handleSpan = handles.AsSpan();
+
+            var rootSigInfo = _mapper.GetInfo(pipelineDesc.RootSignature);
+
+            var initial = new InitialSubObjects
+            {
+                NodeMask = new D3D12_NODE_MASK { NodeMask = pipelineDesc.NodeMask },
+                GlobalRootSig = new D3D12_GLOBAL_ROOT_SIGNATURE { pGlobalRootSignature = rootSigInfo.RootSignature },
+                PipelineConfig = new D3D12_RAYTRACING_PIPELINE_CONFIG { MaxTraceRecursionDepth = pipelineDesc.MaxRecursionDepth },
+                ShaderConfig = new D3D12_RAYTRACING_SHADER_CONFIG { MaxAttributeSizeInBytes = pipelineDesc.MaxAttributeSize, MaxPayloadSizeInBytes = pipelineDesc.MaxPayloadSize }
+            };
+
+            SerializeInitialSubObjects(initial, ref objSpan, ref bufferSpan, ref handleSpan);
+            SerializeLibraries(pipelineDesc.Libraries.Span, ref objSpan, ref bufferSpan, ref handleSpan);
+            SerializeLocalRootSigs(pipelineDesc.LocalRootSignatures.Span, ref objSpan, ref bufferSpan, ref handleSpan);
+            SerializeHitGroups(pipelineDesc.TriangleHitGroups.Span, pipelineDesc.ProceduralPrimitiveHitGroups.Span, ref objSpan, ref bufferSpan, ref handleSpan);
+
+            fixed (D3D12_STATE_SUBOBJECT* pSubobjects = objects)
+            {
+                var desc = new D3D12_STATE_OBJECT_DESC
+                {
+                    pSubobjects = pSubobjects,
+                    NumSubobjects = (uint)objects.Length,
+                    Type = D3D12_STATE_OBJECT_TYPE.D3D12_STATE_OBJECT_TYPE_RAYTRACING_PIPELINE
+                };
+
+                UniqueComPtr<ID3D12StateObject> pso = default;
+                ThrowIfFailed(_device.Ptr->CreateStateObject(&desc, pso.Iid, (void**)&pso));
+
+
+                return _mapper.Create(new D3D12PipelineState
+                {
+                    BindPoint = BindPoint.Compute,
+                    IsRaytracing = true,
+                    PipelineState = (ID3D12Object*)pso.Ptr,
+                    Properties = pso.QueryInterface<ID3D12StateObjectProperties>().Ptr,
+                    RootParameters = rootSigInfo.RootParameters,
+                    RootSignature = rootSigInfo.RootSignature,
+                    Topology = 0
+                });
+            }
+
+
+
+            void SerializeInitialSubObjects(in InitialSubObjects o, ref Span<D3D12_STATE_SUBOBJECT> objects, ref Span<byte> buff, ref Span<MemoryHandle> handles)
+            {
+                var pStart = WriteAndAdvance(ref buff, o);
+                WriteAndAdvanceSubObjects(ref objects, new D3D12_STATE_SUBOBJECT { Type = D3D12_STATE_SUBOBJECT_TYPE.D3D12_STATE_SUBOBJECT_TYPE_NODE_MASK, pDesc = &pStart->NodeMask });
+                WriteAndAdvanceSubObjects(ref objects, new D3D12_STATE_SUBOBJECT { Type = D3D12_STATE_SUBOBJECT_TYPE.D3D12_STATE_SUBOBJECT_TYPE_RAYTRACING_PIPELINE_CONFIG, pDesc = &pStart->PipelineConfig });
+                WriteAndAdvanceSubObjects(ref objects, new D3D12_STATE_SUBOBJECT { Type = D3D12_STATE_SUBOBJECT_TYPE.D3D12_STATE_SUBOBJECT_TYPE_RAYTRACING_SHADER_CONFIG, pDesc = &pStart->ShaderConfig });
+                WriteAndAdvanceSubObjects(ref objects, new D3D12_STATE_SUBOBJECT { Type = D3D12_STATE_SUBOBJECT_TYPE.D3D12_STATE_SUBOBJECT_TYPE_GLOBAL_ROOT_SIGNATURE, pDesc = &pStart->GlobalRootSig });
+            }
+
+            void SerializeLibraries(ReadOnlySpan<ShaderLibrary> libraries, ref Span<D3D12_STATE_SUBOBJECT> objects, ref Span<byte> buff, ref Span<MemoryHandle> handles)
+            {
+                foreach (ref readonly var library in libraries)
+                {
+                    var pExports = (D3D12_EXPORT_DESC*)Helpers.AddressOf(buff);
+
+                    foreach (ref readonly var export in library.Exports.Span)
+                    {
+                        var exportDesc = new D3D12_EXPORT_DESC();
+
+                        var name = AddHandle(ref handles, export.Name);
+                        exportDesc.Name = (ushort*)name.Pointer;
+
+                        if (export.ExportRename?.Length != 0)
+                        {
+                            var rename = AddHandle(ref handles, export.ExportRename);
+                            exportDesc.Name = (ushort*)rename.Pointer;
+                        }
+
+                        WriteAndAdvance(ref buff, exportDesc);
+                    }
+
+                    var desc = new D3D12_DXIL_LIBRARY_DESC
+                    {
+                        DXILLibrary = new D3D12_SHADER_BYTECODE { pShaderBytecode = library.Library.Pointer, BytecodeLength = library.Library.Length },
+                        NumExports = (uint)library.Exports.Length,
+                        pExports = library.Exports.IsEmpty ? null : pExports
+                    };
+
+
+                    var subObject = new D3D12_STATE_SUBOBJECT
+                    {
+                        Type = D3D12_STATE_SUBOBJECT_TYPE.D3D12_STATE_SUBOBJECT_TYPE_DXIL_LIBRARY,
+                        pDesc = Helpers.AddressOf(buff)
+                    };
+
+                    WriteAndAdvance(ref buff, desc);
+                    WriteAndAdvanceSubObjects(ref objects, subObject);
+                }
+            }
+
+            void SerializeLocalRootSigs(ReadOnlySpan<LocalRootSignatureAssociation> localRootSigs, ref Span<D3D12_STATE_SUBOBJECT> objects, ref Span<byte> buff, ref Span<MemoryHandle> handles)
+            {
+                foreach (ref readonly var sig in localRootSigs)
+                {
+                    var desc = new D3D12_LOCAL_ROOT_SIGNATURE
+                    {
+                        pLocalRootSignature = _mapper.GetInfo(sig.RootSignature).RootSignature
+                    };
+
+                    var subObject = new D3D12_STATE_SUBOBJECT
+                    {
+                        Type = D3D12_STATE_SUBOBJECT_TYPE.D3D12_STATE_SUBOBJECT_TYPE_LOCAL_ROOT_SIGNATURE,
+                        pDesc = Helpers.AddressOf(buff)
+                    };
+
+                    WriteAndAdvance(ref buff, desc);
+                    var pSubObject = WriteAndAdvanceSubObjects(ref objects, subObject);
+
+                    if (sig.Associations.IsEmpty)
+                    {
+                        return;
+                    }
+
+                    char** pAssociations = (char**)Helpers.AddressOf(buff);
+                    foreach (var associationName in sig.Associations.Span)
+                    {
+                        var handle = AddHandle(ref handles, associationName);
+
+                        var p = (nuint)handle.Pointer;
+                        WriteAndAdvance(ref buff, p);
+                    }
+
+                    var association = new D3D12_SUBOBJECT_TO_EXPORTS_ASSOCIATION
+                    {
+                        pSubobjectToAssociate = pSubObject,
+                        NumExports = (uint)sig.Associations.Length,
+                        pExports = (ushort**)pAssociations
+                    };
+
+                    var pAssociationDesc = WriteAndAdvance(ref buff, association);
+
+                    var subObjectAssociation = new D3D12_STATE_SUBOBJECT
+                    {
+                        Type = D3D12_STATE_SUBOBJECT_TYPE.D3D12_STATE_SUBOBJECT_TYPE_SUBOBJECT_TO_EXPORTS_ASSOCIATION,
+                        pDesc = pAssociationDesc
+                    };
+
+                    WriteAndAdvanceSubObjects(ref objects, subObjectAssociation);
+                }
+            }
+
+
+            void SerializeHitGroups(ReadOnlySpan<TriangleHitGroup> triangles, ReadOnlySpan<ProceduralPrimitiveHitGroup> prims, ref Span<D3D12_STATE_SUBOBJECT> objects, ref Span<byte> buff, ref Span<MemoryHandle> handles)
+            {
+                foreach (ref readonly var triangle in triangles)
+                {
+                    var name = AddHandle(ref handles, triangle.Name);
+                    var closestHit = AddHandle(ref handles, triangle.ClosestHitShader);
+                    var anyHit = AddHandle(ref handles, triangle.AnyHitShader);
+
+                    var group = new D3D12_HIT_GROUP_DESC
+                    {
+                        Type = D3D12_HIT_GROUP_TYPE.D3D12_HIT_GROUP_TYPE_TRIANGLES,
+                        HitGroupExport = (ushort*)name.Pointer,
+                        ClosestHitShaderImport = (ushort*)closestHit.Pointer,
+                        AnyHitShaderImport = (ushort*)anyHit.Pointer,
+                    };
+
+                    AddSingleHitGroup(ref objects, ref buff, group);
+                }
+
+                foreach (ref readonly var primitive in prims)
+                {
+                    var name = AddHandle(ref handles, primitive.Name);
+                    var closestHit = AddHandle(ref handles, primitive.ClosestHitShader);
+                    var anyHit = AddHandle(ref handles, primitive.AnyHitShader);
+                    var intersection = AddHandle(ref handles, primitive.IntersectionShader);
+
+                    var group = new D3D12_HIT_GROUP_DESC
+                    {
+                        Type = D3D12_HIT_GROUP_TYPE.D3D12_HIT_GROUP_TYPE_PROCEDURAL_PRIMITIVE,
+                        HitGroupExport = (ushort*)name.Pointer,
+                        ClosestHitShaderImport = (ushort*)closestHit.Pointer,
+                        AnyHitShaderImport = (ushort*)anyHit.Pointer,
+                        IntersectionShaderImport = (ushort*)intersection.Pointer,
+                    };
+
+                    AddSingleHitGroup(ref objects, ref buff, group);
+                }
+            }
+
+            void AddSingleHitGroup(ref Span<D3D12_STATE_SUBOBJECT> objects, ref Span<byte> buff, in D3D12_HIT_GROUP_DESC hitGroup)
+            {
+                var pBuff = WriteAndAdvance(ref buff, hitGroup);
+
+                var obj = new D3D12_STATE_SUBOBJECT
+                {
+                    Type = D3D12_STATE_SUBOBJECT_TYPE.D3D12_STATE_SUBOBJECT_TYPE_HIT_GROUP,
+                    pDesc = pBuff
+                };
+
+                WriteAndAdvanceSubObjects(ref objects, obj);
+            }
+
+            MemoryHandle AddHandle(ref Span<MemoryHandle> handles, string? memory)
+            {
+                var handle = memory.AsMemory().Pin();
+                handles[0] = handle;
+                handles = handles[1..];
+
+                return handle;
+            }
+
+            T* WriteAndAdvance<T>(ref Span<byte> buff, in T val) where T : unmanaged
+            {
+                var addr = Helpers.AddressOf(buff);
+                MemoryMarshal.Write(buff, ref Unsafe.AsRef(in val));
+                buff = buff[sizeof(T)..];
+                return (T*)addr;
+            }
+
+            D3D12_STATE_SUBOBJECT* WriteAndAdvanceSubObjects(ref Span<D3D12_STATE_SUBOBJECT> objects, in D3D12_STATE_SUBOBJECT obj)
+            {
+                var addr = Helpers.AddressOf(objects);
+                objects[0] = obj;
+                objects = objects[1..];
+                return addr;
+            }
+
+        }
+
+        /// <inheritdoc />
+        public PipelineHandle CreatePipeline(in NativeComputePipelineDesc pipelineDesc)
+        {
+            var rootSig = _mapper.GetInfo(pipelineDesc.RootSignature);
 
             var desc = new D3D12_COMPUTE_PIPELINE_STATE_DESC
             {
@@ -824,11 +1152,15 @@ namespace Voltium.Core.Devices
 
 
         /// <inheritdoc />
-        public PipelineHandle CreatePipeline(in RootSignatureHandle rootSignature, in GraphicsPipelineDesc desc)
+        public PipelineHandle CreatePipeline(in NativeGraphicsPipelineDesc desc)
         {
             var builder = PipelineStreamBuilder.Create();
 
-            builder.Add(new D3D12_GLOBAL_ROOT_SIGNATURE { pGlobalRootSignature = _mapper.GetInfo(rootSignature).RootSignature });
+            var rootSig = _mapper.GetInfo(desc.RootSignature);
+
+            builder.Add(new D3D12_NODE_MASK { NodeMask = desc.NodeMask });
+
+            builder.Add(new D3D12_GLOBAL_ROOT_SIGNATURE { pGlobalRootSignature = rootSig.RootSignature });
 
             builder.AddShader(desc.VertexShader);
             if (desc.HullShader.Length > 0)
@@ -985,7 +1317,6 @@ namespace Voltium.Core.Devices
 
             fixed (void* pDesc = builder.PipelineStream)
             {
-                var rootSig = _mapper.GetInfo(rootSignature);
 
                 var nativeDesc = new D3D12_PIPELINE_STATE_STREAM_DESC
                 {
@@ -1010,9 +1341,8 @@ namespace Voltium.Core.Devices
             }
         }
 
-        //public PipelineHandle CreatePipeline(in RaytracingPipelineDesc desc) => throw new NotImplementedException();
         /// <inheritdoc />
-        public PipelineHandle CreatePipeline(in RootSignatureHandle rootSignature, in MeshPipelineDesc desc) => throw new NotImplementedException();
+        public PipelineHandle CreatePipeline(in NativeMeshPipelineDesc desc) => throw new NotImplementedException();
 
         /// <inheritdoc />
         public QuerySetHandle CreateQuerySet(QuerySetType type, uint length)
@@ -1037,7 +1367,23 @@ namespace Voltium.Core.Devices
         }
 
         /// <inheritdoc />
+        public LocalRootSignatureHandle CreateLocalRootSignature(ReadOnlySpan<RootParameter> rootParameters, ReadOnlySpan<StaticSampler> staticSamplers, RootSignatureFlags flags)
+            => _mapper.Create(new D3D12LocalRootSignature
+            {
+                RootSignature = InternalCreateRootSignature(rootParameters, staticSamplers, flags, local: true),
+                RootParameters = ImmutableArray.Create(rootParameters.ToArray())
+            });
+
+        /// <inheritdoc />
         public RootSignatureHandle CreateRootSignature(ReadOnlySpan<RootParameter> rootParameters, ReadOnlySpan<StaticSampler> staticSamplers, RootSignatureFlags flags)
+            => _mapper.Create(new D3D12RootSignature
+            {
+                RootSignature = InternalCreateRootSignature(rootParameters, staticSamplers, flags, local: false),
+                RootParameters = ImmutableArray.Create(rootParameters.ToArray())
+            });
+
+
+        private ID3D12RootSignature* InternalCreateRootSignature(ReadOnlySpan<RootParameter> rootParameters, ReadOnlySpan<StaticSampler> staticSamplers, RootSignatureFlags flags, bool local)
         {
             using var rootParams = RentedArray<D3D12_ROOT_PARAMETER1>.Create(rootParameters.Length);
             using var samplers = RentedArray<D3D12_STATIC_SAMPLER_DESC>.Create(staticSamplers.Length);
@@ -1054,7 +1400,7 @@ namespace Voltium.Core.Devices
                     pParameters = pRootParams,
                     NumStaticSamplers = (uint)staticSamplers.Length,
                     pStaticSamplers = pSamplerDesc,
-                    Flags = (D3D12_ROOT_SIGNATURE_FLAGS)flags
+                    Flags = ((D3D12_ROOT_SIGNATURE_FLAGS)flags) | (local ? D3D12_ROOT_SIGNATURE_FLAGS.D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE : 0)
                 };
 
                 var versionedDesc = new D3D12_VERSIONED_ROOT_SIGNATURE_DESC
@@ -1065,7 +1411,7 @@ namespace Voltium.Core.Devices
 
                 ID3DBlob* pBlob = default;
                 ID3DBlob* pError = default;
-                int hr = Windows.D3D12SerializeVersionedRootSignature(
+                int hr = D3D12SerializeVersionedRootSignature(
                     &versionedDesc,
                     &pBlob,
                     &pError
@@ -1086,13 +1432,7 @@ namespace Voltium.Core.Devices
                     (void**)&pRootSig
                 ));
 
-                var rootSig = new D3D12RootSignature
-                {
-                    RootSignature = pRootSig.Ptr,
-                    RootParameters = ImmutableArray.Create(rootParameters.ToArray())
-                };
-
-                return _mapper.Create(rootSig);
+                return pRootSig.Ptr;
             }
         }
 
@@ -1184,6 +1524,32 @@ namespace Voltium.Core.Devices
             }
         }
 
+        public void GetRaytracingShaderIdentifier(PipelineHandle raytracingPipeline, ReadOnlySpan<char> shaderName, Span<byte> identifier)
+        {
+            if (identifier.Length < Info.RaytracingShaderIdentifierSize)
+            {
+                ThrowHelper.ThrowArgumentException("Span too small for identifier");
+            }
+
+            fixed (char* pName = shaderName)
+            {
+                void* pIdentifier = _mapper.GetInfo(raytracingPipeline).Properties->GetShaderIdentifier((ushort*)pName);
+
+                if (pIdentifier is null)
+                {
+                    ThrowHelper.ThrowArgumentException("Invalid shader name");
+                }    
+
+                new Span<byte>(pIdentifier, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES).CopyTo(identifier);
+            }
+        }
+
+        /// <inheritdoc />
+        public void DisposeDynamicDescriptor(DynamicRaytracingAccelerationStructureDescriptorHandle handle) => _mapper.GetAndFree(handle);
+
+        /// <inheritdoc />
+        public void DisposeDynamicDescriptor(DynamicBufferDescriptorHandle handle) => _mapper.GetAndFree(handle);
+
         /// <inheritdoc />
         public void DisposeBuffer(BufferHandle handle) => _mapper.GetAndFree(handle).Buffer->Release();
         /// <inheritdoc />
@@ -1197,12 +1563,14 @@ namespace Voltium.Core.Devices
         /// <inheritdoc />
         public void DisposeRootSignature(RootSignatureHandle handle) => _mapper.GetAndFree(handle).RootSignature->Release();
         /// <inheritdoc />
+        public void DisposeLocalRootSignature(LocalRootSignatureHandle handle) => _mapper.GetAndFree(handle).RootSignature->Release();
+        /// <inheritdoc />
         public void DisposeTexture(TextureHandle handle) => _mapper.GetAndFree(handle).Texture->Release();
         /// <inheritdoc />
         public void DisposeView(ViewHandle handle) => _mapper.GetAndFree(handle);
 
         /// <inheritdoc />
-        public IndirectCommandHandle CreateIndirectCommand(in RootSignature rootSig, ReadOnlySpan<IndirectArgument> arguments, uint byteStride) => throw new NotImplementedException();
+        public IndirectCommandHandle CreateIndirectCommand(RootSignatureHandle rootSig, ReadOnlySpan<IndirectArgument> arguments, uint byteStride) => throw new NotImplementedException();
         /// <inheritdoc />
         public IndirectCommandHandle CreateIndirectCommand(in IndirectArgument arguments, uint byteStride) => throw new NotImplementedException();
         /// <inheritdoc />
@@ -1258,8 +1626,8 @@ namespace Voltium.Core.Devices
         }
 
         private D3D12_CPU_DESCRIPTOR_HANDLE GetSrv(D3D12_CPU_DESCRIPTOR_HANDLE handle, uint index, uint count) => handle.Offset(_resDescriptorSize, index);
-        private D3D12_CPU_DESCRIPTOR_HANDLE GetUav(D3D12_CPU_DESCRIPTOR_HANDLE handle, uint index, uint count) => handle.Offset(_resDescriptorSize, (count / 3) + index);
-        private D3D12_CPU_DESCRIPTOR_HANDLE GetCbv(D3D12_CPU_DESCRIPTOR_HANDLE handle, uint index, uint count) => handle.Offset(_resDescriptorSize, ((count / 3) * 2) + index);
+        private D3D12_CPU_DESCRIPTOR_HANDLE GetUav(D3D12_CPU_DESCRIPTOR_HANDLE handle, uint index, uint count) => handle.Offset(_resDescriptorSize, count + index);
+        private D3D12_CPU_DESCRIPTOR_HANDLE GetCbv(D3D12_CPU_DESCRIPTOR_HANDLE handle, uint index, uint count) => handle.Offset(_resDescriptorSize, (count * 2) + index);
 
 
 
@@ -1367,5 +1735,49 @@ namespace Voltium.Core.Devices
                     );
             }
         }
+
+        /// <inheritdoc/>
+        public (ulong DestSize, ulong ScratchSize, ulong UpdateSize) GetBottomLevelAccelerationStructureBuildInfo(ReadOnlySpan<GeometryDesc> geometry, BuildAccelerationStructureFlags flags)
+        {
+            fixed (void* pGeometryDescs = geometry)
+            {
+                var inputs = new D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS
+                {
+                    Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE.D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL,
+                    Flags = (D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS)flags,
+                    DescsLayout = D3D12_ELEMENTS_LAYOUT.D3D12_ELEMENTS_LAYOUT_ARRAY,
+                    NumDescs = (uint)geometry.Length,
+                    pGeometryDescs = (D3D12_RAYTRACING_GEOMETRY_DESC*)pGeometryDescs
+                };
+
+                D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO info;
+
+                _device.Ptr->GetRaytracingAccelerationStructurePrebuildInfo(&inputs, &info);
+
+                return (info.ResultDataMaxSizeInBytes, info.ScratchDataSizeInBytes, info.UpdateScratchDataSizeInBytes);
+            }
+        }
+
+        /// <inheritdoc/>
+        public (ulong DestSize, ulong ScratchSize, ulong UpdateSize) GetTopLevelAccelerationStructureBuildInfo(uint numInstances, BuildAccelerationStructureFlags flags)
+        {
+            var inputs = new D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS
+            {
+                Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE.D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL,
+                Flags = (D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS)flags,
+                DescsLayout = D3D12_ELEMENTS_LAYOUT.D3D12_ELEMENTS_LAYOUT_ARRAY,
+                NumDescs = numInstances,
+                InstanceDescs = /* arbitrary non-null value */ 1
+            };
+
+            D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO info;
+
+            _device.Ptr->GetRaytracingAccelerationStructurePrebuildInfo(&inputs, &info);
+
+            return (info.ResultDataMaxSizeInBytes, info.ScratchDataSizeInBytes, info.UpdateScratchDataSizeInBytes);
+        }
+
+        public ulong GetDeviceVirtualAddress(BufferHandle handle) => _mapper.GetInfo(handle).GpuAddress;
+        public ulong GetDeviceVirtualAddress(RaytracingAccelerationStructureHandle handle) => _mapper.GetInfo(handle).GpuAddress;
     }
 }

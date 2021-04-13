@@ -11,16 +11,12 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <CheckForOverflowUnderflow>false</CheckForOverflowUnderflow>
     <DefineConstants>TRACE;ENABLE_EXPERIMENTAL_FEATURES</DefineConstants>
+    <NoWarn>1701;1702;1591</NoWarn>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
     <NoWarn>1701;1702;1591</NoWarn>
   </PropertyGroup>
-
-  <ItemGroup>
-    <Compile Remove="Raytracing\**" />
-    <EmbeddedResource Remove="Raytracing\**" />
-  </ItemGroup>
 
   <ItemGroup>
     <AdditionalFiles Remove="C:\Users\johnk\source\repos\Voltium\sources\BannedSymbols.txt" />
@@ -39,5 +35,6 @@
   <ItemGroup>
     <PackageReference Include="MathSharp" Version="2.0.0-pre" />
     <PackageReference Include="NonCopyableAnalyzer" Version="0.6.0" />
+    <PackageReference Include="TerraFX.Interop.Vulkan" Version="1.2.170-beta1-713660587" />
   </ItemGroup>
 </Project>

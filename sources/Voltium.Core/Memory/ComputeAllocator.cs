@@ -24,7 +24,6 @@ using Microsoft.Toolkit.HighPerformance.Extensions;
 using SysDebug = System.Diagnostics.Debug;
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.Collections.Extensions;
-using Voltium.Core.CommandBuffer;
 using Voltium.Core.NativeApi;
 
 namespace Voltium.Core.Memory
@@ -135,6 +134,9 @@ namespace Voltium.Core.Memory
                 _readback = new();
                 _upload = new();
             }
+
+            // TODO
+            _hasRaytracingSupport = true;
         }
 
         /// <summary>

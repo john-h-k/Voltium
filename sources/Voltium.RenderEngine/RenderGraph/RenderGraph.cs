@@ -12,6 +12,7 @@ using Microsoft.Toolkit.HighPerformance.Extensions;
 using Microsoft.Toolkit.HighPerformance.Helpers;
 using Voltium.Common;
 using Voltium.Core;
+using Voltium.Core.CommandBuffer;
 using Voltium.Core.Contexts;
 using Voltium.Core.Devices;
 using Voltium.Core.Memory;
@@ -19,27 +20,74 @@ using Buffer = Voltium.Core.Memory.Buffer;
 
 namespace Voltium.RenderEngine
 {
-
-    internal class ThreadLocalBoxCache<T> where T : struct, IEquatable<T>
+    internal abstract class Box
     {
-        private object? _box = default(T);
+        public abstract ref byte Data { get; }
+    }
 
-        public bool TryGetBox(in T data, [NotNullWhen(true)] out object? box)
+    internal class Box<T> : Box
+    {
+        public T Value;
+
+        public Box(T value) => Value = value;
+
+        public override ref byte Data => ref Unsafe.As<T, byte>(ref Value);
+    }
+
+    internal static class ThreadLocalBoxCache<T> where T : struct, IEquatable<T>
+    {
+        [ThreadStatic]
+        private static ValueQueue<Box<T>> _boxes;
+
+        private const int CacheCount = 64;
+
+        public static bool TryGetBox(in T data, [NotNullWhen(true)] out Box<T>? box)
         {
-            if (_box is null)
+            if (_boxes.IsValid)
+            {
+                _boxes = ValueQueue<Box<T>>.Create(CacheCount);
+            }
+
+            if (_boxes.Count == 0 || _boxes.Count == CacheCount)
             {
                 box = null!;
                 return false;
             }
 
-            // this is not allowed and not ok
-            Unsafe.Unbox<T>(_box) = data;
-            box = _box;
-            _box = null;
+            box = _boxes.Dequeue();
+            box.Value = data;
             return true;
         }
 
-        public void ReturnBox(object o) => _box = o;
+        public static void ReturnBox(Box<T> o) => _boxes.Enqueue(o);
+    }
+
+    internal struct CachedString : IEquatable<CachedString>, IEquatable<string>
+    {
+        public CachedString(string s)
+        {
+            Value = s;
+            _hashCode = null;
+        }
+
+        public readonly string Value;
+
+        private int? _hashCode;
+
+        public void CacheHashCode() => _ = HashCode;
+        public int HashCode => _hashCode ??= Value.GetHashCode();
+        public bool IsHashCodeCached => _hashCode is not null;
+
+        public bool Equals(CachedString other)
+        {
+            if (_hashCode == other._hashCode)
+            {
+                return false;
+            }
+            return Value == other.Value;
+        }
+
+        public bool Equals(string? other) => Value == other;
     }
 
     /// <summary>
@@ -48,33 +96,6 @@ namespace Voltium.RenderEngine
     public unsafe sealed partial class RenderGraph
     {
         private GraphicsDevice _device;
-
-        private struct CachedString : IEquatable<CachedString>, IEquatable<string>
-        {
-            public CachedString(string s)
-            {
-                Value = s;
-                _hashCode = null;
-            }
-
-            public readonly string Value;
-
-            private int? _hashCode;
-
-            public int HashCode => _hashCode ??= Value.GetHashCode();
-            public bool IsHashCodeCached => _hashCode is not null;
-
-            public bool Equals(CachedString other)
-            {
-                if (IsHashCodeCached && other.IsHashCodeCached && HashCode != other.HashCode)
-                {
-                    return false;
-                }
-                return Value == other.Value;
-            }
-
-            public bool Equals(string? other) => Value == other;
-        }
 
         private DictionarySlim<CachedString, PassHeuristics> _heuristics = new();
 
@@ -88,7 +109,7 @@ namespace Voltium.RenderEngine
 
             public ValueList<int> InputPassIndices;
             public ValueList<TrackedResource> Resources;
-            public ValueList<TrackedResource> PersistentResources;
+            public ValueList<ViewDesc> Views;
             public int MaxDepth;
             public int NumBarrierLists;
             public Resolver Resolver;
@@ -127,6 +148,31 @@ namespace Voltium.RenderEngine
             // we don't actually have last frame so elide pointless copy
             MoveToNextGraphFrame(GpuTask.Completed, preserveLastFrame: false);
         }
+
+        /// <summary>
+        /// Indicates a pass creates a new buffer
+        /// </summary>
+        /// <param name="desc">The <see cref="BufferDesc"/> describing the pass's buffer</param>
+        /// <param name="memoryAccess">The <see cref="MemoryAccess"/> the buffer will be allocated as</param>
+        /// <param name="debugName">The <see cref="string"/> to set the resource name to in debug mode</param>
+        /// <returns>A new <see cref="BufferHandle"/> representing the resource that can be later resolved to a <see cref="Buffer"/></returns>
+        public BufferHandle CreateBuffer(in BufferDesc desc, MemoryAccess memoryAccess, string? debugName = null)
+            => AddResource(new ResourceDesc { Type = ResourceType.Buffer, BufferDesc = desc, MemoryAccess = memoryAccess, InitialState = ResourceState.Common, DebugName = debugName }, _passIndex).AsBufferHandle();
+
+        /// <summary> 
+        /// Indicates a pass creates a new texture9
+        /// </summary>
+        /// <param name="desc">The <see cref="TextureDesc"/> describing the pass's buffer</param>
+        /// <param name="initialState">The initial <see cref="ResourceState"/> of the resource</param>
+        /// <param name="debugName">The <see cref="string"/> to set the resource name to in debug mode</param>
+        /// <returns>A new <see cref="TextureHandle"/> representing the resource that can be later resolved to a <see cref="Buffer"/></returns>
+        public TextureHandle CreateTexture(in TextureDesc desc, string? debugName = null)
+            => AddResource(new ResourceDesc { Type = ResourceType.Texture, TextureDesc = desc, InitialState = initialState, DebugName = debugName }, _passIndex).AsTextureHandle();
+
+        public ViewHandle CreateView(BufferHandle resource, BufferViewDesc? view = null)
+            => AddView(new ViewDesc { Type = ResourceType.Buffer, Handle = resource.AsResourceHandle(), BufferViewDesc = view });
+        public ViewHandle CreateView(TextureHandle resource, in TextureViewDesc? view = null)
+            => AddView(new ViewDesc { Type = ResourceType.Texture, Handle = resource.AsResourceHandle(), TextureViewDesc = view });
 
         // convience methods
 
@@ -192,7 +238,7 @@ namespace Voltium.RenderEngine
             /// <summary>
             /// The pass should not be executed
             /// </summary>
-            // Do this so we can recognise invalid flag combos (avoid people doing, e.g, return AsyncComputeValid)
+            // Do this so we can recognise invalid flag combos (avoid people doing, e.g, 'return AsyncComputeValid' without specifying 'ExecutePass' as well)
             RemovePass = ~(ExecutePass | HasExternalOutputs | AsyncComputeValid)
         }
 
@@ -209,22 +255,8 @@ namespace Voltium.RenderEngine
             /// <summary>
             /// The <see cref="GpuContext"/> for this pass
             /// </summary>
-            public GpuContext CommandBuffer { get; init; }
+            public GraphicsContext CommandBuffer { get; init; }
         }
-
-        /// <summary>
-        /// The delegate used for registering new render graph passes
-        /// </summary>
-        /// <typeparam name="TState">Opaque state that is passed to this delegate</typeparam>
-        /// <param name="builder">The <see cref="RenderPassBuilder"/> used for deciding render graph inputs and outputs</param>
-        /// <param name="resolver">The <see cref="Resolver"/> used for communicating between passes</param>
-        /// <param name="state">The <typeparamref name="TState"/> passed by the consumer</param>
-        /// <returns>The execution decision for the pass</returns>
-        public delegate PassRegisterDecision PassRegister<TState>(
-            ref RenderPassBuilder builder,
-            ref Resolver resolver,
-            TState state
-        );
 
 
         /// <summary>
@@ -235,21 +267,50 @@ namespace Voltium.RenderEngine
         /// <param name="state">The <see cref="Resolver"/> used for communicating between passes</param>
         /// <param name="info">The <see cref="PassExecutionInfo"/> for this pass</param>
         public delegate void PassRecord<TState>(
-            ref Resolver resolver,
+            Resolver resolver,
             TState state,
-            in PassExecutionInfo info
+            PassExecutionInfo info
         );
 
         internal struct Pass
         {
             public string Name;
-            public /* TState */ object? State;
+            // Untyped because we cannot type them due to generic limitations
+            public /* TState */ Box? State;
             public /* PassRecord<TState> */ Delegate Record;
             public int Depth;
             public int Index;
             public ValueList<int> Dependencies;
             public ValueList<(ResourceHandle Resource, ResourceState State)> Transitions;
             public GpuContext Context;
+        }
+
+        public struct Dependency
+        {
+            internal ResourceHandle Handle;
+            internal ResourceState BeginState;
+            internal ResourceState EndState;
+
+
+            public static Dependency Create(TextureHandle tex, ResourceState state)
+                => new Dependency
+                {
+                    Handle = tex.AsResourceHandle(),
+                    BeginState = state,
+                    EndState = state
+                };
+            public static Dependency Create(BufferHandle tex, ResourceState state)
+                => new Dependency
+                {
+                    Handle = tex.AsResourceHandle(),
+                    BeginState = state,
+                    EndState = state
+                };
+        }
+        public ref struct PassDescription
+        {
+            public Span<Dependency> Dependencies;
+            public PassRegisterDecision Decision;
         }
 
         /// <summary>
@@ -264,14 +325,14 @@ namespace Voltium.RenderEngine
         public void AddPass<TState>(
             string name,
             TState state,
-            PassRegister<TState> register,
+            PassDescription builder,
             PassRecord<TState> record
         )
         {
             var passIndex = _frame.RenderPasses.Count;
-            var builder = new RenderPassBuilder(this, passIndex);
 
-            var decision = register(ref builder, ref _frame.Resolver, state);
+            var transitions = builder.Transitions;
+            var decision = builder.Decision;
 
             if (!decision.HasFlag(PassRegisterDecision.ExecutePass) && decision != PassRegisterDecision.RemovePass)
             {
@@ -300,7 +361,7 @@ namespace Voltium.RenderEngine
             {
                 Name = name,
                 Record = record,
-                State = state,
+                State = _ state,
                 Index = passIndex,
                 Depth = builder.Depth
             };
@@ -371,6 +432,65 @@ namespace Voltium.RenderEngine
         private bool ShouldTryPoolResource(ref TrackedResource resource)
             => resource.Desc.Type == ResourceType.Texture && (resource.Desc.TextureDesc.ResourceFlags & (ResourceFlags.AllowDepthStencil | ResourceFlags.AllowRenderTarget)) != 0;
 
+
+        private void AddDependencies(ReadOnlySpan<int> passIndices)
+        {
+            foreach (var passIndex in passIndices)
+            {
+                AddDependency(passIndex);
+            }
+        }
+        private void AddDependency(int passIndex)
+        {
+            ref var pass = ref _graph.GetRenderPass(passIndex);
+
+            if (pass.Depth >= Depth)
+            {
+                Depth = pass.Depth + 1;
+            }
+
+            FrameDependencies.Add(passIndex);
+        }
+
+        private void MarkUsage(ResourceHandle resource, ResourceState flags)
+        {
+            if (flags.IsInvalid())
+            {
+                ThrowHelper.ThrowArgumentException(nameof(flags), InvalidResourceStateFlags);
+            }
+
+            ref TrackedResource res = ref _graph.GetResource(resource);
+
+            if (flags.HasWriteFlag())
+            {
+                // If we write to it, and it is read from earlier up, we need to depend on all the reading passes and the write pass
+                if (res.HasReadPass)
+                {
+                    AddDependencies(res.LastReadPassIndices.AsSpan());
+                }
+                if (res.HasWritePass)
+                {
+                    AddDependency(res.LastWritePassIndex);
+                }
+
+                // If we write to resource, we need to mark that to the resource
+                res.LastWritePassIndex = _passIndex;
+            }
+            else if (flags.HasReadOnlyFlags())
+            {
+                // We also need to depend on any prior write passes but *not* any prior read passes
+                if (res.HasWritePass)
+                {
+                    AddDependency(res.LastWritePassIndex);
+                }
+
+                // If we read from it, we need to mark that we do
+                res.LastReadPassIndices.Add(_passIndex);
+            }
+
+            Transitions.Add((resource, flags));
+        }
+
         private void Schedule()
         {
             _frame.RenderLayers = new GraphLayer[_frame.MaxDepth + 1];
@@ -399,6 +519,12 @@ namespace Voltium.RenderEngine
             }
         }
 
+        internal ViewHandle AddView(in ViewDesc desc)
+        {
+            _frame.Views.Add(desc);
+            return new ViewHandle((uint)_frame.Views.Count);
+
+        }
         internal ResourceHandle AddResource(in ResourceDesc desc, int callerPassIndex)
         {
             var resource = new TrackedResource
@@ -419,6 +545,15 @@ namespace Voltium.RenderEngine
                 ThrowHelper.ThrowInvalidOperationException("Resource was not created");
             }
             return ref _frame.Resources.RefIndex((int)handle.Index - 1);
+        }
+
+        internal ref ViewDesc GetView(ViewHandle handle)
+        {
+            if (handle.IsInvalid)
+            {
+                ThrowHelper.ThrowInvalidOperationException("Resource was not created");
+            }
+            return ref _frame.Views.RefIndex((int)handle.Index - 1);
         }
 
         internal ref Pass GetRenderPass(int index) => ref _frame.RenderPasses.RefIndex(index);
@@ -452,6 +587,19 @@ namespace Voltium.RenderEngine
 
                 resource.SetName();
             }
+
+            var viewSet = _device.CreateViewSet((uint)_frame.Views.Length);
+            uint i = 0;
+            foreach (ref var view in _frame.Views.AsSpan())
+            {
+                view.View = view.Type switch
+                {
+                    ResourceType.Buffer => view.BufferViewDesc is null ? _device.CreateDefaultView(viewSet, i++, GetResource(view.Handle).Desc.Buffer) : ThrowHelper.ThrowNotImplementedException<View>(),
+                    ResourceType.Texture => view.TextureViewDesc is null ? _device.CreateDefaultView(viewSet, i++, GetResource(view.Handle).Desc.Texture) : ThrowHelper.ThrowNotImplementedException<View>(),
+                    ResourceType.RaytracingAccelerationStructure => _device.CreateDefaultView(viewSet, i++, GetResource(view.Handle).Desc.RaytracingAccelerationStructure),
+                    _ => ThrowHelper.NeverReached<View>()
+                };
+            }
         }
 
         private void BuildBarriers()
@@ -483,52 +631,52 @@ namespace Voltium.RenderEngine
         }
 
         //private void RecordWithHeuristics()
-//        {
-//#pragma warning disable CS0162 // Unreachable code detected
-//            _frame.RenderPasses.AsSpan().Sort(static (a, b) =>
-//#pragma warning restore CS0162 // Unreachable code detected
-//            {
-//                Debug.Assert(a.Graph == b.Graph);
-//                ref PassHeuristics heuristicsA = ref a.Graph._heuristics.GetOrAddValueRef(a.Pass);
-//                ref PassHeuristics heuristicsB = ref b.Graph._heuristics.GetOrAddValueRef(b.Pass);
-//                return heuristicsA.CompareTo(heuristicsB);
-//            });
+        //        {
+        //#pragma warning disable CS0162 // Unreachable code detected
+        //            _frame.RenderPasses.AsSpan().Sort(static (a, b) =>
+        //#pragma warning restore CS0162 // Unreachable code detected
+        //            {
+        //                Debug.Assert(a.Graph == b.Graph);
+        //                ref PassHeuristics heuristicsA = ref a.Graph._heuristics.GetOrAddValueRef(a.Pass);
+        //                ref PassHeuristics heuristicsB = ref b.Graph._heuristics.GetOrAddValueRef(b.Pass);
+        //                return heuristicsA.CompareTo(heuristicsB);
+        //            });
 
 
-//            using var tasks = RentedArray<Task>.Create(Environment.ProcessorCount);
+        //            using var tasks = RentedArray<Task>.Create(Environment.ProcessorCount);
 
-//            for (int i = 0, offset = 0; i < _frame.RenderPasses.Count + Environment.ProcessorCount - 1; i += Environment.ProcessorCount, offset++)
-//            {
-//                tasks.Value[offset] = Task.Run(() =>
-//                {
-//                    for (var j = 0; j < Environment.ProcessorCount; j++)
-//                    {
-//                        var index = (j * Environment.ProcessorCount) + i;
-//                        if (index >= _frame.RenderPasses.Count)
-//                        {
-//                            return;
-//                        }
+        //            for (int i = 0, offset = 0; i < _frame.RenderPasses.Count + Environment.ProcessorCount - 1; i += Environment.ProcessorCount, offset++)
+        //            {
+        //                tasks.Value[offset] = Task.Run(() =>
+        //                {
+        //                    for (var j = 0; j < Environment.ProcessorCount; j++)
+        //                    {
+        //                        var index = (j * Environment.ProcessorCount) + i;
+        //                        if (index >= _frame.RenderPasses.Count)
+        //                        {
+        //                            return;
+        //                        }
 
-//                        ref var pass = ref _frame.RenderPasses.AsSpan()[index];
+        //                        ref var pass = ref _frame.RenderPasses.AsSpan()[index];
 
-//                        ref var heuristics = ref _heuristics.GetOrAddValueRef(pass.Pass);
+        //                        ref var heuristics = ref _heuristics.GetOrAddValueRef(pass.Pass);
 
-//                        double start = Stopwatch.GetTimestamp(), end = 0;
+        //                        double start = Stopwatch.GetTimestamp(), end = 0;
 
-//                        RecordPass(ref pass);
+        //                        RecordPass(ref pass);
 
-//                        end = Stopwatch.GetTimestamp();
+        //                        end = Stopwatch.GetTimestamp();
 
-//                        var recordLength = TimeSpan.FromMilliseconds(Math.Max((end - start), 0) / Stopwatch.Frequency);
+        //                        var recordLength = TimeSpan.FromMilliseconds(Math.Max((end - start), 0) / Stopwatch.Frequency);
 
-//                        heuristics.PassExecutionCount++;
-//                        heuristics.LastPassRecordTime = recordLength;
-//                    }
-//                });
-//            }
+        //                        heuristics.PassExecutionCount++;
+        //                        heuristics.LastPassRecordTime = recordLength;
+        //                    }
+        //                });
+        //            }
 
-//            Task.WhenAll(tasks.Value).RunSynchronously();
-//        }
+        //            Task.WhenAll(tasks.Value).RunSynchronously();
+        //        }
 
         private void RecordWithoutHeuristics()
         {
@@ -559,7 +707,7 @@ namespace Voltium.RenderEngine
 
         private GpuTask Execute()
         {
-            using var contexts = RentedArray<GpuContext>.Create(/* barrier context */ /*_frame.RenderLayers!.Length +*/ _frame.NumBarrierLists + _frame.RenderPasses.Count);
+            using var contexts = RentedArray<GpuContext>.Create(_frame.NumBarrierLists + _frame.RenderPasses.Count);
 
             int offset = 0;
             foreach (ref var layer in _frame.RenderLayers.AsSpan())
@@ -581,7 +729,6 @@ namespace Voltium.RenderEngine
                     };
                 }
 
-                // we can't (!!) record an empty barrier list, A) it is bad, B) the layer.NumPreviousPasses only accounts for this if barriers are present
                 if (!transitions.IsEmpty)
                 {
                     var barrierContext = GetContext();

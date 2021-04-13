@@ -70,6 +70,28 @@ namespace Voltium.Core.NativeApi
 
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
     [GenerateEquality]
+    public readonly partial struct DynamicRaytracingAccelerationStructureDescriptorHandle : IHandle<DynamicRaytracingAccelerationStructureDescriptorHandle>
+    {
+        private readonly GenerationalHandle Handle;
+
+        public DynamicRaytracingAccelerationStructureDescriptorHandle(GenerationalHandle handle) => Handle = handle;
+
+        public GenerationalHandle Generational => Handle;
+        public DynamicRaytracingAccelerationStructureDescriptorHandle FromGenerationHandle(GenerationalHandle handle) => new(handle);
+    }
+
+    [GenerateEquality]
+    public readonly partial struct DynamicBufferDescriptorHandle : IHandle<DynamicBufferDescriptorHandle>
+    {
+        private readonly GenerationalHandle Handle;
+
+        public DynamicBufferDescriptorHandle(GenerationalHandle handle) => Handle = handle;
+
+        public GenerationalHandle Generational => Handle;
+        public DynamicBufferDescriptorHandle FromGenerationHandle(GenerationalHandle handle) => new(handle);
+    }
+
+    [GenerateEquality]
     public readonly partial struct IndirectCommandHandle : IHandle<IndirectCommandHandle>
     {
         private readonly GenerationalHandle Handle;
@@ -122,6 +144,17 @@ namespace Voltium.Core.NativeApi
 
         public GenerationalHandle Generational => Handle;
         public ViewHandle FromGenerationHandle(GenerationalHandle handle) => new(handle);
+    }
+
+    [GenerateEquality]
+    public readonly partial struct LocalRootSignatureHandle : IHandle<LocalRootSignatureHandle>
+    {
+        private readonly GenerationalHandle Handle;
+
+        public LocalRootSignatureHandle(GenerationalHandle handle) => Handle = handle;
+
+        public GenerationalHandle Generational => Handle;
+        public LocalRootSignatureHandle FromGenerationHandle(GenerationalHandle handle) => new(handle);
     }
 
     [GenerateEquality]

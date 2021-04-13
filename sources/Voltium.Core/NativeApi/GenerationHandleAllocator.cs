@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 using Voltium.Common;
 using Voltium.Core.NativeApi;
 
-namespace Voltium.Core.CommandBuffer
+namespace Voltium.Core.NativeApi
 {
     public sealed class GenerationHandleAllocator<THandle, THandleData> where THandle : struct, IHandle<THandle>
     {

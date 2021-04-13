@@ -12,12 +12,12 @@ using Voltium.Core.NativeApi;
 using Voltium.Core.Pipeline;
 using Voltium.Core.Queries;
 
-namespace Voltium.Core.CommandBuffer
+namespace Voltium.Core.NativeApi
 {
     /// <summary>
     /// The pipeline bind point
     /// </summary>
-    public enum BindPoint
+    public enum BindPoint : ulong
     {
         /// <summary>
         /// The graphics pipeline
@@ -36,6 +36,11 @@ namespace Voltium.Core.CommandBuffer
     [AttributeUsage(AttributeTargets.Field)]
     public sealed class CommandInfoAttribute : Attribute
     {
+        /// <summary>
+        /// Create a new instance of <see cref="CommandInfoAttribute"/>
+        /// </summary>
+        /// <param name="type">The <see cref="RequiredQueueType"/> for this command</param>
+        /// <param name="flags">Any <see cref="CommandFlags"/> about this command</param>
         public CommandInfoAttribute(RequiredQueueType type, CommandFlags flags = CommandFlags.None)
         {
 
@@ -206,10 +211,16 @@ namespace Voltium.Core.CommandBuffer
         // Shader resources
 
         /// <summary>
-        /// Binds a virtual address to a shader resource
+        /// Binds a dynamic descriptor to a shader resource
         /// </summary>
         [CommandInfo(RequiredQueueType.Compute)]
-        BindVirtualAddress,
+        BindDynamicBufferDescriptor,
+
+        /// <summary>
+        /// Binds a dynamic descriptor to a shader resource
+        /// </summary>
+        [CommandInfo(RequiredQueueType.Compute)]
+        BindDynamicRaytracingAccelerationStructureDescriptor,
 
         /// <summary>
         /// Binds a set of descriptors to shader resources
@@ -343,11 +354,11 @@ namespace Voltium.Core.CommandBuffer
         ClearDepthStencil,
 
         // Raytracing acceleration structures
-        //BuildAccelerationStructure,
-        //CopyAccelerationStructure,
-        //CompactAccelerationStructure,
-        //SerializeAccelerationStructure,
-        //DeserializeAccelerationStructure,
+        BuildTopLevelAccelerationStructure,
+        BuildBottomLevelAccelerationStructure,
+        CopyAccelerationStructure,
+        SerializeAccelerationStructure,
+        DeserializeAccelerationStructure,
 
         // Execute
 
@@ -415,7 +426,10 @@ namespace Voltium.Core.CommandBuffer
         public CommandBindDescriptors BindDescriptors;
 
         [FieldOffset(sizeof(CommandType))]
-        public CommandBindVirtualAddress BindVirtualAddress;
+        public CommandBindDynamicBufferDescriptor BindDynamicBufferDescriptor;
+
+        [FieldOffset(sizeof(CommandType))]
+        public CommandBindDynamicRaytracingAccelerationStructureDescriptor BindDynamicRaytracingAccelerationStructureDescriptor;
 
         #endregion
 
@@ -524,6 +538,9 @@ namespace Voltium.Core.CommandBuffer
         public CommandBufferToTextureCopy BufferToTextureCopy;
 
         [FieldOffset(sizeof(CommandType))]
+        public CommandTextureCopy TextureCopy;
+
+        [FieldOffset(sizeof(CommandType))]
         public CommandWriteConstants WriteConstants;
 
         #endregion
@@ -544,6 +561,26 @@ namespace Voltium.Core.CommandBuffer
 
         [FieldOffset(sizeof(CommandType))]
         public CommandClearDepthStencil ClearDepthStencil;
+
+        #endregion
+
+        #region Raytracing acceleration structures
+
+        [FieldOffset(sizeof(CommandType))]
+        public CommandBuildTopLevelAccelerationStructure BuildTopLevelAccelerationStructure;
+
+        [FieldOffset(sizeof(CommandType))]
+        public CommandBuildBottomLevelAccelerationStructure BuildBottomLevelAccelerationStructure;
+
+        [FieldOffset(sizeof(CommandType))]
+        public CommandCopyAccelerationStructure CopyAccelerationStructure;
+
+        [FieldOffset(sizeof(CommandType))]
+        public CommandSerializeAccelerationStructure SerializeAccelerationStructure;
+        
+        [FieldOffset(sizeof(CommandType))]
+        public CommandDeserializeAccelerationStructure DeserializeAccelerationStructure;
+
 
         #endregion
 
@@ -638,6 +675,59 @@ namespace Voltium.Core.CommandBuffer
     {
         public BufferHandle CountBuffer;
         public uint Offset;
+    }
+    internal unsafe struct CommandBuildTopLevelAccelerationStructure : ICommand
+    {
+        public CommandType Type => CommandType.BuildTopLevelAccelerationStructure;
+
+        public BufferHandle Scratch;
+        public RaytracingAccelerationStructureHandle Dest;
+
+        public BuildAccelerationStructureFlags Flags;
+        public LayoutType Layout;
+
+        public uint InstanceCount;
+        public BufferHandle Instances;
+        public uint Offset;
+    }
+
+    internal unsafe struct CommandBuildBottomLevelAccelerationStructure : ICommand
+    {
+        public CommandType Type => CommandType.BuildBottomLevelAccelerationStructure;
+
+        public BufferHandle Scratch;
+        public RaytracingAccelerationStructureHandle Dest;
+
+        public BuildAccelerationStructureFlags Flags;
+
+        public uint GeometryCount;
+        private uint _pad;
+        public GeometryDesc* GeometryDescs => (GeometryDesc*)((uint*)Unsafe.AsPointer(ref _pad) + 1);
+    }
+
+    internal unsafe struct CommandCopyAccelerationStructure : ICommand
+    {
+        public CommandType Type => CommandType.CopyAccelerationStructure;
+
+        public RaytracingAccelerationStructureHandle Source;
+        public RaytracingAccelerationStructureHandle Dest;
+        public bool Compact;
+    }
+
+    internal unsafe struct CommandSerializeAccelerationStructure : ICommand
+    {
+        public CommandType Type => CommandType.SerializeAccelerationStructure;
+
+        public RaytracingAccelerationStructureHandle Source;
+        public BufferHandle Dest;
+    }
+
+    internal unsafe struct CommandDeserializeAccelerationStructure : ICommand
+    {
+        public CommandType Type => CommandType.DeserializeAccelerationStructure;
+
+        public BufferHandle Source;
+        public RaytracingAccelerationStructureHandle Dest;
     }
 
     internal unsafe struct CommandSetIndexBuffer : ICommand
@@ -939,15 +1029,24 @@ namespace Voltium.Core.CommandBuffer
         public uint Mask;
     }
 
-    internal unsafe struct CommandBindVirtualAddress : ICommand
+    internal unsafe struct CommandBindDynamicBufferDescriptor : ICommand
     {
-        public CommandType Type => CommandType.BindVirtualAddress;
+        public CommandType Type => CommandType.BindDynamicBufferDescriptor;
 
         internal BindPoint BindPoint;
         internal uint ParamIndex;
-        internal ulong VirtualAddress;
+        internal DynamicBufferDescriptorHandle DynamicDescriptor;
+        internal uint OffsetInBytes;
     }
 
+    internal unsafe struct CommandBindDynamicRaytracingAccelerationStructureDescriptor : ICommand
+    {
+        public CommandType Type => CommandType.BindDynamicRaytracingAccelerationStructureDescriptor;
+
+        internal BindPoint BindPoint;
+        internal uint ParamIndex;
+        internal DynamicRaytracingAccelerationStructureDescriptorHandle DynamicDescriptor;
+    }
 
     internal unsafe struct CommandBindDescriptors : ICommand
     {
@@ -1129,9 +1228,29 @@ namespace Voltium.Core.CommandBuffer
     }
 
     // TODO
-    internal struct CommandRayTrace
+    internal struct CommandRayTrace : ICommand
     {
-        //private RayDispatchDesc Desc;
+        public CommandType Type => CommandType.RayTrace;
+
+        public uint Width, Height, Depth;
+
+        public ShaderRecord RayGeneration;
+        public ShaderRecordArray HitGroup;
+        public ShaderRecordArray MissShader;
+        public ShaderRecordArray Callable;
+    }
+
+    public struct ShaderRecord
+    {
+        public BufferHandle Buffer;
+        public uint Offset;
+        public uint Length;
+    }
+
+    public struct ShaderRecordArray
+    {
+        public ShaderRecord Record;
+        public uint RecordCount;
     }
 
     internal struct ResourceTransitionBarrier

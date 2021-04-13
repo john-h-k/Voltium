@@ -8,7 +8,7 @@ namespace Voltium.Core.Infrastructure
     /// <summary>
     /// The type used for enumerating physical adapters and creating devices
     /// </summary>
-    public unsafe abstract class DeviceFactory : IEnumerable<Adapter>, IDisposable
+    public unsafe abstract class AdapterFactory : IEnumerable<Adapter>, IDisposable
     {
         /// <summary>
         /// The default software adapter
@@ -16,16 +16,16 @@ namespace Voltium.Core.Infrastructure
         public abstract Adapter SoftwareAdapter { get; }
 
         /// <summary>
-        /// Creates a new <see cref="DeviceFactory"/>
+        /// Creates a new <see cref="AdapterFactory"/>
         /// </summary>
-        /// <returns>A new <see cref="DeviceFactory"/></returns>
-        public static DeviceFactory Create() => /* DXCore is a bit more flexible than DXGI */ new DxCoreDeviceFactory();
+        /// <returns>A new <see cref="AdapterFactory"/></returns>
+        public static AdapterFactory Create() => /* DXCore is a bit more flexible than DXGI */ new DxCoreDeviceFactory();
 
         /// <summary>
-        /// Creates a new <see cref="DeviceFactory"/> using a specific <see cref="DeviceEnumerationLayer"/>
+        /// Creates a new <see cref="AdapterFactory"/> using a specific <see cref="DeviceEnumerationLayer"/>
         /// </summary>
-        /// <returns>A new <see cref="DeviceFactory"/></returns>
-        public static DeviceFactory Create(DeviceEnumerationLayer layer)
+        /// <returns>A new <see cref="AdapterFactory"/></returns>
+        public static AdapterFactory Create(DeviceEnumerationLayer layer)
             => layer switch
             {
                 DeviceEnumerationLayer.Dxgi => new DxgiDeviceFactory(),
@@ -34,14 +34,14 @@ namespace Voltium.Core.Infrastructure
             };
 
         /// <summary>
-        /// Creates a new <see cref="DeviceFactory"/> to enumerate a specific <see cref="DeviceType"/>
+        /// Creates a new <see cref="AdapterFactory"/> to enumerate a specific <see cref="DeviceType"/>
         /// </summary>
-        /// <returns>A new <see cref="DeviceFactory"/></returns>
-        public static DeviceFactory Create(DeviceType type)
+        /// <returns>A new <see cref="AdapterFactory"/></returns>
+        public static AdapterFactory Create(DeviceType type)
             => new DxCoreDeviceFactory(type); // only DXCore supports non-graphics devices
 
         /// <summary>
-        /// Try and enable the <see cref="DeviceFactory"/> into enumerating devices by a <see cref="DevicePreference"/>
+        /// Try and enable the <see cref="AdapterFactory"/> into enumerating devices by a <see cref="DevicePreference"/>
         /// </summary>
         /// <returns><c>true</c> if this setting was succesfully applied, else <c>false</c></returns>
         public abstract bool TryEnablePreferentialOrdering(DevicePreference preference);
@@ -60,18 +60,18 @@ namespace Voltium.Core.Infrastructure
         public abstract void Dispose();
 
         /// <summary>
-        /// Used to enumerate a <see cref="DeviceFactory"/>
+        /// Used to enumerate a <see cref="AdapterFactory"/>
         /// </summary>
         public unsafe struct Enumerator : IEnumerator<Adapter>
         {
-            private DeviceFactory _base;
+            private AdapterFactory _base;
             private uint _index;
 
             /// <summary>
             /// Create a new <see cref="Enumerator"/>
             /// </summary>
             /// <param name="base">The factory used to enumerate adapters</param>
-            internal Enumerator(DeviceFactory @base)
+            internal Enumerator(AdapterFactory @base)
             {
                 _base = @base;
                 _index = 0;

@@ -14,7 +14,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics;
 using Voltium.Core.NativeApi;
 
-namespace Voltium.Core.Devices
+namespace Voltium.Core.NativeApi
 {
     public struct CommandBuffer
     {
@@ -115,7 +115,7 @@ namespace Voltium.Core.Devices
                 Unsafe.As<ComputeDevice>(o)._device.DisposeBuffer(handle);
             }
 
-            return new Buffer(desc.Length, _device.Map(buffer), buffer, new(this, &Dispose));
+            return new Buffer(desc.Length,_device.GetDeviceVirtualAddress(buffer), _device.Map(buffer), buffer, new(this, &Dispose));
         }
 
         public Buffer AllocateBuffer(BufferDesc desc, in Heap heap, ulong offset)
@@ -128,14 +128,14 @@ namespace Voltium.Core.Devices
                 Unsafe.As<ComputeDevice>(o)._device.DisposeBuffer(handle);
             }
 
-            return new Buffer(desc.Length, _device.Map(buffer), buffer, new(this, &Dispose));
+            return new Buffer(desc.Length, _device.GetDeviceVirtualAddress(buffer), _device.Map(buffer), buffer, new(this, &Dispose));
         }
 
         internal Buffer AllocateBuffer(BufferDesc desc, in Heap heap, ulong offset, Disposal<BufferHandle> dispose)
         {
             var buffer = _device.AllocateBuffer(desc, heap.Handle, offset);
 
-            return new Buffer(desc.Length, _device.Map(buffer), buffer, dispose);
+            return new Buffer(desc.Length, _device.GetDeviceVirtualAddress(buffer), _device.Map(buffer), buffer, dispose);
         }
 
         /// <inheritdoc/>

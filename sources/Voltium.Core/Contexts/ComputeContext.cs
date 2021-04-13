@@ -4,7 +4,6 @@ using System.Runtime.CompilerServices;
 using System.Runtime.Intrinsics;
 using TerraFX.Interop;
 using Voltium.Common;
-using Voltium.Core.CommandBuffer;
 using Voltium.Core.Contexts;
 using Voltium.Core.Devices;
 using Voltium.Core.Memory;
@@ -191,9 +190,12 @@ namespace Voltium.Core
     /// </summary>
     public unsafe partial class ComputeContext : CopyContext
     {
-        internal ComputeContext() : base()
+        public ComputeContext(bool closed = false) : base()
         {
-
+            if (closed)
+            {
+                Close();
+            }
         }
         public void ExecuteIndirect(
             in IndirectCommand command,
@@ -336,7 +338,7 @@ namespace Voltium.Core
             {
                 FirstSetIndex = paramIndex,
                 BindPoint = BindPoint.Compute,
-                SetCount = 1
+                SetCount = 1,
             };
 
             var handle = set.Handle;

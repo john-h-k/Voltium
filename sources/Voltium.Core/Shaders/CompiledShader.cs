@@ -10,8 +10,8 @@ namespace Voltium.Core.Devices
 {
     public unsafe struct ShaderExport
     {
-        public ReadOnlyMemory<char> Name { get; set; }
-        public ReadOnlyMemory<char> ExportRename { get; set; }
+        public string Name { get; set; }
+        public string ExportRename { get; set; }
     }
 
     /// <summary>

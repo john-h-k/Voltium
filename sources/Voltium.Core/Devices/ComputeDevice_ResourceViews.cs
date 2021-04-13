@@ -2,7 +2,6 @@ using System.Runtime.CompilerServices;
 using System.Diagnostics;
 using TerraFX.Interop;
 using Voltium.Common;
-using Voltium.Core.CommandBuffer;
 using Voltium.Core.Memory;
 using static TerraFX.Interop.Windows;
 using Buffer = Voltium.Core.Memory.Buffer;
@@ -12,6 +11,15 @@ namespace Voltium.Core.Devices
 {
     public unsafe partial class ComputeDevice
     {
+        public void UpdateDescriptors(in ViewSet views, in DescriptorAllocation descriptors)
+            => UpdateDescriptors(views, descriptors, views.Length);
+        public void UpdateDescriptors(in ViewSet views, in DescriptorAllocation descriptors, uint count)
+            => UpdateDescriptors(views, 0, descriptors, 0, count);
+        public void UpdateDescriptors(in ViewSet views, uint firstView, in DescriptorAllocation descriptors, uint firstDescriptor, uint count)
+        {
+            _device.UpdateDescriptors(views.Handle, firstView, descriptors.Handle, firstDescriptor, count);
+        }
+
         public DescriptorAllocation AllocateResourceDescriptors(DescriptorType type, uint descriptorCount)
         {
             static void Dispose(object o, ref DescriptorSetHandle handle)

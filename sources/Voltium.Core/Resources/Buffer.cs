@@ -5,7 +5,6 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using TerraFX.Interop;
 using Voltium.Common;
-using Voltium.Core.CommandBuffer;
 using Voltium.Core.Devices;
 using Voltium.Core.Memory;
 using Voltium.Core.NativeApi;
@@ -58,16 +57,24 @@ namespace Voltium.Core.Memory
         internal BufferHandle Handle;
         private Disposal<BufferHandle> _dispose;
         private void* _address;
+        private ulong _gpuAddress;
 
+        public ulong GpuAddress => _gpuAddress;
         public void* Address => _address;
-        public T* As<T>() where T : unmanaged => (T*)_address;
+        public T* As<T>(int offset = 0) where T : unmanaged => (T*)_address + offset;
         public ref T AsRef<T>() where T : unmanaged => ref *(T*)_address;
-        public Span<T> AsSpan<T>() where T : unmanaged => Address is null ? Span<T>.Empty : new(Address, checked((int)Length));
+        public Span<byte> AsSpan() => AsSpan<byte>();
+        public Span<byte> AsSpan(int offset) => AsSpan<byte>(offset);
+        public Span<byte> AsSpan(int offset, int length) => AsSpan<byte>(offset, length);
+        public Span<T> AsSpan<T>() where T : unmanaged => Address is null ? Span<T>.Empty : new(Address, checked((int)LengthAs<T>()));
+        public Span<T> AsSpan<T>(int offset) where T : unmanaged => Address is null ? Span<T>.Empty : new((T*)Address + offset, checked((int)LengthAs<T>()) - offset);
+        public Span<T> AsSpan<T>(int offset, int length) where T : unmanaged => Address is null ? Span<T>.Empty : new((T*)Address + offset, length);
 
-        public Buffer(ulong length, void* address, BufferHandle handle, Disposal<BufferHandle> dispose)
+        public Buffer(ulong length, ulong gpuAddress, void* address, BufferHandle handle, Disposal<BufferHandle> dispose)
         {
             Length = length;
             Handle = handle;
+            _gpuAddress = gpuAddress;
             _address = address;
             _dispose = dispose;
         }

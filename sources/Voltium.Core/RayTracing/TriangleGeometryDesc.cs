@@ -31,9 +31,9 @@ namespace Voltium.Core
             {
                 VertexBuffer = vertexBuffer,
                 VertexFormat = vertexFormat,
-                VertexCount = vertexBuffer.Length / (uint)sizeof(TVertex),
+                VertexCount = (uint)(vertexBuffer.Length / (uint)sizeof(TVertex)),
                 VertexStride = (uint)sizeof(TVertex),
-                IndexCount = indexBuffer.Length / (uint)sizeof(TIndex),
+                IndexCount = (uint)(indexBuffer.Length / (uint)sizeof(TIndex)),
                 IndexFormat = format,
                 IndexBuffer = indexBuffer
             };

@@ -14,6 +14,7 @@ using Voltium.Core.Devices;
 using Voltium.Core.Memory;
 using Voltium.Core.NativeApi;
 using static TerraFX.Interop.Windows;
+using Buffer = Voltium.Core.Memory.Buffer;
 
 namespace Voltium.Core.Devices
 {
@@ -47,7 +48,11 @@ namespace Voltium.Core.Devices
 
         public INativeQueue Native => _queue;
 
-        public CommandQueue(INativeQueue queue, ExecutionEngine context, ArrayPool<CommandBuffer>? cmdBufPool = null)
+        public CommandQueue(
+            INativeQueue queue,
+            ExecutionEngine context,
+            ArrayPool<CommandBuffer>? cmdBufPool = null
+        )
         {
             _queue = queue;
             Context = context;
@@ -99,7 +104,6 @@ namespace Voltium.Core.Devices
                 return _queue.Execute(_cmdBuffCache, dependencies);
             }
         }
-
 
 
         public GpuTask Execute(ReadOnlySpan<GpuContext> contexts) => Execute(contexts, default);

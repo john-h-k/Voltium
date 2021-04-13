@@ -1,8 +1,8 @@
 namespace Voltium.Core.Devices
 {
-    ///// <summary>
-    ///// Information needed for an acceleration structure build, retrieved from <see cref="ComputeDevice.GetBuildInfo(Layout, uint, BuildAccelerationStructureFlags)"/>
-    ///// </summary>
+    /// <summary>
+    /// Information needed for an acceleration structure build
+    /// </summary>
     public readonly struct AccelerationStructureBuildInfo
     {
         /// <summary>
@@ -14,5 +14,10 @@ namespace Voltium.Core.Devices
         /// The size required for the destination acceleration structure
         /// </summary>
         public ulong DestSize { init; get; }
+
+        /// <summary>
+        /// The size required for scratch buffers when updating the acceleration structure
+        /// </summary>
+        public ulong UpdateSize { init; get; }
     }
 }

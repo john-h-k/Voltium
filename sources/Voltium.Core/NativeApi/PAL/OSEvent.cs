@@ -14,19 +14,23 @@ namespace Voltium.Core.Devices
     {
         private readonly IntPtr _hEvent; // HANDLE on windows. eventfd on linux
 
-        /// <summary>
-        /// Creates a new instance of <see cref="OSEvent"/>
-        /// </summary>
-        /// <param name="hEvent">The event. This has different meanings on different platforms. On windows, this is a HANDLE 
-        /// to an event. On linux, it is an event file descriptor (eventfd)</param>
-        public OSEvent(IntPtr hEvent) => _hEvent = hEvent;
+        private OSEvent(IntPtr hEvent) => _hEvent = hEvent;
+
+        private OSEvent(int hEvent) => _hEvent = (IntPtr)hEvent;
+
 
         /// <summary>
-        /// Creates a new instance of <see cref="OSEvent"/>
+        /// Creates a new instance of <see cref="OSEvent"/> from a Win32 event
         /// </summary>
-        /// <param name="hEvent">The event. This has different meanings on different platforms. On windows, this is a HANDLE 
-        /// to an event. On linux, it is an event file descriptor (eventfd)</param>
-        public OSEvent(int hEvent) => _hEvent = (IntPtr)hEvent;
+        /// <param name="hEvent">The HANDLE to an event</param>
+        public static OSEvent FromWin32Handle(IntPtr hEvent) => new(hEvent);
+
+
+        /// <summary>
+        /// Creates a new instance of <see cref="OSEvent"/> from an event file descriptor
+        /// </summary>
+        /// <param name="fd">The event file descriptor (eventfd)</param>
+        public static OSEvent FromLinuxFileDescriptor(int fd) => new(fd);
 
         /// <summary>
         /// Whether the given <see cref="OSEvent"/> has completed

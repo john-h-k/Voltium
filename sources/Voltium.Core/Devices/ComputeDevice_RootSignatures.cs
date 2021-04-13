@@ -1,4 +1,4 @@
-using System;
+    using System;
 using System.Collections.Generic;
 
 using System.Text;
@@ -22,10 +22,6 @@ namespace Voltium.Core.Devices
 
     public unsafe partial class ComputeDevice
     {
-        /// <summary>
-        /// An empty <see cref="RootSignature"/>
-        /// </summary>
-        public RootSignature EmptyRootSignature { get; }
 
 
         ///// <summary>

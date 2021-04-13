@@ -93,6 +93,8 @@ namespace Voltium.Core.Devices
             _taskSource = new(true);
             _presentWait = _swapchain.Ptr->GetFrameLatencyWaitableObject();
             _viewSet = _device.CreateViewSet(_backBufferCount);
+
+            RecreateBuffers();
         }
 
         private static DXGI_SWAP_CHAIN_DESC1 GetDesc(in NativeOutputDesc desc)
@@ -129,6 +131,7 @@ namespace Voltium.Core.Devices
         {
             lock (_presentLock)
             {
+                WaitForNextPresent();
                 ThrowIfFailed(_swapchain.Ptr->Present(0, (uint)flags));
                 _backBufferIndex = (_backBufferIndex + 1) % _backBufferCount;
             }
@@ -164,7 +167,18 @@ namespace Voltium.Core.Devices
         {
             lock (_presentLock)
             {
-                ThrowIfFailed(_swapchain.Ptr->ResizeBuffers(backBufferCount, width, height, (DXGI_FORMAT)format, 0));
+                for (var i = 0; i < _backBufferCount; i++)
+                {
+                    _device.DisposeTexture(_backBuffers[i]);
+                }
+
+                ThrowIfFailed(_swapchain.Ptr->ResizeBuffers(
+                    backBufferCount,
+                    width,
+                    height,
+                    (DXGI_FORMAT)format,
+                    (uint)(DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT | DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING)
+                ));
                 RecreateBuffers();
             }    
         }

@@ -143,6 +143,28 @@ namespace Voltium.Common
         }
     }
 
+    internal unsafe struct AsciiNativeString : IDisposable
+    {
+        private sbyte* _pString;
+        private int _length;
+
+        public AsciiNativeString(ReadOnlySpan<char> str)
+        {
+            _pString = Helpers.Alloc<sbyte>(str.Length + 1);
+            Encoding.ASCII.GetBytes(str, new (_pString, str.Length));
+            _pString[str.Length] = 0; // null
+            _length = str.Length;
+        }
+
+        public static implicit operator sbyte*(AsciiNativeString str) => str._pString;
+
+        public void Dispose()
+        {
+            Helpers.Free(_pString);
+            this = default;
+        }
+    }
+
     internal unsafe struct FreeHelperAlloc : IPinnable
     {
         

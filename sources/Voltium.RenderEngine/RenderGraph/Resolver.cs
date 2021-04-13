@@ -1,4 +1,5 @@
 using Voltium.Common;
+using Voltium.Core.CommandBuffer;
 using Voltium.Core.Devices;
 using Voltium.Core.Memory;
 using Buffer = Voltium.Core.Memory.Buffer;
@@ -41,6 +42,17 @@ namespace Voltium.RenderEngine
         /// </summary>
         /// <typeparam name="TComponent">The type of the component to create</typeparam>
         public void CreateComponent<TComponent>(TComponent component) => _components.Add(component);
+
+        /// <summary>
+        /// Resolves a <see cref="TextureHandle"/> created during pass registration to an allocated <see cref="Texture"/>
+        /// </summary>
+        /// <param name="handle">The <see cref="TextureHandle"/></param>
+        /// <returns>A <see cref="Texture"/></returns>
+        public View ResolveView(ViewHandle handle)
+        {
+            AssertCanResolveResources();
+            return _graph.GetResource(handle.AsResourceHandle()).Desc.Texture;
+        }
 
         /// <summary>
         /// Resolves a <see cref="TextureHandle"/> created during pass registration to an allocated <see cref="Texture"/>

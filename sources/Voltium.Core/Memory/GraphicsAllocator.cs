@@ -42,7 +42,7 @@ namespace Voltium.Core.Memory
         /// <param name="info">The <see cref="AccelerationStructureBuildInfo"/> containing the required sizes of the buffers</param>
         /// <param name="scratch">On return, this is filled with a <see cref="Buffer"/> with a large anough size to be used as the scratch buffer in a raytracing acceleration structure build</param>
         /// <returns>A <see cref="RaytracingAccelerationStructure"/> with a large anough size to be used as the destination in a raytracing acceleration structure build</returns>
-        public RaytracingAccelerationStructure AllocateRaytracingAccelerationBuffer(AccelerationStructureBuildInfo info, out Buffer scratch)
+        public RaytracingAccelerationStructure AllocateRaytracingAccelerationBuffer(in AccelerationStructureBuildInfo info, out Buffer scratch)
             => AllocateRaytracingAccelerationBuffer(info, AllocFlags.None, out scratch);
 
         /// <summary>
@@ -52,7 +52,7 @@ namespace Voltium.Core.Memory
         /// <param name="scratch">On return, this is filled with a <see cref="Buffer"/> with a large anough size to be used as the scratch buffer in a raytracing acceleration structure build</param>
         /// <param name="allocFlags">Any additional allocation flags</param>
         /// <returns>A <see cref="RaytracingAccelerationStructure"/> with a large anough size to be used as the destination in a raytracing acceleration structure build</returns>
-        public RaytracingAccelerationStructure AllocateRaytracingAccelerationBuffer(AccelerationStructureBuildInfo info, AllocFlags allocFlags, out Buffer scratch)
+        public RaytracingAccelerationStructure AllocateRaytracingAccelerationBuffer(in AccelerationStructureBuildInfo info, AllocFlags allocFlags, out Buffer scratch)
         {
             scratch = AllocateBuffer(info.ScratchSize, MemoryAccess.GpuOnly, ResourceFlags.AllowUnorderedAccess | ResourceFlags.DenyShaderResource, allocFlags);
             return AllocateRaytracingAccelerationBuffer(info.DestSize, allocFlags);

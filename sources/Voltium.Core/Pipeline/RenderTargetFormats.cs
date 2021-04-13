@@ -104,13 +104,13 @@ namespace Voltium.Core.Pipeline
         /// Implicit conversion
         /// </summary>
         public static implicit operator RenderTargetFormats(BackBufferFormat format)
-            => new RenderTargetFormats(1, format);
+            => new(1, format);
 
         /// <summary>
         /// Implicit conversion
         /// </summary>
         public static implicit operator RenderTargetFormats(DataFormat format)
-            => new RenderTargetFormats(1, format);
+            => new(1, format);
 
         /// <summary>
         /// A buffer of 8 <see cref="DataFormat"/>s

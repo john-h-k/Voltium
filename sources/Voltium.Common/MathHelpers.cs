@@ -28,6 +28,12 @@ namespace Voltium.Common
         }
 
 
+        public static uint AlignUp(uint ptr, uint alignment)
+        {
+            Debug.Assert(BitOperations.PopCount(alignment) == 1);
+            var mask = alignment - 1;
+            return (ptr + mask) & ~mask;
+        }
 
         public static int AlignUp(int ptr, int alignment)
         {

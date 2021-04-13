@@ -6,7 +6,7 @@ using static TerraFX.Interop.Windows;
 
 namespace Voltium.Core.Infrastructure
 {
-    internal sealed unsafe class DxgiDeviceFactory : DeviceFactory
+    internal sealed unsafe class DxgiDeviceFactory : AdapterFactory
     {
         private UniqueComPtr<IDXGIFactory6> _factory;
         private bool _enumByPreference;

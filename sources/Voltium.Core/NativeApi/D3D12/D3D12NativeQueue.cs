@@ -6,7 +6,6 @@ using Voltium.Core.Contexts;
 using Voltium.Core.Memory;
 using static TerraFX.Interop.Windows;
 using System.Diagnostics;
-using Voltium.Core.CommandBuffer;
 using Microsoft.Toolkit.HighPerformance.Extensions;
 using System.Runtime.CompilerServices;
 using Voltium.Core.NativeApi;
@@ -116,7 +115,6 @@ namespace Voltium.Core.Devices
 
                 if (!cmds.IsEmpty)
                 {
-
                     Encode(cmds, allocator.Ptr, list);
 
                     _device.ThrowIfFailed(list->Close());
@@ -128,11 +126,17 @@ namespace Voltium.Core.Devices
 
                 ReturnAllocator(allocator, _fenceValue);
 
-                
+
                 return new(_device, _fenceHandle, _fenceValue);
             }
         }
 
+        /// <summary>
+        /// Queries the GPU and CPU timestamps at very similar points in time. The GPU timestamp is in relation to <see cref="Frequency"/>, 
+        /// and the CPU timestamp is in relation to <see cref="Stopwatch.Frequency"/>
+        /// </summary>
+        /// <param name="cpu"></param>
+        /// <param name="gpu"></param>
         public void QueryTimestamps(ulong* cpu, ulong* gpu) => _queue.Ptr->GetClockCalibration(gpu, cpu);
 
         private UniqueComPtr<ID3D12CommandAllocator> GetAllocator()
@@ -169,6 +173,13 @@ namespace Voltium.Core.Devices
             D3D12View view;
             uint i, j;
 
+
+            ulong gpuva;
+            uint paramIndex;
+
+            D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS inputs;
+            D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC desc;
+
             ref var mapper = ref _device.GetMapperRef();
 
             var initPipeline = cmdBuffs[0].FirstPipeline is null ? default : mapper.GetInfo(cmdBuffs[0].FirstPipeline!.Value);
@@ -182,6 +193,11 @@ namespace Voltium.Core.Devices
             {
                 pEncode->SetPipelineState1((ID3D12StateObject*)initPipeline.PipelineState);
             }
+
+            var descriptorHeaps = stackalloc ID3D12DescriptorHeap*[2];
+            _device.DefaultDescriptorHeaps(out descriptorHeaps[0], out descriptorHeaps[1]);
+            pEncode->SetDescriptorHeaps(2, descriptorHeaps);
+
 
             foreach (var cmdBuff in cmdBuffs)
             {
@@ -217,24 +233,46 @@ namespace Voltium.Core.Devices
 
 
 
-                            case CommandType.BindVirtualAddress:
-                                var pBindVirtualAddress = &cmd->BindVirtualAddress;
+                            case CommandType.BindDynamicRaytracingAccelerationStructureDescriptor:
+                                var pBindDynamicRaytracingAccelerationStructureDescriptor = &cmd->BindDynamicRaytracingAccelerationStructureDescriptor;
+                                gpuva = mapper.GetInfo(pBindDynamicRaytracingAccelerationStructureDescriptor->DynamicDescriptor).GpuAddress;
+                                paramIndex = pBindDynamicRaytracingAccelerationStructureDescriptor->ParamIndex;
+                                switch (pBindDynamicRaytracingAccelerationStructureDescriptor->BindPoint)
+                                {
+                                    case BindPoint.Graphics:
+                                        pEncode->SetGraphicsRootShaderResourceView(paramIndex, gpuva);
+                                        break;
+                                    case BindPoint.Compute:
+                                        pEncode->SetComputeRootShaderResourceView(paramIndex, gpuva);
+                                        break;
+                                    default:
+                                        ThrowGraphicsException("Invalid bind point?");
+                                        break;
+                                }
 
-                                RootParameterType type = pipelineState.RootParameters![(int)pBindVirtualAddress->ParamIndex].Type;
-                                switch (pBindVirtualAddress->BindPoint)
+                                AdvanceCommand(pBindDynamicRaytracingAccelerationStructureDescriptor);
+                                break;
+
+                            case CommandType.BindDynamicBufferDescriptor:
+                                var pBindDynamicBufferDescriptor = &cmd->BindDynamicBufferDescriptor;
+
+                                RootParameterType type = pipelineState.RootParameters![(int)pBindDynamicBufferDescriptor->ParamIndex].Type;
+                                gpuva = mapper.GetInfo(pBindDynamicBufferDescriptor->DynamicDescriptor).GpuAddress + pBindDynamicBufferDescriptor->OffsetInBytes;
+                                paramIndex = pBindDynamicBufferDescriptor->ParamIndex;
+                                switch (pBindDynamicBufferDescriptor->BindPoint)
                                 {
                                     case BindPoint.Graphics:
                                         switch (type)
 
                                         {
                                             case RootParameterType.ConstantBufferView:
-                                                pEncode->SetGraphicsRootConstantBufferView(pBindVirtualAddress->ParamIndex, pBindVirtualAddress->VirtualAddress);
+                                                pEncode->SetGraphicsRootConstantBufferView(paramIndex, gpuva);
                                                 break;
                                             case RootParameterType.ShaderResourceView:
-                                                pEncode->SetGraphicsRootShaderResourceView(pBindVirtualAddress->ParamIndex, pBindVirtualAddress->VirtualAddress);
+                                                pEncode->SetGraphicsRootShaderResourceView(paramIndex, gpuva);
                                                 break;
                                             case RootParameterType.UnorderedAccessView:
-                                                pEncode->SetGraphicsRootUnorderedAccessView(pBindVirtualAddress->ParamIndex, pBindVirtualAddress->VirtualAddress);
+                                                pEncode->SetGraphicsRootUnorderedAccessView(paramIndex, gpuva);
                                                 break;
                                         }
                                         break;
@@ -242,13 +280,13 @@ namespace Voltium.Core.Devices
                                         switch (type)
                                         {
                                             case RootParameterType.ConstantBufferView:
-                                                pEncode->SetComputeRootConstantBufferView(pBindVirtualAddress->ParamIndex, pBindVirtualAddress->VirtualAddress);
+                                                pEncode->SetComputeRootConstantBufferView(paramIndex, gpuva);
                                                 break;
                                             case RootParameterType.ShaderResourceView:
-                                                pEncode->SetComputeRootShaderResourceView(pBindVirtualAddress->ParamIndex, pBindVirtualAddress->VirtualAddress);
+                                                pEncode->SetComputeRootShaderResourceView(paramIndex, gpuva);
                                                 break;
                                             case RootParameterType.UnorderedAccessView:
-                                                pEncode->SetComputeRootUnorderedAccessView(pBindVirtualAddress->ParamIndex, pBindVirtualAddress->VirtualAddress);
+                                                pEncode->SetComputeRootUnorderedAccessView(paramIndex, gpuva);
                                                 break;
                                         }
                                         break;
@@ -257,11 +295,12 @@ namespace Voltium.Core.Devices
                                         break;
                                 }
 
-                                AdvanceCommand(pBindVirtualAddress);
+                                AdvanceCommand(pBindDynamicBufferDescriptor);
                                 break;
 
                             case CommandType.BindDescriptors:
                                 var pBindDescriptors = &cmd->BindDescriptors;
+                                var firstIndex = pBindDescriptors->FirstSetIndex;
 
                                 switch (pBindDescriptors->BindPoint)
                                 {
@@ -272,7 +311,7 @@ namespace Voltium.Core.Devices
                                                 pBindDescriptors->Sets[i].Generational.Generation,
                                                 pBindDescriptors->Sets[i].Generational.Id
                                             );
-                                            pEncode->SetGraphicsRootDescriptorTable(i, _device.GetShaderDescriptorForGpu(offset));
+                                            pEncode->SetGraphicsRootDescriptorTable(i + firstIndex, _device.GetShaderDescriptorForGpu(offset));
                                         }
                                         break;
                                     case BindPoint.Compute:
@@ -282,7 +321,7 @@ namespace Voltium.Core.Devices
                                                 pBindDescriptors->Sets[i].Generational.Generation,
                                                 pBindDescriptors->Sets[i].Generational.Id
                                             );
-                                            pEncode->SetComputeRootDescriptorTable(i, _device.GetShaderDescriptorForGpu(offset));
+                                            pEncode->SetComputeRootDescriptorTable(i + firstIndex, _device.GetShaderDescriptorForGpu(offset));
                                         }
                                         break;
                                     default:
@@ -301,6 +340,32 @@ namespace Voltium.Core.Devices
                                 break;
 
                             case CommandType.TextureCopy:
+                                var pTextureCopy = &cmd->TextureCopy;
+
+                                var copySrc = new D3D12_TEXTURE_COPY_LOCATION
+                                {
+                                    Type = D3D12_TEXTURE_COPY_TYPE.D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX,
+                                    SubresourceIndex = pTextureCopy->SourceSubresource,
+                                    pResource = mapper.GetInfo(pTextureCopy->Source).Texture,
+                                };
+
+                                var copyDest = new D3D12_TEXTURE_COPY_LOCATION
+                                {
+                                    Type = D3D12_TEXTURE_COPY_TYPE.D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX,
+                                    SubresourceIndex = pTextureCopy->DestSubresource,
+                                    pResource = mapper.GetInfo(pTextureCopy->Dest).Texture,
+                                };
+
+                                pEncode->CopyTextureRegion(
+                                    &copyDest,
+                                    pTextureCopy->DestX,
+                                    pTextureCopy->DestY,
+                                    pTextureCopy->DestZ,
+                                    &copySrc,
+                                    pTextureCopy->HasBox ? (D3D12_BOX*)pTextureCopy->Box : null
+                                );
+
+                                AdvanceVariableCommand(pTextureCopy, pTextureCopy->Box, pTextureCopy->HasBox ? 1 : 0);
                                 break;
 
                             case CommandType.BufferToTextureCopy:
@@ -388,8 +453,33 @@ namespace Voltium.Core.Devices
                             case CommandType.RayTrace:
                                 var pRayTrace = &cmd->RayTrace;
 
+                                var dispatch = new D3D12_DISPATCH_RAYS_DESC
+                                {
+                                    Width = pRayTrace->Width,
+                                    Height = pRayTrace->Height,
+                                    Depth = pRayTrace->Depth,
+
+                                    RayGenerationShaderRecord = new D3D12_GPU_VIRTUAL_ADDRESS_RANGE
+                                    {
+                                        StartAddress = GetBufferAddressOrNull(ref mapper, pRayTrace->RayGeneration.Buffer) + pRayTrace->RayGeneration.Offset,
+                                        SizeInBytes = pRayTrace->RayGeneration.Length
+                                    },
+
+                                    MissShaderTable = AsRangeAndStride(ref mapper, pRayTrace->MissShader),
+                                    HitGroupTable = AsRangeAndStride(ref mapper, pRayTrace->HitGroup),
+                                    CallableShaderTable = AsRangeAndStride(ref mapper, pRayTrace->Callable)
+                                };
+
+                                D3D12_GPU_VIRTUAL_ADDRESS_RANGE_AND_STRIDE AsRangeAndStride(ref D3D12HandleMapper mapper,  in ShaderRecordArray records)
+                                    => new()
+                                    {
+                                        StartAddress = GetBufferAddressOrNull(ref mapper, records.Record.Buffer),
+                                        SizeInBytes = records.Record.Length * records.RecordCount,
+                                        StrideInBytes = records.Record.Length,
+                                    };
+
                                 pEncode->DispatchRays(
-                                    (D3D12_DISPATCH_RAYS_DESC*)pRayTrace
+                                    &dispatch
                                 );
 
                                 AdvanceCommand(pRayTrace);
@@ -566,13 +656,6 @@ namespace Voltium.Core.Devices
                                 pEncode->RSSetShadingRateImage(mapper.GetResourcePointer(pShadingRateImage->ShadingRateImage));
 
                                 AdvanceCommand(pShadingRateImage);
-                                break;
-
-                            case CommandType.SetTopology:
-                                var pTopology = &cmd->SetTopology;
-                                pEncode->IASetPrimitiveTopology((D3D_PRIMITIVE_TOPOLOGY)pTopology->Topology);
-
-                                AdvanceCommand(pTopology);
                                 break;
 
                             case CommandType.SetStencilRef:
@@ -815,13 +898,6 @@ namespace Voltium.Core.Devices
                                 AdvanceEmptyCommand();
                                 break;
 
-                            case CommandType.CopyAccelerationStructure:
-                                ThrowHelper.ThrowNotImplementedException();
-                                break;
-                            case CommandType.BuildAccelerationStructure:
-                                ThrowHelper.ThrowNotImplementedException();
-                                break;
-
                             case CommandType.ExecuteIndirect:
                                 var pExecuteIndirect = &cmd->ExecuteIndirect;
 
@@ -840,16 +916,6 @@ namespace Voltium.Core.Devices
                                 );
 
                                 AdvanceVariableCommand(pExecuteIndirect, pExecuteIndirect->CountSpecifier, hasGpuCount ? 1 : 0);
-                                break;
-
-                            case CommandType.CompactAccelerationStructure:
-                                ThrowHelper.ThrowNotImplementedException();
-                                break;
-                            case CommandType.SerializeAccelerationStructure:
-                                ThrowHelper.ThrowNotImplementedException();
-                                break;
-                            case CommandType.DeserializeAccelerationStructure:
-                                ThrowHelper.ThrowNotImplementedException();
                                 break;
 
                             case CommandType.WriteConstants:
@@ -977,6 +1043,105 @@ namespace Voltium.Core.Devices
 
                                 AdvanceVariableCommand(pScissorRectangles, pScissorRectangles->Rectangles, pScissorRectangles->Count);
                                 break;
+
+                            case CommandType.BuildTopLevelAccelerationStructure:
+                                var pBuildTopLevelAccelerationStructure = &cmd->BuildTopLevelAccelerationStructure;
+
+                                gpuva = mapper.GetInfo(pBuildTopLevelAccelerationStructure->Instances).GpuAddress + pBuildTopLevelAccelerationStructure->Offset;
+
+                                inputs = new D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS
+                                {
+                                    Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE.D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL,
+                                    Flags = (D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS)pBuildTopLevelAccelerationStructure->Flags,
+                                    DescsLayout = (D3D12_ELEMENTS_LAYOUT)pBuildTopLevelAccelerationStructure->Layout,
+                                    NumDescs = pBuildTopLevelAccelerationStructure->InstanceCount,
+                                    InstanceDescs = gpuva
+                                };
+
+                                desc = new D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC
+                                {
+                                    Inputs = inputs,
+                                    DestAccelerationStructureData = mapper.GetInfo(pBuildTopLevelAccelerationStructure->Dest).GpuAddress,
+                                    ScratchAccelerationStructureData = mapper.GetInfo(pBuildTopLevelAccelerationStructure->Scratch).GpuAddress
+                                };
+
+                                pEncode->BuildRaytracingAccelerationStructure(
+                                    &desc,
+                                    0,
+                                    null
+                                );
+
+                                AdvanceCommand(pBuildTopLevelAccelerationStructure);
+                                break;
+
+                            case CommandType.BuildBottomLevelAccelerationStructure:
+                                var pBuildBottomLevelAccelerationStructure = &cmd->BuildBottomLevelAccelerationStructure;
+
+                                inputs = new D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS
+                                {
+                                    Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE.D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL,
+                                    Flags = (D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS)pBuildBottomLevelAccelerationStructure->Flags,
+                                    DescsLayout = D3D12_ELEMENTS_LAYOUT.D3D12_ELEMENTS_LAYOUT_ARRAY,
+                                    NumDescs = pBuildBottomLevelAccelerationStructure->GeometryCount,
+                                    pGeometryDescs = (D3D12_RAYTRACING_GEOMETRY_DESC*)pBuildBottomLevelAccelerationStructure->GeometryDescs
+                                };
+
+                                desc = new D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC
+                                {
+                                    Inputs = inputs,
+                                    DestAccelerationStructureData = mapper.GetInfo(pBuildBottomLevelAccelerationStructure->Dest).GpuAddress,
+                                    ScratchAccelerationStructureData = mapper.GetInfo(pBuildBottomLevelAccelerationStructure->Scratch).GpuAddress
+                                };
+
+                                pEncode->BuildRaytracingAccelerationStructure(
+                                    &desc,
+                                    0,
+                                    null
+                                );
+
+                                AdvanceVariableCommand(pBuildBottomLevelAccelerationStructure, pBuildBottomLevelAccelerationStructure->GeometryDescs, pBuildBottomLevelAccelerationStructure->GeometryCount);
+                                break;
+
+
+                            case CommandType.CopyAccelerationStructure:
+                                var pCopyAccelerationStructure = &cmd->CopyAccelerationStructure;
+
+                                pEncode->CopyRaytracingAccelerationStructure(
+                                    mapper.GetInfo(pCopyAccelerationStructure->Dest).GpuAddress,
+                                    mapper.GetInfo(pCopyAccelerationStructure->Source).GpuAddress,
+                                    pCopyAccelerationStructure->Compact ?
+                                        D3D12_RAYTRACING_ACCELERATION_STRUCTURE_COPY_MODE.D3D12_RAYTRACING_ACCELERATION_STRUCTURE_COPY_MODE_COMPACT
+                                        : D3D12_RAYTRACING_ACCELERATION_STRUCTURE_COPY_MODE.D3D12_RAYTRACING_ACCELERATION_STRUCTURE_COPY_MODE_CLONE
+                                );
+
+                                AdvanceCommand(pCopyAccelerationStructure);
+                                break;
+
+                            case CommandType.SerializeAccelerationStructure:
+                                var pSerializeAccelerationStructure = &cmd->SerializeAccelerationStructure;
+
+
+                                pEncode->CopyRaytracingAccelerationStructure(
+                                    mapper.GetInfo(pSerializeAccelerationStructure->Dest).GpuAddress,
+                                    mapper.GetInfo(pSerializeAccelerationStructure->Source).GpuAddress,
+                                    D3D12_RAYTRACING_ACCELERATION_STRUCTURE_COPY_MODE.D3D12_RAYTRACING_ACCELERATION_STRUCTURE_COPY_MODE_SERIALIZE
+                                );
+
+                                AdvanceCommand(pSerializeAccelerationStructure);
+                                break;
+
+                            case CommandType.DeserializeAccelerationStructure:
+                                var pDeserializeAccelerationStructure = &cmd->DeserializeAccelerationStructure;
+
+                                pEncode->CopyRaytracingAccelerationStructure(
+                                    mapper.GetInfo(pDeserializeAccelerationStructure->Dest).GpuAddress,
+                                    mapper.GetInfo(pDeserializeAccelerationStructure->Source).GpuAddress,
+                                    D3D12_RAYTRACING_ACCELERATION_STRUCTURE_COPY_MODE.D3D12_RAYTRACING_ACCELERATION_STRUCTURE_COPY_MODE_DESERIALIZE
+                                );
+
+                                AdvanceCommand(pDeserializeAccelerationStructure);
+                                break;
+
                             default:
                                 ThrowHelper.ThrowNotSupportedException($"Command '{cmd->Type}' is unsupported");
                                 break;
@@ -1012,6 +1177,8 @@ namespace Voltium.Core.Devices
                             where T : unmanaged where TVariable1 : unmanaged where TVariable2 : unmanaged => pPacketStart = MathHelpers.AlignUp(&cmd->Arguments + sizeof(T) + (sizeof(TVariable1) * pVariableCount) + (sizeof(TVariable2) * pVariableCount), CommandAlignment);
 
                         void AdvanceEmptyCommand() => pPacketStart = &cmd->Arguments;
+
+                        static ulong GetBufferAddressOrNull(ref D3D12HandleMapper mapper, BufferHandle handle) => handle == default ? 0 : mapper.GetInfo(handle).GpuAddress;
                     }
                 }
             }

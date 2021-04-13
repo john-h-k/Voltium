@@ -10,6 +10,7 @@ using Voltium.Core.Memory;
 using Voltium.Core.NativeApi;
 using Voltium.Core.Pipeline;
 using Voltium.Core.Queries;
+using Voltium.Core.Raytracing;
 using Buffer = Voltium.Core.Memory.Buffer;
 
 namespace Voltium.Core.Devices
@@ -43,6 +44,11 @@ namespace Voltium.Core.Devices
         /// The size, in bytes, of this device's virtual address range
         /// </summary>
         public ulong VirtualAddressRange { get; init; }
+
+        /// <summary>
+        /// The size, in bytes, that raytracing shader identifiers user
+        /// </summary>
+        public uint RaytracingShaderIdentifierSize { get; init; }
     }
 
 
@@ -71,6 +77,31 @@ namespace Voltium.Core.Devices
         /// <see cref="DeviceInfo"/> about this device
         /// </summary>
         DeviceInfo Info { get; }
+
+        /// <summary>
+        /// Calculates memory size information about a bottom-level raytracing acceleration structure build and potentially its updates
+        /// </summary>
+        /// <param name="geometry">The <see cref="GeometryDesc"/>s in the acceleration structures</param>
+        /// <param name="flags">The <see cref="BuildAccelerationStructureFlags"/> for the build</param>
+        /// <returns>The size, in bytes, for the destination acceleration structure, the intermediate scratch buffer, and (if applicable) the intermediate scratch buffer used for updates</returns>
+        (ulong DestSize, ulong ScratchSize, ulong UpdateSize) GetBottomLevelAccelerationStructureBuildInfo(ReadOnlySpan<GeometryDesc> geometry, BuildAccelerationStructureFlags flags);
+
+        /// <summary>
+        /// Calculates memory size information about a top-level raytracing acceleration structure build and potentially its updates
+        /// </summary>
+        /// <param name="numInstances">The number of <see cref="GeometryInstance"/>s in the acceleration structures</param>
+        /// <param name="flags">The <see cref="BuildAccelerationStructureFlags"/> for the build</param>
+        /// <returns>The size, in bytes, for the destination acceleration structure, the intermediate scratch buffer, and (if applicable) the intermediate scratch buffer used for updates</returns>
+        (ulong DestSize, ulong ScratchSize, ulong UpdateSize) GetTopLevelAccelerationStructureBuildInfo(uint numInstances, BuildAccelerationStructureFlags flags);
+
+
+        /// <summary>
+        /// Retrieves the shader identifier for a raytracing shader
+        /// </summary>
+        /// <param name="raytracingPipeline">The <see cref="PipelineHandle"/> to the pipeline that contains the shader</param>
+        /// <param name="shaderName">The name of the shader to retrieve</param>
+        /// <param name="identifier">The memory to write the identifier to. Must be at least as large as <see cref="DeviceInfo.RaytracingShaderIdentifierSize"/></param>
+        void GetRaytracingShaderIdentifier(PipelineHandle raytracingPipeline, ReadOnlySpan<char> shaderName, Span<byte> identifier); 
 
         /// <summary>
         /// Calculate memory size and alignment information about a texture
@@ -150,6 +181,20 @@ namespace Voltium.Core.Devices
         /// </summary>
         /// <param name="handle">The buffer to unmap</param>
         void Unmap(BufferHandle handle);
+
+        /// <summary>
+        /// Returns the GPU virtual address of the buffer
+        /// </summary>
+        /// <param name="handle">The<see cref="BufferHandle"/> to retrieve the GPU virtual address of</param>
+        /// <returns>A GPU virtual address</returns>
+        ulong GetDeviceVirtualAddress(BufferHandle handle);
+
+        /// <summary>
+        /// Returns the GPU virtual address of the buffer
+        /// </summary>
+        /// <param name="handle">The<see cref="RaytracingAccelerationStructureHandle"/> to retrieve the GPU virtual address of</param>
+        /// <returns>A GPU virtual address</returns>
+        ulong GetDeviceVirtualAddress(RaytracingAccelerationStructureHandle handle);
 
         /// <summary>
         /// Allocates a new buffer, using a driver dedicated allocation
@@ -244,35 +289,48 @@ namespace Voltium.Core.Devices
         RootSignatureHandle CreateRootSignature(ReadOnlySpan<RootParameter> rootParams, ReadOnlySpan<StaticSampler> samplers, RootSignatureFlags flags);
 
         /// <summary>
+        /// Creates a new local root signature
+        /// </summary>
+        /// <param name="rootParams">The parameters for this root signature</param>
+        /// <param name="samplers">The static sampler to embed this into the root signature</param>
+        /// <param name="flags">The <see cref="RootSignatureFlags"/> for this root signature</param>
+        /// <returns>A new <see cref="RootSignatureHandle"/></returns>
+        LocalRootSignatureHandle CreateLocalRootSignature(ReadOnlySpan<RootParameter> rootParams, ReadOnlySpan<StaticSampler> samplers, RootSignatureFlags flags);
+
+        /// <summary>
         /// Destroys a given <see cref="RootSignatureHandle"/>
         /// </summary>
         /// <param name="handle">The <see cref="RootSignatureHandle"/> to destroy</param>
         void DisposeRootSignature(RootSignatureHandle handle);
 
         /// <summary>
+        /// Destroys a given <see cref="LocalRootSignatureHandle"/>
+        /// </summary>
+        /// <param name="handle">The <see cref="LocalRootSignatureHandle"/> to destroy</param>
+        void DisposeLocalRootSignature(LocalRootSignatureHandle handle);
+
+        /// <summary>
         /// Creates a new <see cref="PipelineHandle"/> for a compute pipeline
         /// </summary>
-        /// <param name="rootSignature">The <see cref="RootSignatureHandle"/> for this pipleline's root signature</param>
-        /// <param name="desc">The <see cref="ComputePipelineDesc"/> for this pipeline</param>
+        /// <param name="desc">The <see cref="NativeComputePipelineDesc"/> for this pipeline</param>
         /// <returns>A new <see cref="PipelineHandle"/></returns>
-        PipelineHandle CreatePipeline(in RootSignatureHandle rootSignature, in ComputePipelineDesc desc);
+        PipelineHandle CreatePipeline(in NativeComputePipelineDesc desc);
 
         /// <summary>
         /// Creates a new <see cref="PipelineHandle"/> for a graphics pipeline
         /// </summary>
-        /// <param name="rootSignature">The <see cref="RootSignatureHandle"/> for this pipleline's root signature</param>
-        /// <param name="desc">The <see cref="GraphicsPipelineDesc"/> for this pipeline</param>
+        /// <param name="desc">The <see cref="NativeGraphicsPipelineDesc"/> for this pipeline</param>
         /// <returns>A new <see cref="PipelineHandle"/></returns>
-        PipelineHandle CreatePipeline(in RootSignatureHandle rootSignature, in GraphicsPipelineDesc desc);
-        //PipelineHandle CreatePipeline(in RaytracingPipelineDesc desc);
+        PipelineHandle CreatePipeline(in NativeGraphicsPipelineDesc desc);
+
+        PipelineHandle CreatePipeline(in NativeRaytracingPipelineDesc desc);
 
         /// <summary>
         /// Creates a new <see cref="PipelineHandle"/> for a mesh pipeline
         /// </summary>
-        /// <param name="rootSignature">The <see cref="RootSignatureHandle"/> for this pipleline's root signature</param>
-        /// <param name="desc">The <see cref="MeshPipelineDesc"/> for this pipeline</param>
+        /// <param name="desc">The <see cref="NativeMeshPipelineDesc"/> for this pipeline</param>
         /// <returns>A new <see cref="PipelineHandle"/></returns>
-        PipelineHandle CreatePipeline(in RootSignatureHandle rootSignature, in MeshPipelineDesc desc);
+        PipelineHandle CreatePipeline(in NativeMeshPipelineDesc desc);
 
         /// <summary>
         /// Destroys a given <see cref="PipelineHandle"/>
@@ -288,7 +346,7 @@ namespace Voltium.Core.Devices
         /// <param name="arguments">The <see cref="ReadOnlySpan{IndirectArgument}"/>s indicating the arguments</param>
         /// <param name="byteStride">The stride (in bytes) between each command</param>
         /// <returns>A new <see cref="IndirectCommandHandle"/></returns>
-        IndirectCommandHandle CreateIndirectCommand(in RootSignature rootSig, ReadOnlySpan<IndirectArgument> arguments, uint byteStride);
+        IndirectCommandHandle CreateIndirectCommand(RootSignatureHandle rootSig, ReadOnlySpan<IndirectArgument> arguments, uint byteStride);
 
 
         /// <summary>
@@ -305,6 +363,32 @@ namespace Voltium.Core.Devices
         /// </summary>
         /// <param name="handle">The <see cref="IndirectCommandHandle"/> to destroy</param>
         void DisposeIndirectCommand(IndirectCommandHandle handle);
+
+        /// <summary>
+        /// Creates a <see cref="DynamicBufferDescriptorHandle"/> to a  <see cref="BufferHandle"/>
+        /// </summary>
+        /// <param name="buffer">The <see cref="BufferHandle"/> to create this dynamic descriptor for</param>
+        /// <returns>A new <see cref="DynamicBufferDescriptorHandle"/></returns>
+        DynamicBufferDescriptorHandle CreateDynamicDescriptor(BufferHandle buffer);
+
+        /// <summary>
+        /// Destroys a given <see cref="DynamicBufferDescriptorHandle"/>
+        /// </summary>
+        /// <param name="handle">The <see cref="DynamicBufferDescriptorHandle"/> to destroy</param>
+        void DisposeDynamicDescriptor(DynamicBufferDescriptorHandle handle);
+
+        /// <summary>
+        /// Creates a <see cref="DynamicRaytracingAccelerationStructureDescriptorHandle"/> to a  <see cref="RaytracingAccelerationStructureHandle"/>
+        /// </summary>
+        /// <param name="buffer">The <see cref="RaytracingAccelerationStructureHandle"/> to create this dynamic descriptor for</param>
+        /// <returns>A new <see cref="RaytracingAccelerationStructureHandle"/></returns>
+        DynamicRaytracingAccelerationStructureDescriptorHandle CreateDynamicDescriptor(RaytracingAccelerationStructureHandle buffer);
+
+        /// <summary>
+        /// Destroys a given <see cref="DynamicRaytracingAccelerationStructureDescriptorHandle"/>
+        /// </summary>
+        /// <param name="handle">The <see cref="DynamicRaytracingAccelerationStructureDescriptorHandle"/> to destroy</param>
+        void DisposeDynamicDescriptor(DynamicRaytracingAccelerationStructureDescriptorHandle handle);
 
         /// <summary>
         /// Creates a <see cref="DescriptorSetHandle"/>

@@ -15,14 +15,13 @@ using Voltium.Extensions;
 using Voltium.Core.Memory;
 using static TerraFX.Interop.Windows;
 using Rectangle = System.Drawing.Rectangle;
-using Voltium.Core.CommandBuffer;
 using Voltium.Core.Configuration.Graphics;
 using Voltium.Core.NativeApi;
 
 namespace Voltium.Core.Devices
 {
 
-    public struct ViewSet
+    public struct ViewSet : IDisposable
     {
         internal ViewSetHandle Handle;
         internal Disposal<ViewSetHandle> _disposal;
@@ -87,6 +86,9 @@ namespace Voltium.Core.Devices
             _output.Resize((uint)newSize.Width, (uint)newSize.Height);
         }
 
+        public uint Width => (uint)Resolution.Width;
+        public uint Height => (uint)Resolution.Height;
+
         /// <summary>
         /// The <see cref="Size"/> of the output
         /// </summary>
@@ -122,84 +124,8 @@ namespace Voltium.Core.Devices
         /// </summary>
         public View OutputBufferView => new (_output.BackBufferView, default);
 
-
-        ///// <summary>
-        ///// Creates a new <see cref="Output"/> to a <see cref="IOutputOwner"/>
-        ///// </summary>
-        ///// <param name="desc">The <see cref="OutputConfiguration"/> for this output</param>
-        ///// <param name="device">The <see cref="GraphicsDevice"/> that will output to this buffer</param>
-        ///// <param name="window">The <see cref="IOutputOwner"/> that owns the window</param>
-        ///// <param name="outputArea">Optionally, the <see cref="Size"/> of the rendered output. By default, this will be the entire window</param>
-        ///// <returns>A new <see cref="Output"/></returns>
-        //public static Output Create(OutputConfiguration desc, GraphicsDevice device, IOutputOwner window, Size outputArea = default)
-        //{
-        //    return new Output(device, outputArea, window, desc);
-        //}   
-
-        ///// <summary>
-        ///// Creates a new <see cref="Output"/> to a Win32 Window backed by a HWND
-        ///// </summary>u
-        ///// <param name="device">The <see cref="GraphicsDevice"/> that will output to this buffer</param>
-        ///// <param name="desc">The <see cref="OutputConfiguration"/> for this output</param>
-        ///// <param name="window">The <see cref="IHwndOwner"/> that owns the window</param>
-        ///// <param name="outputArea">Optionally, the <see cref="Size"/> of the rendered output. By default, this will be the entire window</param>
-        ///// <returns>A new <see cref="Output"/></returns>
-        //public static Output CreateForWin32(GraphicsDevice device, OutputConfiguration desc, IHwndOwner window, Size outputArea = default)
-        //    => CreateForWin32(device, desc, window.GetHwnd(), outputArea);
-
-        ///// <summary>
-        ///// Creates a new <see cref="Output"/> to a Win32 Window backed by a HWND
-        ///// </summary>
-        ///// <param name="device">The <see cref="GraphicsDevice"/> that will output to this buffer</param>
-        ///// <param name="desc">The <see cref="OutputConfiguration"/> for this output</param>
-        ///// <param name="window">The HWND for the window to bind to</param>
-        ///// <param name="outputArea">Optionally, the <see cref="Size"/> of the rendered output. By default, this will be the entire window</param>
-        ///// <returns>A new <see cref="Output"/></returns>
-        //public static Output CreateForWin32(GraphicsDevice device, OutputConfiguration desc, IntPtr window, Size outputArea = default)
-        //{
-        //    return new Output(device, outputArea, IOutputOwner.FromHwnd(window), desc);
-        //}
-
-
-        ///// <summary>
-        ///// Creates a new <see cref="Output"/> to a WinRT ICoreWindow
-        ///// </summary>
-        ///// <param name="device">The <see cref="GraphicsDevice"/> that will output to this buffer</param>
-        ///// <param name="desc">The <see cref="OutputConfiguration"/> for this output</param>
-        ///// <param name="window">The <see cref="ICoreWindowsOwner"/> that owns the window</param>
-        ///// <param name="outputArea">Optionally, the <see cref="Size"/> of the rendered output. By default, this will be the entire window</param>
-        ///// <returns>A new <see cref="Output"/></returns>
-        //public static Output CreateForWinRT(GraphicsDevice device, OutputConfiguration desc, ICoreWindowsOwner window, Size outputArea = default)
-        //    => CreateForWinRT(device, desc, window.GetIUnknownForWindow(), outputArea);
-
-        ///// <summary>
-        ///// Creates a new <see cref="Output"/> to a WinRT ICoreWindow
-        ///// </summary>
-        ///// <param name="device">The <see cref="GraphicsDevice"/> that will output to this buffer</param>
-        ///// <param name="desc">The <see cref="OutputConfiguration"/> for this output</param>
-        ///// <param name="window">The IUnknown* for the window to bind to</param>
-        ///// <param name="outputArea">Optionally, the <see cref="Size"/> of the rendered output. By default, this will be the entire window</param>
-        ///// <returns>A new <see cref="Output"/></returns>
-        //public static Output CreateForWinRT(GraphicsDevice device, OutputConfiguration desc, void* window, Size outputArea = default)
-        //{
-        //    return new Output(device, outputArea, IOutputOwner.FromICoreWindow(window), desc);
-        //}
-
-
-        ///// <summary>
-        ///// Creates a new <see cref="Output"/> to a WinRT ISwapChainPanelNative
-        ///// </summary>
-        ///// <param name="device">The <see cref="GraphicsDevice"/> that will output to this buffer</param>
-        ///// <param name="desc">The <see cref="OutputConfiguration"/> for this output</param>
-        ///// <param name="swapChainPanelNative">The IUnknown* for the ISwapChainPanelNative to bind to</param>
-        ///// <param name="outputArea">The <see cref="Size"/> of the rendered output</param>
-        ///// <returns>A new <see cref="Output"/></returns>
-        //public static Output CreateForSwapChainPanel(GraphicsDevice device, OutputConfiguration desc, void* swapChainPanelNative, Size outputArea)
-        //{
-        //    return new Output(device, outputArea, IOutputOwner.FromSwapChainPanel(swapChainPanelNative), desc);
-        //}
-
-
+        public bool IsReadyForPresent => _output.WaitForNextPresent(TimeSpan.Zero) == PresentWaitState.PresentReady;
+             
         /// <summary>
         /// Presents the current back buffer to the output, and advances to the next back buffer
         /// </summary>

@@ -1,6 +1,8 @@
 using System;
 using System.Runtime.InteropServices;
 using Voltium.Core;
+using Voltium.Core.CommandBuffer;
+using Voltium.Core.Devices;
 using Voltium.Core.Memory;
 using Buffer = Voltium.Core.Memory.Buffer;
 
@@ -20,6 +22,19 @@ namespace Voltium.RenderEngine
         public Buffer Buffer;
         public Texture Texture;
         public RaytracingAccelerationStructure RaytracingAccelerationStructure;
+
+        public string? DebugName;
+    }
+
+    internal struct ViewDesc
+    {
+        public ResourceType Type;
+        public ResourceHandle Handle;
+
+        public BufferViewDesc? BufferViewDesc;
+        public TextureViewDesc? TextureViewDesc;
+
+        public View View;
 
         public string? DebugName;
     }

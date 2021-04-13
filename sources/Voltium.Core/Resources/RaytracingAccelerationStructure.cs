@@ -8,9 +8,10 @@ namespace Voltium.Core.Memory
     /// </summary>
     public unsafe struct RaytracingAccelerationStructure : IDisposable
     {
-        internal RaytracingAccelerationStructure(ulong length, RaytracingAccelerationStructureHandle handle, Disposal<RaytracingAccelerationStructureHandle> disposal)
+        internal RaytracingAccelerationStructure(ulong length, ulong deviceAddress, RaytracingAccelerationStructureHandle handle, Disposal<RaytracingAccelerationStructureHandle> disposal)
         {
             Length = length;
+            DeviceAddress = deviceAddress;
             Handle = handle;
             _dispose = disposal;
         }
@@ -19,6 +20,8 @@ namespace Voltium.Core.Memory
         /// The size, in bytes, of the buffer
         /// </summary>
         public readonly ulong Length;
+
+        public readonly ulong DeviceAddress;
 
         internal RaytracingAccelerationStructureHandle Handle;
         private Disposal<RaytracingAccelerationStructureHandle> _dispose;

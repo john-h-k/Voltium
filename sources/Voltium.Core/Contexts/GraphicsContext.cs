@@ -6,7 +6,6 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using TerraFX.Interop;
 using Voltium.Common;
-using Voltium.Core.CommandBuffer;
 using Voltium.Core.Contexts;
 using Voltium.Core.Devices;
 using Voltium.Core.Exceptions;
@@ -30,14 +29,33 @@ namespace Voltium.Core
     }
 
     /// <summary>
-    /// 
+    /// The combiner operation for 2 shading rates
     /// </summary>
     public enum Combiner
     {
+        /// <summary>
+        /// The left-hand side of the operation passes through and is used. The right-hand side is ignored
+        /// </summary>
         Passthrough = D3D12_SHADING_RATE_COMBINER.D3D12_SHADING_RATE_COMBINER_PASSTHROUGH,
+
+        /// <summary>
+        /// The right-hand side of the operation overrides the left-hand side and is used. The left-hand side is ignored
+        /// </summary>
         Override = D3D12_SHADING_RATE_COMBINER.D3D12_SHADING_RATE_COMBINER_OVERRIDE,
+
+        /// <summary>
+        /// The minimum of the left-hand side and the right-hand side of the operation is chosen
+        /// </summary>
         Min = D3D12_SHADING_RATE_COMBINER.D3D12_SHADING_RATE_COMBINER_MIN,
+
+        /// <summary>
+        /// The maximum of the left-hand side and the right-hand side of the operation is chosen
+        /// </summary>
         Max = D3D12_SHADING_RATE_COMBINER.D3D12_SHADING_RATE_COMBINER_MAX,
+
+        /// <summary>
+        /// The sum of the left-hand side and the right-hand side of the operation is chosen
+        /// </summary>
         Sum = D3D12_SHADING_RATE_COMBINER.D3D12_SHADING_RATE_COMBINER_SUM,
     }
 
@@ -214,7 +232,7 @@ namespace Voltium.Core
             Unsafe.Write(pRp->ClearValue, pDepth.ColorClear);
         }
 
-        public void ClearDepth(in View depth, float value = 1)
+        public void ClearDepth(in View depth, float value)
         {
             var command = new CommandClearDepthStencil
             {
@@ -317,36 +335,6 @@ namespace Voltium.Core
             var command = new CommandSetStencilRef
             {
                 StencilRef = value
-            };
-
-            _encoder.Emit(&command);
-        }
-
-        /// <summary>
-        /// Sets the primitive toplogy for geometry
-        /// </summary>
-        /// <param name="topology">The <see cref="D3D_PRIMITIVE_TOPOLOGY"/> to use</param>
-        public void SetTopology(Topology topology)
-        {
-            var command = new CommandSetTopology
-            {
-                Topology = topology,
-            };
-
-            _encoder.Emit(&command);
-        }
-
-        /// <summary>
-        /// Sets the number of points in a control point patch
-        /// </summary>
-        /// <param name="count">The number of points per patch></param>
-        public void SetControlPatchPointCount(byte count)
-        {
-            Guard.InRangeInclusive(1, 32, count);
-
-            var command = new CommandSetPatchListCount
-            {
-                PatchListCount = count,
             };
 
             _encoder.Emit(&command);
@@ -461,11 +449,20 @@ namespace Voltium.Core
         /// <typeparam name="T">The type of the index in <see cref="Buffer"/></typeparam>
         public void SetIndexBuffer<T>([RequiresResourceState(ResourceState.IndexBuffer)] in Buffer indexResource, uint numIndices = uint.MaxValue)
             where T : unmanaged
+            => SetIndexBuffer(indexResource, IndexFormatForT<T>(), numIndices);
+
+        /// <summary>
+        /// Set the index buffer
+        /// </summary>
+        /// <param name="indexResource">The index buffer to set</param>
+        /// <param name="format">The format of the indices (either 16 or 32 bit)</param>
+        /// <param name="numIndices">The number of indices to bind</param>
+        public void SetIndexBuffer([RequiresResourceState(ResourceState.IndexBuffer)] in Buffer indexResource, IndexFormat format, uint numIndices = uint.MaxValue)
         {
             var command = new CommandSetIndexBuffer
             {
                 Buffer = indexResource.Handle,
-                Format = IndexFormatForT<T>(),
+                Format = format,
                 Length = (uint)(Math.Min(numIndices, indexResource.Length))
             };
 

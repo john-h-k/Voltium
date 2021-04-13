@@ -7,7 +7,7 @@ using static TerraFX.Interop.Windows;
 
 namespace Voltium.Core.Infrastructure
 {
-    internal sealed unsafe class DxCoreDeviceFactory : DeviceFactory
+    internal sealed unsafe class DxCoreDeviceFactory : AdapterFactory
     {
         private UniqueComPtr<IDXCoreAdapterFactory> _factory;
         private UniqueComPtr<IDXCoreAdapterList> _list;

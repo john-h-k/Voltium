@@ -1,9 +1,133 @@
 using System;
+using System.Collections;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading.Tasks;
+using Voltium.Common;
+using Voltium.Common.Threading;
 
 namespace Voltium.RenderEngine.Jobs
 {
+    public enum JobPriority
+    {
+        Low,
+        Standard,
+        High
+    }
+
+    public class JobCounter
+    {
+        private volatile int _value;
+
+        public int Value => _value;
+
+        internal void Decrement() => Interlocked.Decrement(ref _value);
+        internal void Increment() => Interlocked.Increment(ref _value);
+
+        public JobTask Reaches(int value)
+        {
+            return new JobTask(this, value);
+        }
+    }
+
+    public class JobSystem
+    {
+        public JobSystem Default { get; } = new();
+
+        private LockedQueue<Job, SpinLockWrapped> _jobs;
+
+        private struct Job
+        {
+            public JobCounter Counter;
+            public Action SingleFunc;
+        }
+
+        public JobCounter Queue(Action job)
+        {
+            var counter = new JobCounter();
+            Queue(job, counter);
+            return counter;
+        }
+
+        public void Queue(Action job, JobCounter counter)
+        {
+            counter.Increment();
+            var jobData = new Job { Counter = counter, SingleFunc = job };
+            _jobs.Enqueue(jobData);
+        }
+
+        
+    }
+
+    public struct JobTask : INotifyCompletion
+    {
+        internal JobTask(JobCounter counter, int completedValue)
+        {
+            Counter = counter;
+            CompletedValue = completedValue;
+        }
+
+        public JobCounter Counter { get; }
+        public int CompletedValue { get; }
+
+        public bool IsCompleted => Counter.Value <= CompletedValue;
+        public void GetResult() { }
+        public void OnCompleted(Action completion)
+        {
+
+        }
+    }
+
+    [AsyncMethodBuilder(typeof(JobTask))]
+    public struct JobTaskBuilder
+    {
+        public static JobTaskBuilder Create() => new();
+
+        public void Start<TStateMachine>(ref TStateMachine stateMachine)
+            where TStateMachine : IAsyncStateMachine
+        {
+            stateMachine.MoveNext();
+        }
+
+        public void SetStateMachine(IAsyncStateMachine stateMachine)
+        {
+
+        }
+        public void SetException(Exception exception)
+        {
+
+        }
+        public void SetResult()
+        {
+
+        }
+
+        public void AwaitOnCompleted<TAwaiter, TStateMachine>(
+            ref TAwaiter awaiter, ref TStateMachine stateMachine)
+            where TAwaiter : INotifyCompletion
+            where TStateMachine : IAsyncStateMachine
+        {
+            try
+            {
+                awaiter.OnCompleted(GetStateMachineBox(ref stateMachine, ref taskField).MoveNextAction);
+            }
+            catch (Exception e)
+            {
+                System.Threading.Tasks.Task.ThrowAsync(e, targetContext: null);
+            }
+        }
+        public void AwaitUnsafeOnCompleted<TAwaiter, TStateMachine>(
+            ref TAwaiter awaiter, ref TStateMachine stateMachine)
+            where TAwaiter : ICriticalNotifyCompletion
+            where TStateMachine : IAsyncStateMachine
+        {
+
+        }
+
+        public JobTask Task { get; }
+    }
+
     internal unsafe static class LockedThreadPool
     {
         private static NativeThread[] _perCoreThread;
