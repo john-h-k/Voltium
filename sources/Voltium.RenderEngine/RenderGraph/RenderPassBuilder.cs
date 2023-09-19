@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using Microsoft.Toolkit.HighPerformance.Extensions;
 using Voltium.Common;
 using Voltium.Core;
+using Voltium.Core.Configuration.Graphics;
 using Voltium.Core.Contexts;
+using Voltium.Core.Devices;
 using Voltium.Core.Memory;
 using Voltium.RenderEngine;
 using Voltium.RenderEngine.Passes;
@@ -12,230 +15,58 @@ using Buffer = Voltium.Core.Memory.Buffer;
 
 namespace Voltium.RenderEngine
 {
-    /// <summary>
-    /// The type used in a <see cref="RenderGraph"/> to register pass dependencies and resources
-    /// </summary>
-    public struct RenderPassBuilder
+    public unsafe sealed partial class RenderGraph
     {
-        private RenderGraph _graph;
-
-        internal RenderGraph Graph => _graph; // we use this to avoid capturing in the Execute method where we sort passes
-
-        private int _passIndex;
-
-        internal RenderPass Pass;
-        internal int Depth;
-
-        internal GpuContext Context; // this is set by the scheduler and used when multi-threading the recording
-
-        internal RenderPassBuilder(RenderGraph graph, int passIndex, RenderPass pass) : this()
+        public Builder CreatePassBuilder()
         {
-            _graph = graph;
-            _passIndex = passIndex;
-            FrameDependencies = new();
-            Transitions = new();
-            Pass = pass;
-            Context = null!;
-        }
-
-        internal List<int> FrameDependencies;
-        internal List<(ResourceHandle Resource, ResourceState State, ResourceBarrierOptions Options)> Transitions;
-
-        /// <summary>
-        /// Indicates a pass uses a resource in a certain manner
-        /// </summary>
-        /// <param name="buffer">The resource handle</param>
-        /// <param name="flags">The <see cref="ResourceState"/> the pass uses it as</param>
-        public void MarkUsage(BufferHandle buffer, ResourceState flags)
-            => MarkUsage(buffer.AsResourceHandle(), flags);
-
-        /// <summary>
-        /// Indicates a pass uses a resource in a certain manner
-        /// </summary>
-        /// <param name="texture">The resource handle</param>
-        /// <param name="flags">The <see cref="ResourceState"/> the pass uses it as</param>
-        public void MarkUsage(TextureHandle texture, ResourceState flags)
-            => MarkUsage(texture.AsResourceHandle(), flags);
-
-        /// <summary>
-        /// Attempts to retrieve the last pass input of type <typeparamref name="TInput"/>
-        /// </summary>
-        /// <typeparam name="TInput">The type to retrieve the input as</typeparam>
-        /// <returns>The input, if existent. Else, an exception will be thrown</returns>
-        public TInput GetInput<TInput>() => _graph.GetInputAs<TInput>(_passIndex);
-
-        /// <summary>
-        /// Sets the passes output to the given value, so future passes can retrieve it
-        /// </summary>
-        /// <typeparam name="TOutput">The type of the output value</typeparam>
-        /// <param name="val">The value</param>
-        public void SetOutput<TOutput>(TOutput val) => _graph.SetOutput(_passIndex, val);
-
-        private void AddDependencies(ReadOnlySpan<int> passIndices)
-        {
-            foreach (var passIndex in passIndices)
-            {
-                AddDependency(passIndex);
-            }
-        }
-        private void AddDependency(int passIndex)
-        {
-            ref var pass = ref _graph.GetRenderPass(passIndex);
-
-            if (pass.Depth >= Depth)
-            {
-                Depth = pass.Depth + 1;
-            }
-
-            FrameDependencies.Add(passIndex);
-        }
-
-        private void MarkUsage(ResourceHandle resource, ResourceState flags)
-        {
-            if (flags.IsInvalid())
-            {
-                ThrowHelper.ThrowArgumentException(nameof(flags), InvalidResourceStateFlags);
-            }
-
-            ref TrackedResource res = ref _graph.GetResource(resource);
-
-            if (flags.HasWriteFlag())
-            {
-                // If we write to it, and it is read from earlier up, we need to depend on all the reading passes and the write pass
-                if (res.HasReadPass)
-                {
-                    AddDependencies(res.LastReadPassIndices.AsSpan());
-                }
-                if (res.HasWritePass)
-                {
-                    AddDependency(res.LastWritePassIndex);
-                }
-
-                // If we write to resource, we need to mark that to the resource
-                res.LastWritePassIndex = _passIndex;
-            }
-            else if (flags.HasReadOnlyFlags())
-            {
-                // We also need to depend on any prior write passes but *not* any prior read passes
-                if (res.HasWritePass)
-                {
-                    AddDependency(res.LastWritePassIndex);
-                }
-
-                // If we read from it, we need to mark that we do
-                res.LastReadPassIndices.Add(_passIndex);
-
-            }
-
-            Transitions.Add((resource, flags, ResourceBarrierOptions.Full));
-        }
-
-        private const string InvalidResourceStateFlags = "ResourceStateFlags is invalid, which means it contains both write and read states, or multiple write states";
-
-        // TODO: Allow named transients (currently we use null names to mark transients)
-
-        internal const int PersistentResourceMask = int.MinValue;
-
-        internal static bool IsPersistent(ResourceHandle handle) => (handle.Index & PersistentResourceMask) != 0;
-        internal static ResourceHandle NormalizeHandle(ResourceHandle handle) => new (handle.Index & ~PersistentResourceMask);
-
-#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
-        public BufferHandle CreatePersistentBuffer(string name, in BufferDesc desc, MemoryAccess memoryAccess, ResourceState initialState = ResourceState.CopyDestination, string? debugName = null)
-#pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
-        {
-            ThrowForUnnamedPersistent(name);
-
-            return _graph.AddResource(new ResourceDesc
-            {
-                //Name = name,
-                Type = ResourceType.Buffer,
-                BufferDesc = desc,
-                MemoryAccess = memoryAccess,
-                InitialState = initialState,
-                DebugName = debugName
-            }, _passIndex).AsBufferHandle();
-        }
-
-        private static void ThrowForUnnamedPersistent(string name)
-        {
-            if (name is not null)
-            {
-                return;
-            }
-            // We specifically validate this, because not doing so would cause the graph to think this resource is transient
-            // And shit would explode (use-after-free on the resource likely. or weird unclear "resource dispose" errors)
-            ThrowHelper.ThrowArgumentNullException(nameof(name), "Persistent resources must have a name");
+            return new Builder(dummy: true);
         }
 
         /// <summary>
-        /// Indicates a pass creates a new buffer
+        /// The type used in a <see cref="RenderGraph"/> to register pass dependencies and resources
         /// </summary>
-        /// <param name="desc">The <see cref="BufferDesc"/> describing the pass's buffer</param>
-        /// <param name="memoryAccess">The <see cref="MemoryAccess"/> the buffer will be allocated as</param>
-        /// <param name="initialState">The initial <see cref="ResourceState"/> of the resource</param>
-        /// <param name="debugName">The <see cref="string"/> to set the resource name to in debug mode</param>
-        /// <returns>A new <see cref="BufferHandle"/> representing the resource that can be later resolved to a <see cref="Buffer"/></returns>
-        public BufferHandle CreateBuffer(in BufferDesc desc, MemoryAccess memoryAccess, ResourceState initialState = ResourceState.CopyDestination, string? debugName = null)
-            => _graph.AddResource(new ResourceDesc { Type = ResourceType.Buffer, BufferDesc = desc, MemoryAccess = memoryAccess, InitialState = initialState, DebugName = debugName }, _passIndex).AsBufferHandle();
+        public struct Builder
+        {
+            private ValueList<(ResourceHandle Resource, ResourceState State, ResourceState FinalState)> _transitions;
+            private PassRegisterDecision _decision;
 
-        /// <summary>
-        /// Indicates a pass creates a new texture
-        /// </summary>
-        /// <param name="desc">The <see cref="TextureDesc"/> describing the pass's buffer</param>
-        /// <param name="initialState">The initial <see cref="ResourceState"/> of the resource</param>
-        /// <param name="debugName">The <see cref="string"/> to set the resource name to in debug mode</param>
-        /// <returns>A new <see cref="TextureHandle"/> representing the resource that can be later resolved to a <see cref="Buffer"/></returns>
-        public TextureHandle CreateTexture(in TextureDesc desc, ResourceState initialState = ResourceState.CopyDestination, string? debugName = null)
-            => _graph.AddResource(new ResourceDesc { Type = ResourceType.Texture, TextureDesc = desc, InitialState = initialState, DebugName = debugName }, _passIndex).AsTextureHandle();
+            internal ValueList<(ResourceHandle Resource, ResourceState State, ResourceState FinalState)> Transitions => _transitions;
+            internal PassRegisterDecision Decision => _decision;
 
-        /// <summary>
-        /// Indicates a pass creates a new buffer that is relative to the size of the primary output. This is only valid
-        /// if the primary output is a buffer
-        /// </summary>
-        /// <param name="desc">The <see cref="BufferDesc"/> describing the pass's buffer</param>
-        /// <param name="memoryAccess">The <see cref="MemoryAccess"/> the buffer will be allocated as</param>
-        /// <param name="initialState">The initial <see cref="ResourceState"/> of the resource</param>
-        /// <param name="outputRelativeSize">Optionally, the multiplier that specifies how to multiply the size of this resource relative to the primary output.
-        /// By default, this is 1 - the resource is the same size as the primary output</param>
-        /// <param name="debugName">The <see cref="string"/> to set the resource name to in debug mode</param>
-        /// <returns>A new <see cref="BufferHandle"/> representing the resource that can be later resolved to a <see cref="Buffer"/></returns>
+            internal Builder(bool dummy)
+            {
+                _transitions = ValueList<(ResourceHandle Resource, ResourceState State, ResourceState FinalState)>.Create();
+                _decision = PassRegisterDecision.ExecutePass;
+            }
 
-        public BufferHandle CreatePrimaryOutputRelativeBuffer(in BufferDesc desc, MemoryAccess memoryAccess, ResourceState initialState = ResourceState.CopyDestination, double outputRelativeSize = 1, string? debugName = null)
-            => _graph.AddResource(new ResourceDesc { Type = ResourceType.Buffer, OutputRelativeSize = outputRelativeSize, BufferDesc = desc, MemoryAccess = memoryAccess, InitialState = initialState, DebugName = debugName }, _passIndex).AsBufferHandle();
+            /// <inheritdoc cref="PassRegisterDecision.AsyncComputeValid"/>
+            public void EnableAsyncCompute() => _decision |= PassRegisterDecision.AsyncComputeValid;
 
+            /// <inheritdoc cref="PassRegisterDecision.RemovePass"/>
+            public void CullPass() => _decision = PassRegisterDecision.RemovePass;
 
-        /// <summary>
-        /// Indicates a pass creates a new texture that is relative to the size of the primary output. This is only valid
-        /// if the primary output is a texture
-        /// </summary>
-        /// <param name="desc">The <see cref="TextureDesc"/> describing the pass's buffer</param>
-        /// <param name="initialState">The initial <see cref="ResourceState"/> of the resource</param>
-        /// <param name="outputRelativeSize">Optionally, the multiplier that specifies how to multiply the size of this resource relative to the primary output.
-        /// By default, this is 1 - the resource is the same size as the primary output</param>
-        /// <param name="debugName">The <see cref="string"/> to set the resource name to in debug mode</param>
-        /// <returns>A new <see cref="TextureHandle"/> representing the resource that can be later resolved to a <see cref="Buffer"/></returns>
+            /// <inheritdoc cref="PassRegisterDecision.HasExternalOutputs"/>
+            public void HasExternalOutput() => _decision |= PassRegisterDecision.HasExternalOutputs;
 
-        public TextureHandle CreatePrimaryOutputRelativeTexture(in TextureDesc desc, ResourceState initialState = ResourceState.CopyDestination, double outputRelativeSize = 1, string? debugName = null)
-            => _graph.AddResource(new ResourceDesc { Type = ResourceType.Texture, OutputRelativeSize = outputRelativeSize, TextureDesc = desc, InitialState = initialState, DebugName = debugName }, _passIndex).AsTextureHandle();
-    }
+            /// <summary>
+            /// Indicates a pass uses a resource in a certain manner
+            /// </summary>
+            /// <param name="buffer">The resource handle</param>
+            /// <param name="flags">The <see cref="ResourceState"/> the pass uses it as</param>
+            /// <param name="finalState">The <see cref="ResourceState"/> the pass leaves the resource in.
+            /// If this is <see langword="null"/>, it is the same as setting it to the same as <paramref name="flags"/></param>
+            public void MarkUsage(BufferHandle buffer, ResourceState flags, ResourceState? finalState = null)
+                => _transitions.Add((buffer.AsResourceHandle(), flags, finalState ?? flags));
 
-    enum ResourceUsage
-    {
-        /// <summary>
-        /// The application only writes to the resource, and so its results can be discarded each frame
-        /// </summary>
-        Discard,
-
-        /// <summary>
-        /// The resource persists across frames, but there is a different copy of the resource for each frame index, so that
-        /// the application can safely write to it with multiple latent frames
-        /// </summary>
-        Persistent,
-
-        /// <summary>
-        /// The resource persists across frames, and there is only a single copy of it provided to all frames. Use with caution, to prevent
-        /// overwriting of data being used by the GPU in prior latent frames
-        /// </summary>
-        PersistentPerFrame
+            /// <summary>
+            /// Indicates a pass uses a resource in a certain manner
+            /// </summary>
+            /// <param name="texture">The resource handle</param>
+            /// <param name="flags">The <see cref="ResourceState"/> the pass uses it as</param>
+            /// <param name="finalState">The <see cref="ResourceState"/> the pass leaves the resource in.
+            /// If this is <see langword="null"/>, it is the same as setting it to the same as <paramref name="flags"/></param>
+            public void MarkUsage(TextureHandle texture, ResourceState flags, ResourceState? finalState = null)
+                => _transitions.Add((texture.AsResourceHandle(), flags, finalState ?? flags));
+        }
     }
 }

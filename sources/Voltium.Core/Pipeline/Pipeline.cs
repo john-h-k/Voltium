@@ -1,37 +1,25 @@
 using System;
 using TerraFX.Interop;
 using Voltium.Common;
+using Voltium.Core.Memory;
+using Voltium.Core.NativeApi;
 
 namespace Voltium.Core.Pipeline
 {
     /// <summary>
     /// A pipeline state object
     /// </summary>
-    public unsafe abstract class PipelineStateObject : IDisposable
+    public unsafe struct PipelineStateObject
     {
-        internal UniqueComPtr<ID3D12Object> Pointer;
-
-        internal virtual ID3D12RootSignature* GetRootSig() => null;
-
-        internal PipelineStateObject(UniqueComPtr<ID3D12Object> pso)
+        internal PipelineStateObject(PipelineHandle handle, Disposal<PipelineHandle> dispose)
         {
-            Pointer = pso.Move();
+            Handle = handle;
+            _dispose = dispose;
         }
 
-        /// <inheritdoc/>
-        public void Dispose()
-        {
-            Pointer.Dispose();
-        }
+        internal PipelineHandle Handle;
+        private Disposal<PipelineHandle> _dispose;
 
-#if TRACE_DISPOSABLES || DEBUG
-        /// <summary>
-        /// no :)
-        /// </summary>
-        ~PipelineStateObject()
-        {
-            Guard.MarkDisposableFinalizerEntered();
-        }
-#endif
+        public void Dispose() => _dispose.Dispose(ref Handle);
     }
 }

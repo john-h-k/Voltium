@@ -8,33 +8,42 @@ using Voltium.Core.Configuration.Graphics;
 using Voltium.Core.Memory;
 using Voltium.Core.Infrastructure;
 using Voltium.Core.Pipeline;
-using static TerraFX.Interop.Windows;
-using Voltium.Core.Pool;
+using static TerraFX.Interop.Windows.Windows;
 using Voltium.Core.Contexts;
+using System.Runtime.InteropServices;
+using Voltium.Common.Threading;
+using Voltium.Core.NativeApi;
 
 namespace Voltium.Core.Devices
 {
-    [Flags]
-    enum DeviceFlags
-    {
-        None = 0,
-        DisableGpuTimeout = 1 << 0,
-    }
-
     /// <summary>
     /// The top-level manager for application resources
     /// </summary>
     public unsafe partial class GraphicsDevice : ComputeDevice
     {
-        internal ulong TotalFramesRendered = 0;
-
-        private bool _disposed;
-
+        public DeviceInfo Info => _device.Info;
 
         /// <summary>
         /// The default allocator for the device
         /// </summary>
         public new GraphicsAllocator Allocator => Unsafe.As<GraphicsAllocator>(base.Allocator);
+
+
+        /// <summary>
+        /// An empty <see cref="RootSignature"/>
+        /// </summary>
+        public RootSignature EmptyRootSignature { get; }
+
+        /// <summary>
+        /// An empty <see cref="RootSignature"/>
+        /// </summary>
+        public RootSignature EmptyRootSignatureWithInputAssembler { get; }
+
+        /// <summary>
+        /// The default <see cref="IndirectCommand"/> for performing an indirect dispatch.
+        /// It changes no root signature bindings and has a command size of <see langword="sizeof"/>(<see cref="IndirectDispatchArguments"/>)
+        /// </summary>
+        public IndirectCommand DispatchIndirect { get; }
 
         /// <summary>
         /// The default <see cref="IndirectCommand"/> for performing an indirect draw.
@@ -60,174 +69,253 @@ namespace Voltium.Core.Devices
         /// </summary>
         public IndirectCommand DispatchMeshIndirect { get; }
 
-        /// <summary>
-        /// Block until this device has idled on all queues
-        /// </summary>
-        public void Idle()
+
+        public RaytracingAccelerationStructure AllocateRaytracingAccelerationStructure(ulong length)
         {
-            var graphics = GraphicsQueue.GetSynchronizerForIdle();
-            var compute = ComputeQueue.GetSynchronizerForIdle();
-            var copy = CopyQueue.GetSynchronizerForIdle();
+            var accelerationStructure = _device.AllocateRaytracingAccelerationStructure(length);
 
-            if (DeviceLevel >= SupportedDevice.Device1)
+            static void Dispose(object o, ref RaytracingAccelerationStructureHandle handle)
             {
-                var fences = stackalloc ID3D12Fence*[3];
-                var fenceValues = stackalloc ulong[3];
-
-                graphics.GetFenceAndMarker(out fences[0], out fenceValues[0]);
-                compute.GetFenceAndMarker(out fences[1], out fenceValues[1]);
-                copy.GetFenceAndMarker(out fences[2], out fenceValues[2]);
-
-                ThrowIfFailed(As<ID3D12Device1>()->SetEventOnMultipleFenceCompletion(
-                    fences,
-                    fenceValues,
-                    3,
-                    D3D12_MULTIPLE_FENCE_WAIT_FLAGS.D3D12_MULTIPLE_FENCE_WAIT_FLAG_ALL,
-                    default
-                ));
+                Debug.Assert(o is GraphicsDevice);
+                Unsafe.As<GraphicsDevice>(o)._device.DisposeRaytracingAccelerationStructure(handle);
             }
-            else
-            {
-                BetterDeviceNeeded();
-            }
+
+            return new RaytracingAccelerationStructure(length, _device.GetDeviceVirtualAddress(accelerationStructure), accelerationStructure, new(this, &Dispose));
         }
 
-        //public BundleContext CreateBundle(PipelineStateObject pso)
+        public RaytracingAccelerationStructure AllocateRaytracingAccelerationStructure(ulong length, in Heap heap, ulong offset)
+        {
+            var accelerationStructure = _device.AllocateRaytracingAccelerationStructure(length, heap.Handle, offset);
+
+            static void Dispose(object o, ref RaytracingAccelerationStructureHandle handle)
+            {
+                Debug.Assert(o is GraphicsDevice);
+                Unsafe.As<GraphicsDevice>(o)._device.DisposeRaytracingAccelerationStructure(handle);
+            }
+
+            return new RaytracingAccelerationStructure(length, _device.GetDeviceVirtualAddress(accelerationStructure), accelerationStructure, new(this, &Dispose));
+        }
+
+        internal RaytracingAccelerationStructure AllocateRaytracingAccelerationStructure(ulong length, in Heap heap, ulong offset, Disposal<RaytracingAccelerationStructureHandle> dispose)
+        {
+            var accelerationStructure = _device.AllocateRaytracingAccelerationStructure(length, heap.Handle, offset);
+
+            return new RaytracingAccelerationStructure(length, _device.GetDeviceVirtualAddress(accelerationStructure), accelerationStructure, dispose);
+        }
+
+        public void GetRaytracingShaderIdentifier(in PipelineStateObject pso, ReadOnlySpan<char> name, Span<byte> identifier)
+        {
+            _device.GetRaytracingShaderIdentifier(pso.Handle, name, identifier);
+        }
+
+        public PipelineStateObject CreatePipelineStateObject(in RaytracingPipelineDesc desc)
+        {
+            static void Dispose(object o, ref PipelineHandle handle)
+            {
+                Debug.Assert(o is GraphicsDevice);
+                Unsafe.As<GraphicsDevice>(o)._device.DisposePipeline(handle);
+            }
+
+            var nativeDesc = new NativeRaytracingPipelineDesc
+            {
+                MaxRecursionDepth = desc.MaxRecursionDepth,
+                MaxAttributeSize = desc.MaxAttributeSize,
+                MaxPayloadSize = desc.MaxPayloadSize,
+                NodeMask = desc.NodeMask,
+                RootSignature = (desc.GlobalRootSignature ?? EmptyRootSignature).Handle,
+
+                Libraries = desc.Libraries.ToArray(),
+                LocalRootSignatures = desc.LocalRootSignatures.ToArray(),
+                TriangleHitGroups = desc.TriangleHitGroups.ToArray(),
+                ProceduralPrimitiveHitGroups = desc.ProceduralPrimitiveHitGroups.ToArray()
+            };
+
+            return new PipelineStateObject(_device.CreatePipeline(nativeDesc), new(this, &Dispose));
+        }
+        public PipelineStateObject CreatePipelineStateObject(in GraphicsPipelineDesc desc)
+        {
+            static void Dispose(object o, ref PipelineHandle handle)
+            {
+                Debug.Assert(o is GraphicsDevice);
+                Unsafe.As<GraphicsDevice>(o)._device.DisposePipeline(handle);
+            }
+
+            var nativeDesc = new NativeGraphicsPipelineDesc
+            {
+                Blend = desc.Blend ?? BlendDesc.Default,
+                Rasterizer = desc.Rasterizer ?? RasterizerDesc.Default,
+                DepthStencil = desc.DepthStencil ?? DepthStencilDesc.Default,
+                DepthStencilFormat = desc.DepthStencilFormat,
+                VertexShader = desc.VertexShader,
+                DomainShader = desc.DomainShader,
+                HullShader = desc.HullShader,
+                GeometryShader = desc.GeometryShader,
+                PixelShader = desc.PixelShader,
+                Inputs = desc.Inputs,
+                Msaa = desc.Msaa,
+                Topology = desc.Topology,
+                NodeMask = desc.NodeMask,
+                RenderTargetFormats = desc.RenderTargetFormats,
+                // Use empty root sig if IA is not used, else empty root sig with IA
+                RootSignature = (desc.RootSignature ?? (desc.Inputs.ShaderInputs.IsEmpty ? EmptyRootSignature : EmptyRootSignatureWithInputAssembler)).Handle
+            };
+
+            return new PipelineStateObject(_device.CreatePipeline(nativeDesc), new(this, &Dispose));
+        }
+
+
+        public LocalRootSignature CreateLocalRootSignature(ReadOnlySpan<RootParameter> rootParams, RootSignatureFlags flags = RootSignatureFlags.None)
+            => CreateLocalRootSignature(rootParams, default, flags);
+        public LocalRootSignature CreateLocalRootSignature(ReadOnlySpan<RootParameter> rootParams, ReadOnlySpan<StaticSampler> samplers, RootSignatureFlags flags = RootSignatureFlags.None)
+        {
+            static void Dispose(object o, ref LocalRootSignatureHandle handle)
+            {
+                Debug.Assert(o is GraphicsDevice);
+                Unsafe.As<GraphicsDevice>(o)._device.DisposeLocalRootSignature(handle);
+            }
+
+            return new LocalRootSignature(_device.CreateLocalRootSignature(rootParams, samplers, flags), new(this, &Dispose));
+        }
+
+
+        public RootSignature CreateRootSignature(ReadOnlySpan<RootParameter> rootParams, RootSignatureFlags flags = RootSignatureFlags.None)
+            => CreateRootSignature(rootParams, default, flags);
+        public RootSignature CreateRootSignature(ReadOnlySpan<RootParameter> rootParams, ReadOnlySpan<StaticSampler> samplers, RootSignatureFlags flags = RootSignatureFlags.None)
+        {
+            static void Dispose(object o, ref RootSignatureHandle handle)
+            {
+                Debug.Assert(o is GraphicsDevice);
+                Unsafe.As<GraphicsDevice>(o)._device.DisposeRootSignature(handle);
+            }
+
+            return new RootSignature(_device.CreateRootSignature(rootParams, samplers, flags), new(this, &Dispose));
+        }
+
+        public Texture AllocateTexture(in TextureDesc desc, ResourceState initialState)
+        {
+            var texture = _device.AllocateTexture(desc, initialState);
+
+            static void Dispose(object o, ref TextureHandle handle)
+            {
+                Debug.Assert(o is GraphicsDevice);
+                Unsafe.As<GraphicsDevice>(o)._device.DisposeTexture(handle);
+            }
+
+            return new Texture(texture, desc, new(this, &Dispose));
+        }
+
+        public Texture AllocateTexture(in TextureDesc desc, ResourceState initialState, in Heap heap, ulong offset)
+        {
+            var texture = _device.AllocateTexture(desc, initialState, heap.Handle, offset);
+
+            static void Dispose(object o, ref TextureHandle handle)
+            {
+                Debug.Assert(o is GraphicsDevice);
+                Unsafe.As<GraphicsDevice>(o)._device.DisposeTexture(handle);
+            }
+
+            return new Texture(texture, desc, new(this, &Dispose));
+        }
+
+        internal Texture AllocateTexture(in TextureDesc desc, ResourceState initialState, in Heap heap, ulong offset, Disposal<TextureHandle> dispose)
+        {
+            var texture = _device.AllocateTexture(desc, initialState, heap.Handle, offset);
+
+            return new Texture(texture, desc, dispose);
+        }
+
+
+        //internal UniqueComPtr<ID3D12CommandSignature> CreateCommandSignature(RootSignature? rootSignature, ReadOnlySpan<IndirectArgument> arguments, uint commandStride)
         //{
-        //    const ExecutionContext bundleContext = (ExecutionContext)D3D12_COMMAND_LIST_TYPE.D3D12_COMMAND_LIST_TYPE_BUNDLE;
-        //    var allocator = CreateAllocator(bundleContext);
+        //    fixed (void* pArguments = arguments)
+        //    {
+        //        var desc = new D3D12_COMMAND_SIGNATURE_DESC
+        //        {
+        //            ByteStride = commandStride,
+        //            pArgumentDescs = (D3D12_INDIRECT_ARGUMENT_DESC*)pArguments,
+        //            NumArgumentDescs = (uint)arguments.Length,
+        //            NodeMask = 0 // TODO: MULTI-GPU
+        //        };
 
-        //    _ = pso.Pointer.TryQueryInterface<ID3D12PipelineState>(out var pPipeline);
-        //    var list = CreateList(bundleContext, allocator.Ptr, pPipeline.Ptr);
+        //        using UniqueComPtr<ID3D12CommandSignature> signature = default;
+        //        ThrowIfFailed(DevicePointer->CreateCommandSignature(&desc, rootSignature is null ? null : rootSignature.Value, signature.Iid, (void**)&signature));
 
-        //    return new BundleContext(new ContextParams(this, list, allocator, pso, bundleContext, ContextFlags.None));
+        //        return signature.Move();
+        //    }
         //}
 
-        private void BetterDeviceNeeded()
-        {
-            throw new NotImplementedException();
-        }
+        //protected int CalculateCommandStride(ReadOnlySpan<IndirectArgument> arguments)
+        //{
+        //    int total = 0;
+        //    foreach (ref readonly var argument in arguments)
+        //    {
+        //        total += argument.Desc.Type switch
+        //        {
+        //            D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DRAW => sizeof(D3D12_DRAW_ARGUMENTS),
+        //            D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DRAW_INDEXED => sizeof(D3D12_DRAW_INDEXED_ARGUMENTS),
+        //            D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH => sizeof(D3D12_DISPATCH_ARGUMENTS),
+        //            D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_VERTEX_BUFFER_VIEW => sizeof(D3D12_VERTEX_BUFFER_VIEW),
+        //            D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_INDEX_BUFFER_VIEW => sizeof(D3D12_INDEX_BUFFER_VIEW),
+        //            D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_CONSTANT => (int)argument.Desc.Constant.Num32BitValuesToSet * sizeof(uint),
+        //            D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_CONSTANT_BUFFER_VIEW => sizeof(ulong),
+        //            D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_SHADER_RESOURCE_VIEW => sizeof(ulong),
+        //            D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_UNORDERED_ACCESS_VIEW => sizeof(ulong),
+        //            D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH_RAYS => sizeof(D3D12_DISPATCH_RAYS_DESC),
+        //            D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH_MESH => sizeof(D3D12_DISPATCH_MESH_ARGUMENTS),
+        //            _ => 0 // unreachable
+        //        };
+        //    }
 
-        /// <summary>
-        /// Gets the <see cref="GraphicsDevice"/> for a given <see cref="Adapter"/>
-        /// </summary>
-        /// <param name="requiredFeatureLevel">The required <see cref="FeatureLevel"/> for device creation</param>
-        /// <param name="adapter">The <see cref="Adapter"/> to create the device from, or <see langword="null"/> to use the default adapter</param>
-        /// <param name="config">The <see cref="DebugLayerConfiguration"/> for the device, or <see langword="null"/> to use the default</param>
-        /// <returns>A <see cref="GraphicsDevice"/></returns>
-        public static new GraphicsDevice Create(FeatureLevel requiredFeatureLevel, in Adapter? adapter, DebugLayerConfiguration? config = null)
-        {
-            if (TryGetDevice(requiredFeatureLevel, adapter ?? DefaultAdapter.Value, out var device))
-            {
-                if (device is GraphicsDevice graphics)
-                {
-                    return graphics;
-                }
-
-                ThrowHelper.ThrowInvalidOperationException("Cannot create a GraphicsDevice for this adapter as a ComputeDevice was created for this adapter");
-            }
-
-            return new GraphicsDevice(requiredFeatureLevel, adapter, config);
-        }
-
-        private GraphicsDevice(FeatureLevel level, in Adapter? adapter, DebugLayerConfiguration? config = null) : base(level, adapter, config)
-        {
-            GraphicsQueue = new CommandQueue(this, ExecutionContext.Graphics, true);
-            base.Allocator = new GraphicsAllocator(this);
-
-            DrawIndirect = CreateIndirectCommand(IndirectArgument.CreateDraw());
-            DrawIndexedIndirect = CreateIndirectCommand(IndirectArgument.CreateDrawIndexed());
-            DispatchMeshIndirect = CreateIndirectCommand(IndirectArgument.CreateDispatchMesh());
-            DispatchRaysIndirect = CreateIndirectCommand(IndirectArgument.CreateDispatchRays());
-        }
+        //    return total;
+        //}
 
 
-        public override sealed IndirectCommand CreateIndirectCommand(RootSignature? rootSignature, ReadOnlySpan<IndirectArgument> arguments, int commandStride = -1)
-        {
-            if (commandStride == -1)
-            {
-                commandStride = CalculateCommandStride(arguments);
-            }
-
-            if (arguments.Length == 1)
-            {
-                var cmd = arguments[0].Desc.Type switch
-                {
-                    D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DRAW when commandStride == sizeof(IndirectDrawArguments) => DrawIndirect,
-                    D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DRAW_INDEXED when commandStride == sizeof(IndirectDrawIndexedArguments) => DrawIndexedIndirect,
-                    D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH when commandStride == sizeof(IndirectDispatchArguments) => DispatchIndirect,
-                    D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH_RAYS when commandStride == sizeof(IndirectDispatchRaysArguments) => DispatchRaysIndirect,
-                    D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH_MESH when commandStride == sizeof(IndirectDispatchMeshArguments) => DispatchMeshIndirect,
-                    _ => null
-                };
-
-                if (cmd is not null)
-                {
-                    return cmd;
-                }
-            }
-
-            return new IndirectCommand(CreateCommandSignature(rootSignature, arguments, (uint)commandStride).Move(), rootSignature, (uint)commandStride, arguments.ToArray());
-        }
+        //public IndirectCommand CreateIndirectCommand(in IndirectArgument argument, int commandStride = -1)
+        //    => CreateIndirectCommand(MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(in argument), 1), commandStride);
+        //public IndirectCommand CreateIndirectCommand(ReadOnlySpan<IndirectArgument> arguments, int commandStride = -1)
+        //    => CreateIndirectCommand(null, arguments, commandStride);
 
 
-        public void GetTextureInformation(in TextureDesc desc, out ulong sizeInBytes, out ulong alignment)
-        {
-            InternalAllocDesc alloc;
-            Allocator.CreateAllocDesc(desc, &alloc, ResourceState.Common, AllocFlags.None);
-            var info = GetAllocationInfo(&alloc);
-            sizeInBytes = info.SizeInBytes;
-            alignment = info.Alignment;
-        }
+        //public IndirectCommand CreateIndirectCommand(RootSignature? rootSignature, in IndirectArgument argument, int commandStride = -1)
+        //    => CreateIndirectCommand(rootSignature, MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(in argument), 1), commandStride);
 
-        // Output requires this for swapchain creation
-        internal IUnknown* GetGraphicsQueue() => (IUnknown*)GraphicsQueue.GetQueue();
+        //public IndirectCommand CreateIndirectCommand(RootSignature? rootSignature, ReadOnlySpan<IndirectArgument> arguments, int commandStride = -1)
+        //{
+        //    if (commandStride == -1)
+        //    {
+        //        commandStride = CalculateCommandStride(arguments);
+        //    }
 
-        /// <summary>
-        /// Returns a <see cref="GraphicsContext"/> used for recording graphical commands
-        /// </summary>
-        /// <returns>A new <see cref="GraphicsContext"/></returns>
-        public GraphicsContext BeginGraphicsContext(PipelineStateObject? pso = null, ContextFlags flags = ContextFlags.None)
-        {
-            var @params = ContextPool.Rent(ExecutionContext.Graphics, pso, flags);
+        //    if (arguments.Length == 1)
+        //    {
+        //        var cmd = arguments[0].Desc.Type switch
+        //        {
+        //            D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DRAW when commandStride == sizeof(IndirectDrawArguments) => DrawIndirect,
+        //            D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DRAW_INDEXED when commandStride == sizeof(IndirectDrawIndexedArguments) => DrawIndexedIndirect,
+        //            D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH when commandStride == sizeof(IndirectDispatchArguments) => DispatchIndirect,
+        //            D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH_RAYS when commandStride == sizeof(IndirectDispatchRaysArguments) => DispatchRaysIndirect,
+        //            D3D12_INDIRECT_ARGUMENT_TYPE.D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH_MESH when commandStride == sizeof(IndirectDispatchMeshArguments) => DispatchMeshIndirect,
+        //            _ => null
+        //        };   
 
-            var context = new GraphicsContext(@params);
-            SetDefaultState(context, pso);
-            return context;
-        }
+        //        if (cmd is not null)
+        //        {
+        //            return cmd;
+        //        }
+        //    }
 
-        private void SetDefaultState(GpuContext context, PipelineStateObject? pso)
-        {
-            var rootSig = pso is null ? null : pso.GetRootSig();
-            if (pso is ComputePipelineStateObject or RaytracingPipelineStateObject)
-            {
-                context.List->SetComputeRootSignature(rootSig);
-            }
-            if (pso is GraphicsPipelineStateObject or MeshPipelineStateObject or RaytracingPipelineStateObject)
-            {
-                context.List->SetGraphicsRootSignature(rootSig);
-            }
+        //    return new IndirectCommand(CreateCommandSignature(rootSignature, arguments, (uint)commandStride).Move(), rootSignature, (uint)commandStride, arguments.ToArray());
+        //}
 
-            const int numHeaps = 2;
-            var heaps = stackalloc ID3D12DescriptorHeap*[numHeaps] { Resources.GetHeap(), _samplers.GetHeap() };
-
-            context.List->SetDescriptorHeaps(numHeaps, heaps);
-        }
+        public CommandQueue GraphicsQueue { get; }
+        public CommandQueue ComputeQueue { get; }
+        public CommandQueue CopyQueue { get; }
 
 
         /// <inheritdoc cref="IDisposable"/>
         public override void Dispose()
         {
-            if (_disposed)
-            {
-                return;
-            }
-
-            _disposed = true;
-
-            base.Dispose();
-
-            GraphicsQueue.Dispose();
+            _device.Dispose();
         }
     }
 }

@@ -1,11 +1,31 @@
 using System;
 using System.Runtime.CompilerServices;
 using System.Text;
-using TerraFX.Interop;
+using TerraFX.Interop.Windows;
+using TerraFX.Interop.DirectX;
 using Voltium.Common;
 
 namespace Voltium.Core.Infrastructure
 {
+    public enum ComputePreemptionGranularity
+    {
+        None,
+        PerExecution,
+        PerDispatch,
+        PerThreadGroup,
+        PerThread,
+        PerInstruction
+    }
+    public enum GraphicsPreemptionGranularity
+    {
+        None,
+        PerExecution,
+        PerDraw,
+        PerTriangle,
+        PerPixel,
+        PerInstruction
+    }
+
     /// <summary>
     /// Represents a DXGI adapter
     /// </summary>
@@ -47,6 +67,16 @@ namespace Voltium.Core.Infrastructure
         /// A string that contains the adapter description
         /// </summary>
         public string Description { get; }
+
+        /// <summary>
+        /// The <see cref="ComputePreemptionGranularity"/> defining where compute operations can be pre-empted by the driver or OS to perform other tasks
+        /// </summary>
+        public ComputePreemptionGranularity ComputePreemptionGranularity { get; }
+
+        /// <summary>
+        /// The <see cref="GraphicsPreemptionGranularity"/> defining where graphics operations can be pre-empted by the driver or OS to perform other tasks
+        /// </summary>
+        public GraphicsPreemptionGranularity GraphicsPreemptionGranularity { get; }
 
         /// <summary>
         /// The PCI ID of the hardware vendor
@@ -120,7 +150,9 @@ namespace Voltium.Core.Infrastructure
             LUID adapterLuid,
             ulong driverVersion,
             bool isSoftware,
-            DeviceType type
+            DeviceType type,
+            ComputePreemptionGranularity computePreemption,
+            GraphicsPreemptionGranularity graphicsPreemption
         )
         {
             _adapter = adapter;
@@ -136,6 +168,8 @@ namespace Voltium.Core.Infrastructure
             DriverVersion = driverVersion;
             IsSoftware = isSoftware;
             Type = type;
+            ComputePreemptionGranularity = computePreemption;
+            GraphicsPreemptionGranularity = graphicsPreemption;
         }
 
         /// <inheritdoc/>
@@ -209,12 +243,12 @@ namespace Voltium.Core.Infrastructure
         /// <summary>
         /// The local memory segment, which is closest to the adapter and fastest to work with
         /// </summary>
-        Local = DXCoreSegmentGroup.Local,
+        Local = 0,
 
 
         /// <summary>
         /// The nonlocal memory segment, which is CPU accessible and slower to access from the adapter
         /// </summary>
-        NonLocal = DXCoreSegmentGroup.NonLocal,
+        NonLocal = 1,
     }
 }

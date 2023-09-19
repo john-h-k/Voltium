@@ -2,16 +2,17 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-      <TargetFramework>net5.0</TargetFramework>
+      <TargetFramework>net7.0</TargetFramework>
       <LangVersion>preview</LangVersion>
-      <!--<OutputType>Exe</OutputType>-->
+      <EnablePreviewFeatures>true</EnablePreviewFeatures>
+      <!--<OutputType>Exe</OutputType>--> 
       <PackageLicenseExpression>AGPLV3</PackageLicenseExpression>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <CheckForOverflowUnderflow>false</CheckForOverflowUnderflow>
-    <NoWarn>1701;1702;1591</NoWarn>
     <DefineConstants>TRACE;ENABLE_EXPERIMENTAL_FEATURES</DefineConstants>
+    <NoWarn>1701;1702;1591</NoWarn>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
@@ -19,7 +20,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="Text\FontPixelShader.hlsl" />
+    <AdditionalFiles Remove="C:\Users\johnk\source\repos\Voltium\sources\BannedSymbols.txt" />
   </ItemGroup>
 
   <ItemGroup>
@@ -30,5 +31,10 @@
 
   <ItemGroup>
     <Folder Include="Debug\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NonCopyableAnalyzer" Version="0.6.0" />
+    <PackageReference Include="TerraFX.Interop.Windows" Version="10.0.22000-rc1" />
   </ItemGroup>
 </Project>

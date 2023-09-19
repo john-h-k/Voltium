@@ -1,4 +1,4 @@
-using static TerraFX.Interop.D3D12_TEXTURE_ADDRESS_MODE;
+using static TerraFX.Interop.DirectX.D3D12_TEXTURE_ADDRESS_MODE;
 
 namespace Voltium.Core
 {

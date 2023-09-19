@@ -3,10 +3,12 @@ using System.Buffers.Binary;
 using System.Diagnostics;
 using System.IO;
 using TerraFX.Interop;
+using TerraFX.Interop.DirectX;
+using TerraFX.Interop.Windows;
 using Voltium.Common;
 using Voltium.Core.Memory;
 using Voltium.TextureLoading.DDS;
-using static TerraFX.Interop.D3D12_RESOURCE_DIMENSION;
+using static TerraFX.Interop.DirectX.D3D12_RESOURCE_DIMENSION;
 
 namespace Voltium.TextureLoading
 {
@@ -159,7 +161,7 @@ namespace Voltium.TextureLoading
 
             ID3D12Fence* fence;
 
-            Guid iid = Windows.IID_ID3D12Fence;
+            Guid iid = IID.IID_ID3D12Fence;
             Guard.ThrowIfFailed(device->CreateFence(0, D3D12_FENCE_FLAGS.D3D12_FENCE_FLAG_NONE, &iid, (void**)&fence));
 
             fixed (char* pName = "ID3D12Fence")
@@ -184,7 +186,7 @@ namespace Voltium.TextureLoading
                     texDesc.Layout = D3D12_TEXTURE_LAYOUT.D3D12_TEXTURE_LAYOUT_UNKNOWN;
                     texDesc.Flags = resourceFlags;
 
-                    iid = Windows.IID_ID3D12Resource;
+                    iid = IID.IID_ID3D12Resource;
                     var defaultHeapProperties = new D3D12_HEAP_PROPERTIES(D3D12_HEAP_TYPE.D3D12_HEAP_TYPE_DEFAULT);
 
                     {
@@ -202,7 +204,7 @@ namespace Voltium.TextureLoading
                     }
 
                     uint num2DSubresources = (uint)(texDesc.DepthOrArraySize * texDesc.MipLevels);
-                    ulong uploadBufferSize = Windows.GetRequiredIntermediateSize(textureBuffer, 0, num2DSubresources);
+                    ulong uploadBufferSize = DirectX.GetRequiredIntermediateSize(textureBuffer, 0, num2DSubresources);
 
                     var uploadHeapProperties = new D3D12_HEAP_PROPERTIES(D3D12_HEAP_TYPE.D3D12_HEAP_TYPE_UPLOAD);
                     var buffer = D3D12_RESOURCE_DESC.Buffer(uploadBufferSize);
@@ -237,7 +239,7 @@ namespace Voltium.TextureLoading
                             ((D3D12_SUBRESOURCE_DATA*)p)->pData = pBitData + p->DataOffset;
                         }
 
-                        Windows.UpdateSubresources(
+                        DirectX.UpdateSubresources(
                             cmdList,
                             textureBuffer,
                             textureBufferUploadHeap,

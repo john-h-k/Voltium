@@ -1,7 +1,8 @@
 using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using TerraFX.Interop;
+using TerraFX.Interop.DirectX;
+using TerraFX.Interop.Windows;
 using static Voltium.Common.Pix.NativeMethods;
 using static Voltium.Common.Pix.PIXEncoding;
 

@@ -2,16 +2,20 @@ using System;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Drawing;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
 using Voltium.Common;
 using Voltium.Core;
+using Voltium.Core.CommandBuffer;
 using Voltium.Core.Configuration.Graphics;
 using Voltium.Core.Devices;
+using Voltium.Core.Memory;
 using Voltium.Core.Pipeline;
 using Voltium.Input;
 using Voltium.RenderEngine;
+using static Voltium.RenderEngine.RenderGraph;
 
 namespace Voltium.CubeGame
 {
@@ -110,18 +114,7 @@ namespace Voltium.CubeGame
             }
         }
 
-        public override void Render()
-        {
-            _graph.CreateComponent(new RenderSettings { Msaa = _msaa });
-
-            _graph.AddPass(_worldPass);
-            _graph.AddPass(_fxaaPass);
-            _graph.AddPass(_outputPass);
-
-            _graph.ExecuteGraph();
-
-            _output.Present();
-        }
+        
 
         public override void Dispose()
         {

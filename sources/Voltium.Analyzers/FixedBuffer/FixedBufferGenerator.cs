@@ -34,6 +34,12 @@ namespace Voltium.Analyzers.FixedBuffer
             }
 
             var source = string.Format(TypeTemplate, builder, type, count);
+
+            if ((bool)attr.ConstructorArguments[2].Value!)
+            {
+                builder.Append(string.Format(ImplicitConversionTemplate, symbol.Name, type));
+            }
+
             source = symbol.CreatePartialDecl(source);
 
             context.AddSource($"{symbol}.FixedBuffer.cs", SourceText.From(source, Encoding.UTF8));
@@ -63,6 +69,12 @@ namespace Voltium.Analyzers.FixedBuffer
 #pragma warning restore CS0649, CS1591
 ";
 
+        private const string ImplicitConversionTemplate = @"
+#pragma warning disable CS0649, CS1591
+
+        public static implicit operator {0}({1} value) => new() { [0] = value };
+#pragma warning restore CS0649, CS1591
+";
         private const string ElementTemplate = "\t\tpublic {0} E{1};\n";
     }
 }

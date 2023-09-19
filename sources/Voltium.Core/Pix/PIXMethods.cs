@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using TerraFX.Interop.Windows;
 
 /*
  * K, quick debrief on how PIX works cuz y'all gonna need to know to understand this codebase.
@@ -80,7 +81,7 @@ namespace Voltium.Common.Pix
         [Conditional("USE_PIX")]
         public static void NotifyWakeFromFenceSignal(IntPtr @event)
         {
-            NativeMethods.PIXNotifyWakeFromFenceSignal(@event);
+            NativeMethods.PIXNotifyWakeFromFenceSignal((HANDLE)@event);
         }
     }
 }

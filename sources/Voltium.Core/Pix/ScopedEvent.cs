@@ -1,6 +1,8 @@
 using System;
 using System.Diagnostics;
-using TerraFX.Interop;
+using TerraFX.Interop.DirectX;
+using TerraFX.Interop.Windows;
+using static TerraFX.Interop.Windows.IID;
 
 namespace Voltium.Common.Pix
 {
@@ -61,13 +63,13 @@ namespace Voltium.Common.Pix
                 Debug.Assert(_context != null || _type == ContextType.None);
                 if (_type == ContextType.List)
                 {
-                    VerifyCom(_context, Windows.IID_ID3D12GraphicsCommandList);
-                    PIXMethods.EndEvent((ID3D12GraphicsCommandList*)_context);
+                    VerifyCom(_context, IID_ID3D12GraphicsCommandList);
+                    //PIXMethods.EndEvent((ID3D12GraphicsCommandList*)_context);
                 }
                 else if (_type == ContextType.Queue)
                 {
-                    VerifyCom(_context, Windows.IID_ID3D12CommandQueue);
-                    PIXMethods.EndEvent((ID3D12CommandQueue*)_context);
+                    VerifyCom(_context, IID_ID3D12CommandQueue);
+                    //PIXMethods.EndEvent((ID3D12CommandQueue*)_context);
                 }
                 else if (_type != ContextType.None)
                 {

@@ -1,5 +1,5 @@
 using System;
-using TerraFX.Interop;
+using TerraFX.Interop.DirectX;
 
 namespace Voltium.Core.Memory
 {
@@ -38,7 +38,7 @@ namespace Voltium.Core.Memory
         /// <summary>
         /// Prevents the resource being used by shaders
         /// </summary>
-        DenyShaderResource = D3D12_RESOURCE_FLAGS.D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE,
+        DenyShaderResource = D3D12_RESOURCE_FLAGS.D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE
     }
 
 

@@ -26,7 +26,7 @@ struct RayGenConstantBuffer
     Viewport stencil;
 };
 RaytracingAccelerationStructure Scene : register(t0, space0);
-RWTexture2D<float4> RenderTarget : register(u0);
+RWTexture2D<float4> RenderTarget : register(u0, space0);
 ConstantBuffer<RayGenConstantBuffer> g_rayGenCB : register(b0);
 
 typedef BuiltInTriangleIntersectionAttributes MyAttributes;

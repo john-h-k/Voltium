@@ -10,20 +10,14 @@ using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Running;
 using Voltium.Core;
 using Voltium.Core.Memory;
-using Voltium.Interactive.BasicRenderPipeline;
-using Voltium.Interactive.RenderGraphSamples;
 using Voltium.RenderEngine;
 using Voltium.Interactive.HelloTriangle;
-using Voltium.Interactive.HelloTriangleRaytracing;
-using Voltium.Interactive.FloatMultiplySample;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Exceptions;
 using Microsoft.Extensions.Logging;
-using Voltium.Interactive.Samples.Predication;
-using Voltium.Core.ShaderLang;
 using System.Numerics;
-using Voltium.Interactive.Samples.ExecuteIndirect;
+using Voltium.Interactive.HelloTriangleRaytracing;
 
 namespace Voltium.Interactive
 {
@@ -31,8 +25,8 @@ namespace Voltium.Interactive
     {
         private static int Main(string[] args)
         {
-            var application = new ExecuteIndirectApp();
-            return ApplicationRunner.RunWin32(application);
+            ApplicationRunner.RunWin32(new HelloTriangleRaytracingApp());
+            return 0;
         }
     }
 
@@ -47,7 +41,7 @@ namespace Voltium.Interactive
         [Benchmark]
         public void LogHelper_WriteLine()
         {
-             LogHelper.Log(LogLevel.Trace, "Hello world, Console.WriteLine here!");
+             //LogHelper.Log(LogLevel.Trace, "Hello world, Console.WriteLine here!");
         }
     }
 

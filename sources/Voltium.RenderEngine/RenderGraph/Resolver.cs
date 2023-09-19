@@ -1,4 +1,5 @@
 using Voltium.Common;
+using Voltium.Core.CommandBuffer;
 using Voltium.Core.Devices;
 using Voltium.Core.Memory;
 using Buffer = Voltium.Core.Memory.Buffer;
@@ -23,21 +24,12 @@ namespace Voltium.RenderEngine
             CanResolveResources = false;
         }
 
-
-        ///// <summary>
-        ///// Attempts to retrieve the last pass input of type <typeparamref name="TInput"/>
-        ///// </summary>
-        ///// <typeparam name="TInput">The type to retrieve the input as</typeparam>
-        ///// <returns>The input, if existent. Else, an exception will be thrown</returns>
-        //public TInput GetInput<TInput>(RenderPass pass) => _graph.;
-
         /// <summary>
         /// Resolves an individual application-defined component
         /// </summary>
         /// <typeparam name="TComponent">The type of the component to resolve</typeparam>
         /// <returns>The value of the component if it was found</returns>
         public TComponent GetComponent<TComponent>() => _components.Get<TComponent>();
-
 
         /// <summary>
         /// Writes to an existing application-defined component
@@ -50,6 +42,17 @@ namespace Voltium.RenderEngine
         /// </summary>
         /// <typeparam name="TComponent">The type of the component to create</typeparam>
         public void CreateComponent<TComponent>(TComponent component) => _components.Add(component);
+
+        /// <summary>
+        /// Resolves a <see cref="TextureHandle"/> created during pass registration to an allocated <see cref="Texture"/>
+        /// </summary>
+        /// <param name="handle">The <see cref="TextureHandle"/></param>
+        /// <returns>A <see cref="Texture"/></returns>
+        public View ResolveView(ViewHandle handle)
+        {
+            AssertCanResolveResources();
+            return _graph.GetResource(handle.AsResourceHandle()).Desc.Texture;
+        }
 
         /// <summary>
         /// Resolves a <see cref="TextureHandle"/> created during pass registration to an allocated <see cref="Texture"/>

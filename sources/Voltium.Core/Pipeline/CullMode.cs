@@ -1,5 +1,5 @@
-using TerraFX.Interop;
-using static TerraFX.Interop.D3D12_CULL_MODE;
+using static TerraFX.Interop.Windows.Windows;
+using static TerraFX.Interop.DirectX.D3D12_CULL_MODE;
 
 namespace Voltium.Core.Pipeline
 {
@@ -32,12 +32,12 @@ namespace Voltium.Core.Pipeline
         /// <summary>
         /// The faces vertices are clockwise
         /// </summary>
-        Clockwise = Windows.FALSE,
+        Clockwise = FALSE,
 
 
         /// <summary>
         /// The faces vertices are anticlockwise
         /// </summary>
-        Anticlockwise = Windows.TRUE
+        Anticlockwise = TRUE
     }
 }

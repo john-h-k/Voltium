@@ -1,23 +1,35 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
-using TerraFX.Interop;
+using TerraFX.Interop.DirectX;
 using Voltium.Common;
 using Voltium.Core.Contexts;
 using Voltium.Core.Devices;
 using Voltium.Core.Exceptions;
 using Voltium.Core.Memory;
-using Voltium.Core.Pool;
+using Voltium.Core.NativeApi;
 using Voltium.Core.Queries;
 using Voltium.TextureLoading;
 using Buffer = Voltium.Core.Memory.Buffer;
 
 namespace Voltium.Core
 {
+    /// <summary>
+    /// Indicates the given method is illegal within a render pass
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Method)]
+    public sealed class IllegalRenderPassMethodAttribute : Attribute { }
+    /// <summary>
+    /// Indicates the given method is illegal within a bundle
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Method)]
+    public sealed class IllegalBundleMethodAttribute : Attribute { }
+
     /// <summary>
     /// The mode used for <see cref="CopyContext.WriteBufferImmediate(ulong, uint, WriteBufferImmediateMode)"/> or <see cref="CopyContext.WriteBufferImmediate(ReadOnlySpan{ValueTuple{ulong, uint}}, ReadOnlySpan{WriteBufferImmediateMode})"/>
     /// </summary>
@@ -44,83 +56,15 @@ namespace Voltium.Core
     /// </summary>
     public unsafe partial class CopyContext : GpuContext
     {
-        [FixedBufferType(typeof(D3D12_RESOURCE_BARRIER), 16)]
-        private partial struct BarrierBuffer16 { }
+        private protected void FlushBarriers() { }
 
-        private BarrierBuffer16 Barriers;
-        private uint NumBarriers;
-
-
-        internal void AddBarrier(in D3D12_RESOURCE_BARRIER barrier)
-        {
-            if (NumBarriers == BarrierBuffer16.BufferLength)
-            {
-                FlushBarriers();
-            }
-
-            Barriers[NumBarriers++] = barrier;
-        }
-
-        internal void AddBarriers(ReadOnlySpan<D3D12_RESOURCE_BARRIER> barriers)
-        {
-            if (barriers.Length == 0)
-            {
-                return;
-            }
-
-            if (barriers.Length > BarrierBuffer16.BufferLength)
-            {
-                FlushBarriers();
-                fixed (D3D12_RESOURCE_BARRIER* pBarriers = barriers)
-                {
-                    List->ResourceBarrier((uint)barriers.Length, pBarriers);
-                }
-                return;
-            }
-
-            if (NumBarriers + barriers.Length >= BarrierBuffer16.BufferLength)
-            {
-                FlushBarriers();
-            }
-
-            barriers.CopyTo(Barriers.AsSpan((int)NumBarriers));
-            NumBarriers += (uint)barriers.Length;
-        }
-
-        internal void FlushBarriers()
-        {
-            if (NumBarriers == 0)
-            {
-                return;
-            }
-
-            fixed (D3D12_RESOURCE_BARRIER* pBarriers = Barriers)
-            {
-                List->ResourceBarrier(NumBarriers, pBarriers);
-            }
-
-            NumBarriers = 0;
-        }
-
-        internal CopyContext(in ContextParams @params) : base(@params)
+        /// <summary>
+        /// Creates a new <see cref="CopyContext"/>
+        /// </summary>
+        public CopyContext() : base()
         {
 
         }
-
-        //AtomicCopyBufferUINT
-        //AtomicCopyBufferUINT64
-        //CopyBufferRegion
-        //CopyResource
-        //CopyTextureRegion
-        //CopyTiles
-        //EndQuery
-        //ResolveQueryData
-        //ResourceBarrier
-        //SetProtectedResourceSession
-        //WriteBufferImmediate
-
-
-        //public record WriteBufferParams(uint Value, ulong Address);
 
         /// <summary>
         /// Writes a 32-bit value to GPU accessible memory
@@ -128,16 +72,21 @@ namespace Voltium.Core
         /// <param name="address">The GPU address to write to</param>
         /// <param name="value">The 32 bit value to write to memory</param>
         /// <param name="mode">The <see cref="WriteBufferImmediateMode"/> mode to write with. By default, this is <see cref="WriteBufferImmediateMode.Default"/></param>
+        [IllegalBundleMethod]
         public void WriteBufferImmediate(ulong address, uint value, WriteBufferImmediateMode mode = WriteBufferImmediateMode.Default)
         {
-            var param = new D3D12_WRITEBUFFERIMMEDIATE_PARAMETER
+            var command = new CommandWriteConstants
             {
-                Dest = address,
+                Count = 1
+            };
+
+            var param = new WriteConstantParameters
+            {
+                Address = address,
                 Value = value
             };
 
-            FlushBarriers();
-            List->WriteBufferImmediate(1, &param, (D3D12_WRITEBUFFERIMMEDIATE_MODE*)&mode);
+            _encoder.EmitVariable(&command, &param, &mode, 1);
         }
 
 
@@ -147,6 +96,7 @@ namespace Voltium.Core
         /// <param name="pairs">The GPU address and value pairs to write</param>
         /// <param name="modes">The <see cref="WriteBufferImmediateMode"/> modes to write with. By default, this is <see cref="WriteBufferImmediateMode.Default"/>.
         /// If <see cref="ReadOnlySpan{T}.Empty"/> is passed, <see cref="WriteBufferImmediateMode.Default"/> is used.</param>
+        [IllegalBundleMethod]
         public void WriteBufferImmediate(ReadOnlySpan<(ulong Address, uint Value)> pairs, ReadOnlySpan<WriteBufferImmediateMode> modes = default)
         {
             if (!modes.IsEmpty && modes.Length != pairs.Length)
@@ -155,11 +105,15 @@ namespace Voltium.Core
             }
 
 
-            fixed (void* pParams = pairs)
-            fixed (void* pModes = modes)
+            fixed ((ulong Address, uint Value) * pParams = pairs)
+            fixed (WriteBufferImmediateMode* pModes = modes)
             {
-                FlushBarriers();
-                List->WriteBufferImmediate((uint)modes.Length, (D3D12_WRITEBUFFERIMMEDIATE_PARAMETER*)pParams, (D3D12_WRITEBUFFERIMMEDIATE_MODE*)pModes);
+                var command = new CommandWriteConstants
+                {
+                    Count = (uint)pairs.Length
+                };
+
+                _encoder.EmitVariable(&command, pParams, pModes, (uint)command.Count);
             }
         }
 
@@ -171,94 +125,164 @@ namespace Voltium.Core
         /// value in <paramref name="buff"/> will cause the operation to execute.</param>
         /// <param name="buff">The <see cref="Buffer"/> to read the predication value from</param>
         /// <param name="offset">The offset, in bytes, the predication value</param>
-        public void SetPredication(bool predicate, [RequiresResourceState(ResourceState.Predication)] in Buffer buff, uint offset = 0)
+        [IllegalBundleMethod]
+        public void BeginConditionalRendering(bool predicate, in Buffer buff, uint offset = 0)
         {
-            FlushBarriers();
-            List->SetPredication(buff.GetResourcePointer(), buff.Offset + offset, predicate ? D3D12_PREDICATION_OP.D3D12_PREDICATION_OP_NOT_EQUAL_ZERO : D3D12_PREDICATION_OP.D3D12_PREDICATION_OP_EQUAL_ZERO);
+            var command = new CommandBeginConditionalRendering
+            {
+                Buffer = buff.Handle,
+                Offset = offset,
+                Predicate = predicate
+            };
+
+            _encoder.Emit(&command);
         }
 
+        /// <summary>
+        /// Ends predication for subsequent operations
+        /// </summary>
+        [IllegalBundleMethod]
+        public void EndConditionalRendering()
+        {
+            _encoder.EmitEmpty(CommandType.EndConditionalRendering);
+        }
+
+        /// <summary>
+        /// Represents a scoped query
+        /// </summary>
         public ref struct Query
         {
             internal CopyContext _context;
-            internal ID3D12QueryHeap* _queryHeap;
-            internal D3D12_QUERY_TYPE _query;
+            internal QuerySet _queryHeap;
+            internal QueryType _query;
             internal uint _index;
 
-            public void EndQuery() => Dispose();
+            /// <summary>
+            /// Ends the scoped query
+            /// </summary>
             public void Dispose()
             {
-                _context.List->EndQuery(_queryHeap, _query, _index);
+                _context.EndQuery(_queryHeap, _query, _index);
             }
         }
 
-        public Query ScopedQuery<TQuery>(in QueryHeap heap, uint index) where TQuery : struct, IQueryType
+        /// <summary>
+        /// Begins a scoped <see cref="Query"/>
+        /// </summary>
+        /// <typeparam name="TQuery">The type of the query to begin</typeparam>
+        /// <param name="heap">The <see cref="QuerySet"/> this query is within</param>
+        /// <param name="index">The index within <paramref name="heap"/> that this query is</param>
+        /// <returns>A new <see cref="Query"/> which can be disposed to end the scoped query</returns>
+        [IllegalBundleMethod]
+        public Query ScopedQuery<TQuery>(in QuerySet heap, uint index) where TQuery : struct, IQueryType
             => ScopedQuery(heap, default(TQuery).Type, index);
 
-        public Query ScopedQuery(in QueryHeap heap, QueryType type, uint index)
+        /// <summary>
+        /// Begins a scoped <see cref="Query"/>
+        /// </summary>
+        /// <param name="heap">The <see cref="QuerySet"/> this query is within</param>
+        /// <param name="type">The type of the query to begin</param>
+        /// <param name="index">The index within <paramref name="heap"/> that this query is</param>
+        /// <returns>A new <see cref="Query"/> which can be disposed to end the scoped query</returns>
+        [IllegalBundleMethod]
+        public Query ScopedQuery(in QuerySet heap, QueryType type, uint index)
         {
             BeginQuery(heap, type, index);
-            return new() { _context = this, _queryHeap = heap.GetQueryHeap(), _index = index, _query = (D3D12_QUERY_TYPE)type };
+            return new() { _context = this, _queryHeap = heap, _index = index, _query = type };
         }
 
-        public void BeginQuery(in QueryHeap heap, QueryType type, uint index)
+        /// <summary>
+        /// Begins a query
+        /// </summary>
+        /// <param name="heap">The <see cref="QuerySet"/> this query is within</param>
+        /// <param name="type">The type of the query to begin</param>
+        /// <param name="index">The index within <paramref name="heap"/> that this query is</param>
+        [IllegalBundleMethod]
+        public void BeginQuery(in QuerySet heap, QueryType type, uint index)
         {
-            List->BeginQuery(heap.GetQueryHeap(), (D3D12_QUERY_TYPE)type, index);
+            var command = new CommandBeginQuery
+            {
+                QueryHeap = heap.Handle,
+                QueryType = type,
+                Index = index
+            };
+
+            _encoder.Emit(&command);
         }
 
-        public void EndQuery(in QueryHeap heap, QueryType type, uint index)
+        /// <summary>
+        /// Ends a query
+        /// </summary>
+        /// <param name="heap">The <see cref="QuerySet"/> this query is within</param>
+        /// <param name="type">The type of the query to end</param>
+        /// <param name="index">The index within <paramref name="heap"/> that this query is</param>
+        [IllegalBundleMethod]
+        public void EndQuery(in QuerySet heap, QueryType type, uint index)
         {
-            List->EndQuery(heap.GetQueryHeap(), (D3D12_QUERY_TYPE)type, index);
+            var command = new CommandEndQuery
+            {
+                QueryHeap = heap.Handle,
+                QueryType = type,
+                Index = index
+            };
+
+            _encoder.Emit(&command);
         }
 
-        public void QueryTimestamp(in QueryHeap heap, uint index)
+        /// <summary>
+        /// Queries the queue timestamp
+        /// </summary>
+        /// <param name="heap">The <see cref="QuerySet"/> this query is within</param>
+        /// <param name="index">The index within <paramref name="heap"/> that this query is</param>
+        [IllegalBundleMethod]
+        public void QueryTimestamp(in QuerySet heap, uint index)
         {
-            List->EndQuery(heap.GetQueryHeap(), D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP, index);
+            var command = new CommandReadTimestamp
+            {
+                QueryHeap = heap.Handle,
+                Index = index
+            };
+
+            _encoder.Emit(&command);
         }
 
-        public void ResolveQuery<TQuery>(in QueryHeap heap, Range queries, [RequiresResourceState(ResourceState.CopyDestination)] in Buffer dest, uint offset = 0) where TQuery : struct, IQueryType
+        /// <summary>
+        /// Resolves opaque query set from a <see cref="QuerySet"/> to a <see cref="Buffer"/>
+        /// </summary>
+        /// <typeparam name="TQuery">The type of the query to resolve</typeparam>
+        /// <param name="heap">The <see cref="QuerySet"/> to resolve from</param>
+        /// <param name="queries">The range of queries within <paramref name="heap"/> to resolve</param>
+        /// <param name="dest">The buffer to resolve the queries to</param>
+        /// <param name="offset">The offset, in bytes, where the queries should be resolved to</param>
+        [IllegalBundleMethod]
+        public void ResolveQuery<TQuery>(in QuerySet heap, Range queries, in Buffer dest, uint offset = 0) where TQuery : struct, IQueryType
             => ResolveQuery(heap, default(TQuery).Type, queries, dest, offset);
 
-        public void ResolveQuery(in QueryHeap heap, QueryType type, Range queries, [RequiresResourceState(ResourceState.CopyDestination)] in Buffer dest, uint offset = 0)
+
+        /// <summary>
+        /// Resolves opaque query set from a <see cref="QuerySet"/> to a <see cref="Buffer"/>
+        /// </summary>
+        /// <param name="heap">The <see cref="QuerySet"/> to resolve from</param>
+        /// <param name="type">The type of the query to resolve</param>
+        /// <param name="queries">The range of queries within <paramref name="heap"/> to resolve</param>
+        /// <param name="dest">The buffer to resolve the queries to</param>
+        /// <param name="offset">The offset, in bytes, where the queries should be resolved to</param>
+        [IllegalBundleMethod]
+        public void ResolveQuery(in QuerySet heap, QueryType type, Range queries, in Buffer dest, uint offset = 0)
         {
             FlushBarriers();
-            var (heapOffset, length) = queries.GetOffsetAndLength((int)heap.Length);
-            List->ResolveQueryData(heap.GetQueryHeap(), (D3D12_QUERY_TYPE)type, (uint)heapOffset, (uint)length, dest.GetResourcePointer(), dest.Offset + offset);
+
+            var command = new CommandResolveQuery
+            {
+                QueryHeap = heap.Handle,
+                QueryType = type,
+                Queries = queries,
+                Dest = dest.Handle,
+                Offset = offset
+            };
+
+            _encoder.Emit(&command);
         }
-
-        /// <summary>
-        /// Transitions a <see cref="Texture"/> for use on a different <see cref="ExecutionContext"/>
-        /// </summary>
-        /// <param name="tex">The <see cref="Texture"/> to transition</param>
-        /// <param name="current">The current <see cref="ResourceState"/> of <paramref name="tex"/></param>
-        /// <param name="subresource">The subresource to transition, by default, all subresources</param>
-        public void TransitionForCrossContextAccess([RequiresResourceState("current")] in Texture tex, ResourceState current, uint subresource = uint.MaxValue)
-        {
-            Barrier(ResourceBarrier.Transition(tex, current, ResourceState.Common, subresource));
-        }
-
-        /// <summary>
-        /// Transitions a <see cref="Buffer"/> for use on a different <see cref="ExecutionContext"/>
-        /// </summary>
-        /// <param name="buffer">The <see cref="Buffer"/> to transition</param>
-        /// <param name="current">The current <see cref="ResourceState"/> of <paramref name="buffer"/></param>
-        public void TransitionForCrossContextAccess([RequiresResourceState("current")] in Buffer buffer, ResourceState current)
-        {
-            Barrier(ResourceBarrier.Transition(buffer, current, ResourceState.Common));
-        }
-
-
-
-        public struct BufferFootprint
-        {
-            internal D3D12_SUBRESOURCE_FOOTPRINT Footprint;
-
-            public DataFormat Format { get => (DataFormat)Footprint.Format; set => Footprint.Format = (DXGI_FORMAT)value; }
-            public uint Width { get => Footprint.Width; set => Footprint.Width = value; }
-            public uint Height { get => Footprint.Height; set => Footprint.Height = value; }
-            public uint Depth { get => Footprint.Depth; set => Footprint.Depth = value; }
-            public uint RowPitch { get => Footprint.RowPitch; set => Footprint.RowPitch = value; }
-        }
-
 
         /// <summary>
         /// Copy a subresource
@@ -266,18 +290,13 @@ namespace Voltium.Core
         /// <param name="source">The resource to copy from</param>
         /// <param name="dest">The resource to copy to</param>
         /// <param name="subresource">The index of the subresource to copy</param>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void CopyBufferToTexture(
-            [RequiresResourceState(ResourceState.CopySource)] in Buffer source,
-            [RequiresResourceState(ResourceState.CopyDestination)] in Texture dest,
+            in Buffer source,
+            in Texture dest,
             uint subresource = 0
         )
         {
-            Device.GetCopyableFootprint(dest, subresource, out var layout, out var numRow, out var rowSize, out var size);
-
-            var src = new D3D12_TEXTURE_COPY_LOCATION(source.GetResourcePointer(), layout);
-            var dst = new D3D12_TEXTURE_COPY_LOCATION(dest.GetResourcePointer(), subresource);
-
-            List->CopyTextureRegion(&dst, 0, 0, 0, &src, null);
         }
 
         /// <summary>
@@ -286,18 +305,13 @@ namespace Voltium.Core
         /// <param name="source">The resource to copy from</param>
         /// <param name="dest">The resource to copy to</param>
         /// <param name="subresource">The index of the subresource to copy</param>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void CopyTextureToBuffer(
-            [RequiresResourceState(ResourceState.CopySource)] in Texture source,
-            [RequiresResourceState(ResourceState.CopyDestination)] in Buffer dest,
+            in Texture source,
+            in Buffer dest,
             uint subresource = 0
         )
         {
-            Device.GetCopyableFootprint(source, subresource, out var layout, out var numRow, out var rowSize, out var size);
-
-            var dst = new D3D12_TEXTURE_COPY_LOCATION(source.GetResourcePointer(), layout);
-            var src = new D3D12_TEXTURE_COPY_LOCATION(dest.GetResourcePointer(), subresource);
-
-            List->CopyTextureRegion(&dst, 0, 0, 0, &src, null);
         }
 
         /// <summary>
@@ -306,11 +320,12 @@ namespace Voltium.Core
         /// <param name="source">The resource to copy from</param>
         /// <param name="dest">The resource to copy to</param>
         /// <param name="subresource">The index of the subresource to copy</param>
-        public void CopySubresource(
-            [RequiresResourceState(ResourceState.CopySource)] in Texture source,
-            [RequiresResourceState(ResourceState.CopyDestination)] in Texture dest,
+        [IllegalBundleMethod, IllegalRenderPassMethod]
+        public void CopyTexture(
+            in Texture source,
+            in Texture dest,
             uint subresource
-        ) => CopySubresource(source, dest, subresource, subresource);
+        ) => CopyTexture(source, dest, subresource, subresource);
 
         /// <summary>
         /// Copy a subresource
@@ -319,26 +334,25 @@ namespace Voltium.Core
         /// <param name="dest">The resource to copy to</param>
         /// <param name="sourceSubresource">The index of the subresource to copy from</param>
         /// <param name="destSubresource">The index of the subresource to copy to</param>
-        public void CopySubresource(
-            [RequiresResourceState(ResourceState.CopySource)] in Texture source,
-            [RequiresResourceState(ResourceState.CopyDestination)] in Texture dest,
+        [IllegalBundleMethod, IllegalRenderPassMethod]
+        public void CopyTexture(
+            in Texture source,
+            in Texture dest,
             uint sourceSubresource,
             uint destSubresource
         )
         {
-            Unsafe.SkipInit(out D3D12_TEXTURE_COPY_LOCATION sourceDesc);
-            Unsafe.SkipInit(out D3D12_TEXTURE_COPY_LOCATION destDesc);
-
-            sourceDesc.pResource = source.GetResourcePointer();
-            sourceDesc.Type = D3D12_TEXTURE_COPY_TYPE.D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
-            sourceDesc.SubresourceIndex = sourceSubresource;
-
-            destDesc.pResource = dest.GetResourcePointer();
-            destDesc.Type = D3D12_TEXTURE_COPY_TYPE.D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
-            destDesc.SubresourceIndex = destSubresource;
-
             FlushBarriers();
-            List->CopyTextureRegion(&destDesc, 0, 0, 0, &sourceDesc, null);
+
+            var command = new CommandTextureCopy
+            {
+                Source = source.Handle,
+                Dest = dest.Handle,
+                SourceSubresource = sourceSubresource,
+                DestSubresource = destSubresource
+            };
+
+            _encoder.Emit(&command);
         }
 
         /// <summary>
@@ -349,16 +363,27 @@ namespace Voltium.Core
         /// <param name="dest">The <see cref="Buffer"/> to copy to</param>
         /// <param name="destOffset">The offset, in bytes, to start copying to</param>
         /// <param name="numBytes">The number of bytes to copy</param>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void CopyBufferRegion(
-            [RequiresResourceState(ResourceState.CopySource)] in Buffer source,
+            in Buffer source,
             uint sourceOffset,
-            [RequiresResourceState(ResourceState.CopyDestination)] in Buffer dest,
+            in Buffer dest,
             uint destOffset,
             uint numBytes
         )
         {
             FlushBarriers();
-            List->CopyBufferRegion(dest.GetResourcePointer(), dest.Offset + destOffset, source.GetResourcePointer(), source.Offset + sourceOffset, numBytes);
+
+            var command = new CommandBufferCopy
+            {
+                Source = source.Handle,
+                Dest = dest.Handle,
+                SourceOffset = sourceOffset,
+                DestOffset = destOffset,
+                Length = numBytes
+            };
+
+            _encoder.Emit(&command);
         }
 
 
@@ -368,118 +393,21 @@ namespace Voltium.Core
         /// <param name="source">The <see cref="Buffer"/> to copy from</param>
         /// <param name="dest">The <see cref="Buffer"/> to copy to</param>
         /// <param name="numBytes">The number of bytes to copy</param>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void CopyBufferRegion(
-            [RequiresResourceState(ResourceState.CopySource)] in Buffer source,
-            [RequiresResourceState(ResourceState.CopyDestination)] in Buffer dest,
+            in Buffer source,
+            in Buffer dest,
             int numBytes
         )
             => CopyBufferRegion(source, dest, (uint)numBytes);
 
         /// <inheritdoc cref="CopyBufferRegion(in Buffer, in Buffer, uint)"/>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void CopyBufferRegion(
-            [RequiresResourceState(ResourceState.CopySource)] in Buffer source,
-            [RequiresResourceState(ResourceState.CopyDestination)] in Buffer dest,
+            in Buffer source,
+            in Buffer dest,
             uint numBytes
-        )
-        {
-            FlushBarriers();
-            List->CopyBufferRegion(dest.GetResourcePointer(), dest.Offset, source.GetResourcePointer(), source.Offset, numBytes);
-        }
-
-        /// <summary>
-        /// Copy a subresource
-        /// </summary>
-        /// <param name="source">The resource to copy from</param>
-        /// <param name="subresourceIndex">The index of the subresource to copy from</param>
-        /// <param name="dest"></param>
-        /// <param name="layout"></param>
-        public void CopySubresource(in Texture source, uint subresourceIndex, out Buffer dest, out SubresourceLayout layout)
-        {
-            Device.GetCopyableFootprint(source, subresourceIndex, out var d3d12Layout, out var numRows, out var rowSize, out var size);
-            dest = Device.Allocator.AllocateBuffer((long)size, MemoryAccess.CpuReadback);
-
-            var sourceDesc = new D3D12_TEXTURE_COPY_LOCATION(source.GetResourcePointer(), subresourceIndex);
-            var destDesc = new D3D12_TEXTURE_COPY_LOCATION(dest.GetResourcePointer(), d3d12Layout);
-
-            layout = new SubresourceLayout { NumRows = numRows, RowSize = rowSize };
-
-            FlushBarriers();
-            List->CopyTextureRegion(&destDesc, 0, 0, 0, &sourceDesc, null);
-        }
-
-        /// <summary>
-        /// Copy a subresource
-        /// </summary>
-        /// <param name="source">The resource to copy from</param>
-        /// <param name="subresourceIndex">The index of the subresource to copy from</param>
-        /// <param name="data"></param>
-        public void CopySubresource(in Texture source, uint subresourceIndex, in Buffer data)
-        {
-            Device.GetCopyableFootprint(source, subresourceIndex, out _, out _, out var rowSize, out var size);
-
-            var alignedRowSizes = MathHelpers.AlignUp(rowSize, 256);
-
-
-            var layout = new D3D12_PLACED_SUBRESOURCE_FOOTPRINT
-            {
-                Offset = 0,
-                Footprint = new D3D12_SUBRESOURCE_FOOTPRINT
-                {
-                    Depth = source.DepthOrArraySize,
-                    Height = source.Height,
-                    Width = (uint)source.Width,
-                    Format = (DXGI_FORMAT)source.Format,
-                    RowPitch = (uint)alignedRowSizes
-                }
-            };
-
-            var destDesc = new D3D12_TEXTURE_COPY_LOCATION(data.GetResourcePointer(), layout);
-            var sourceDesc = new D3D12_TEXTURE_COPY_LOCATION(source.GetResourcePointer(), subresourceIndex);
-
-            FlushBarriers();
-            List->CopyTextureRegion(&destDesc, 0, 0, 0, &sourceDesc, null);
-        }
-
-        /// <summary>
-        /// Copy an entire resource
-        /// </summary>
-        /// <param name="source">The resource to copy from</param>
-        /// <param name="dest">The resource to copy to</param>
-        public void CopyResource(
-            [RequiresResourceState(ResourceState.CopySource)] in Buffer source,
-            [RequiresResourceState(ResourceState.CopyDestination)] in Buffer dest
-        )
-        {
-            if (IsWholeResource(source) && IsWholeResource(dest))
-            {
-                FlushBarriers();
-                List->CopyResource(dest.Resource.GetResourcePointer(), source.Resource.GetResourcePointer());
-            }
-            else
-            {
-                if (source.Length != dest.Length)
-                {
-                    throw new GraphicsException(Device, "Copy Resource buffers must be sized identically");
-                }
-                CopyBufferRegion(source, dest, source.Length);
-            }
-
-            static bool IsWholeResource(in Buffer buff) => buff.Offset == 0 && buff.GetResourcePointer()->GetDesc().Width == buff.Length;
-        }
-
-        /// <summary>
-        /// Copy an entire resource
-        /// </summary>
-        /// <param name="source">The resource to copy from</param>
-        /// <param name="dest">The resource to copy to</param>
-        public void CopyResource(
-            [RequiresResourceState(ResourceState.CopySource)] in Texture source,
-            [RequiresResourceState(ResourceState.CopyDestination)] in Texture dest
-        )
-        {
-            FlushBarriers();
-            List->CopyResource(dest.GetResourcePointer(), source.GetResourcePointer());
-        }
+        ) => CopyBufferRegion(source, 0, dest, 0, numBytes);
 
         //public ref struct SplitBarrierSet
         //{
@@ -528,23 +456,23 @@ namespace Voltium.Core
         //}
 
         /// <summary>
-        /// Describes a set of barriers scoped over a certain region, created by <see cref="ScopedBarrier(ReadOnlySpan{ResourceBarrier})"/>
+        /// Describes a set of barriers scoped over a certain region, created by <see cref="ScopedBarrier(ReadOnlySpan{ResourceTransition})"/>
         /// </summary>
         public ref struct ScopedBarrierSet
         {
             private CopyContext _context;
-            private ResourceBarrier? _single;
-            private ReadOnlySpan<ResourceBarrier> _barriers;
+            private ResourceTransition? _single;
+            private ReadOnlySpan<ResourceTransition> _barriers;
 
 
-            internal ScopedBarrierSet(CopyContext context, in ResourceBarrier barrier)
+            internal ScopedBarrierSet(CopyContext context, in ResourceTransition barrier)
             {
                 _context = context;
                 _barriers = default;
                 _single = barrier;
             }
 
-            internal ScopedBarrierSet(CopyContext context, ReadOnlySpan<ResourceBarrier> barriers)
+            internal ScopedBarrierSet(CopyContext context, ReadOnlySpan<ResourceTransition> barriers)
             {
                 _context = context;
                 _barriers = barriers;
@@ -558,26 +486,26 @@ namespace Voltium.Core
             /// </summary>
             public void Dispose()
             {
-                if (_single is ResourceBarrier single)
+                if (_single is ResourceTransition single)
                 {
-                    _context.AddBarrier(Reverse(single));
+                    _context.Barrier(Reverse(single));
                     return;
                 }
 
                 int newBarrierCount = 0;
 
-                Span<D3D12_RESOURCE_BARRIER> newBarriers = default;
-                using RentedArray<D3D12_RESOURCE_BARRIER> rent = default;
+                Span<ResourceTransition> newBarriers = default;
+                using RentedArray<ResourceTransition> rent = default;
 
-                if (StackSentinel.SafeToStackalloc<D3D12_RESOURCE_BARRIER>(_barriers.Length))
+                if (StackSentinel.SafeToStackalloc<ResourceTransition>(_barriers.Length))
                 {
                     // avoid stupid stackalloc assignment rules
-                    var p = stackalloc D3D12_RESOURCE_BARRIER[_barriers.Length];
+                    var p = stackalloc ResourceTransition[_barriers.Length];
                     newBarriers = new(p, _barriers.Length);
                 }
                 else
                 {
-                    Unsafe.AsRef(in rent) = RentedArray<D3D12_RESOURCE_BARRIER>.Create(_barriers.Length);
+                    Unsafe.AsRef(in rent) = RentedArray<ResourceTransition>.Create(_barriers.Length);
                     newBarriers = rent.AsSpan();
                 }
 
@@ -586,44 +514,20 @@ namespace Voltium.Core
                     newBarriers[newBarrierCount++] = Reverse(barrier);
                 }
 
-                _context.AddBarriers(newBarriers[0..newBarrierCount]);
+                _context.Barrier(newBarriers[0..newBarrierCount]);
 
-                static D3D12_RESOURCE_BARRIER Reverse(in ResourceBarrier barrier)
+                static ResourceTransition Reverse(in ResourceTransition barrier)
                 {
-                    D3D12_RESOURCE_BARRIER result;
-                    bool isBeginOnly = barrier.Barrier.Flags.HasFlag(D3D12_RESOURCE_BARRIER_FLAGS.D3D12_RESOURCE_BARRIER_FLAG_BEGIN_ONLY);
-                    result.Flags = isBeginOnly ? D3D12_RESOURCE_BARRIER_FLAGS.D3D12_RESOURCE_BARRIER_FLAG_END_ONLY : D3D12_RESOURCE_BARRIER_FLAGS.D3D12_RESOURCE_BARRIER_FLAG_NONE;
-
-                    if (barrier.Barrier.Type == D3D12_RESOURCE_BARRIER_TYPE.D3D12_RESOURCE_BARRIER_TYPE_TRANSITION)
+                    return new ResourceTransition
                     {
-                        ref readonly var transition = ref barrier.Barrier.Transition;
-
-                        var (before, after) = isBeginOnly ? (transition.StateBefore, transition.StateAfter) : (transition.StateAfter, transition.StateBefore);
-                        result = D3D12_RESOURCE_BARRIER.InitTransition(transition.pResource, before, after, transition.Subresource);
-                    }
-                    else if (barrier.Barrier.Type == D3D12_RESOURCE_BARRIER_TYPE.D3D12_RESOURCE_BARRIER_TYPE_ALIASING)
-                    {
-                        ref readonly var aliasing = ref barrier.Barrier.Aliasing;
-                        ID3D12Resource* before, after;
-                        if (isBeginOnly)
+                        Transition = new()
                         {
-                            before = aliasing.pResourceBefore;
-                            after = aliasing.pResourceAfter;
+                            Resource = barrier.Transition.Resource,
+                            Before = barrier.Transition.After,
+                            After = barrier.Transition.Before,
+                            Subresource = barrier.Transition.Subresource
                         }
-                        else
-                        {
-                            before = aliasing.pResourceAfter;
-                            after = aliasing.pResourceBefore;
-                        }
-
-                        result = D3D12_RESOURCE_BARRIER.InitAliasing(before, after);
-                    }
-                    else /* D3D12_RESOURCE_BARRIER_TYPE_UAV */
-                    {
-                        result = D3D12_RESOURCE_BARRIER.InitUAV(barrier.Barrier.UAV.pResource);
-                    }
-
-                    return result;
+                    };
                 }
             }
         }
@@ -631,9 +535,10 @@ namespace Voltium.Core
         /// <summary>
         /// Begins a set of scoped barriers which will be reversed when <see cref="ScopedBarrierSet.Dispose"/> is called
         /// </summary>
-        /// <param name="barrier">The <see cref="ResourceBarrier"/> to perform and reverse</param>
+        /// <param name="barrier">The <see cref="ResourceTransition"/> to perform and reverse</param>
         /// <returns>A new <see cref="ScopedBarrierSet"/></returns>
-        public ScopedBarrierSet ScopedBarrier(in ResourceBarrier barrier)
+        [IllegalBundleMethod]
+        public ScopedBarrierSet ScopedBarrier(in ResourceTransition barrier)
         {
             Barrier(barrier);
             return new(this, barrier);
@@ -643,9 +548,10 @@ namespace Voltium.Core
         /// <summary>
         /// Begins a set of scoped barriers which will be reversed when <see cref="ScopedBarrierSet.Dispose"/> is called
         /// </summary>
-        /// <param name="barriers">The <see cref="ResourceBarrier"/>s to perform and reverse</param>
+        /// <param name="barriers">The <see cref="ResourceTransition"/>s to perform and reverse</param>
         /// <returns>A new <see cref="ScopedBarrierSet"/></returns>
-        public ScopedBarrierSet ScopedBarrier(ReadOnlySpan<ResourceBarrier> barriers)
+        [IllegalBundleMethod]
+        public ScopedBarrierSet ScopedBarrier(ReadOnlySpan<ResourceTransition> barriers)
         {
             Barrier(barriers);
             return new(this, barriers);
@@ -655,25 +561,135 @@ namespace Voltium.Core
         /// Mark a resource barrierson the command list
         /// </summary>
         /// <param name="barrier">The barrier</param>
-        public void Barrier(in ResourceBarrier barrier)
+        [IllegalBundleMethod]
+        public void WriteBarrier(in ResourceWriteBarrier barrier)
         {
-            AddBarrier(barrier.Barrier);
+            fixed (ResourceWriteBarrier* pBarrier = &barrier)
+            {
+                var command = new CommandWriteBarrier
+                {
+                    Count = 1,
+                };
+
+                _encoder.EmitVariable(&command, pBarrier, command.Count);
+            }
+        }
+        /// <summary>
+        /// Mark a resource barrierson the command list
+        /// </summary>
+        /// <param name="barriers">The barrier</param>
+        [IllegalBundleMethod]
+        public void WriteBarrier(ReadOnlySpan<ResourceWriteBarrier> barriers)
+        {
+            fixed (ResourceWriteBarrier* pBarriers = barriers)
+            {
+                var command = new CommandWriteBarrier
+                {
+                    Count = (uint)barriers.Length,
+                };
+
+                _encoder.EmitVariable(&command, pBarriers, command.Count);
+            }
+        }
+
+        /// <summary>
+        /// Mark a resource barrierson the command list
+        /// </summary>
+        /// <param name="barrier">The barrier</param>
+        [IllegalBundleMethod]
+        public void Barrier(in ResourceTransition barrier)
+        {
+            fixed (ResourceTransition* pBarrier = &barrier)
+            {
+                var command = new CommandTransitions
+                {
+                    Count = 1,
+                };
+
+                _encoder.EmitVariable(&command, pBarrier, command.Count);
+            }
         }
 
         /// <summary>
         /// Mark a set of resource barriers on the command list
         /// </summary>
         /// <param name="barriers">The barriers</param>
-        public void Barrier(ReadOnlySpan<ResourceBarrier> barriers)
+        [IllegalBundleMethod]
+        public void Barrier(ReadOnlySpan<ResourceTransition> barriers)
         {
-            AddBarriers(MemoryMarshal.Cast<ResourceBarrier, D3D12_RESOURCE_BARRIER>(barriers));
-        }
+            fixed (ResourceTransition* pBarriers = barriers)
+            {
+                var command = new CommandTransitions
+                {
+                    Count = (uint)barriers.Length,
+                };
 
-        /// <inheritdoc/>
-        public override void Dispose()
-        {
-            FlushBarriers();
-            base.Dispose();
+                _encoder.EmitVariable(&command, pBarriers, command.Count);
+            }
         }
+    }
+
+    public struct ResourceWriteBarrier
+    {
+        internal ResourceHandle Handle;
+
+        public static ResourceWriteBarrier Create(in Buffer buff) => new() { Handle = new ResourceHandle { Type = ResourceHandleType.Buffer, Buffer = buff.Handle } };
+        public static ResourceWriteBarrier Create(in Texture buff) => new() { Handle = new ResourceHandle { Type = ResourceHandleType.Texture, Texture = buff.Handle } };
+        public static ResourceWriteBarrier Create(in RaytracingAccelerationStructure buff) => new() { Handle = new ResourceHandle { Type = ResourceHandleType.RaytracingAccelerationStructure, RaytracingAccelerationStructure = buff.Handle } };
+    }
+
+    /// <summary>
+    /// Represents a transition of a resource between 2 <see cref="ResourceState"/>s
+    /// </summary>
+    public struct ResourceTransition
+    {
+        /// <summary>
+        /// Creates a new <see cref="ResourceTransition"/> from a <see cref="Buffer"/>
+        /// </summary>
+        /// <param name="buff">The <see cref="Buffer"/> to transition</param>
+        /// <param name="before">The <see cref="ResourceState"/> of the resource prior to transitioning</param>
+        /// <param name="after">The <see cref="ResourceState"/> of the resource after transitioning</param>
+        /// <returns>A new <see cref="ResourceTransition"/></returns>
+        public static ResourceTransition Create(in Buffer buff, ResourceState before, ResourceState after)
+            => new()
+            {
+                Transition = new()
+                {
+                    Resource = new()
+                    {
+                        Type = ResourceHandleType.Buffer,
+                        Buffer = buff.Handle
+                    },
+                    Before = before,
+                    After = after
+                },
+            };
+
+
+        /// <summary>
+        /// Creates a new <see cref="ResourceTransition"/> from a <see cref="Buffer"/>
+        /// </summary>
+        /// <param name="tex">The <see cref="Buffer"/> to transition</param>
+        /// <param name="before">The <see cref="ResourceState"/> of the resource prior to transitioning</param>
+        /// <param name="after">The <see cref="ResourceState"/> of the resource after transitioning</param>
+        /// <param name="subresource">The subresource to transition</param>
+        /// <returns>A new <see cref="ResourceTransition"/></returns>
+        public static ResourceTransition Create(in Texture tex, ResourceState before, ResourceState after, uint subresource = uint.MaxValue)
+            => new()
+            {
+                Transition = new()
+                {
+                    Resource = new()
+                    {
+                        Type = ResourceHandleType.Texture,
+                        Texture = tex.Handle
+                    },
+                    Before = before,
+                    After = after,
+                    Subresource = subresource
+                },
+            };
+
+        internal ResourceTransitionBarrier Transition;
     }
 }

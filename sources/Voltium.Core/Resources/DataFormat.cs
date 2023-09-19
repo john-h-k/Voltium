@@ -1,5 +1,5 @@
 using System;
-using static TerraFX.Interop.DXGI_FORMAT;
+using static TerraFX.Interop.DirectX.DXGI_FORMAT;
 using static Voltium.Core.DataFormat;
 
 namespace Voltium.Core
@@ -484,6 +484,9 @@ namespace Voltium.Core
                       or BC6HTypeless or BC6HSF16 or BC6HUF16
                       or BC7Typeless or BC7UnsignedNormalized or BC7UnsignedNormalizedSRGB;
 
+        public static bool IsPlanar(this DataFormat format)
+            => format is Depth32Single or Depth16UnsignedNormalized or Depth24UnsignedNormalizedS8UInt;
+
         public static uint BytesPerPixel(this DataFormat format) => format.BitsPerPixel() / 8;
         public static uint BytesPer4x4Block(this DataFormat format) => format.BitsPer4x4Block() / 8;
 
@@ -521,6 +524,12 @@ namespace Voltium.Core
                 _ => BitsPerPixel(format) * 4 * 4
             };
 
+        public static uint PlaneCount(this DataFormat format)
+            => format switch
+            {
+                Depth24UnsignedNormalizedS8UInt => 2,
+                _ => 1,
+            };
 
         public static uint BitsPerPixel(this DataFormat format)
             => format switch

@@ -12,6 +12,7 @@ using Microsoft.Toolkit.HighPerformance.Extensions;
 using Microsoft.Toolkit.HighPerformance.Helpers;
 using Voltium.Common;
 using Voltium.Core;
+using Voltium.Core.CommandBuffer;
 using Voltium.Core.Contexts;
 using Voltium.Core.Devices;
 using Voltium.Core.Memory;
@@ -19,6 +20,76 @@ using Buffer = Voltium.Core.Memory.Buffer;
 
 namespace Voltium.RenderEngine
 {
+    internal abstract class Box
+    {
+        public abstract ref byte Data { get; }
+    }
+
+    internal class Box<T> : Box
+    {
+        public T Value;
+
+        public Box(T value) => Value = value;
+
+        public override ref byte Data => ref Unsafe.As<T, byte>(ref Value);
+    }
+
+    internal static class ThreadLocalBoxCache<T> where T : struct, IEquatable<T>
+    {
+        [ThreadStatic]
+        private static ValueQueue<Box<T>> _boxes;
+
+        private const int CacheCount = 64;
+
+        public static bool TryGetBox(in T data, [NotNullWhen(true)] out Box<T>? box)
+        {
+            if (_boxes.IsValid)
+            {
+                _boxes = ValueQueue<Box<T>>.Create(CacheCount);
+            }
+
+            if (_boxes.Count == 0 || _boxes.Count == CacheCount)
+            {
+                box = null!;
+                return false;
+            }
+
+            box = _boxes.Dequeue();
+            box.Value = data;
+            return true;
+        }
+
+        public static void ReturnBox(Box<T> o) => _boxes.Enqueue(o);
+    }
+
+    internal struct CachedString : IEquatable<CachedString>, IEquatable<string>
+    {
+        public CachedString(string s)
+        {
+            Value = s;
+            _hashCode = null;
+        }
+
+        public readonly string Value;
+
+        private int? _hashCode;
+
+        public void CacheHashCode() => _ = HashCode;
+        public int HashCode => _hashCode ??= Value.GetHashCode();
+        public bool IsHashCodeCached => _hashCode is not null;
+
+        public bool Equals(CachedString other)
+        {
+            if (_hashCode == other._hashCode)
+            {
+                return false;
+            }
+            return Value == other.Value;
+        }
+
+        public bool Equals(string? other) => Value == other;
+    }
+
     /// <summary>
     /// A graph used to schedule and execute frames
     /// </summary>
@@ -26,24 +97,19 @@ namespace Voltium.RenderEngine
     {
         private GraphicsDevice _device;
 
-        private DescriptorHeap _transientRtvs = null!;
-        private DescriptorHeap _transientDsvs = null!;
-
-        private DictionarySlim<RenderPass, PassHeuristics> _heuristics = new();
+        private DictionarySlim<CachedString, PassHeuristics> _heuristics = new();
 
         private struct FrameData
         {
-            public List<RenderPassBuilder> RenderPasses;
+            public ValueList<Pass> RenderPasses;
 
             public GraphLayer[]? RenderLayers;
 
-            public List<int> OutputPassIndices;
+            public ValueList<int> OutputPassIndices;
 
-            public OutputDesc? PrimaryOutput;
-
-            public List<int> InputPassIndices;
-            public List<TrackedResource> Resources;
-            public List<TrackedResource> PersistentResources;
+            public ValueList<int> InputPassIndices;
+            public ValueList<TrackedResource> Resources;
+            public ValueList<ViewDesc> Views;
             public int MaxDepth;
             public int NumBarrierLists;
             public Resolver Resolver;
@@ -60,8 +126,6 @@ namespace Voltium.RenderEngine
         private FrameData _lastFrame;
 
         private Dictionary<TextureDesc, (Texture Texture, ResourceState LastKnownState)> _cachedTextures = new();
-
-        private List<object?> _outputs = new();
 
         private static bool EnablePooling => false;
 
@@ -84,6 +148,31 @@ namespace Voltium.RenderEngine
             // we don't actually have last frame so elide pointless copy
             MoveToNextGraphFrame(GpuTask.Completed, preserveLastFrame: false);
         }
+
+        /// <summary>
+        /// Indicates a pass creates a new buffer
+        /// </summary>
+        /// <param name="desc">The <see cref="BufferDesc"/> describing the pass's buffer</param>
+        /// <param name="memoryAccess">The <see cref="MemoryAccess"/> the buffer will be allocated as</param>
+        /// <param name="debugName">The <see cref="string"/> to set the resource name to in debug mode</param>
+        /// <returns>A new <see cref="BufferHandle"/> representing the resource that can be later resolved to a <see cref="Buffer"/></returns>
+        public BufferHandle CreateBuffer(in BufferDesc desc, MemoryAccess memoryAccess, string? debugName = null)
+            => AddResource(new ResourceDesc { Type = ResourceType.Buffer, BufferDesc = desc, MemoryAccess = memoryAccess, InitialState = ResourceState.Common, DebugName = debugName }, _passIndex).AsBufferHandle();
+
+        /// <summary> 
+        /// Indicates a pass creates a new texture9
+        /// </summary>
+        /// <param name="desc">The <see cref="TextureDesc"/> describing the pass's buffer</param>
+        /// <param name="initialState">The initial <see cref="ResourceState"/> of the resource</param>
+        /// <param name="debugName">The <see cref="string"/> to set the resource name to in debug mode</param>
+        /// <returns>A new <see cref="TextureHandle"/> representing the resource that can be later resolved to a <see cref="Buffer"/></returns>
+        public TextureHandle CreateTexture(in TextureDesc desc, ResourceState initialState, string? debugName = null)
+            => AddResource(new ResourceDesc { Type = ResourceType.Texture, TextureDesc = desc, InitialState = initialState, DebugName = debugName }, _passIndex).AsTextureHandle();
+
+        public ViewHandle CreateView(BufferHandle resource, BufferViewDesc? view = null)
+            => AddView(new ViewDesc { Type = ResourceType.Buffer, Handle = resource.AsResourceHandle(), BufferViewDesc = view });
+        public ViewHandle CreateView(TextureHandle resource, in TextureViewDesc? view = null)
+            => AddView(new ViewDesc { Type = ResourceType.Texture, Handle = resource.AsResourceHandle(), TextureViewDesc = view });
 
         // convience methods
 
@@ -125,50 +214,139 @@ namespace Voltium.RenderEngine
             _frame.Resolver.CreateComponent(component3);
         }
 
-        internal void SetOutput(int passIndex, object? val) => _outputs[passIndex] = val;
-        internal object? GetInput(int passIndex)
+        /// <summary>
+        /// Provides options a render pass can decide about itself to inform the graph
+        /// </summary>
+        [Flags]
+        public enum PassRegisterDecision
         {
-            if (passIndex == 0)
-            {
-                ThrowHelper.ThrowInvalidOperationException("First pass doesn't have an input");
-            }
+            /// <summary>
+            /// This pass should be executed
+            /// </summary>
+            ExecutePass = 1,
 
-            return _outputs[passIndex - 1];
-        }
+            /// <summary>
+            /// This pass has an external output, so the graph can't cull it or any passes it depends on
+            /// </summary>
+            HasExternalOutputs = 2,
 
-        internal T GetInputAs<T>(int passIndex)
-        {
-            var input = GetInput(passIndex);
-            if (input is T t)
-            {
-                return t;
-            }
+            /// <summary>
+            /// The pass can be executed on the async compute queue
+            /// </summary>
+            AsyncComputeValid = 4,
 
-            return ThrowHelper.ThrowInvalidOperationException<T>(GetMessage(input));
-
-            static string GetMessage(object? o) => $"Tried to retrieve a pass input with type '{typeof(T).Name}', but pass input was {NullOrType(o)}";
-            static string NullOrType(object? o) => o is null ? "null" : $"of type '{o.GetType().Name}'";
+            /// <summary>
+            /// The pass should not be executed
+            /// </summary>
+            // Do this so we can recognise invalid flag combos (avoid people doing, e.g, 'return AsyncComputeValid' without specifying 'ExecutePass' as well)
+            RemovePass = ~(ExecutePass | HasExternalOutputs | AsyncComputeValid)
         }
 
         /// <summary>
-        /// Registers a pass into the graph, and calls the <see cref="RenderPass.Register(ref RenderPassBuilder, ref Resolver)"/> 
+        /// Information about a pass execution
+        /// </summary>
+        public readonly struct PassExecutionInfo
+        {
+            /// <summary>
+            /// Whether the current pass registered for and is enqueued for async compute execution 
+            /// </summary>
+            public bool IsOnAsyncCompute { get; init; }
+
+            /// <summary>
+            /// The <see cref="GpuContext"/> for this pass
+            /// </summary>
+            public GraphicsContext CommandBuffer { get; init; }
+        }
+
+
+        /// <summary>
+        /// The delegate used for recording new render graph passes
+        /// </summary>
+        /// <typeparam name="TState">Opaque state that is passed to this delegate</typeparam>
+        /// <param name="resolver"></param>
+        /// <param name="state">The <see cref="Resolver"/> used for communicating between passes</param>
+        /// <param name="info">The <see cref="PassExecutionInfo"/> for this pass</param>
+        public delegate void PassRecord<TState>(
+            Resolver resolver,
+            TState state,
+            PassExecutionInfo info
+        );
+
+        internal struct Pass
+        {
+            public string Name;
+            // Untyped because we cannot type them due to generic limitations
+            public /* TState */ Box? State;
+            public /* PassRecord<TState> */ Delegate Record;
+            public int Depth;
+            public int Index;
+            public ValueList<int> Dependencies;
+            public ValueList<(ResourceHandle Resource, ResourceState State)> Transitions;
+            public GpuContext Context;
+        }
+
+        public struct Dependency
+        {
+            internal ResourceHandle Handle;
+            internal ResourceState BeginState;
+            internal ResourceState EndState;
+
+
+            public static Dependency Create(TextureHandle tex, ResourceState state)
+                => new Dependency
+                {
+                    Handle = tex.AsResourceHandle(),
+                    BeginState = state,
+                    EndState = state
+                };
+            public static Dependency Create(BufferHandle tex, ResourceState state)
+                => new Dependency
+                {
+                    Handle = tex.AsResourceHandle(),
+                    BeginState = state,
+                    EndState = state
+                };
+        }
+        public ref struct PassDescription
+        {
+            public Span<Dependency> Dependencies;
+            public PassRegisterDecision Decision;
+        }
+
+        /// <summary>
+        /// Registers a pass into the graph, and calls the <paramref name="register"/> method immediately
         /// method immediately to register all dependencies
         /// </summary>
-        /// <param name="pass">The pass</param>
-        public void AddPass(RenderPass pass)
+        /// <typeparam name="TState">Opaque state that is passed to this <paramref name="register"/></typeparam>
+        /// <param name="name">The name of the pass</param>
+        /// <param name="state">The <typeparamref name="TState"/> to pass to <paramref name="register"/></param>
+        /// <param name="register">The registration method</param>
+        /// <param name="record">The record method</param>
+        public void AddPass<TState>(
+            string name,
+            TState state,
+            PassDescription builder,
+            PassRecord<TState> record
+        )
         {
             var passIndex = _frame.RenderPasses.Count;
-            var builder = new RenderPassBuilder(this, passIndex, pass);
-            _outputs.Add(null);
 
-            // Register returning false means "discard pass from graph"
-            if (!pass.Register(ref builder, ref _frame.Resolver))
+            var transitions = builder.Transitions;
+            var decision = builder.Decision;
+
+            if (!decision.HasFlag(PassRegisterDecision.ExecutePass) && decision != PassRegisterDecision.RemovePass)
             {
+                ThrowHelper.ThrowInvalidOperationException($"Registration returned execution flags '{decision}' but did not set 'PassRegisterDecision.ExecutePass'");
+            }
+
+            if (decision == PassRegisterDecision.RemovePass)
+            {
+                // Pass culled itself
                 return;
             }
 
             // anything with no dependencies is a top level input node implicity
-            if ((builder.FrameDependencies?.Count ?? 0) == 0)
+            if (builder.FrameDependencies.Count == 0)
             {
                 // the index _renderPasses.Add results in
                 _frame.InputPassIndices.Add(passIndex);
@@ -179,23 +357,16 @@ namespace Voltium.RenderEngine
                 _frame.MaxDepth = builder.Depth;
             }
 
-            // outputs are explicit
-            if (pass.Output.Type != OutputClass.None)
+            var pass = new Pass
             {
-                if (pass.Output.Type == OutputClass.Primary)
-                {
-                    // can only have one primary output, but many secondaries
-                    if (_frame.PrimaryOutput is not null)
-                    {
-                        ThrowHelper.ThrowInvalidOperationException("Cannot register a primary output pass as one has already been registered");
-                    }
-                    _frame.PrimaryOutput = pass.Output;
-                }
-                // the index _renderPasses.Add results in
-                _frame.OutputPassIndices.Add(passIndex);
-            }
+                Name = name,
+                Record = record,
+                State = _ state,
+                Index = passIndex,
+                Depth = builder.Depth
+            };
 
-            _frame.RenderPasses.Add(builder);
+            _frame.RenderPasses.Add(pass);
         }
 
         /// <summary>
@@ -205,13 +376,24 @@ namespace Voltium.RenderEngine
         {
             // false during the register passes
             _frame.Resolver.CanResolveResources = true;
+
+            // Work out the order passes will execute in
             Schedule();
+
+            // Realise the requested resources into something usable
             AllocateResources();
+
+            // Create the barrier sets between layers
             BuildBarriers();
+
+            // Everything until now has been setup, and in serial
+            // Now we record the actual passes (calling the render pass record methods) in parallel (well... soon)
             Record();
+
+            // Submit them to the device
             var task = Execute();
 
-            // TODO make better
+            // Doesn't actually deallocate them, but takes them out of the render graph's control so they will be destroyed where possible
             DeallocateResources(task);
 
             MoveToNextGraphFrame(task, preserveLastFrame: true);
@@ -228,7 +410,7 @@ namespace Voltium.RenderEngine
             if (preserveLastFrame)
             {
                 _lastFrame = _frame;
-                _lastFrame.Resources = null!;
+                _lastFrame.Resources = default;
             }
 
             //_frame.Resolver = new Resolver(this);
@@ -238,28 +420,76 @@ namespace Voltium.RenderEngine
             _frame.OutputPassIndices = new();
             _frame.Resources = new();
             _frame.InputPassIndices = new();
-            _frame.PrimaryOutput = null;
             _frame.MaxDepth = default;
             _frame.NumBarrierLists = 0;
         }
 
         private void DeallocateResources(in GpuTask frame)
         {
-            foreach (ref var resource in _frame.Resources.AsSpan())
-            {
-                if (EnablePooling && ShouldTryPoolResource(ref resource))
-                {
-                    _cachedTextures[resource.Desc.TextureDesc] = (resource.Desc.Texture, resource.CurrentTrackedState);
-                }
-                else
-                {
-                    resource.Dispose(frame);
-                }
-            }
+            frame.RegisterDisposal(_frame.Resources.ToArray());
         }
 
         private bool ShouldTryPoolResource(ref TrackedResource resource)
             => resource.Desc.Type == ResourceType.Texture && (resource.Desc.TextureDesc.ResourceFlags & (ResourceFlags.AllowDepthStencil | ResourceFlags.AllowRenderTarget)) != 0;
+
+
+        private void AddDependencies(ReadOnlySpan<int> passIndices)
+        {
+            foreach (var passIndex in passIndices)
+            {
+                AddDependency(passIndex);
+            }
+        }
+        private void AddDependency(int passIndex)
+        {
+            ref var pass = ref _graph.GetRenderPass(passIndex);
+
+            if (pass.Depth >= Depth)
+            {
+                Depth = pass.Depth + 1;
+            }
+
+            FrameDependencies.Add(passIndex);
+        }
+
+        private void MarkUsage(ResourceHandle resource, ResourceState flags)
+        {
+            if (flags.IsInvalid())
+            {
+                ThrowHelper.ThrowArgumentException(nameof(flags), InvalidResourceStateFlags);
+            }
+
+            ref TrackedResource res = ref _graph.GetResource(resource);
+
+            if (flags.HasWriteFlag())
+            {
+                // If we write to it, and it is read from earlier up, we need to depend on all the reading passes and the write pass
+                if (res.HasReadPass)
+                {
+                    AddDependencies(res.LastReadPassIndices.AsSpan());
+                }
+                if (res.HasWritePass)
+                {
+                    AddDependency(res.LastWritePassIndex);
+                }
+
+                // If we write to resource, we need to mark that to the resource
+                res.LastWritePassIndex = _passIndex;
+            }
+            else if (flags.HasReadOnlyFlags())
+            {
+                // We also need to depend on any prior write passes but *not* any prior read passes
+                if (res.HasWritePass)
+                {
+                    AddDependency(res.LastWritePassIndex);
+                }
+
+                // If we read from it, we need to mark that we do
+                res.LastReadPassIndices.Add(_passIndex);
+            }
+
+            Transitions.Add((resource, flags));
+        }
 
         private void Schedule()
         {
@@ -271,7 +501,7 @@ namespace Voltium.RenderEngine
             {
                 ref GraphLayer layer = ref _frame.RenderLayers[pass.Depth];
 
-                if (pass.Transitions?.Count is not (null or 0))
+                if (pass.Transitions.Count != 0)
                 {
                     hasBarriers = true;
                 }
@@ -289,6 +519,12 @@ namespace Voltium.RenderEngine
             }
         }
 
+        internal ViewHandle AddView(in ViewDesc desc)
+        {
+            _frame.Views.Add(desc);
+            return new ViewHandle((uint)_frame.Views.Count);
+
+        }
         internal ResourceHandle AddResource(in ResourceDesc desc, int callerPassIndex)
         {
             var resource = new TrackedResource
@@ -302,34 +538,37 @@ namespace Voltium.RenderEngine
             return new ResourceHandle((uint)_frame.Resources.Count);
         }
 
-
-        internal ResourceHandle AddPersitentResource(string name, in ResourceDesc desc, int callerPassIndex)
-        {
-            var resource = new TrackedResource
-            {
-                Desc = desc,
-                LastReadPassIndices = new(),
-                LastWritePassIndex = callerPassIndex
-            };
-
-            _frame.Resources.Add(resource);
-            return new ResourceHandle((uint)_frame.Resources.Count);
-        }
         internal ref TrackedResource GetResource(ResourceHandle handle)
         {
             if (handle.IsInvalid)
             {
                 ThrowHelper.ThrowInvalidOperationException("Resource was not created");
             }
-            return ref Common.ListExtensions.GetRef(_frame.Resources, (int)handle.Index - 1);
+            return ref _frame.Resources.RefIndex((int)handle.Index - 1);
         }
 
-        internal ref RenderPassBuilder GetRenderPass(int index) => ref Common.ListExtensions.GetRef(_frame.RenderPasses, index);
+        internal ref ViewDesc GetView(ViewHandle handle)
+        {
+            if (handle.IsInvalid)
+            {
+                ThrowHelper.ThrowInvalidOperationException("Resource was not created");
+            }
+            return ref _frame.Views.RefIndex((int)handle.Index - 1);
+        }
+
+        internal ref Pass GetRenderPass(int index) => ref _frame.RenderPasses.RefIndex(index);
+
+        private enum ResourceBarrierType
+        {
+            Transition,
+            WriteBarrier,
+            Aliasing
+        }
 
         private struct GraphLayer
         {
             /// <summary> The barriers executed before this layer is executed </summary>
-            public List<ResourceBarrier> Barriers;
+            public List<(ResourceHandle Resource, ResourceState State)> Barriers;
 
             /// <summary> The indices in the GpuContext array that can be executed in any order </summary>
             public List<int> Passes;
@@ -342,64 +581,24 @@ namespace Voltium.RenderEngine
         {
             foreach (ref var resource in _frame.Resources.AsSpan())
             {
-                // handle relative sizes
-                if (resource.Desc.OutputRelativeSize is double relative)
-                {
-                    if (_frame.PrimaryOutput is not OutputDesc primary)
-                    {
-                        ThrowHelper.ThrowInvalidOperationException("Cannot use a primary output relative resource as no primary output was registered");
-                        return;
-                    }
-;
-                    if (resource.Desc.Type == ResourceType.Buffer)
-                    {
-                        resource.Desc.BufferDesc.Length = (long)(primary.BufferLength * relative);
-                    }
-                    else
-                    {
-                        switch (resource.Desc.TextureDesc.Dimension)
-                        {
-                            case TextureDimension.Tex3D:
-                                resource.Desc.TextureDesc.DepthOrArraySize = (ushort)(primary.TextureDepthOrArraySize * relative);
-                                goto case TextureDimension.Tex2D;
-
-                            case TextureDimension.Tex2D:
-                                resource.Desc.TextureDesc.Height = (uint)(primary.TextureHeight * relative);
-                                goto case TextureDimension.Tex1D;
-
-                            case TextureDimension.Tex1D:
-                                resource.Desc.TextureDesc.Width = (ulong)(primary.TextureWidth * relative);
-                                break;
-                        }
-
-                        // make sure no 0 height/depth
-                        resource.Desc.TextureDesc.DepthOrArraySize = Math.Max((ushort)1U, resource.Desc.TextureDesc.DepthOrArraySize);
-                        resource.Desc.TextureDesc.Height = Math.Max(1U, resource.Desc.TextureDesc.Height);
-
-                        if (resource.Desc.Type == ResourceType.Texture && resource.Desc.Texture.Format == DataFormat.Unknown)
-                        {
-                            resource.Desc.TextureDesc.Format = primary.Format;
-                        }
-                    }
-                }
-
-                if (EnablePooling && resource.Desc.Type == ResourceType.Texture && _cachedTextures.Remove(resource.Desc.TextureDesc, out var pair))
-                {
-                    (resource.Desc.Texture, resource.CurrentTrackedState) = pair;
-
-                    if (resource.CurrentTrackedState != resource.Desc.InitialState)
-                    {
-                        _frame.RenderLayers![0].Barriers ??= new();
-                        _frame.RenderLayers![0].Barriers.Add(resource.CreateTransition(resource.Desc.InitialState, ResourceBarrierOptions.Full));
-                    }
-                }
-                else
-                {
-                    resource.AllocateFrom(_device.Allocator);
-                    resource.CurrentTrackedState = resource.Desc.InitialState;
-                }
+                // TODO pooling
+                resource.AllocateFrom(_device.Allocator);
+                resource.CurrentTrackedState = resource.Desc.InitialState;
 
                 resource.SetName();
+            }
+
+            var viewSet = _device.CreateViewSet((uint)_frame.Views.Length);
+            uint i = 0;
+            foreach (ref var view in _frame.Views.AsSpan())
+            {
+                view.View = view.Type switch
+                {
+                    ResourceType.Buffer => view.BufferViewDesc is null ? _device.CreateDefaultView(viewSet, i++, GetResource(view.Handle).Desc.Buffer) : ThrowHelper.ThrowNotImplementedException<View>(),
+                    ResourceType.Texture => view.TextureViewDesc is null ? _device.CreateDefaultView(viewSet, i++, GetResource(view.Handle).Desc.Texture) : ThrowHelper.ThrowNotImplementedException<View>(),
+                    ResourceType.RaytracingAccelerationStructure => _device.CreateDefaultView(viewSet, i++, GetResource(view.Handle).Desc.RaytracingAccelerationStructure),
+                    _ => ThrowHelper.NeverReached<View>()
+                };
             }
         }
 
@@ -420,17 +619,7 @@ namespace Voltium.RenderEngine
                     {
                         ref var resource = ref GetResource(transition.Resource);
 
-                        layer.Barriers ??= new();
 
-                        // We try and add the state, which works if it is just another read state. Else add new barrier
-                        if (layer.Barriers.Count == 0 || !layer.Barriers[^1].TryAddState(transition.State))
-                        {
-                            layer.Barriers.Add(resource.CreateTransition(transition.State, ResourceBarrierOptions.Full));
-                        }
-                        if (transition.State.HasUnorderedAccess())
-                        {
-                            layer.Barriers.Add(resource.CreateUav(ResourceBarrierOptions.Full));
-                        }
                     }
                 }
             }
@@ -441,62 +630,53 @@ namespace Voltium.RenderEngine
             RecordWithoutHeuristics();
         }
 
+        //private void RecordWithHeuristics()
+        //        {
+        //#pragma warning disable CS0162 // Unreachable code detected
+        //            _frame.RenderPasses.AsSpan().Sort(static (a, b) =>
+        //#pragma warning restore CS0162 // Unreachable code detected
+        //            {
+        //                Debug.Assert(a.Graph == b.Graph);
+        //                ref PassHeuristics heuristicsA = ref a.Graph._heuristics.GetOrAddValueRef(a.Pass);
+        //                ref PassHeuristics heuristicsB = ref b.Graph._heuristics.GetOrAddValueRef(b.Pass);
+        //                return heuristicsA.CompareTo(heuristicsB);
+        //            });
 
-        private void RecordWithHeuristics()
-        {
-#pragma warning disable CS0162 // Unreachable code detected
-            _frame.RenderPasses.AsSpan().Sort(static (a, b) =>
-#pragma warning restore CS0162 // Unreachable code detected
-            {
-                Debug.Assert(a.Graph == b.Graph);
-                ref PassHeuristics heuristicsA = ref a.Graph._heuristics.GetOrAddValueRef(a.Pass);
-                ref PassHeuristics heuristicsB = ref b.Graph._heuristics.GetOrAddValueRef(b.Pass);
-                return heuristicsA.CompareTo(heuristicsB);
-            });
 
+        //            using var tasks = RentedArray<Task>.Create(Environment.ProcessorCount);
 
-            using var tasks = RentedArray<Task>.Create(Environment.ProcessorCount);
+        //            for (int i = 0, offset = 0; i < _frame.RenderPasses.Count + Environment.ProcessorCount - 1; i += Environment.ProcessorCount, offset++)
+        //            {
+        //                tasks.Value[offset] = Task.Run(() =>
+        //                {
+        //                    for (var j = 0; j < Environment.ProcessorCount; j++)
+        //                    {
+        //                        var index = (j * Environment.ProcessorCount) + i;
+        //                        if (index >= _frame.RenderPasses.Count)
+        //                        {
+        //                            return;
+        //                        }
 
-            for (int i = 0, offset = 0; i < _frame.RenderPasses.Count + Environment.ProcessorCount - 1; i += Environment.ProcessorCount, offset++)
-            {
-                tasks.Value[offset] = Task.Run(() =>
-                {
-                    for (var j = 0; j < Environment.ProcessorCount; j++)
-                    {
-                        var index = (j * Environment.ProcessorCount) + i;
-                        if (index >= _frame.RenderPasses.Count)
-                        {
-                            return;
-                        }
+        //                        ref var pass = ref _frame.RenderPasses.AsSpan()[index];
 
-                        ref var pass = ref _frame.RenderPasses.AsSpan()[index];
+        //                        ref var heuristics = ref _heuristics.GetOrAddValueRef(pass.Pass);
 
-                        ref var heuristics = ref _heuristics.GetOrAddValueRef(pass.Pass);
+        //                        double start = Stopwatch.GetTimestamp(), end = 0;
 
-                        double start = Stopwatch.GetTimestamp(), end = 0;
+        //                        RecordPass(ref pass);
 
-                        RecordPass(ref pass);
+        //                        end = Stopwatch.GetTimestamp();
 
-                        end = Stopwatch.GetTimestamp();
+        //                        var recordLength = TimeSpan.FromMilliseconds(Math.Max((end - start), 0) / Stopwatch.Frequency);
 
-                        var recordLength = TimeSpan.FromMilliseconds(Math.Max((end - start), 0) / Stopwatch.Frequency);
+        //                        heuristics.PassExecutionCount++;
+        //                        heuristics.LastPassRecordTime = recordLength;
+        //                    }
+        //                });
+        //            }
 
-                        heuristics.PassExecutionCount++;
-                        heuristics.LastPassRecordTime = recordLength;
-                    }
-                });
-            }
-
-            Task.WhenAll(tasks.Value).RunSynchronously();
-        }
-
-        private struct PassExecution : IAction
-        {
-            public void Invoke(int i)
-            {
-
-            }
-        }
+        //            Task.WhenAll(tasks.Value).RunSynchronously();
+        //        }
 
         private void RecordWithoutHeuristics()
         {
@@ -507,55 +687,62 @@ namespace Voltium.RenderEngine
             }
         }
 
-        private void RecordPass(ref RenderPassBuilder pass)
+        private void RecordPass(ref Pass pass)
         {
-            if (pass.Pass is ComputeRenderPass compute)
+            ref var resolver = ref _frame.Resolver;
+            var info = new PassExecutionInfo
             {
-                using var ctx = _device.BeginComputeContext(compute.DefaultPipelineState);
+                IsOnAsyncCompute = false,
+                CommandBuffer = GetContext()
+            };
 
-                compute.Record(ctx, ref _frame.Resolver);
-                pass.Context = ctx;
-            }
-            else /* must be true */ if (pass.Pass is GraphicsRenderPass graphics)
-            {
-                using var ctx = _device.BeginGraphicsContext(graphics.DefaultPipelineState);
+            Unsafe.As<PassRecord<object?>>(pass.Record)(ref resolver, pass.State, info);
 
-                graphics.Record(ctx, ref _frame.Resolver);
-                pass.Context = ctx;
-            }
-            else
-            {
-                ThrowHelper.ThrowArgumentException("what the fuck have you done");
-            }
+            pass.Context = info.CommandBuffer;
         }
+
+        private GraphicsContext GetContext() => new GraphicsContext();
+        private void ReturnContext(GpuContext context)
+        { }
 
         private GpuTask Execute()
         {
-            using var contexts = RentedArray<GpuContext>.Create(/* barrier context */ /*_frame.RenderLayers!.Length +*/ _frame.NumBarrierLists + _frame.RenderPasses.Count);
+            using var contexts = RentedArray<GpuContext>.Create(_frame.NumBarrierLists + _frame.RenderPasses.Count);
 
             int offset = 0;
             foreach (ref var layer in _frame.RenderLayers.AsSpan())
             {
                 // TODO multithread
-                var barriers = layer.Barriers.AsReadOnlySpan();
+                var transitions = layer.Barriers.AsReadOnlySpan();
 
-                // we can't (!!) record an empty barrier list, A) it is bad, B) the layer.NumPreviousPasses only accounts for this if barriers are present
-                if (!barriers.IsEmpty)
+                using var barriers = RentedArray<ResourceTransition>.Create(transitions.Length);
+
+                int i = 0;
+                foreach (ref readonly var transition in transitions)
                 {
-                    using (var barrierCtx = _device.BeginGraphicsContext())
+                    var resource = _frame.Resources[(int)transition.Resource.Index];
+                    barriers.Value[i++] = resource.Desc.Type switch
                     {
-                        barrierCtx.Barrier(barriers);
-                        contexts.Value[offset++] = barrierCtx;
-                    }
+                        ResourceType.Buffer => ResourceTransition.Create(resource.Desc.Buffer, resource.CurrentTrackedState, transition.State),
+                        ResourceType.Texture => ResourceTransition.Create(resource.Desc.Texture, resource.CurrentTrackedState, transition.State),
+                        _ => default
+                    };
                 }
 
-                foreach (ref var passIndex in layer.Passes.AsSpan())
+                if (!transitions.IsEmpty)
                 {
-                    contexts.Value[offset++] = _frame.RenderPasses[passIndex].Context;
+                    var barrierContext = GetContext();
+                    barrierContext.Barrier(barriers.AsSpan());
+                    contexts.Value[offset++] = barrierContext;
+                }
+
+                foreach (ref readonly var pass in layer.Passes.AsSpan())
+                {
+                    contexts.Value[offset++] = _frame.RenderPasses[pass].Context;
                 }
             }
 
-            var task = _device.Execute(contexts.AsSpan(), ExecutionContext.Graphics);
+            var task = _device.GraphicsQueue.Execute(contexts.Value);
             return task;
         }
 
@@ -576,7 +763,7 @@ namespace Voltium.RenderEngine
             private TimeSpan _lastPassExecutionTime;
             private TimeSpan _cumulativePassExecutionTime;
 
-            public TimeSpan LastPassExecutionTime { get => _lastPassExecutionTime; set { _cumulativePassExecutionTime += value; _lastPassExecutionTime = value; } }
+            public TimeSpan LastPassExecutionTime { get => _lastPassExecutionTime; set { _cumulativePassExecutionTime += value; _lastPassExecutionTime = value; PassExecutionCount++ } }
             public TimeSpan AveragePassExecutionTime => _cumulativePassExecutionTime / PassExecutionCount;
 #endif
         }

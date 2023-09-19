@@ -9,8 +9,13 @@ using TerraFX.Interop;
 using Voltium.Allocators;
 using Voltium.Common;
 using Voltium.Core.Devices.Shaders;
-
-using static TerraFX.Interop.Windows;
+using TerraFX.Interop.DirectX;
+using static TerraFX.Interop.Windows.Windows;
+using static TerraFX.Interop.DirectX.DirectX;
+using static TerraFX.Interop.DirectX.D3D;
+using static TerraFX.Interop.DirectX.D3DCOMPILE;
+using static TerraFX.Interop.Windows.CLSID;
+using TerraFX.Interop.Windows;
 
 namespace Voltium.Core.Devices
 {
@@ -66,7 +71,7 @@ namespace Voltium.Core.Devices
             }
         }
 
-        private static void Link(ShaderReflection reflection, RootSignature rootSig)
+        private static void Link(ShaderReflection reflection, in RootSignature rootSig)
         {
 
         }
@@ -264,7 +269,7 @@ namespace Voltium.Core.Devices
             OutputEncoding encoding = OutputEncoding.Utf16,
             string shaderDir = ""
         )
-            => CompileShader(name, shaderText, type, flags, entrypoint, encoding, shaderDir);
+            => CompileShader(name, shaderText, ShaderModel.LatestVersion(type), flags, entrypoint, encoding, shaderDir);
 
         /// <summary>
         /// Compiles a new <see cref="CompiledShader"/> from a name and a <see cref="Stream"/>
@@ -476,7 +481,7 @@ namespace Voltium.Core.Devices
                     (void**)&compileResult
                 ));
 
-                int statusHr;
+                HRESULT statusHr;
                 Guard.ThrowIfFailed(compileResult.Ptr->GetStatus(&statusHr));
 
                 if (FAILED(statusHr))

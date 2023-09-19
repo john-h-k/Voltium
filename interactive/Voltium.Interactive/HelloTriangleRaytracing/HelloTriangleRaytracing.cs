@@ -6,7 +6,7 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
-using TerraFX.Interop;
+using TerraFX.Interop.DirectX;
 using Voltium.Common;
 using Voltium.Core;
 using Voltium.Core.Contexts;
@@ -17,7 +17,7 @@ using Voltium.Core.Memory;
 using Buffer = Voltium.Core.Memory.Buffer;
 using Voltium.Extensions;
 using Voltium.Core.Raytracing;
-using Voltium.Core.ShaderLang;
+using TerraFX.Interop.Windows;
 
 namespace Voltium.Interactive.HelloTriangleRaytracing
 {
@@ -41,16 +41,16 @@ namespace Voltium.Interactive.HelloTriangleRaytracing
     {
         private GraphicsDevice _device = null!;
         private Output _output = null!;
-        private RaytracingPipelineStateObject _pso = null!;
-        private RootSignature _globalRootSig = null!, _localRootSig = null!;
+        private PipelineStateObject _pso;
+        private RootSignature _globalRootSig;
+        private LocalRootSignature _localRootSig;
         private RaytracingAccelerationStructure _blas, _tlas;
         private Texture _renderTarget;
-        private DescriptorAllocation _target;
+        private DescriptorAllocation _targetView;
+        private DescriptorAllocation _accelerationStructure;
+        private RayTables _rayTable;
 
         private Buffer _raygenBuffer, _missBuffer, _hitGroupBuffer;
-
-        private ShaderRecord _raygen;
-        private ShaderRecordTable _miss, _hitGroup;
 
         private double _millionRaysPerSecond;
 
@@ -73,16 +73,20 @@ namespace Voltium.Interactive.HelloTriangleRaytracing
             var debug = DebugLayerConfiguration.None;
 #endif
 
-            _device = GraphicsDevice.Create(FeatureLevel.GraphicsLevel12_1, null, debug);
-
-            if (!_device.Supports(DeviceFeature.Raytracing))
-            {
-                throw new PlatformNotSupportedException("Platform does not support Raytracing Tier 1");
-            }
-
-            _output = Output.Create(OutputConfiguration.Default, _device, output);
-
-            OnResize(outputSize);
+            _device = GraphicsDevice.Create(new D3D12NativeDevice(D3D_FEATURE_LEVEL.D3D_FEATURE_LEVEL_11_1));
+            _output = Output.Create(
+                new DXGINativeOutput(
+                    _device.GraphicsQueue.Native,
+                    new NativeOutputDesc
+                    {
+                        Format = BackBufferFormat.B8G8R8A8UnsignedNormalized,
+                        BackBufferCount = 3,
+                        PreserveBackBuffers = false,
+                        VrStereo = false
+                    },
+                    new HWND((void*)output.GetOutput())
+                )
+            );
 
             // The vertices and indices for our triangle
             ReadOnlySpan<ushort> indices = stackalloc ushort[3] { 0, 1, 2 };
@@ -108,23 +112,32 @@ namespace Voltium.Interactive.HelloTriangleRaytracing
             CreatePso();
             CreateShaderTables();
 
-            using (var context = _device.BeginComputeContext(flags: ContextFlags.BlockOnClose))
+            var builder = new ComputeContext();
+
+            _blas = _device.Allocator.AllocateRaytracingAccelerationBuffer(_device.GetBottomLevelAccelerationStructureBuildInfo(desc), out var blasScratch);
+
+            var instances = _device.Allocator.AllocateUploadBuffer<GeometryInstance>();
+            *instances.As<GeometryInstance>() = new()
             {
-                _blas = _device.Allocator.AllocateRaytracingAccelerationBuffer(_device.GetBuildInfo(desc), out var blasScratch);
+                InstanceMask = 1,
+                AccelerationStructure = _blas.DeviceAddress,
+                Transform = Matrix4x4.Identity
+            };
 
-                var instances = _device.Allocator.AllocateUploadBuffer<GeometryInstance>();
-                *instances.As<GeometryInstance>() = new()
-                {
-                    InstanceMask = 1,
-                    AccelerationStructure = _blas.GpuAddress,
-                    Transform = Matrix4x4.Identity
-                };
+            _tlas = _device.Allocator.AllocateRaytracingAccelerationBuffer(_device.GetTopLevelAccelerationStructureBuildInfo(1), out var tlasScratch);
 
-                _tlas = _device.Allocator.AllocateRaytracingAccelerationBuffer(_device.GetBuildInfo(Layout.Array, 1), out var tlasScratch);
+            builder.BuildBottomLevelAccelerationStructure(desc, blasScratch, _blas);
+            builder.WriteBarrier(ResourceWriteBarrier.Create(_blas));
+            builder.BuildTopLevelAccelerationStructure(instances, 1, LayoutType.Array, tlasScratch, _tlas);
 
-                context.BuildAccelerationStructure(desc, blasScratch, _blas, BuildAccelerationStructureFlags.InsertUavBarrier);
-                context.BuildAccelerationStructure(instances, Layout.Array, 1, tlasScratch, _tlas, BuildAccelerationStructureFlags.InsertUavBarrier);
-            }
+            builder.Close();
+
+            _device.GraphicsQueue.Execute(builder);
+
+            _targetView = _device.AllocateResourceDescriptors(DescriptorType.WritableTexture, 1);
+            _accelerationStructure = _device.AllocateResourceDescriptors(DescriptorType.RaytracingAccelerationStructure, 1);
+
+            OnResize(outputSize);
         }
 
         private unsafe void CreatePso()
@@ -132,12 +145,12 @@ namespace Voltium.Interactive.HelloTriangleRaytracing
             _globalRootSig = _device.CreateRootSignature(
                 new RootParameter[]
                 {
-                    RootParameter.CreateDescriptor(RootParameterType.ShaderResourceView, 0, 0),
-                    RootParameter.CreateDescriptorTable(DescriptorRangeType.UnorderedAccessView, 0, 1, 0)
+                    RootParameter.CreateDescriptorTable(DescriptorRangeType.UnorderedAccessView, 0, 1, 0),
+                    RootParameter.CreateDescriptorTable(DescriptorRangeType.ShaderResourceView, 0, 1, 0),
                 }
             );
 
-            _localRootSig = _device.CreateLocalRootSignature(RootParameter.CreateConstants<HelloTriangleConstantBuffer>(0, 0));
+            _localRootSig = _device.CreateLocalRootSignature(new[] { RootParameter.CreateConstants<HelloTriangleConstantBuffer>(0, 0) });
 
             var desc = new RaytracingPipelineDesc
             {
@@ -151,27 +164,26 @@ namespace Voltium.Interactive.HelloTriangleRaytracing
             desc.AddTriangleHitGroup(HitGroupName, ClosestHitShaderName, null);
             desc.AddLocalRootSignature(_localRootSig, RayGenerationShaderName);
 
-            _pso = _device.PipelineManager.CreatePipelineStateObject(desc, nameof(HelloTriangleRaytracingApp));
+            _pso = _device.CreatePipelineStateObject(desc);
         }
 
         private unsafe void CreateShaderTables()
         {
-            _raygenBuffer = _device.Allocator.AllocateUploadBuffer(ShaderRecord.ShaderIdentifierSize + (uint)sizeof(HelloTriangleConstantBuffer));
-            _missBuffer = _device.Allocator.AllocateUploadBuffer(ShaderRecord.ShaderIdentifierSize);
-            _hitGroupBuffer = _device.Allocator.AllocateUploadBuffer(ShaderRecord.ShaderIdentifierSize);
+            var idSize = _device.Info.RaytracingShaderIdentifierSize;
+            _raygenBuffer = _device.Allocator.AllocateUploadBuffer(idSize + (uint)sizeof(HelloTriangleConstantBuffer));
+            _missBuffer = _device.Allocator.AllocateUploadBuffer(idSize);
+            _hitGroupBuffer = _device.Allocator.AllocateUploadBuffer(idSize);
 
-            _raygen = new ShaderRecord(_pso, _raygenBuffer, ShaderRecord.ShaderIdentifierSize + (uint)sizeof(HelloTriangleConstantBuffer));
-            _miss = new ShaderRecordTable(_pso, _missBuffer, 1, ShaderRecord.ShaderIdentifierSize);
-            _hitGroup = new ShaderRecordTable(_pso, _hitGroupBuffer, 1, ShaderRecord.ShaderIdentifierSize);
+            _device.GetRaytracingShaderIdentifier(_pso, RayGenerationShaderName, _raygenBuffer.AsSpan());
+            _device.GetRaytracingShaderIdentifier(_pso, MissShaderName, _missBuffer.AsSpan());
+            _device.GetRaytracingShaderIdentifier(_pso, HitGroupName, _hitGroupBuffer.AsSpan());
 
-            _raygen.SetShaderName(RayGenerationShaderName); // MyRaygenShader
-            _miss[0].SetShaderName(MissShaderName); // MyMissShader
-            _hitGroup[0].SetShaderName(HitGroupName); // MyClosestHitShader
-
-            _raygen.WriteConstants(0, _cb);
+            _rayTable.SetRayGenerationShaderRecord(_raygenBuffer, (uint)_raygenBuffer.Length);
+            _rayTable.SetMissShaderTable(_missBuffer, (uint)_missBuffer.Length, 1);
+            _rayTable.SetHitGroupTable(_hitGroupBuffer, (uint)_hitGroupBuffer.Length, 1);
         }
 
-        public override void OnResize(Size newOutputSize)
+        public unsafe override void OnResize(Size newOutputSize)
         {
             _output.Resize(newOutputSize);
 
@@ -184,15 +196,17 @@ namespace Voltium.Interactive.HelloTriangleRaytracing
             else
             {
                 _cb.Stencil = new HelloTriangleViewport { Left = -1 + (border / aspectRatio), Top = -1 + border, Right = 1 - (border / aspectRatio), Bottom = 1.0f - border };
-
             }
+
+            var cb = (HelloTriangleConstantBuffer*)(_raygenBuffer.As<byte>() + _device.Info.RaytracingShaderIdentifierSize);
+            *cb = _cb;
 
             _renderTarget.Dispose();
             _renderTarget = _device.Allocator.AllocateTexture(
                 new TextureDesc
                 {
                     Dimension = TextureDimension.Tex2D,
-                    Format = (DataFormat)_output.Configuration.BackBufferFormat,
+                    Format = (DataFormat)_output.Format,
                     Height = (uint)newOutputSize.Height,
                     Width = (uint)newOutputSize.Width,
                     MipCount = 1,
@@ -201,40 +215,43 @@ namespace Voltium.Interactive.HelloTriangleRaytracing
                 ResourceState.UnorderedAccess
             );
 
-            _target = _device.AllocateResourceDescriptors(1);
-            _device.CreateUnorderedAccessView(_renderTarget, _target[0]);
+            using var views = _device.CreateViewSet(2);
+
+            _device.CreateDefaultView(views, 0, _renderTarget);
+            _device.CreateDefaultView(views, 1, _tlas);
+
+            _device.UpdateDescriptors(views, _targetView, 1);
+            _device.UpdateDescriptors(views, 1, _accelerationStructure, 0, 1);
         }
 
         public override void Update(ApplicationTimer timer) => _millionRaysPerSecond = (_output.Resolution.Width * _output.Resolution.Height * timer.FramesPerSeconds) / 1_000_000.0;
+
+        private ComputeContext _context = new(closed: true);
         public override void Render()
         {
-            var context = (ComputeContext)_device.BeginGraphicsContext(_pso);
+            var context = _context;
 
-            context.SetRaytracingAccelerationStructure(0, _tlas);
-            context.SetRootDescriptorTable(1, _target[0]);
+            context.Reset();
 
-            context.DispatchRays(new RayDispatchDesc
-            {
-                RayGenerationShaderRecord = _raygen,
-                MissShaderTable = _miss,
-                HitGroupTable = _hitGroup,
-                Width = (uint)_output.Resolution.Width,
-                Height = (uint)_output.Resolution.Height,
-                Depth = 1
-            });
+            context.SetPipelineState(_pso);
+
+            context.BindDescriptors(0, _targetView);
+            context.BindDescriptors(1, _accelerationStructure);
+
+            context.DispatchRays(_output.Width, _output.Height, _rayTable);
 
             using (context.ScopedBarrier(stackalloc[] {
-                ResourceBarrier.Transition(_renderTarget, ResourceState.UnorderedAccess, ResourceState.CopySource),
-                ResourceBarrier.Transition(_output.OutputBuffer, ResourceState.Present, ResourceState.CopyDestination)
+                ResourceTransition.Create(_renderTarget, ResourceState.UnorderedAccess, ResourceState.CopySource),
+                ResourceTransition.Create(_output.OutputBuffer, ResourceState.Present, ResourceState.CopyDestination)
             }))
             {
-                context.CopyResource(_renderTarget, _output.OutputBuffer);
+                context.CopyTexture(_renderTarget, _output.OutputBuffer, 0);
             }
 
             context.Close();
 
             // Execute the context and wait for it to finish, then present the rendered frame to the output
-            _device.Execute(context).Block();
+            _device.GraphicsQueue.Execute(context).Block();
             _output.Present();
         }
 
@@ -247,73 +264,73 @@ namespace Voltium.Interactive.HelloTriangleRaytracing
         }
     }
 
-    public sealed class HelloTriangleRaytracingShader : RaytracingShader
-    {
-        #nullable disable
-        RaytracingAccelerationStructure Scene = null!;
-        WritableTexture2D<Vector4<float>> RenderTarget = null!;
-        readonly HelloTriangleConstantBuffer g_rayGenCB = default;
+//    public sealed class HelloTriangleRaytracingShader : RaytracingShader
+//    {
+//#nullable disable
+//        RaytracingAccelerationStructure Scene = null!;
+//        WritableTexture2D<Vector4<float>> RenderTarget = null!;
+//        readonly HelloTriangleConstantBuffer g_rayGenCB = default;
 
-        struct RayPayload
-        {
-            public Vector4<float> Color;
-        };
+//        struct RayPayload
+//        {
+//            public Vector4<float> Color;
+//        };
 
-        bool IsInsideViewport(Vector2<float> p, HelloTriangleViewport viewport)
-            => p.X >= viewport.Left && p.X <= viewport.Right && p.Y >= viewport.Top && p.Y <= viewport.Bottom;
+//        bool IsInsideViewport(Vector2<float> p, HelloTriangleViewport viewport)
+//            => p.X >= viewport.Left && p.X <= viewport.Right && p.Y >= viewport.Top && p.Y <= viewport.Bottom;
 
-        [RayGenerationShader]
-        void MyRaygenShader()
-        {
-            var lerpValues = (Vector2<float>)DispatchRaysIndex / (Vector2<float>)DispatchRaysDimensions;
+//        [RayGenerationShader]
+//        void MyRaygenShader()
+//        {
+//            var lerpValues = (Vector2<float>)DispatchRaysIndex / (Vector2<float>)DispatchRaysDimensions;
 
-            // Orthographic projection since we're raytracing in screen space.
-            var rayDir = new Vector3<float>(0, 0, 1);
-            var origin = new Vector3<float>(
-                MathF.Lerp(g_rayGenCB.Viewport.Left, g_rayGenCB.Viewport.Right, lerpValues.X),
-                MathF.Lerp(g_rayGenCB.Viewport.Top, g_rayGenCB.Viewport.Bottom, lerpValues.Y),
-                0.0f
-            );
+//            // Orthographic projection since we're raytracing in screen space.
+//            var rayDir = new Vector3<float>(0, 0, 1);
+//            var origin = new Vector3<float>(
+//                MathF.Lerp(g_rayGenCB.Viewport.Left, g_rayGenCB.Viewport.Right, lerpValues.X),
+//                MathF.Lerp(g_rayGenCB.Viewport.Top, g_rayGenCB.Viewport.Bottom, lerpValues.Y),
+//                0.0f
+//            );
 
-            if (IsInsideViewport(origin.XY, g_rayGenCB.Stencil))
-            {
-                var ray = new RayDesc
-                {
-                    // Set the ray's extents.
-                    Origin = origin,
-                    Direction = rayDir,
+//            if (IsInsideViewport(origin.XY, g_rayGenCB.Stencil))
+//            {
+//                var ray = new RayDesc
+//                {
+//                    // Set the ray's extents.
+//                    Origin = origin,
+//                    Direction = rayDir,
 
-                    // Set TMin to a non-zero small value to avoid aliasing issues due to floating - point errors.
-                    // TMin should be kept small to prevent missing geometry at close contact areas.
-                    TMin = 0.001f,
-                    TMax = 10000.0f
-                };
+//                    // Set TMin to a non-zero small value to avoid aliasing issues due to floating - point errors.
+//                    // TMin should be kept small to prevent missing geometry at close contact areas.
+//                    TMin = 0.001f,
+//                    TMax = 10000.0f
+//                };
 
-                var payload = new RayPayload { Color = default };
+//                var payload = new RayPayload { Color = default };
 
-                // Trace the ray.
-                TraceRay(Scene, ref payload, ray, uint.MaxValue, 0, 1, 0, TraceRayFlags.CullBackFacingTriangles);
+//                // Trace the ray.
+//                TraceRay(Scene, ref payload, ray, uint.MaxValue, 0, 1, 0, TraceRayFlags.CullBackFacingTriangles);
 
-                // Write the raytraced color to the output texture.
-                RenderTarget[DispatchRaysIndex.XY] = payload.Color;
-            }
-            else
-            {
-                // Render interpolated DispatchRaysIndex outside the stencil window
-                RenderTarget[DispatchRaysIndex.XY] = new Vector4<float>(lerpValues, 0, 1);
-            }
-        }
+//                // Write the raytraced color to the output texture.
+//                RenderTarget[DispatchRaysIndex.XY] = payload.Color;
+//            }
+//            else
+//            {
+//                // Render interpolated DispatchRaysIndex outside the stencil window
+//                RenderTarget[DispatchRaysIndex.XY] = new Vector4<float>(lerpValues, 0, 1);
+//            }
+//        }
 
-        [RayClosestHitShader]
-        void MyClosestHitShader(ref RayPayload payload, BuiltInTriangleIntersectionAttributes attr)
-        {
-            payload.Color = new Vector4<float>(1 - attr.Barycentrics.X - attr.Barycentrics.Y, attr.Barycentrics.X, attr.Barycentrics.Y, 1);
-        }
+//        [RayClosestHitShader]
+//        void MyClosestHitShader(ref RayPayload payload, BuiltInTriangleIntersectionAttributes attr)
+//        {
+//            payload.Color = new Vector4<float>(1 - attr.Barycentrics.X - attr.Barycentrics.Y, attr.Barycentrics.X, attr.Barycentrics.Y, 1);
+//        }
 
-        [RayMissShader]
-        void MyMissShader(ref RayPayload payload)
-        {
-            payload.Color = new Vector4<float>(0, 0, 0, 1);
-        }
-    }
+//        [RayMissShader]
+//        void MyMissShader(ref RayPayload payload)
+//        {
+//            payload.Color = new Vector4<float>(0, 0, 0, 1);
+//        }
+//    }
 }

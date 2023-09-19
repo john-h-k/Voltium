@@ -4,7 +4,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using RaiiSharp.Annotations;
-using TerraFX.Interop;
+using TerraFX.Interop.Windows;
 
 namespace Voltium.Common
 {
@@ -134,13 +134,28 @@ namespace Voltium.Common
             if (p is null)
             {
                 result = default;
-                return Windows.E_POINTER;
+                return E.E_POINTER;
             }
 
             Guid* iid = UniqueComPtr<TInterface>.StaticIid;
             int hr = p->QueryInterface(iid, (void**)&pResult);
             result = new UniqueComPtr<TInterface>(pResult);
             return hr;
+        }
+
+        /// <summary>
+        /// Try and cast <typeparamref name="T"/> to <typeparamref name="TInterface"/>
+        /// </summary>
+        /// <typeparam name="TInterface">The type to cast to</typeparam>
+        /// <returns>A <see cref="UniqueComPtr{T}"/> that encapsulates the casted pointer, if succeeded</returns>
+        [RaiiCopy]
+        public readonly UniqueComPtr<TInterface> QueryInterface<TInterface>() where TInterface : unmanaged
+        {
+            if (!Windows.SUCCEEDED(Cast(out UniqueComPtr<TInterface> result)))
+            {
+                ThrowHelper.ThrowInvalidCastException();
+            }
+            return result;
         }
 
         /// <summary>
@@ -254,6 +269,18 @@ namespace Voltium.Common
     /// </summary>
     public unsafe static class ComPtr
     {
+        /// <summary>
+        /// Safely disposes a COM pointer and sets it to <see langword="null"/>
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="ptr"></param>
+        public static void Dispose<T>(ref T* ptr) where T : unmanaged
+        {
+            var p = ptr;
+            ((IUnknown*)p)->Release();
+            ptr = null;
+        }
+
         /// <summary>
         /// Returns the address of the underlying pointer in the <see cref="UniqueComPtr{T}"/>.
         /// </summary>

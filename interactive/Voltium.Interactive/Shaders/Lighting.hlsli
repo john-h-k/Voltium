@@ -3,12 +3,6 @@
 #define pow4(v) (v * v * v * v)
 #define pow5(v) (v * v * v * v * v)
 
-#if FXC
-#define ConstantBuffer(_Ty, _Name, _Reg) cbuffer _##_Name : register(_Reg) { _Ty _Name; };
-#else
-#define ConstantBuffer(_Ty, _Name, _Reg) ConstantBuffer<_Ty> _Name : register(_Reg)
-#endif
-
 struct DirectionalLight
 {
     float3 Strength;

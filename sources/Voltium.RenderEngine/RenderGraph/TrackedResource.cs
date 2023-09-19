@@ -8,7 +8,7 @@ using Voltium.Core.Memory;
 
 namespace Voltium.RenderEngine
 {
-    internal struct TrackedResource
+    internal struct TrackedResource : IDisposable
     {
         public const int NoWritePass = -1;
 
@@ -22,35 +22,6 @@ namespace Voltium.RenderEngine
 
         public ResourceState CurrentTrackedState;
 
-        public ResourceBarrier CreateTransition(ResourceState state, ResourceBarrierOptions options)
-        {
-            ResourceBarrier barrier;
-            if (Desc.Type == ResourceType.Buffer)
-            {
-                barrier = ResourceBarrier.Transition(Desc.Buffer, CurrentTrackedState, state, options);
-            }
-            else
-            {
-                barrier = ResourceBarrier.Transition(Desc.Texture, CurrentTrackedState, state, uint.MaxValue, options);
-            }
-
-            CurrentTrackedState = state;
-            return barrier;
-        }
-
-        public ResourceBarrier CreateUav(ResourceBarrierOptions options)
-        {
-            if (Desc.Type == ResourceType.Buffer)
-            {
-                return ResourceBarrier.UnorderedAccess(Desc.Buffer, options);
-            }
-            else
-            {
-                return ResourceBarrier.UnorderedAccess(Desc.Texture, options);
-            }
-        }
-
-
         public void AllocateFrom(GraphicsAllocator allocator)
         {
             if (Desc.Type == ResourceType.Buffer)
@@ -63,15 +34,15 @@ namespace Voltium.RenderEngine
             }
         }
 
-        public void Dispose(in GpuTask free = default)
+        public void Dispose()
         {
             if (Desc.Type == ResourceType.Buffer)
             {
-                Desc.Buffer.Dispose(free);
+                Desc.Buffer.Dispose();
             }
             else
             {
-                Desc.Texture.Dispose(free);
+                Desc.Texture.Dispose();
             }
         }
 
@@ -90,11 +61,11 @@ namespace Voltium.RenderEngine
 
             if (Desc.Type == ResourceType.Buffer)
             {
-                Desc.Buffer.SetName(Desc.DebugName);
+                //Desc.Buffer.SetName(Desc.DebugName);
             }
             else
             {
-                Desc.Texture.SetName(Desc.DebugName);
+                //Desc.Texture.SetName(Desc.DebugName);
             }
         }
     }

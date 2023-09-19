@@ -1,69 +1,81 @@
-struct VertexIn
-{
-    float3 Position : POSITION;
-    float3 Normal : NORMAL;
-    float3 Tangent : TANGENT;
-    float2 TexCoord : TEXCOORD;
-};
+#include "ChunkTypes.hlsli"
+
+
+#define BufferSpace space0
+#define TextureSpace space1
+
+#define _RootSig "RootFlags(DENY_HULL_SHADER_ROOT_ACCESS | DENY_DOMAIN_SHADER_ROOT_ACCESS | DENY_GEOMETRY_SHADER_ROOT_ACCESS | DENY_MESH_SHADER_ROOT_ACCESS | DENY_AMPLIFICATION_SHADER_ROOT_ACCESS),"\
+                 "CBV(b0),"\
+                 "SRV(t0),"\
+                 "DescriptorTable(SRV(t0, space=1), visibility=SHADER_VISIBILITY_PIXEL),"\
+                 "StaticSampler(s0, filter=FILTER_MIN_MAG_MIP_POINT, visibility=SHADER_VISIBILITY_PIXEL)"
 
 struct VertexOut
 {
     float4 Position : SV_POSITION;
-    //float4 WorldPosition : POSITION; // for lighting
-    float3 Normal : NORMAL;
-    float3 Tangent : TANGENT;
     float2 TexC : TEXC;
+    nointerpolation uint TexIndex : TEXINDEX;
+    //float3 Normal : NORMAL;
+    //float3 Tangent : TANGENT;
 };
 
 struct FrameConstants
 {
+    float4 CameraPosition;
     float4x4 View;
     float4x4 Projection;
 };
 
-struct ObjectConstants
-{
-    float4x4 World;
-    float4x4 TexTransform;
-    int TextureIndex;
-};
 
-struct TexId
+struct CubeInfo
 {
-    uint Id;
+    float4 Position;
+    uint TexIndex[6];
 };
 
 ConstantBuffer<FrameConstants> Frame : register(b0);
-ConstantBuffer<ObjectConstants> Object : register(b1);
+StructuredBuffer<CubeInfo> Cubes : register(t0, BufferSpace);
 
-VertexOut VertexMain(in VertexIn vertexIn)
+[RootSignature(_RootSig)]
+VertexOut VertexMain(in uint index : SV_VertexID)
 {
-    VertexOut vertexOut;
+    uint3 xyz = uint3(index & 1, (index & 4) >> 2, (index & 2) >> 1);
 
-    //vertexOut.WorldPosition = mul(float4(vertexIn.Position, 1), Object.World);
+    CubeInfo instance = Cubes[index >> 3];
+    float3 localPosition = Frame.CameraPosition.xyz - instance.Position.xyz;
+
+    VertexOut result;
     
-    vertexOut.Position = mul(float4(vertexIn.Position, 1), Object.World);
-    vertexOut.Position = mul(vertexOut.Position, Frame.View);
-    vertexOut.Position = mul(vertexOut.Position, Frame.Projection);
+    if (localPosition.x > 0)
+    {
+        xyz.x = 1 - xyz.x;
+    }
+    if (localPosition.y > 0)
+    {
+        xyz.y = 1 - xyz.y;
+    }
+    if (localPosition.z > 0)
+    {
+        xyz.z = 1 - xyz.z;
+    }
 
-    vertexOut.Normal = mul(vertexIn.Normal, (float3x3) Object.World);
+    float3 tex = float3(xyz);
+    float3 pos = tex * 2.0 - 1.0;
 
-    vertexOut.Tangent = mul(vertexIn.Tangent, (float3x3) Object.World);
-
-    vertexOut.TexC = mul(float4(vertexIn.TexCoord, 0, 1), Object.TexTransform).xy;
-
-    return vertexOut;
+    result.Position = pos;
+    result.TexC = tex.xy;
+    result.TexIndex = instance.TexIndex;
+    
+    return result;
 }
 
 
 SamplerState DefaultSampler : register(s0);
+Texture2DArray Textures : register(t0, TextureSpace);
 
-StructuredBuffer<TexId> ChunkIndices : register(t0);
-Texture2D Textures[] : register(t1);
-
-float4 PixelMain(VertexOut fragment, in uint id : SV_PrimitiveID) : SV_Target
+[RootSignature(_RootSig)]
+float4 PixelMain(VertexOut fragment) : SV_Target
 {
-    // we texture on a per quad basis. quad is 2 primitives
-    TexId i = ChunkIndices[id / 2];
-    return Textures[i.Id].Sample(DefaultSampler, fragment.TexC);
+    float4 color = Textures.Sample(DefaultSampler, float3(fragment.TexC, fragment.TexIndex));
+    return color;
 }

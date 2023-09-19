@@ -2,11 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.FlowAnalysis;
+using Microsoft.CodeAnalysis.Operations;
 using Silk.NET.Direct3D.Compilers;
 using Voltium.Analyzers;
 
@@ -162,7 +164,7 @@ namespace Voltium.ShaderCompiler
         private static readonly DiagnosticDescriptor ShaderAccessibleItemsMustBePrivateOrProtectedOrPrivateProtected = new DiagnosticDescriptor(
             "VCS0004",
             nameof(ShaderAccessibleItemsMustBePrivateOrProtectedOrPrivateProtected),
-            "Only a single semantic is allowed per parameter",
+            "Shader accessible items must be <see langword=\"private\"\\>, <see langword=\"protected\"\\> or <see langword=\"private protected\"\\>",
             "Correctness",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true
@@ -201,7 +203,7 @@ namespace Voltium.ShaderCompiler
 
 
         private static readonly DiagnosticDescriptor InvalidIntrinsicUsage = new DiagnosticDescriptor(
-            "VCS0008",
+            "VCS0009",
             nameof(InvalidIntrinsicUsage),
             "Intrinsic {0} is not usable from the {1} shader",
             "Correctness",
@@ -282,305 +284,457 @@ namespace Voltium.ShaderCompiler
         }
     }
 
-    internal sealed class ShaderBodyWalker : CSharpSyntaxWalker
+    internal enum HlslWriterOptions
     {
+        None,
+        Prettify = 1
+    }
+
+    internal sealed class HlslWriter
+    {
+        private bool _pretty;
+        private char _statementEnd;
+        private StringWriter _base;
+
+        private int _tabCount;
+        private bool _onNewLine;
+
+        private void Tab()
+        {
+            if (!_pretty || !_onNewLine)
+            {
+                return;
+            }
+
+            for (var i = 0; i < _tabCount; i++)
+            {
+                _base.Write(_tabCount);
+            }
+        }
+
+        private void NewLine()
+        {
+            if (!_pretty)
+            {
+                return;
+            }
+
+            _base.WriteLine();
+            _onNewLine = true;
+        }
+
+        public HlslWriter(HlslWriterOptions options = HlslWriterOptions.None)
+        {
+            _base = new();
+            _pretty = options.HasFlag(HlslWriterOptions.Prettify);
+            _statementEnd = ';';
+        }
+
+        public void WriteStatement(string statement)
+        {
+            Tab();
+            _onNewLine = false;
+            _base.Write(statement);
+            _base.Write(_statementEnd);
+        }
+
+        public void WriteRaw(char c) => _base.Write(c);
+        public void WriteRaw(string s) => _base.Write(s);
+        public void WriteExpression(string expr)
+        {
+            Tab();
+            _onNewLine = false;
+            _base.Write(expr);
+        }
+
+        public void BeginBlock(string? preamble = null)
+        {
+            if (preamble is not null)
+            {
+                Tab();
+                _base.Write(preamble);
+                NewLine();
+            }
+            Tab();
+            _base.Write('{');
+            NewLine();
+            _tabCount++;
+        }
+
+        public void EndBlock()
+        {
+            _tabCount--;
+            Tab();
+            _base.Write('}');
+            NewLine();
+        }
+    }
+
+    internal sealed class ShaderWriter : OperationWalker
+    {
+
         private GeneratorExecutionContext _context;
         private SemanticModel _model;
-        private StringBuilder _builder;
+        private HlslWriter _builder;
+        private INamedTypeSymbol _remapAttribute;
 
-        public ShaderBodyWalker(GeneratorExecutionContext context, SemanticModel model, StringBuilder builder) : base(SyntaxWalkerDepth.Node)
+        public const string NameRemapAttribute = "Voltium.Core.ShaderLang.Shader+NameRemapAttribute";
+
+        private DiagnosticDescriptor NotSupportedFeature = new DiagnosticDescriptor(
+#pragma warning disable RS2008 // Enable analyzer release tracking
+            "VCS0008",
+#pragma warning restore RS2008 // Enable analyzer release tracking
+            "Not Supported",
+            "Feature '{0}' is not supported in shaders",
+            "Correctness",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true
+        );
+
+        public ShaderWriter(GeneratorExecutionContext context, SemanticModel model, HlslWriter builder)
         {
             _context = context;
             _model = model;
             _builder = builder;
+            _remapAttribute = context.Compilation.GetTypeByMetadataName(NameRemapAttribute)!;
         }
 
+        private string GetRemappedName(ISymbol symbol)
+        {
+            if (symbol.TryGetAttribute(_remapAttribute, out var attr))
+            {
+                var name = (string)attr.ConstructorArguments[0].Value!;
+                name = string.IsNullOrEmpty(name) ? symbol.Name : name;
+                var typeParams = symbol switch
+                {
+                    INamedTypeSymbol type => type.TypeParameters,
+                    IMethodSymbol method => method.TypeParameters,
+                    _ => default
+                };
+                name = string.Format(name, typeParams.Select(p => p.Name));
+                return name;
+            }
+            return symbol.Name;
+        }
 
-        private string RemapType(ExpressionSyntax type) => type.ToString();
+        private void NotSupported(IOperation operation) => _context.ReportDiagnostic(Diagnostic.Create(NotSupportedFeature, operation.Syntax.GetLocation(), operation.Kind));
+        private void NotSupported(IOperation operation, string feature) => _context.ReportDiagnostic(Diagnostic.Create(NotSupportedFeature, operation.Syntax.GetLocation(), feature));
 
-        private void NotSupported(string? s = null) => throw null!;
-
-        public override void DefaultVisit(SyntaxNode node) => base.DefaultVisit(node);
+        public override void DefaultVisit(IOperation operation) => base.DefaultVisit(operation);
         public override bool Equals(object obj) => base.Equals(obj);
         public override int GetHashCode() => base.GetHashCode();
         public override string ToString() => base.ToString();
-        public override void Visit(SyntaxNode? node) => base.Visit(node);
-        public override void VisitAliasQualifiedName(AliasQualifiedNameSyntax node) => base.VisitAliasQualifiedName(node);
-        public override void VisitAnonymousMethodExpression(AnonymousMethodExpressionSyntax node) => base.VisitAnonymousMethodExpression(node);
-        public override void VisitAnonymousObjectCreationExpression(AnonymousObjectCreationExpressionSyntax node) => base.VisitAnonymousObjectCreationExpression(node);
-        public override void VisitAnonymousObjectMemberDeclarator(AnonymousObjectMemberDeclaratorSyntax node) => base.VisitAnonymousObjectMemberDeclarator(node);
-        public override void VisitArgument(ArgumentSyntax node) => base.VisitArgument(node);
-        public override void VisitArgumentList(ArgumentListSyntax node) => base.VisitArgumentList(node);
-        public override void VisitArrayCreationExpression(ArrayCreationExpressionSyntax node) => base.VisitArrayCreationExpression(node);
-        public override void VisitArrayRankSpecifier(ArrayRankSpecifierSyntax node) => base.VisitArrayRankSpecifier(node);
-        public override void VisitArrayType(ArrayTypeSyntax node) => base.VisitArrayType(node);
-        public override void VisitArrowExpressionClause(ArrowExpressionClauseSyntax node) => base.VisitArrowExpressionClause(node);
-        public override void VisitAssignmentExpression(AssignmentExpressionSyntax node)
+        public override void Visit(IOperation operation) => base.Visit(operation);
+        public override void VisitAddressOf(IAddressOfOperation operation) => base.VisitAddressOf(operation);
+        public override void VisitAnonymousFunction(IAnonymousFunctionOperation operation) => base.VisitAnonymousFunction(operation);
+        public override void VisitAnonymousObjectCreation(IAnonymousObjectCreationOperation operation) => base.VisitAnonymousObjectCreation(operation);
+        public override void VisitArgument(IArgumentOperation operation) => base.VisitArgument(operation);
+        public override void VisitArrayCreation(IArrayCreationOperation operation) => base.VisitArrayCreation(operation);
+        public override void VisitArrayElementReference(IArrayElementReferenceOperation operation) => base.VisitArrayElementReference(operation);
+        public override void VisitArrayInitializer(IArrayInitializerOperation operation) => base.VisitArrayInitializer(operation);
+        public override void VisitBinaryPattern(IBinaryPatternOperation operation) => base.VisitBinaryPattern(operation);
+        public override void VisitBlock(IBlockOperation operation)
         {
-            base.Visit(node.Left);
-            _builder.Append(node.OperatorToken);
-            base.Visit(node.Right);
-        }
-        public override void VisitAttribute(AttributeSyntax node) => base.VisitAttribute(node);
-        public override void VisitAttributeArgument(AttributeArgumentSyntax node) => base.VisitAttributeArgument(node);
-        public override void VisitAttributeArgumentList(AttributeArgumentListSyntax node) => base.VisitAttributeArgumentList(node);
-        public override void VisitAttributeList(AttributeListSyntax node) => base.VisitAttributeList(node);
-        public override void VisitAttributeTargetSpecifier(AttributeTargetSpecifierSyntax node) => base.VisitAttributeTargetSpecifier(node);
-        public override void VisitAwaitExpression(AwaitExpressionSyntax node) => base.VisitAwaitExpression(node);
-        public override void VisitBadDirectiveTrivia(BadDirectiveTriviaSyntax node) => base.VisitBadDirectiveTrivia(node);
-        public override void VisitBaseExpression(BaseExpressionSyntax node) => base.VisitBaseExpression(node);
-        public override void VisitBaseList(BaseListSyntax node) => base.VisitBaseList(node);
-        public override void VisitBinaryExpression(BinaryExpressionSyntax node) => base.VisitBinaryExpression(node);
-        public override void VisitBinaryPattern(BinaryPatternSyntax node) => base.VisitBinaryPattern(node);
-        public override void VisitBlock(BlockSyntax node) => base.VisitBlock(node);
-        public override void VisitBracketedArgumentList(BracketedArgumentListSyntax node) => base.VisitBracketedArgumentList(node);
-        public override void VisitBracketedParameterList(BracketedParameterListSyntax node) => base.VisitBracketedParameterList(node);
-        public override void VisitBreakStatement(BreakStatementSyntax node)
-        {
-            _builder.Append("break;");
-            base.VisitBreakStatement(node);
+            _builder.BeginBlock();
+            base.VisitBlock(operation);
+            _builder.EndBlock();
         }
 
-        public override void VisitCasePatternSwitchLabel(CasePatternSwitchLabelSyntax node) => base.VisitCasePatternSwitchLabel(node);
-        public override void VisitCaseSwitchLabel(CaseSwitchLabelSyntax node) => base.VisitCaseSwitchLabel(node);
-        public override void VisitCastExpression(CastExpressionSyntax node) => base.VisitCastExpression(node);
-        public override void VisitCatchClause(CatchClauseSyntax node) => base.VisitCatchClause(node);
-        public override void VisitCatchDeclaration(CatchDeclarationSyntax node) => base.VisitCatchDeclaration(node);
-        public override void VisitCatchFilterClause(CatchFilterClauseSyntax node) => base.VisitCatchFilterClause(node);
-        public override void VisitCheckedExpression(CheckedExpressionSyntax node) => base.VisitCheckedExpression(node);
-        public override void VisitCheckedStatement(CheckedStatementSyntax node) => base.VisitCheckedStatement(node);
-        public override void VisitClassDeclaration(ClassDeclarationSyntax node) => base.VisitClassDeclaration(node);
-        public override void VisitClassOrStructConstraint(ClassOrStructConstraintSyntax node) => base.VisitClassOrStructConstraint(node);
-        public override void VisitCompilationUnit(CompilationUnitSyntax node) => base.VisitCompilationUnit(node);
-        public override void VisitConditionalAccessExpression(ConditionalAccessExpressionSyntax node) => base.VisitConditionalAccessExpression(node);
-        public override void VisitConditionalExpression(ConditionalExpressionSyntax node) => base.VisitConditionalExpression(node);
-        public override void VisitConstantPattern(ConstantPatternSyntax node) => base.VisitConstantPattern(node);
-        public override void VisitConstructorConstraint(ConstructorConstraintSyntax node) => base.VisitConstructorConstraint(node);
-        public override void VisitConstructorDeclaration(ConstructorDeclarationSyntax node) => base.VisitConstructorDeclaration(node);
-        public override void VisitConstructorInitializer(ConstructorInitializerSyntax node) => base.VisitConstructorInitializer(node);
-        public override void VisitContinueStatement(ContinueStatementSyntax node) => base.VisitContinueStatement(node);
-        public override void VisitConversionOperatorDeclaration(ConversionOperatorDeclarationSyntax node) => base.VisitConversionOperatorDeclaration(node);
-        public override void VisitConversionOperatorMemberCref(ConversionOperatorMemberCrefSyntax node) => base.VisitConversionOperatorMemberCref(node);
-        public override void VisitCrefBracketedParameterList(CrefBracketedParameterListSyntax node) => base.VisitCrefBracketedParameterList(node);
-        public override void VisitCrefParameter(CrefParameterSyntax node) => base.VisitCrefParameter(node);
-        public override void VisitCrefParameterList(CrefParameterListSyntax node) => base.VisitCrefParameterList(node);
-        public override void VisitDeclarationExpression(DeclarationExpressionSyntax node) => base.VisitDeclarationExpression(node);
-        public override void VisitDeclarationPattern(DeclarationPatternSyntax node) => base.VisitDeclarationPattern(node);
-        public override void VisitDefaultConstraint(DefaultConstraintSyntax node) => base.VisitDefaultConstraint(node);
-        public override void VisitDefaultExpression(DefaultExpressionSyntax node) => base.VisitDefaultExpression(node);
-        public override void VisitDefaultSwitchLabel(DefaultSwitchLabelSyntax node) => base.VisitDefaultSwitchLabel(node);
-        public override void VisitDefineDirectiveTrivia(DefineDirectiveTriviaSyntax node) => base.VisitDefineDirectiveTrivia(node);
-        public override void VisitDelegateDeclaration(DelegateDeclarationSyntax node) => base.VisitDelegateDeclaration(node);
-        public override void VisitDestructorDeclaration(DestructorDeclarationSyntax node) => base.VisitDestructorDeclaration(node);
-        public override void VisitDiscardDesignation(DiscardDesignationSyntax node) => base.VisitDiscardDesignation(node);
-        public override void VisitDiscardPattern(DiscardPatternSyntax node) => base.VisitDiscardPattern(node);
-        public override void VisitDocumentationCommentTrivia(DocumentationCommentTriviaSyntax node) => base.VisitDocumentationCommentTrivia(node);
-        public override void VisitDoStatement(DoStatementSyntax node) => base.VisitDoStatement(node);
-        public override void VisitElementAccessExpression(ElementAccessExpressionSyntax node) => base.VisitElementAccessExpression(node);
-        public override void VisitElementBindingExpression(ElementBindingExpressionSyntax node) => base.VisitElementBindingExpression(node);
-        public override void VisitElifDirectiveTrivia(ElifDirectiveTriviaSyntax node) => base.VisitElifDirectiveTrivia(node);
-        public override void VisitElseClause(ElseClauseSyntax node) => base.VisitElseClause(node);
-        public override void VisitElseDirectiveTrivia(ElseDirectiveTriviaSyntax node) => base.VisitElseDirectiveTrivia(node);
-        public override void VisitEmptyStatement(EmptyStatementSyntax node) => base.VisitEmptyStatement(node);
-        public override void VisitEndIfDirectiveTrivia(EndIfDirectiveTriviaSyntax node) => base.VisitEndIfDirectiveTrivia(node);
-        public override void VisitEndRegionDirectiveTrivia(EndRegionDirectiveTriviaSyntax node) => base.VisitEndRegionDirectiveTrivia(node);
-        public override void VisitEnumDeclaration(EnumDeclarationSyntax node) => base.VisitEnumDeclaration(node);
-        public override void VisitEnumMemberDeclaration(EnumMemberDeclarationSyntax node) => base.VisitEnumMemberDeclaration(node);
-        public override void VisitEqualsValueClause(EqualsValueClauseSyntax node) => base.VisitEqualsValueClause(node);
-        public override void VisitErrorDirectiveTrivia(ErrorDirectiveTriviaSyntax node) => base.VisitErrorDirectiveTrivia(node);
-        public override void VisitEventDeclaration(EventDeclarationSyntax node) => base.VisitEventDeclaration(node);
-        public override void VisitEventFieldDeclaration(EventFieldDeclarationSyntax node) => base.VisitEventFieldDeclaration(node);
-        public override void VisitExplicitInterfaceSpecifier(ExplicitInterfaceSpecifierSyntax node) => base.VisitExplicitInterfaceSpecifier(node);
-        public override void VisitExpressionStatement(ExpressionStatementSyntax node)
+        public override void VisitBranch(IBranchOperation operation)
         {
-            base.VisitExpressionStatement(node);
-            _builder.Append(node.SemicolonToken.ToString());
-        }
-
-        public override void VisitExternAliasDirective(ExternAliasDirectiveSyntax node) => base.VisitExternAliasDirective(node);
-        public override void VisitFieldDeclaration(FieldDeclarationSyntax node) => base.VisitFieldDeclaration(node);
-        public override void VisitFinallyClause(FinallyClauseSyntax node) => base.VisitFinallyClause(node);
-        public override void VisitFixedStatement(FixedStatementSyntax node) => base.VisitFixedStatement(node);
-        public override void VisitForEachStatement(ForEachStatementSyntax node) => base.VisitForEachStatement(node);
-        public override void VisitForEachVariableStatement(ForEachVariableStatementSyntax node) => base.VisitForEachVariableStatement(node);
-        public override void VisitForStatement(ForStatementSyntax node)
-        {
-            base.VisitForStatement(node);
-        }
-
-        public override void VisitFromClause(FromClauseSyntax node) => base.VisitFromClause(node);
-        public override void VisitFunctionPointerCallingConvention(FunctionPointerCallingConventionSyntax node) => base.VisitFunctionPointerCallingConvention(node);
-        public override void VisitFunctionPointerParameter(FunctionPointerParameterSyntax node) => base.VisitFunctionPointerParameter(node);
-        public override void VisitFunctionPointerParameterList(FunctionPointerParameterListSyntax node) => base.VisitFunctionPointerParameterList(node);
-        public override void VisitFunctionPointerType(FunctionPointerTypeSyntax node) => base.VisitFunctionPointerType(node);
-        public override void VisitFunctionPointerUnmanagedCallingConvention(FunctionPointerUnmanagedCallingConventionSyntax node) => base.VisitFunctionPointerUnmanagedCallingConvention(node);
-        public override void VisitFunctionPointerUnmanagedCallingConventionList(FunctionPointerUnmanagedCallingConventionListSyntax node) => base.VisitFunctionPointerUnmanagedCallingConventionList(node);
-        public override void VisitGenericName(GenericNameSyntax node) => base.VisitGenericName(node);
-        public override void VisitGlobalStatement(GlobalStatementSyntax node) => base.VisitGlobalStatement(node);
-        public override void VisitGotoStatement(GotoStatementSyntax node) => base.VisitGotoStatement(node);
-        public override void VisitGroupClause(GroupClauseSyntax node) => base.VisitGroupClause(node);
-        public override void VisitIdentifierName(IdentifierNameSyntax node)
-        {
-            // if (TryGetWellKnownIdentifier(node, out WellKnownIdentifier identifier))
-            // {
-            //     switch (identifier)
-            //     {
-            //
-            //     }
-            // }
-            // _builder.Append(node.ToString());
-            // base.VisitIdentifierName(node);
-        }
-
-        public override void VisitIfDirectiveTrivia(IfDirectiveTriviaSyntax node) => base.VisitIfDirectiveTrivia(node);
-        public override void VisitIfStatement(IfStatementSyntax node)
-        {
-            _builder.Append("if");
-            _builder.Append('(');
-            base.Visit(node.Condition);
-            _builder.Append(')');
-            base.Visit(node.Statement);
-            base.Visit(node.Else);
-        }
-
-        public override void VisitImplicitArrayCreationExpression(ImplicitArrayCreationExpressionSyntax node) => base.VisitImplicitArrayCreationExpression(node);
-        public override void VisitImplicitElementAccess(ImplicitElementAccessSyntax node) => base.VisitImplicitElementAccess(node);
-        public override void VisitImplicitObjectCreationExpression(ImplicitObjectCreationExpressionSyntax node) => base.VisitImplicitObjectCreationExpression(node);
-        public override void VisitImplicitStackAllocArrayCreationExpression(ImplicitStackAllocArrayCreationExpressionSyntax node) => base.VisitImplicitStackAllocArrayCreationExpression(node);
-        public override void VisitIncompleteMember(IncompleteMemberSyntax node) => base.VisitIncompleteMember(node);
-        public override void VisitIndexerDeclaration(IndexerDeclarationSyntax node) => base.VisitIndexerDeclaration(node);
-        public override void VisitIndexerMemberCref(IndexerMemberCrefSyntax node) => base.VisitIndexerMemberCref(node);
-        public override void VisitInitializerExpression(InitializerExpressionSyntax node) => base.VisitInitializerExpression(node);
-        public override void VisitInterfaceDeclaration(InterfaceDeclarationSyntax node) => base.VisitInterfaceDeclaration(node);
-        public override void VisitInterpolatedStringExpression(InterpolatedStringExpressionSyntax node) => base.VisitInterpolatedStringExpression(node);
-        public override void VisitInterpolatedStringText(InterpolatedStringTextSyntax node) => base.VisitInterpolatedStringText(node);
-        public override void VisitInterpolation(InterpolationSyntax node) => base.VisitInterpolation(node);
-        public override void VisitInterpolationAlignmentClause(InterpolationAlignmentClauseSyntax node) => base.VisitInterpolationAlignmentClause(node);
-        public override void VisitInterpolationFormatClause(InterpolationFormatClauseSyntax node) => base.VisitInterpolationFormatClause(node);
-        public override void VisitInvocationExpression(InvocationExpressionSyntax node)
-        {
-            base.Visit(node.Expression);
-            _builder.Append('(');
-            base.Visit(node.ArgumentList);
-            _builder.Append(')');
-        }
-        public override void VisitIsPatternExpression(IsPatternExpressionSyntax node) => base.VisitIsPatternExpression(node);
-        public override void VisitJoinClause(JoinClauseSyntax node) => base.VisitJoinClause(node);
-        public override void VisitJoinIntoClause(JoinIntoClauseSyntax node) => base.VisitJoinIntoClause(node);
-        public override void VisitLabeledStatement(LabeledStatementSyntax node) => base.VisitLabeledStatement(node);
-        public override void VisitLeadingTrivia(SyntaxToken token) => base.VisitLeadingTrivia(token);
-        public override void VisitLetClause(LetClauseSyntax node) => base.VisitLetClause(node);
-        public override void VisitLineDirectiveTrivia(LineDirectiveTriviaSyntax node) => base.VisitLineDirectiveTrivia(node);
-        public override void VisitLiteralExpression(LiteralExpressionSyntax node) => base.VisitLiteralExpression(node);
-        public override void VisitLoadDirectiveTrivia(LoadDirectiveTriviaSyntax node) => base.VisitLoadDirectiveTrivia(node);
-        public override void VisitLocalDeclarationStatement(LocalDeclarationStatementSyntax node) => base.VisitLocalDeclarationStatement(node);
-        public override void VisitLocalFunctionStatement(LocalFunctionStatementSyntax node) => base.VisitLocalFunctionStatement(node);
-        public override void VisitLockStatement(LockStatementSyntax node) => base.VisitLockStatement(node);
-        public override void VisitMakeRefExpression(MakeRefExpressionSyntax node) => base.VisitMakeRefExpression(node);
-        public override void VisitMemberAccessExpression(MemberAccessExpressionSyntax node)
-        {
-            if (_model.GetSymbolInfo(node).Symbol is IMethodSymbol symbol
-                && symbol.TryGetAttribute(ShaderStrings.IntrinsicAttribute, _context.Compilation, out var intrinsic))
+            _builder.WriteStatement(operation.BranchKind switch
             {
-                _builder.Append((string?)intrinsic.ConstructorArguments[0].Value ?? symbol.Name.ToLowerInvariant());
+                BranchKind.Continue => "continue",
+                BranchKind.Break => "break",
+                BranchKind.GoTo => "goto",
+                _ => throw new NotImplementedException(),
+            });
+        }
+
+        private string OperatorSymbol(BinaryOperatorKind op)
+        {
+            return op switch
+            {
+                BinaryOperatorKind.Add => "+=",
+                BinaryOperatorKind.Subtract => "-=",
+                BinaryOperatorKind.Multiply => "*=",
+                BinaryOperatorKind.Divide => "/=",
+                BinaryOperatorKind.IntegerDivide => "/=",
+                BinaryOperatorKind.Remainder => "%=",
+                BinaryOperatorKind.LeftShift => "<<=",
+                BinaryOperatorKind.RightShift => ">>=",
+                BinaryOperatorKind.And => "&=",
+                BinaryOperatorKind.Or => "|=",
+                BinaryOperatorKind.ExclusiveOr => "^=",
+                _ => throw new NotImplementedException(),
+            };
+        }
+
+        public override void VisitBinaryOperator(IBinaryOperation operation)
+        {
+            if (operation.OperatorMethod is null)
+            {
+                Visit(operation.LeftOperand);
+                _builder.WriteRaw(OperatorSymbol(operation.OperatorKind));
+                Visit(operation.RightOperand);
             }
             else
             {
-                _builder.Append(node.Name.ToString());
-                base.VisitMemberAccessExpression(node);
+                _builder.WriteExpression("=");
+                _builder.WriteExpression(operation.OperatorMethod.Name);
+                _builder.WriteRaw('(');
+                Visit(operation.LeftOperand);
+                _builder.WriteRaw(',');
+                Visit(operation.RightOperand);
+                _builder.WriteRaw(')');
             }
         }
 
-        public override void VisitMemberBindingExpression(MemberBindingExpressionSyntax node) => base.VisitMemberBindingExpression(node);
-        public override void VisitMethodDeclaration(MethodDeclarationSyntax node) => base.VisitMethodDeclaration(node);
-        public override void VisitNameColon(NameColonSyntax node) => base.VisitNameColon(node);
-        public override void VisitNameEquals(NameEqualsSyntax node) => base.VisitNameEquals(node);
-        public override void VisitNameMemberCref(NameMemberCrefSyntax node) => base.VisitNameMemberCref(node);
-        public override void VisitNamespaceDeclaration(NamespaceDeclarationSyntax node) => base.VisitNamespaceDeclaration(node);
-        public override void VisitNullableDirectiveTrivia(NullableDirectiveTriviaSyntax node) => base.VisitNullableDirectiveTrivia(node);
-        public override void VisitNullableType(NullableTypeSyntax node) => base.VisitNullableType(node);
-        public override void VisitObjectCreationExpression(ObjectCreationExpressionSyntax node) => base.VisitObjectCreationExpression(node);
-        public override void VisitOmittedArraySizeExpression(OmittedArraySizeExpressionSyntax node) => base.VisitOmittedArraySizeExpression(node);
-        public override void VisitOmittedTypeArgument(OmittedTypeArgumentSyntax node) => base.VisitOmittedTypeArgument(node);
-        public override void VisitOperatorDeclaration(OperatorDeclarationSyntax node) => base.VisitOperatorDeclaration(node);
-        public override void VisitOperatorMemberCref(OperatorMemberCrefSyntax node) => base.VisitOperatorMemberCref(node);
-        public override void VisitOrderByClause(OrderByClauseSyntax node) => base.VisitOrderByClause(node);
-        public override void VisitOrdering(OrderingSyntax node) => base.VisitOrdering(node);
-        public override void VisitParameter(ParameterSyntax node) => base.VisitParameter(node);
-        public override void VisitParameterList(ParameterListSyntax node) => base.VisitParameterList(node);
-        public override void VisitParenthesizedExpression(ParenthesizedExpressionSyntax node) => base.VisitParenthesizedExpression(node);
-        public override void VisitParenthesizedLambdaExpression(ParenthesizedLambdaExpressionSyntax node) => base.VisitParenthesizedLambdaExpression(node);
-        public override void VisitParenthesizedPattern(ParenthesizedPatternSyntax node) => base.VisitParenthesizedPattern(node);
-        public override void VisitParenthesizedVariableDesignation(ParenthesizedVariableDesignationSyntax node) => base.VisitParenthesizedVariableDesignation(node);
-        public override void VisitPointerType(PointerTypeSyntax node) => base.VisitPointerType(node);
-        public override void VisitPositionalPatternClause(PositionalPatternClauseSyntax node) => base.VisitPositionalPatternClause(node);
-        public override void VisitPostfixUnaryExpression(PostfixUnaryExpressionSyntax node) => base.VisitPostfixUnaryExpression(node);
-        public override void VisitPragmaChecksumDirectiveTrivia(PragmaChecksumDirectiveTriviaSyntax node) => base.VisitPragmaChecksumDirectiveTrivia(node);
-        public override void VisitPragmaWarningDirectiveTrivia(PragmaWarningDirectiveTriviaSyntax node) => base.VisitPragmaWarningDirectiveTrivia(node);
-        public override void VisitPredefinedType(PredefinedTypeSyntax node) => base.VisitPredefinedType(node);
-        public override void VisitPrefixUnaryExpression(PrefixUnaryExpressionSyntax node) => base.VisitPrefixUnaryExpression(node);
-        public override void VisitPrimaryConstructorBaseType(PrimaryConstructorBaseTypeSyntax node) => base.VisitPrimaryConstructorBaseType(node);
-        public override void VisitPropertyDeclaration(PropertyDeclarationSyntax node) => base.VisitPropertyDeclaration(node);
-        public override void VisitPropertyPatternClause(PropertyPatternClauseSyntax node) => base.VisitPropertyPatternClause(node);
-        public override void VisitQualifiedCref(QualifiedCrefSyntax node) => base.VisitQualifiedCref(node);
-        public override void VisitQualifiedName(QualifiedNameSyntax node) => base.VisitQualifiedName(node);
-        public override void VisitQueryBody(QueryBodySyntax node) => base.VisitQueryBody(node);
-        public override void VisitQueryContinuation(QueryContinuationSyntax node) => base.VisitQueryContinuation(node);
-        public override void VisitQueryExpression(QueryExpressionSyntax node) => base.VisitQueryExpression(node);
-        public override void VisitRangeExpression(RangeExpressionSyntax node) => base.VisitRangeExpression(node);
-        public override void VisitRecordDeclaration(RecordDeclarationSyntax node) => base.VisitRecordDeclaration(node);
-        public override void VisitRecursivePattern(RecursivePatternSyntax node) => base.VisitRecursivePattern(node);
-        public override void VisitReferenceDirectiveTrivia(ReferenceDirectiveTriviaSyntax node) => base.VisitReferenceDirectiveTrivia(node);
-        public override void VisitRefExpression(RefExpressionSyntax node) => base.VisitRefExpression(node);
-        public override void VisitRefType(RefTypeSyntax node) => base.VisitRefType(node);
-        public override void VisitRefTypeExpression(RefTypeExpressionSyntax node) => base.VisitRefTypeExpression(node);
-        public override void VisitRefValueExpression(RefValueExpressionSyntax node) => base.VisitRefValueExpression(node);
-        public override void VisitRegionDirectiveTrivia(RegionDirectiveTriviaSyntax node) => base.VisitRegionDirectiveTrivia(node);
-        public override void VisitRelationalPattern(RelationalPatternSyntax node) => base.VisitRelationalPattern(node);
-        public override void VisitReturnStatement(ReturnStatementSyntax node) => base.VisitReturnStatement(node);
-        public override void VisitSelectClause(SelectClauseSyntax node) => base.VisitSelectClause(node);
-        public override void VisitShebangDirectiveTrivia(ShebangDirectiveTriviaSyntax node) => base.VisitShebangDirectiveTrivia(node);
-        public override void VisitSimpleBaseType(SimpleBaseTypeSyntax node) => base.VisitSimpleBaseType(node);
-        public override void VisitSimpleLambdaExpression(SimpleLambdaExpressionSyntax node) => base.VisitSimpleLambdaExpression(node);
-        public override void VisitSingleVariableDesignation(SingleVariableDesignationSyntax node) => base.VisitSingleVariableDesignation(node);
-        public override void VisitSizeOfExpression(SizeOfExpressionSyntax node) => base.VisitSizeOfExpression(node);
-        public override void VisitSkippedTokensTrivia(SkippedTokensTriviaSyntax node) => base.VisitSkippedTokensTrivia(node);
-        public override void VisitStackAllocArrayCreationExpression(StackAllocArrayCreationExpressionSyntax node) => base.VisitStackAllocArrayCreationExpression(node);
-        public override void VisitStructDeclaration(StructDeclarationSyntax node) => base.VisitStructDeclaration(node);
-        public override void VisitSubpattern(SubpatternSyntax node) => base.VisitSubpattern(node);
-        public override void VisitSwitchExpression(SwitchExpressionSyntax node) => base.VisitSwitchExpression(node);
-        public override void VisitSwitchExpressionArm(SwitchExpressionArmSyntax node) => base.VisitSwitchExpressionArm(node);
-        public override void VisitSwitchSection(SwitchSectionSyntax node) => base.VisitSwitchSection(node);
-        public override void VisitSwitchStatement(SwitchStatementSyntax node) => base.VisitSwitchStatement(node);
-        public override void VisitThisExpression(ThisExpressionSyntax node) => base.VisitThisExpression(node);
-        public override void VisitThrowExpression(ThrowExpressionSyntax node) => base.VisitThrowExpression(node);
-        public override void VisitThrowStatement(ThrowStatementSyntax node) => base.VisitThrowStatement(node);
-        public override void VisitToken(SyntaxToken token) => base.VisitToken(token);
-        public override void VisitTrailingTrivia(SyntaxToken token) => base.VisitTrailingTrivia(token);
-        public override void VisitTrivia(SyntaxTrivia trivia) => base.VisitTrivia(trivia);
-        public override void VisitTryStatement(TryStatementSyntax node) => base.VisitTryStatement(node);
-        public override void VisitTupleElement(TupleElementSyntax node) => base.VisitTupleElement(node);
-        public override void VisitTupleExpression(TupleExpressionSyntax node) => base.VisitTupleExpression(node);
-        public override void VisitTupleType(TupleTypeSyntax node) => base.VisitTupleType(node);
-        public override void VisitTypeArgumentList(TypeArgumentListSyntax node) => base.VisitTypeArgumentList(node);
-        public override void VisitTypeConstraint(TypeConstraintSyntax node) => base.VisitTypeConstraint(node);
-        public override void VisitTypeCref(TypeCrefSyntax node) => base.VisitTypeCref(node);
-        public override void VisitTypeOfExpression(TypeOfExpressionSyntax node) => base.VisitTypeOfExpression(node);
-        public override void VisitTypeParameter(TypeParameterSyntax node) => base.VisitTypeParameter(node);
-        public override void VisitTypeParameterConstraintClause(TypeParameterConstraintClauseSyntax node) => base.VisitTypeParameterConstraintClause(node);
-        public override void VisitTypeParameterList(TypeParameterListSyntax node) => base.VisitTypeParameterList(node);
-        public override void VisitTypePattern(TypePatternSyntax node) => base.VisitTypePattern(node);
-        public override void VisitUnaryPattern(UnaryPatternSyntax node) => base.VisitUnaryPattern(node);
-        public override void VisitUndefDirectiveTrivia(UndefDirectiveTriviaSyntax node) => base.VisitUndefDirectiveTrivia(node);
-        public override void VisitUnsafeStatement(UnsafeStatementSyntax node) => base.VisitUnsafeStatement(node);
-        public override void VisitUsingDirective(UsingDirectiveSyntax node) => base.VisitUsingDirective(node);
-        public override void VisitUsingStatement(UsingStatementSyntax node) => base.VisitUsingStatement(node);
-        public override void VisitVariableDeclaration(VariableDeclarationSyntax node) => base.VisitVariableDeclaration(node);
-        public override void VisitVariableDeclarator(VariableDeclaratorSyntax node) => base.VisitVariableDeclarator(node);
-        public override void VisitVarPattern(VarPatternSyntax node) => base.VisitVarPattern(node);
-        public override void VisitWarningDirectiveTrivia(WarningDirectiveTriviaSyntax node) => base.VisitWarningDirectiveTrivia(node);
-        public override void VisitWhenClause(WhenClauseSyntax node) => base.VisitWhenClause(node);
-        public override void VisitWhileStatement(WhileStatementSyntax node) => base.VisitWhileStatement(node);
-        public override void VisitWithExpression(WithExpressionSyntax node) => base.VisitWithExpression(node);
+        public override void VisitCompoundAssignment(ICompoundAssignmentOperation operation)
+        {
+            Visit(operation.Target);
+
+            Visit(operation.Target);
+            if (operation.OperatorMethod is null)
+            {
+                _builder.WriteRaw(OperatorSymbol(operation.OperatorKind) + "=");
+                Visit(operation.Value);
+            }
+            else
+            {
+                _builder.WriteExpression("=");
+                _builder.WriteExpression(operation.OperatorMethod.Name);
+                _builder.WriteRaw('(');
+                Visit(operation.Target);
+                _builder.WriteRaw(',');
+                Visit(operation.Value);
+                _builder.WriteRaw(')');
+            }
+        }
+
+        public override void VisitConditional(IConditionalOperation operation)
+        {
+            if (operation.IsRef)
+            {
+                NotSupported(operation, "ByRefs");
+            }
+
+            Visit(operation.Condition);
+            _builder.WriteRaw('?');
+            Visit(operation.WhenTrue);
+            _builder.WriteRaw(':');
+            Visit(operation.WhenFalse);
+        }
+        public override void VisitConstantPattern(IConstantPatternOperation operation) => base.VisitConstantPattern(operation);
+        public override void VisitConstructorBodyOperation(IConstructorBodyOperation operation) => base.VisitConstructorBodyOperation(operation);
+        public override void VisitConversion(IConversionOperation operation) => base.VisitConversion(operation);
+        public override void VisitDeclarationExpression(IDeclarationExpressionOperation operation) => base.VisitDeclarationExpression(operation);
+        public override void VisitDeclarationPattern(IDeclarationPatternOperation operation) => base.VisitDeclarationPattern(operation);
+        public override void VisitDeconstructionAssignment(IDeconstructionAssignmentOperation operation) => base.VisitDeconstructionAssignment(operation);
+        public override void VisitDefaultCaseClause(IDefaultCaseClauseOperation operation) => base.VisitDefaultCaseClause(operation);
+        public override void VisitDefaultValue(IDefaultValueOperation operation)
+        {
+            _builder.WriteRaw('(');
+            _builder.WriteRaw(GetRemappedName(operation.Type));
+            _builder.WriteRaw(')');
+            _builder.WriteRaw('0');
+        }
+
+        public override void VisitDelegateCreation(IDelegateCreationOperation operation) => NotSupported(operation);
+        public override void VisitDiscardOperation(IDiscardOperation operation)
+        {
+        }
+
+        public override void VisitDiscardPattern(IDiscardPatternOperation operation) => base.VisitDiscardPattern(operation);
+        public override void VisitEmpty(IEmptyOperation operation) => _builder.WriteStatement(string.Empty);
+        public override void VisitEventAssignment(IEventAssignmentOperation operation) => NotSupported(operation);
+        public override void VisitEventReference(IEventReferenceOperation operation) => NotSupported(operation);
+        public override void VisitExpressionStatement(IExpressionStatementOperation operation) => base.VisitExpressionStatement(operation);
+        public override void VisitFieldInitializer(IFieldInitializerOperation operation) => base.VisitFieldInitializer(operation);
+        public override void VisitFieldReference(IFieldReferenceOperation operation) => base.VisitFieldReference(operation);
+        public override void VisitFlowAnonymousFunction(IFlowAnonymousFunctionOperation operation) => base.VisitFlowAnonymousFunction(operation);
+        public override void VisitFlowCapture(IFlowCaptureOperation operation) => base.VisitFlowCapture(operation);
+        public override void VisitFlowCaptureReference(IFlowCaptureReferenceOperation operation) => base.VisitFlowCaptureReference(operation);
+        public override void VisitForEachLoop(IForEachLoopOperation operation) => base.VisitForEachLoop(operation);
+        public override void VisitForLoop(IForLoopOperation operation) => base.VisitForLoop(operation);
+        public override void VisitForToLoop(IForToLoopOperation operation) => base.VisitForToLoop(operation);
+        public override void VisitIncrementOrDecrement(IIncrementOrDecrementOperation operation)
+        {
+            if (operation.OperatorMethod is null)
+            {
+                var token = operation.Kind == OperationKind.Decrement ? "--" : "++";
+                if (!operation.IsPostfix)
+                {
+                    _builder.WriteRaw(token);
+                }
+
+                Visit(operation.Target);
+
+                if (operation.IsPostfix)
+                {
+                    _builder.WriteRaw(token);
+                }
+            }
+        }
+
+        public override void VisitInstanceReference(IInstanceReferenceOperation operation) => base.VisitInstanceReference(operation);
+        public override void VisitInvalid(IInvalidOperation operation) => base.VisitInvalid(operation);
+        public override void VisitInvocation(IInvocationOperation operation) => base.VisitInvocation(operation);
+        public override void VisitIsNull(IIsNullOperation operation) => base.VisitIsNull(operation);
+        public override void VisitIsPattern(IIsPatternOperation operation) => base.VisitIsPattern(operation);
+        public override void VisitIsType(IIsTypeOperation operation) => base.VisitIsType(operation);
+        public override void VisitLabeled(ILabeledOperation operation) => base.VisitLabeled(operation);
+        public override void VisitLiteral(ILiteralOperation operation) => base.VisitLiteral(operation);
+        public override void VisitLocalFunction(ILocalFunctionOperation operation) => base.VisitLocalFunction(operation);
+        public override void VisitLocalReference(ILocalReferenceOperation operation) => base.VisitLocalReference(operation);
+
+
+        public override void VisitMemberInitializer(IMemberInitializerOperation operation) => base.VisitMemberInitializer(operation);
+        public override void VisitMethodBodyOperation(IMethodBodyOperation operation) => base.VisitMethodBodyOperation(operation);
+        public override void VisitMethodReference(IMethodReferenceOperation operation) => base.VisitMethodReference(operation);
+
+
+        public override void VisitNegatedPattern(INegatedPatternOperation operation) => base.VisitNegatedPattern(operation);
+        public override void VisitObjectCreation(IObjectCreationOperation operation) => base.VisitObjectCreation(operation);
+        public override void VisitObjectOrCollectionInitializer(IObjectOrCollectionInitializerOperation operation) => base.VisitObjectOrCollectionInitializer(operation);
+        public override void VisitOmittedArgument(IOmittedArgumentOperation operation) => base.VisitOmittedArgument(operation);
+        public override void VisitParameterInitializer(IParameterInitializerOperation operation) => base.VisitParameterInitializer(operation);
+        public override void VisitParameterReference(IParameterReferenceOperation operation) => base.VisitParameterReference(operation);
+        public override void VisitParenthesized(IParenthesizedOperation operation) => base.VisitParenthesized(operation);
+        public override void VisitPatternCaseClause(IPatternCaseClauseOperation operation) => base.VisitPatternCaseClause(operation);
+        public override void VisitPropertyInitializer(IPropertyInitializerOperation operation) => base.VisitPropertyInitializer(operation);
+        public override void VisitPropertyReference(IPropertyReferenceOperation operation) => base.VisitPropertyReference(operation);
+        public override void VisitPropertySubpattern(IPropertySubpatternOperation operation) => base.VisitPropertySubpattern(operation);
+        public override void VisitRangeCaseClause(IRangeCaseClauseOperation operation) => base.VisitRangeCaseClause(operation);
+        public override void VisitRangeOperation(IRangeOperation operation) => base.VisitRangeOperation(operation);
+        public override void VisitRecursivePattern(IRecursivePatternOperation operation) => base.VisitRecursivePattern(operation);
+
+
+        public override void VisitRelationalPattern(IRelationalPatternOperation operation) => base.VisitRelationalPattern(operation);
+        public override void VisitReturn(IReturnOperation operation)
+        {
+            _builder.WriteRaw("return");
+            Visit(operation.ReturnedValue);
+            _builder.WriteStatement(string.Empty);
+        }
+
+        public override void VisitSimpleAssignment(ISimpleAssignmentOperation operation) => base.VisitSimpleAssignment(operation);
+        public override void VisitSingleValueCaseClause(ISingleValueCaseClauseOperation operation) => base.VisitSingleValueCaseClause(operation);
+        public override void VisitSizeOf(ISizeOfOperation operation)
+        {
+            _builder.WriteExpression("sizeof");
+            _builder.WriteRaw('(');
+            _builder.WriteRaw(GetRemappedName(operation.TypeOperand));
+            _builder.WriteRaw(')');
+        }
+
+        public override void VisitSwitch(ISwitchOperation operation) => base.VisitSwitch(operation);
+        public override void VisitSwitchCase(ISwitchCaseOperation operation) => base.VisitSwitchCase(operation);
+        public override void VisitSwitchExpression(ISwitchExpressionOperation operation) => base.VisitSwitchExpression(operation);
+        public override void VisitSwitchExpressionArm(ISwitchExpressionArmOperation operation) => base.VisitSwitchExpressionArm(operation);
+        public override void VisitTuple(ITupleOperation operation) => base.VisitTuple(operation);
+        public override void VisitTupleBinaryOperator(ITupleBinaryOperation operation) => base.VisitTupleBinaryOperator(operation);
+        public override void VisitTypeOf(ITypeOfOperation operation) => base.VisitTypeOf(operation);
+        public override void VisitTypeParameterObjectCreation(ITypeParameterObjectCreationOperation operation) => base.VisitTypeParameterObjectCreation(operation);
+        public override void VisitTypePattern(ITypePatternOperation operation) => base.VisitTypePattern(operation);
+        public override void VisitUnaryOperator(IUnaryOperation operation)
+        {
+            if (operation.OperatorMethod is null)
+            {
+                _builder.WriteRaw(operation.OperatorKind switch
+                {
+                    UnaryOperatorKind.None => throw new NotImplementedException(),
+                    UnaryOperatorKind.BitwiseNegation => "~",
+                    UnaryOperatorKind.Not => "!",
+                    UnaryOperatorKind.Plus => "+",
+                    UnaryOperatorKind.Minus => "-",
+                    UnaryOperatorKind.True => throw new NotImplementedException(),
+                    UnaryOperatorKind.False => throw new NotImplementedException(),
+                    UnaryOperatorKind.Hat or _ => throw new NotImplementedException(),
+                });
+
+                Visit(operation.Operand);
+            }
+            else
+            {
+                _builder.WriteExpression(GetRemappedName(operation.OperatorMethod));
+                _builder.WriteRaw('(');
+                Visit(operation.Operand);
+                _builder.WriteRaw(')');
+            }
+        }
+
+        public override void VisitUsing(IUsingOperation operation) => base.VisitUsing(operation);
+        public override void VisitUsingDeclaration(IUsingDeclarationOperation operation)
+        {
+            if (operation.IsAsynchronous)
+            {
+                NotSupported(operation, "Asynchronous Using Declaration");
+            }
+        }
+        public override void VisitVariableDeclaration(IVariableDeclarationOperation operation) => base.VisitVariableDeclaration(operation);
+        public override void VisitVariableDeclarationGroup(IVariableDeclarationGroupOperation operation) => base.VisitVariableDeclarationGroup(operation);
+        public override void VisitVariableDeclarator(IVariableDeclaratorOperation operation) => base.VisitVariableDeclarator(operation);
+        public override void VisitVariableInitializer(IVariableInitializerOperation operation) => base.VisitVariableInitializer(operation);
+        public override void VisitWhileLoop(IWhileLoopOperation operation)
+        {
+            bool isWhile = operation.ConditionIsTop;
+            if (isWhile)
+            {
+                WriteCondition();
+            }
+            else
+            {
+                _builder.BeginBlock("do");
+            }
+            foreach (var child in operation.Children)
+            {
+                base.Visit(child);
+            }
+            _builder.EndBlock();
+            if (!isWhile)
+            {
+                WriteCondition();
+            }
+
+            void WriteCondition()
+            {
+                _builder.BeginBlock("while");
+                _builder.WriteRaw('(');
+                Visit(operation.Condition);
+                _builder.WriteRaw(')');
+            }
+        }
+
+
+        public override void VisitAwait(IAwaitOperation operation) => NotSupported(operation);
+        public override void VisitStaticLocalInitializationSemaphore(IStaticLocalInitializationSemaphoreOperation operation) => NotSupported(operation);
+        public override void VisitStop(IStopOperation operation) => NotSupported(operation);
+        public override void VisitLock(ILockOperation operation) => NotSupported(operation);
+        public override void VisitCatchClause(ICatchClauseOperation operation) => NotSupported(operation);
+        public override void VisitCaughtException(ICaughtExceptionOperation operation) => NotSupported(operation);
+        public override void VisitCoalesce(ICoalesceOperation operation) => NotSupported(operation);
+        public override void VisitCoalesceAssignment(ICoalesceAssignmentOperation operation) => NotSupported(operation);
+        public override void VisitConditionalAccess(IConditionalAccessOperation operation) => NotSupported(operation);
+        public override void VisitConditionalAccessInstance(IConditionalAccessInstanceOperation operation) => NotSupported(operation);
+        public override void VisitDynamicIndexerAccess(IDynamicIndexerAccessOperation operation) => NotSupported(operation);
+        public override void VisitDynamicInvocation(IDynamicInvocationOperation operation) => NotSupported(operation);
+        public override void VisitDynamicMemberReference(IDynamicMemberReferenceOperation operation) => NotSupported(operation);
+        public override void VisitDynamicObjectCreation(IDynamicObjectCreationOperation operation) => NotSupported(operation);
+        public override void VisitEnd(IEndOperation operation) => NotSupported(operation);
+        [Obsolete]
+        public override void VisitCollectionElementInitializer(ICollectionElementInitializerOperation operation) => base.VisitCollectionElementInitializer(operation);
+        public override void VisitThrow(IThrowOperation operation) => NotSupported(operation);
+        public override void VisitTranslatedQuery(ITranslatedQueryOperation operation) => NotSupported(operation);
+        public override void VisitTry(ITryOperation operation) => NotSupported(operation);
+        public override void VisitInterpolatedString(IInterpolatedStringOperation operation) => NotSupported(operation);
+        public override void VisitInterpolatedStringText(IInterpolatedStringTextOperation operation) => NotSupported(operation);
+        public override void VisitInterpolation(IInterpolationOperation operation) => NotSupported(operation);
+        public override void VisitNameOf(INameOfOperation operation) => NotSupported(operation);
+        public override void VisitRaiseEvent(IRaiseEventOperation operation) => NotSupported(operation);
+        public override void VisitReDim(IReDimOperation operation) => NotSupported(operation);
+        public override void VisitReDimClause(IReDimClauseOperation operation) => NotSupported(operation);
+        public override void VisitRelationalCaseClause(IRelationalCaseClauseOperation operation) => NotSupported(operation);
+        public override void VisitWith(IWithOperation operation) => NotSupported(operation);
     }
 }

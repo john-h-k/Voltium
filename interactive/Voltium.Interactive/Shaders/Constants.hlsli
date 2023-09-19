@@ -15,6 +15,6 @@ struct ObjectConstants
     Material Material;
 };
 
-ConstantBuffer(ObjectConstants, Object, b0);
+ConstantBuffer<ObjectConstants> Object : b0;
 
-ConstantBuffer(FrameConstants, Frame, b1);
+ConstantBuffer<FrameConstants> Frame : b1;

@@ -2,19 +2,22 @@ using System;
 using System.Text;
 using TerraFX.Interop;
 using Voltium.Common;
-
-using static TerraFX.Interop.Windows;
+using TerraFX.Interop.Windows;
+using TerraFX.Interop.DirectX;
+using static TerraFX.Interop.DirectX.DirectX;
+using System.Runtime.Versioning;
 
 namespace Voltium.Core.Infrastructure
 {
-    internal sealed unsafe class DxCoreDeviceFactory : DeviceFactory
+    [SupportedOSPlatform("windows10.0.19041.0")]
+    internal sealed unsafe class DxCoreDeviceFactory : AdapterFactory
     {
         private UniqueComPtr<IDXCoreAdapterFactory> _factory;
         private UniqueComPtr<IDXCoreAdapterList> _list;
         private uint _hardwareAdapterSkip;
         private bool _softwareOnly;
 
-        public override Adapter SoftwareAdapter => throw new NotSupportedException("Can't enum WARP on DxCore");  
+        public override Adapter SoftwareAdapter => throw new NotSupportedException("Can't enum WARP on DxCore");
 
         public DxCoreDeviceFactory(DeviceType types = DeviceType.GraphicsAndCompute)
         {
@@ -74,6 +77,26 @@ namespace Voltium.Core.Infrastructure
             }
         }
 
+        private enum D3DKMDT_GRAPHICS_PREEMPTION_GRANULARITY
+        {
+            D3DKMDT_GRAPHICS_PREEMPTION_NONE = 0,
+            D3DKMDT_GRAPHICS_PREEMPTION_DMA_BUFFER_BOUNDARY = 100,
+            D3DKMDT_GRAPHICS_PREEMPTION_PRIMITIVE_BOUNDARY = 200,
+            D3DKMDT_GRAPHICS_PREEMPTION_TRIANGLE_BOUNDARY = 300,
+            D3DKMDT_GRAPHICS_PREEMPTION_PIXEL_BOUNDARY = 400,
+            D3DKMDT_GRAPHICS_PREEMPTION_SHADER_BOUNDARY = 500,
+        }
+
+        private enum D3DKMDT_COMPUTE_PREEMPTION_GRANULARITY
+        {
+            D3DKMDT_COMPUTE_PREEMPTION_NONE = 0,
+            D3DKMDT_COMPUTE_PREEMPTION_DMA_BUFFER_BOUNDARY = 100,
+            D3DKMDT_COMPUTE_PREEMPTION_DISPATCH_BOUNDARY = 200,
+            D3DKMDT_COMPUTE_PREEMPTION_THREAD_GROUP_BOUNDARY = 300,
+            D3DKMDT_COMPUTE_PREEMPTION_THREAD_BOUNDARY = 400,
+            D3DKMDT_COMPUTE_PREEMPTION_SHADER_BOUNDARY = 500,
+        }
+
         private static Adapter CreateAdapter(UniqueComPtr<IDXCoreAdapter> adapter)
         {
             nuint size;
@@ -97,7 +120,9 @@ namespace Voltium.Core.Infrastructure
             GetProperty<ulong>(DXCoreAdapterProperty.DedicatedSystemMemory, out var dedicatedSystemMemory);
             GetProperty<ulong>(DXCoreAdapterProperty.SharedSystemMemory, out var sharedSystemMemory);
             GetProperty<ulong>(DXCoreAdapterProperty.DriverVersion, out var driverVersion);
-
+            GetProperty<D3DKMDT_COMPUTE_PREEMPTION_GRANULARITY>(DXCoreAdapterProperty.ComputePreemptionGranularity, out var computePreemption);
+            GetProperty<D3DKMDT_GRAPHICS_PREEMPTION_GRANULARITY>(DXCoreAdapterProperty.ComputePreemptionGranularity, out var graphicsPreemption);
+            
             DeviceType type;
             Guid graphics = DXCORE_ADAPTER_ATTRIBUTE_D3D12_GRAPHICS;
             Guid compute = DXCORE_ADAPTER_ATTRIBUTE_D3D12_CORE_COMPUTE;
@@ -128,7 +153,28 @@ namespace Voltium.Core.Infrastructure
                 luid,
                 driverVersion,
                 isSoftware: !isHardware,
-                type
+                type,
+                computePreemption switch
+                {
+                    D3DKMDT_COMPUTE_PREEMPTION_GRANULARITY.D3DKMDT_COMPUTE_PREEMPTION_NONE => ComputePreemptionGranularity.None,
+                    D3DKMDT_COMPUTE_PREEMPTION_GRANULARITY.D3DKMDT_COMPUTE_PREEMPTION_DMA_BUFFER_BOUNDARY => ComputePreemptionGranularity.PerExecution,
+                    D3DKMDT_COMPUTE_PREEMPTION_GRANULARITY.D3DKMDT_COMPUTE_PREEMPTION_DISPATCH_BOUNDARY => ComputePreemptionGranularity.PerDispatch,
+                    D3DKMDT_COMPUTE_PREEMPTION_GRANULARITY.D3DKMDT_COMPUTE_PREEMPTION_THREAD_GROUP_BOUNDARY => ComputePreemptionGranularity.PerThreadGroup,
+                    D3DKMDT_COMPUTE_PREEMPTION_GRANULARITY.D3DKMDT_COMPUTE_PREEMPTION_THREAD_BOUNDARY => ComputePreemptionGranularity.PerThread,
+                    D3DKMDT_COMPUTE_PREEMPTION_GRANULARITY.D3DKMDT_COMPUTE_PREEMPTION_SHADER_BOUNDARY => ComputePreemptionGranularity.PerInstruction,
+                    _ => 0
+                },
+
+                graphicsPreemption switch
+                {
+                    D3DKMDT_GRAPHICS_PREEMPTION_GRANULARITY.D3DKMDT_GRAPHICS_PREEMPTION_NONE => GraphicsPreemptionGranularity.None,
+                    D3DKMDT_GRAPHICS_PREEMPTION_GRANULARITY.D3DKMDT_GRAPHICS_PREEMPTION_DMA_BUFFER_BOUNDARY => GraphicsPreemptionGranularity.PerExecution,
+                    D3DKMDT_GRAPHICS_PREEMPTION_GRANULARITY.D3DKMDT_GRAPHICS_PREEMPTION_PRIMITIVE_BOUNDARY => GraphicsPreemptionGranularity.PerDraw,
+                    D3DKMDT_GRAPHICS_PREEMPTION_GRANULARITY.D3DKMDT_GRAPHICS_PREEMPTION_TRIANGLE_BOUNDARY => GraphicsPreemptionGranularity.PerTriangle,
+                    D3DKMDT_GRAPHICS_PREEMPTION_GRANULARITY.D3DKMDT_GRAPHICS_PREEMPTION_PIXEL_BOUNDARY => GraphicsPreemptionGranularity.PerPixel,
+                    D3DKMDT_GRAPHICS_PREEMPTION_GRANULARITY.D3DKMDT_GRAPHICS_PREEMPTION_SHADER_BOUNDARY => GraphicsPreemptionGranularity.PerInstruction,
+                    _ => 0
+                }
             );
 
             void GetProperty<T>(DXCoreAdapterProperty property, out T val) where T : unmanaged
@@ -147,7 +193,7 @@ namespace Voltium.Core.Infrastructure
 
         public override bool TryEnablePreferentialOrdering(DevicePreference preference)
         {
-            DXCoreAdapterPreference* pPreferences = stackalloc DXCoreAdapterPreference[4];
+            DXCoreAdapterPreference* pPreferences = stackalloc DXCoreAdapterPreference[3];
             int i = 0;
 
             _softwareOnly = preference.HasFlag(DevicePreference.Software) && !preference.HasFlag(DevicePreference.Hardware);
@@ -181,7 +227,7 @@ namespace Voltium.Core.Infrastructure
                     return false;
                 }
 
-                StackSentinel.StackAssert(i < 4);
+                StackSentinel.StackAssert(i < 3);
                 pPreferences[i++] = dxCorePref;
                 return true;
             }

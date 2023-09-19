@@ -1,6 +1,6 @@
 using System;
-using TerraFX.Interop;
-using static TerraFX.Interop.DXGI_FORMAT;
+using TerraFX.Interop.DirectX;
+using static TerraFX.Interop.DirectX.DXGI_FORMAT;
 
 #nullable enable
 

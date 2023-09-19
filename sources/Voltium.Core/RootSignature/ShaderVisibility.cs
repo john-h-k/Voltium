@@ -1,4 +1,4 @@
-using static TerraFX.Interop.D3D12_SHADER_VISIBILITY;
+using static TerraFX.Interop.DirectX.D3D12_SHADER_VISIBILITY;
 
 namespace Voltium.Core
 {

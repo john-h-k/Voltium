@@ -72,7 +72,7 @@ namespace Voltium.Common
         ///
         /// </summary>
         public DeviceDisconnectedException(ComputeDevice device, string message, int hr, object? otherData = null)
-            : base(device, $"{message} -- Error code: {DebugExtensions.DeviceRemovedMessage(hr)}")
+            : base(device, $"{message} -- Error code: 0x{hr:X8}")
         {
         }
     }

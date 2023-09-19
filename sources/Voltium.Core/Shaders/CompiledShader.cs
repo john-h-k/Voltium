@@ -2,7 +2,7 @@ using System;
 using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Runtime.Intrinsics.X86;
-using TerraFX.Interop;
+using TerraFX.Interop.DirectX;
 using Voltium.Common;
 using Voltium.Core.Pipeline;
 
@@ -10,8 +10,8 @@ namespace Voltium.Core.Devices
 {
     public unsafe struct ShaderExport
     {
-        public ReadOnlyMemory<char> Name { get; set; }
-        public ReadOnlyMemory<char> ExportRename { get; set; }
+        public string Name { get; set; }
+        public string ExportRename { get; set; }
     }
 
     /// <summary>

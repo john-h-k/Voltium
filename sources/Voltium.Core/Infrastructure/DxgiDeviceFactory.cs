@@ -1,12 +1,16 @@
 using System;
 using TerraFX.Interop;
 using Voltium.Common;
-
-using static TerraFX.Interop.Windows;
+using TerraFX.Interop.DirectX;
+using TerraFX.Interop.Windows;
+using static TerraFX.Interop.DirectX.DirectX;
+using static TerraFX.Interop.Windows.IID;
+using System.Runtime.Versioning;
 
 namespace Voltium.Core.Infrastructure
 {
-    internal sealed unsafe class DxgiDeviceFactory : DeviceFactory
+    [SupportedOSPlatform("windows10.0.17763.0")]
+    internal sealed unsafe class DxgiDeviceFactory : AdapterFactory
     {
         private UniqueComPtr<IDXGIFactory6> _factory;
         private bool _enumByPreference;
@@ -30,7 +34,7 @@ namespace Voltium.Core.Infrastructure
             {
                 using UniqueComPtr<IDXGIAdapter1> adapter = default;
                 Guard.ThrowIfFailed(_factory.Ptr->EnumWarpAdapter(adapter.Iid, (void**)&adapter));
-                return CreateAdapter(adapter.Move());
+                return CreateAdapter(adapter.QueryInterface<IDXGIAdapter2>());
             });
         }
 
@@ -41,7 +45,7 @@ namespace Voltium.Core.Infrastructure
             {
                 while (true)
                 {
-                    using UniqueComPtr<IDXGIAdapter1> dxgiAdapter = default;
+                    using UniqueComPtr<IDXGIAdapter2> dxgiAdapter = default;
 
 
                     Guard.ThrowIfFailed(
@@ -85,19 +89,26 @@ namespace Voltium.Core.Infrastructure
             else
             {
                 using UniqueComPtr<IDXGIAdapter1> dxgiAdapter = default;
+                using UniqueComPtr<IDXGIAdapter2> dxgiAdapter2 = default;
 
                 Guard.ThrowIfFailed(_factory.Ptr->EnumAdapters1(index, ComPtr.GetAddressOf(&dxgiAdapter)));
-                adapter = CreateAdapter(dxgiAdapter.Move());
+
+                if (!dxgiAdapter.TryQueryInterface(out *&dxgiAdapter2))
+                {
+                    ThrowHelper.ThrowPlatformNotSupportedException("Unexpected");
+                }
+
+                adapter = CreateAdapter(dxgiAdapter2.Move());
 
                 return true;
             }
         }
 
-        private static Adapter CreateAdapter(UniqueComPtr<IDXGIAdapter1> dxgiAdapter)
+        private static Adapter CreateAdapter(UniqueComPtr<IDXGIAdapter2> dxgiAdapter)
         {
             var p = dxgiAdapter.Ptr;
-            DXGI_ADAPTER_DESC1 desc;
-            Guard.ThrowIfFailed(p->GetDesc1(&desc));
+            DXGI_ADAPTER_DESC2 desc;
+            Guard.ThrowIfFailed(p->GetDesc2(&desc));
 
             LARGE_INTEGER driverVersion;
             Guid iid = IID_IDXGIDevice;
@@ -118,7 +129,26 @@ namespace Voltium.Core.Infrastructure
                 desc.AdapterLuid,
                 (ulong)driverVersion.QuadPart,
                 (desc.Flags & (int)DXGI_ADAPTER_FLAG.DXGI_ADAPTER_FLAG_SOFTWARE) != 0,
-                DeviceType.GraphicsAndCompute // DXGI doesn't support enumerating non-graphics adapters
+                DeviceType.GraphicsAndCompute, // DXGI doesn't support enumerating non-graphics adapters
+                desc.ComputePreemptionGranularity switch
+                {
+                    DXGI_COMPUTE_PREEMPTION_GRANULARITY.DXGI_COMPUTE_PREEMPTION_DMA_BUFFER_BOUNDARY => ComputePreemptionGranularity.PerExecution,
+                    DXGI_COMPUTE_PREEMPTION_GRANULARITY.DXGI_COMPUTE_PREEMPTION_DISPATCH_BOUNDARY => ComputePreemptionGranularity.PerDispatch,
+                    DXGI_COMPUTE_PREEMPTION_GRANULARITY.DXGI_COMPUTE_PREEMPTION_THREAD_GROUP_BOUNDARY => ComputePreemptionGranularity.PerThreadGroup,
+                    DXGI_COMPUTE_PREEMPTION_GRANULARITY.DXGI_COMPUTE_PREEMPTION_THREAD_BOUNDARY => ComputePreemptionGranularity.PerThread,
+                    DXGI_COMPUTE_PREEMPTION_GRANULARITY.DXGI_COMPUTE_PREEMPTION_INSTRUCTION_BOUNDARY => ComputePreemptionGranularity.PerInstruction,
+                    _ => 0
+                },
+
+                desc.GraphicsPreemptionGranularity switch
+                {
+                    DXGI_GRAPHICS_PREEMPTION_GRANULARITY.DXGI_GRAPHICS_PREEMPTION_DMA_BUFFER_BOUNDARY => GraphicsPreemptionGranularity.PerExecution,
+                    DXGI_GRAPHICS_PREEMPTION_GRANULARITY.DXGI_GRAPHICS_PREEMPTION_PRIMITIVE_BOUNDARY => GraphicsPreemptionGranularity.PerDraw,
+                    DXGI_GRAPHICS_PREEMPTION_GRANULARITY.DXGI_GRAPHICS_PREEMPTION_TRIANGLE_BOUNDARY => GraphicsPreemptionGranularity.PerTriangle,
+                    DXGI_GRAPHICS_PREEMPTION_GRANULARITY.DXGI_GRAPHICS_PREEMPTION_PIXEL_BOUNDARY => GraphicsPreemptionGranularity.PerPixel,
+                    DXGI_GRAPHICS_PREEMPTION_GRANULARITY.DXGI_GRAPHICS_PREEMPTION_INSTRUCTION_BOUNDARY => GraphicsPreemptionGranularity.PerInstruction,
+                    _ => 0
+                }
             );
         }
 

@@ -7,96 +7,60 @@ using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Contexts;
 using Voltium.Core.Memory;
+using Voltium.Core.NativeApi;
 using Buffer = Voltium.Core.Memory.Buffer;
 
 namespace Voltium.Core
 {
+    public struct BufferRegion
+    {
+
+    }
+
     public unsafe partial class ComputeContext
     {
         /// <summary>
-        /// Updates a top-level acceleration structure from bottom-level acceleration structures
-        /// </summary>
-        /// <param name="bottomLevelGpuPointer">The GPU address of either an array of RaytracingInstanceDescs, or an array of pointers to RaytracingInstanceDescs, depending on the value of <paramref name="layout"/></param>
-        /// <param name="layout">The layout of <paramref name="bottomLevelGpuPointer"/>, either an array, or an array of pointers</param>
-        /// <param name="numBottomLevelStructures">The number of structures pointed to by <paramref name="bottomLevelGpuPointer"/></param>
-        /// <param name="source">The source <see cref="Buffer"/> of the old acceleration structure to update</param>
-        /// <param name="scratch">The scratch-space <see cref="Buffer"/> used by the driver during the update</param>
-        /// <param name="dest">The destination buffer for the updated structure. This can be the same as <paramref name="source"/> to perform an in-place update</param>
-        /// <param name="flags">The <see cref="BuildAccelerationStructureFlags"/> to apply to the update</param>
-        public void UpdateAccelerationStructure(
-            ulong bottomLevelGpuPointer,
-            Layout layout,
-            uint numBottomLevelStructures,
-            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure source,
-            [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer scratch,
-            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure dest,
-            BuildAccelerationStructureFlags flags = BuildAccelerationStructureFlags.None
-        )
-        {
-            D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC build = new()
-            {
-                SourceAccelerationStructureData = source.GpuAddress,
-                ScratchAccelerationStructureData = scratch.GpuAddress,
-                DestAccelerationStructureData = dest.GpuAddress,
-                Inputs = new D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS
-                {
-                    Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE.D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL,
-                    Flags = ((D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS)flags.RemoveFlags()) | D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS.D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PERFORM_UPDATE,
-                    DescsLayout = (D3D12_ELEMENTS_LAYOUT)layout,
-                    InstanceDescs = bottomLevelGpuPointer,
-                    NumDescs = numBottomLevelStructures
-                }
-            };
-
-            FlushBarriers();
-            List->BuildRaytracingAccelerationStructure(&build, 0, null);
-            InsertBarrierIfNecessary(dest, flags);
-        }
-
-        /// <summary>
         /// Builds a top-level acceleration structure from bottom-level acceleration structures
         /// </summary>
-        /// <param name="bottomLevelGpuPointer">The GPU address of either an array of RaytracingInstanceDescs, or an array of pointers to RaytracingInstanceDescs, depending on the value of <paramref name="layout"/></param>
-        /// <param name="layout">The layout of <paramref name="bottomLevelGpuPointer"/>, either an array, or an array of pointers</param>
-        /// <param name="numBottomLevelStructures">The number of structures pointed to by <paramref name="bottomLevelGpuPointer"/></param>
+        /// <param name="instances">The GPU address of either an array of RaytracingInstanceDescs, or an array of pointers to RaytracingInstanceDescs, depending on the value of <paramref name="layout"/></param>
+        /// <param name="layout">The layout of <paramref name="instances"/>, either an array, or an array of pointers</param>
+        /// <param name="instanceCount">The number of structures pointed to by <paramref name="instances"/></param>
         /// <param name="scratch">The scratch-space <see cref="Buffer"/> used by the driver during the build</param>
         /// <param name="dest">The destination buffer for the structure</param>
         /// <param name="flags">The <see cref="BuildAccelerationStructureFlags"/> to apply to the build</param>
-        public void BuildAccelerationStructure(
-            in Buffer bottomLevelGpuPointer,
-            Layout layout,
-            uint numBottomLevelStructures,
-            [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer scratch,
-            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure dest,
+        [IllegalBundleMethod, IllegalRenderPassMethod]
+        public void BuildTopLevelAccelerationStructure(
+            in Buffer instances,
+            uint instanceCount,
+            LayoutType layout,
+            in Buffer scratch,
+            in RaytracingAccelerationStructure dest,
             BuildAccelerationStructureFlags flags = BuildAccelerationStructureFlags.None
         )
         {
-            D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC build = new()
+            var command = new CommandBuildTopLevelAccelerationStructure
             {
-                ScratchAccelerationStructureData = scratch.GpuAddress,
-                DestAccelerationStructureData = dest.GpuAddress,
-                Inputs = new D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS
-                {
-                    Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE.D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL,
-                    Flags = (D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS)flags.RemoveFlags(),
-                    DescsLayout = (D3D12_ELEMENTS_LAYOUT)layout,
-                    InstanceDescs = bottomLevelGpuPointer.GpuAddress,
-                    NumDescs = numBottomLevelStructures
-                }
+                Instances = instances.Handle,
+                InstanceCount = instanceCount,
+                Layout = layout,
+                Dest = dest.Handle,
+                Scratch = scratch.Handle,
+                Flags = flags,
+                Offset = 0
             };
 
-            List->BuildRaytracingAccelerationStructure(&build, 0, null);
-            InsertBarrierIfNecessary(dest, flags);
+            _encoder.Emit(&command);
         }
 
-        /// <inheritdoc cref="BuildAccelerationStructure(ReadOnlySpan{GeometryDesc}, in Buffer, in RaytracingAccelerationStructure, BuildAccelerationStructureFlags)" />
-        public void BuildAccelerationStructure(
+        /// <inheritdoc cref="BuildBottomLevelAccelerationStructure(ReadOnlySpan{GeometryDesc}, in Buffer, in RaytracingAccelerationStructure, BuildAccelerationStructureFlags)" />
+        [IllegalBundleMethod, IllegalRenderPassMethod]
+        public void BuildBottomLevelAccelerationStructure(
             in GeometryDesc geometry,
-            [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer scratch,
-            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure dest,
+            in Buffer scratch,
+            in RaytracingAccelerationStructure dest,
             BuildAccelerationStructureFlags flags = BuildAccelerationStructureFlags.None
         )
-            => BuildAccelerationStructure(stackalloc[] { geometry }, scratch, dest, flags);
+            => BuildBottomLevelAccelerationStructure(stackalloc[] { geometry }, scratch, dest, flags);
 
         /// <summary>
         /// Builds a bottom-level acceleration structure from geometry
@@ -105,86 +69,27 @@ namespace Voltium.Core
         /// <param name="scratch">The scratch-space <see cref="Buffer"/> used by the driver during the build</param>
         /// <param name="dest">The destination buffer for the structure</param>
         /// <param name="flags">The <see cref="BuildAccelerationStructureFlags"/> to apply to the build</param>
-        public void BuildAccelerationStructure(
+        [IllegalBundleMethod, IllegalRenderPassMethod]
+        public void BuildBottomLevelAccelerationStructure(
             ReadOnlySpan<GeometryDesc> geometry,
-            [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer scratch,
-            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure dest,
+            in Buffer scratch,
+            in RaytracingAccelerationStructure dest,
             BuildAccelerationStructureFlags flags = BuildAccelerationStructureFlags.None
         )
         {
-            fixed (GeometryDesc* pGeo = geometry)
+            fixed (GeometryDesc* pGeometry = geometry)
             {
-                D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC build = new()
+                var command = new CommandBuildBottomLevelAccelerationStructure
                 {
-                    ScratchAccelerationStructureData = scratch.GpuAddress,
-                    DestAccelerationStructureData = dest.GpuAddress,
-                    Inputs = new D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS
-                    {
-                        Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE.D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL,
-                        Flags = (D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS)flags.RemoveFlags(),
-                        DescsLayout = D3D12_ELEMENTS_LAYOUT.D3D12_ELEMENTS_LAYOUT_ARRAY,
-                        pGeometryDescs = (D3D12_RAYTRACING_GEOMETRY_DESC*)pGeo,
-                        NumDescs = (uint)geometry.Length
-                    }
+                    GeometryCount = (uint)geometry.Length,
+                    Dest = dest.Handle,
+                    Scratch = scratch.Handle,
+                    Flags = flags
                 };
 
-                FlushBarriers();
-                List->BuildRaytracingAccelerationStructure(&build, 0, null);
-                InsertBarrierIfNecessary(dest, flags);
+                _encoder.EmitVariable(&command, pGeometry, command.GeometryCount);
             }
         }
-
-
-        /// <inheritdoc cref="UpdateAccelerationStructure(ReadOnlySpan{GeometryDesc}, in RaytracingAccelerationStructure, in Buffer, in RaytracingAccelerationStructure, BuildAccelerationStructureFlags)"/>
-        public void UpdateAccelerationStructure(
-            in GeometryDesc geometry,
-            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure source,
-            [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer scratch,
-            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure dest,
-            BuildAccelerationStructureFlags flags = BuildAccelerationStructureFlags.None
-        )
-            => UpdateAccelerationStructure(stackalloc[] { geometry }, source, scratch, dest, flags);
-
-        /// <summary>
-        /// Updates a bottom-level acceleration structure from geometry
-        /// </summary>
-        /// <param name="geometry">The <see cref="GeometryDesc"/>s to use to update the structure</param>
-        /// <param name="source">The source <see cref="Buffer"/> of the old acceleration structure to update</param>
-        /// <param name="scratch">The scratch-space <see cref="Buffer"/> used by the driver during the update</param>
-        /// <param name="dest">The destination buffer for the updated structure. This can be the same as <paramref name="source"/> to perform an in-place update</param>
-        /// <param name="flags">The <see cref="BuildAccelerationStructureFlags"/> to apply to the build</param>
-        public void UpdateAccelerationStructure(
-            ReadOnlySpan<GeometryDesc> geometry,
-            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure source,
-            [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer scratch,
-            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure dest,
-            BuildAccelerationStructureFlags flags = BuildAccelerationStructureFlags.None
-        )
-        {
-            fixed (GeometryDesc* pGeo = geometry)
-            {
-                D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC build = new()
-                {
-                    SourceAccelerationStructureData = source.GpuAddress,
-                    ScratchAccelerationStructureData = scratch.GpuAddress,
-                    DestAccelerationStructureData = dest.GpuAddress,
-                    Inputs = new D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS
-                    {
-                        Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE.D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL,
-                        Flags = ((D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS)flags.RemoveFlags()) | D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS.D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PERFORM_UPDATE,
-                        DescsLayout = D3D12_ELEMENTS_LAYOUT.D3D12_ELEMENTS_LAYOUT_ARRAY,
-                        pGeometryDescs = (D3D12_RAYTRACING_GEOMETRY_DESC*)pGeo,
-                        NumDescs = (uint)geometry.Length
-                    }
-                };
-
-                FlushBarriers();
-                List->BuildRaytracingAccelerationStructure(&build, 0, null);
-                InsertBarrierIfNecessary(dest, flags);
-            }
-        }
-
-
 
 
         /// <summary>
@@ -192,45 +97,22 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="source">The acceleration structure to copy from</param>
         /// <param name="destination">The acceleration structure to copy to</param>
+        /// <param name="compact">Whether to compact the acceleration structure</param>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void CopyAccelerationStructure(
-            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure source,
-            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure destination
+            in RaytracingAccelerationStructure source,
+            in RaytracingAccelerationStructure destination,
+            bool compact = false
         )
         {
-            FlushBarriers();
-            List->CopyRaytracingAccelerationStructure(source.GpuAddress, destination.GpuAddress, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_COPY_MODE.D3D12_RAYTRACING_ACCELERATION_STRUCTURE_COPY_MODE_CLONE);
-        }
-
-        public void EmitAccelerationStructureCompactedSize(
-            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure accelerationStructure,
-            [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer dest
-        )
-        {
-            var info = new D3D12_RAYTRACING_ACCELERATION_STRUCTURE_POSTBUILD_INFO_DESC
+            var command = new CommandCopyAccelerationStructure
             {
-                InfoType = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_POSTBUILD_INFO_TYPE.D3D12_RAYTRACING_ACCELERATION_STRUCTURE_POSTBUILD_INFO_COMPACTED_SIZE,
-                DestBuffer = dest.GpuAddress
+                Source = source.Handle,
+                Dest = destination.Handle,
+                Compact = compact
             };
 
-            var asAddress = accelerationStructure.GpuAddress;
-
-            List->EmitRaytracingAccelerationStructurePostbuildInfo(&info, 1, &asAddress);
-        }
-
-        public void EmitAccelerationStructureSerializationInfo(
-            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure accelerationStructure,
-            [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer dest
-        )
-        {
-            var info = new D3D12_RAYTRACING_ACCELERATION_STRUCTURE_POSTBUILD_INFO_DESC
-            {
-                InfoType = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_POSTBUILD_INFO_TYPE.D3D12_RAYTRACING_ACCELERATION_STRUCTURE_POSTBUILD_INFO_SERIALIZATION,
-                DestBuffer = dest.GpuAddress
-            };
-
-            var asAddress = accelerationStructure.GpuAddress;
-
-            List->EmitRaytracingAccelerationStructurePostbuildInfo(&info, 1, &asAddress);
+            _encoder.Emit(&command);
         }
 
         /// <summary>
@@ -240,13 +122,19 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="accelerationStructure">The acceleration structure to be serialized</param>
         /// <param name="serialized">The output to contain the opaque serialized data</param>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void SerializeAccelerationStructure(
-            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in Buffer accelerationStructure,
-            [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer serialized
+            in RaytracingAccelerationStructure accelerationStructure,
+            in Buffer serialized
         )
         {
-            FlushBarriers();
-            List->CopyRaytracingAccelerationStructure(serialized.GpuAddress, accelerationStructure.GpuAddress, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_COPY_MODE.D3D12_RAYTRACING_ACCELERATION_STRUCTURE_COPY_MODE_SERIALIZE);
+            var command = new CommandSerializeAccelerationStructure
+            {
+                Source = accelerationStructure.Handle,
+                Dest = serialized.Handle
+            };
+
+            _encoder.Emit(&command);
         }
 
         /// <summary>
@@ -256,98 +144,95 @@ namespace Voltium.Core
         /// </summary>
         /// <param name="accelerationStructure">The opaque serialized data to be deserialized</param>
         /// <param name="serialized">The output to contain the acceleration structure</param>
+        [IllegalBundleMethod, IllegalRenderPassMethod]
         public void DeserializeAccelerationStructure(
-            [RequiresResourceState(ResourceState.NonPixelShaderResource)] in Buffer serialized,
-            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in Buffer accelerationStructure
+            in Buffer serialized,
+            in RaytracingAccelerationStructure accelerationStructure
         )
         {
-            FlushBarriers();
-            List->CopyRaytracingAccelerationStructure(accelerationStructure.GpuAddress, serialized.GpuAddress, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_COPY_MODE.D3D12_RAYTRACING_ACCELERATION_STRUCTURE_COPY_MODE_DESERIALIZE);
-        }
-
-        /// <summary>
-        /// Compacts an acceleration structure so it occupies less space in memory
-        /// </summary>
-        /// <param name="uncompacted">The acceleration structure to compact</param>
-        /// <param name="compacted">The output to contain the acceleration structure</param>
-        public void CompactAccelerationStructure(
-            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure uncompacted,
-            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure compacted
-        )
-        {
-            FlushBarriers();
-            List->CopyRaytracingAccelerationStructure(uncompacted.GpuAddress, compacted.GpuAddress, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_COPY_MODE.D3D12_RAYTRACING_ACCELERATION_STRUCTURE_COPY_MODE_COMPACT);
-        }
-
-        /// <summary>
-        /// Dispatches a raytracing operation
-        /// </summary>
-        /// <param name="desc">The <see cref="RayDispatchDesc"/> which describes the raytracing operation</param>
-        public void DispatchRays(in RayDispatchDesc desc)
-        {
-            fixed (D3D12_DISPATCH_RAYS_DESC* pDesc = &desc.Desc)
+            var command = new CommandDeserializeAccelerationStructure
             {
-                List->DispatchRays(pDesc);
-            }
-        }
-
-        /// <summary>
-        /// Dispatches a raytracing operation
-        /// </summary>
-        public void DispatchRays(
-            uint width,
-            in ShaderRecord raygenRecord,
-            in ShaderRecordTable hitGroupTable = default,
-            in ShaderRecordTable missShaderTable = default,
-            in ShaderRecordTable callableShaderTable = default
-        ) => DispatchRays(width, 1, 1, raygenRecord, hitGroupTable, missShaderTable, callableShaderTable);
-
-        /// <summary>
-        /// Dispatches a raytracing operation
-        /// </summary>
-        public void DispatchRays(
-            uint width,
-            uint height,
-            in ShaderRecord raygenRecord,
-            in ShaderRecordTable hitGroupTable = default,
-            in ShaderRecordTable missShaderTable = default,
-            in ShaderRecordTable callableShaderTable = default
-        ) => DispatchRays(width, height, 1, raygenRecord, hitGroupTable, missShaderTable, callableShaderTable);
-
-        /// <summary>
-        /// Dispatches a raytracing operation
-        /// </summary>
-        public void DispatchRays(
-            uint width,
-            uint height,
-            uint depth,
-            in ShaderRecord raygenRecord,
-            in ShaderRecordTable hitGroupTable = default,
-            in ShaderRecordTable missShaderTable = default,
-            in ShaderRecordTable callableShaderTable = default
-        )
-        {
-            var desc = new D3D12_DISPATCH_RAYS_DESC
-            {
-                Width = width,
-                Height = height,
-                Depth = depth,
-                RayGenerationShaderRecord = raygenRecord.Range,
-                HitGroupTable = hitGroupTable.RangeAndStride,
-                MissShaderTable = missShaderTable.RangeAndStride,
-                CallableShaderTable = callableShaderTable.RangeAndStride
+                Source = serialized.Handle,
+                Dest = accelerationStructure.Handle
             };
 
-            List->DispatchRays(&desc);
+            _encoder.Emit(&command);
         }
+        /// <summary>
+        /// Dispatches a raytracing operation
+        /// </summary>
+        /// <param name="x"></param>
+        /// <param name="desc">The <see cref="RayTables"/> which describes the raytracing operation</param>
+        [IllegalRenderPassMethod]
+        public void DispatchRays(uint x, in RayTables desc) => DispatchRays(x, 1, 1, desc);
+        /// <summary>
+        /// Dispatches a raytracing operation
+        /// </summary>
+        /// <param name="x"></param>
+        /// <param name="y"></param>
+        /// <param name="desc">The <see cref="RayTables"/> which describes the raytracing operation</param>
+        [IllegalRenderPassMethod]
+        public void DispatchRays(uint x, uint y, in RayTables desc) => DispatchRays(x, y, 1, desc);
 
-
-        private void InsertBarrierIfNecessary(in RaytracingAccelerationStructure dest, BuildAccelerationStructureFlags flags)
+        /// <summary>
+        /// Dispatches a raytracing operation
+        /// </summary>
+        /// <param name="x"></param>
+        /// <param name="y"></param>
+        /// <param name="z"></param>
+        /// <param name="desc">The <see cref="RayTables"/> which describes the raytracing operation</param>
+        [IllegalRenderPassMethod]
+        public void DispatchRays(uint x, uint y, uint z, in RayTables desc)
         {
-            if (flags.HasFlag(BuildAccelerationStructureFlags.InsertUavBarrier))
+            var command = new CommandRayTrace
             {
-                Barrier(ResourceBarrier.UnorderedAccess(dest));
-            }
+                Width = desc.Width,
+                Height = desc.Height,
+                Depth = desc.Depth,
+
+                RayGeneration =
+                new ShaderRecord
+                {
+                    Buffer = desc.RayGenBuffer.Handle,
+                    Offset = 0,
+                    Length = desc.RayGenLength
+                },
+
+                MissShader = new ShaderRecordArray
+                {
+                    RecordCount = desc.MissShaderCount,
+                    Record = new ShaderRecord
+                    {
+                        Buffer = desc.MissShaderBuffer.Handle,
+                        Offset = 0,
+                        Length = desc.MissShaderLength
+                    }
+                },
+
+                HitGroup = new ShaderRecordArray
+                {
+                    RecordCount = desc.HitGroupCount,
+                    Record = new ShaderRecord
+                    {
+                        Buffer = desc.HitGroupBuffer.Handle,
+                        Offset = 0,
+                        Length = desc.HitGroupLength
+                    }
+                },
+
+                Callable = new ShaderRecordArray
+                {
+                    RecordCount = desc.CallableShaderCount,
+                    Record = new ShaderRecord
+                    {
+                        Buffer = desc.CallableShaderBuffer.Handle,
+                        Offset = 0,
+                        Length = desc.CallableShaderLength
+                    }
+                }
+            };
+
+            _encoder.Emit(&command);
         }
     }
 }

@@ -1,74 +1,88 @@
 using System;
-using System.Collections.Generic;
-using System.Runtime.CompilerServices;
+using System.Buffers;
 using System.Runtime.InteropServices;
-using System.Threading.Tasks;
-using TerraFX.Interop;
 using Voltium.Common;
-using Voltium.Core.Devices;
 using Voltium.Core.Memory;
-using Voltium.Core.Pool;
+using Voltium.Core.NativeApi;
 using Buffer = Voltium.Core.Memory.Buffer;
 
-namespace Voltium.Core
+
+namespace Voltium.Core.Contexts
 {
     /// <summary>
     /// Represents a generic Gpu context
     /// </summary>
-    public unsafe partial class GpuContext : IDisposable
+    public unsafe partial class GpuContext
     {
-        internal ContextParams Params;
-        internal List<IDisposable?> AttachedResources { get; private set; } = new();
+        private ValueList<ResourceHandle> _attachedResources;
+        private bool _closed;
+        private ReadOnlyMemory<byte> _closedMemory;
+        private protected ContextEncoder<ValueResettableArrayBufferWriter<byte>> _encoder;
+        private ContextEncoder<ValueResettableArrayBufferWriter<byte>> _closedForReset;
+        private PipelineHandle? _firstPipeline;
 
-        internal ID3D12GraphicsCommandList* GetListPointer() => (ID3D12GraphicsCommandList*)List;
+        internal PipelineHandle? FirstPipeline => _firstPipeline;
+        internal ReadOnlyValueList<ResourceHandle> AttachedResources => new(_attachedResources);
+        internal ReadOnlyMemory<byte> Commands
+            => _closed
+                ? _closedMemory
+                : ThrowHelper.ThrowInvalidOperationException<ReadOnlyMemory<byte>>("GpuContext was not closed (accessing buffer is invalid)");
 
-        internal ID3D12GraphicsCommandList6* List => Params.List.Ptr;
-        internal ID3D12CommandAllocator* Allocator => Params.Allocator.Ptr;
-        internal ComputeDevice Device => Params.Device;
-
-        internal ExecutionContext Context => Params.Context;
-
-        internal GpuContext(in ContextParams @params)
+        public GpuContext()
         {
-            Params = @params;
-            // We can't read past this many buffers as we skip init'ing them
-
-            // Don't bother zero'ing expensive buffer
+            _attachedResources = new(1, ArrayPool<ResourceHandle>.Shared);
+            _encoder = ContextEncoder.Create(new ValueResettableArrayBufferWriter<byte>(64));
+            _closedMemory = ReadOnlyMemory<byte>.Empty;
+            _firstPipeline = default;
         }
 
-        [VariadicGeneric("Attach(%t); %t = default!;", minNumberArgs: 1)]
-        public void Attach<T0>(ref T0 t0)
-            where T0 : IDisposable
+        public struct DisposableResource
         {
-            Attach(t0);
-            t0 = default!;
-            VariadicGenericAttribute.InsertExpressionsHere();
+            internal ResourceHandle Handle;
+            private DisposableResource(in ResourceHandle handle) => Handle = handle;
+
+            public static implicit operator DisposableResource(in Buffer buff) => new(new(buff.Handle));
+            public static implicit operator DisposableResource(in Texture tex) => new(new(tex.Handle));
+            public static implicit operator DisposableResource(in RaytracingAccelerationStructure accelerationStructure) => new(new(accelerationStructure.Handle));
         }
 
-        private void Attach(IDisposable resource)
+        public void Attach(ReadOnlySpan<DisposableResource> arr)
         {
-            AttachedResources.Add(resource);
+            _attachedResources.AddRange(MemoryMarshal.Cast<DisposableResource, ResourceHandle>(arr));
+        }
+
+        public void Attach(in DisposableResource buffer0, in DisposableResource buffer1, in DisposableResource buffer2, in DisposableResource buffer3, in DisposableResource buffer4) { Attach(buffer0); Attach(buffer1); Attach(buffer2); Attach(buffer3); Attach(buffer4); }
+        public void Attach(in DisposableResource buffer0, in DisposableResource buffer1, in DisposableResource buffer2, in DisposableResource buffer3) { Attach(buffer0); Attach(buffer1); Attach(buffer2); Attach(buffer3); }
+        public void Attach(in DisposableResource buffer0, in DisposableResource buffer1, in DisposableResource buffer2) { Attach(buffer0); Attach(buffer1); Attach(buffer2); }
+        public void Attach(in DisposableResource buffer0, in DisposableResource buffer1) { Attach(buffer0); Attach(buffer1); }
+        public void Attach(in DisposableResource buffer)
+        {
+            Attach(buffer.Handle);
+        }
+
+        private void Attach(in ResourceHandle resource)
+        {
+            _attachedResources.Add(resource);
         }
 
         /// <summary>
         /// Submits this context to the device
         /// </summary>
-        public virtual void Close() => Dispose();
-
-        /// <summary>
-        /// Submits this context to the device
-        /// </summary>
-        public virtual void Dispose()
+        public void Close()
         {
-            Params.Device.ThrowIfFailed(List->Close());
-            if (Params.Flags is ContextFlags.ExecuteOnClose or ContextFlags.BlockOnClose)
-            {
-                var task = Params.Device.Execute(this);
-                if (Params.Flags is ContextFlags.BlockOnClose)
-                {
-                    task.Block();
-                }
-            }
+            _closedMemory = _encoder.Writer.WrittenMemory;
+            _closedForReset = _encoder;
+            _encoder = default;
+            _closed = true;
+        }
+
+        public void Reset()
+        {
+            _closedMemory = default;
+            _encoder = _closedForReset;
+            _closedForReset = default;
+            _encoder.Writer.Clear(false);
+            _closed = false;
         }
     }
 }

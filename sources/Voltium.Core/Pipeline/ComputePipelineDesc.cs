@@ -1,56 +1,101 @@
+using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using TerraFX.Interop;
 using Voltium.Core.Devices;
+using Voltium.Core.Memory;
+using Voltium.Core.NativeApi;
 
 namespace Voltium.Core.Pipeline
 {
-
     /// <summary>
     /// Describes the state and settings of a compute pipeline
     /// </summary>
-    public unsafe partial class ComputePipelineDesc
+    public unsafe partial struct ComputePipelineDesc
     {
         /// <summary>
-        /// Creates a new <see cref="ComputePipelineDesc"/>
+        /// The <see cref="RootSignatureHandle"/> for this pipeline
         /// </summary>
-        public ComputePipelineDesc()
-        {
-            Desc.RootSig.Type = D3D12_PIPELINE_STATE_SUBOBJECT_TYPE.D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_ROOT_SIGNATURE;
-
-            Desc.Compute = new(null, 0, ShaderType.Compute);
-        }
-
-        private _PsoDesc Desc;
-
-
-        internal ref byte GetPinnableReference() => ref Unsafe.As<_PsoDesc, byte>(ref Desc);
-        internal nuint DescSize => (nuint)sizeof(_PsoDesc);
-
-        private struct _PsoDesc
-        {
-            public _RootSig RootSig;
-
-            public CompiledShader Compute;
-
-
-            public struct _RootSig
-            {
-                public D3D12_PIPELINE_STATE_SUBOBJECT_TYPE Type;
-                public ID3D12RootSignature* Pointer;
-            }
-        }
-
-        /// <summary>
-        /// The root signature for the pipeline
-        /// </summary>
-        public RootSignature? RootSignature { get => RootSignature.GetRootSig(Desc.RootSig.Pointer); set => Desc.RootSig.Pointer = value is null ? null : value.Value; }
+        public RootSignature? RootSignature;
 
         /// <summary>
         /// The compute shader for the pipeline
         /// </summary>
-        public ref CompiledShader ComputeShader => ref Desc.Compute;
+        public CompiledShader ComputeShader;
 
-        // public uint NodeMask { get; set; } TODO: MULTI-GPU
+        /// <summary>
+        /// Which nodes this pipeline is valid to be used on
+        /// </summary>
+        public uint NodeMask;
+    }
+
+    /// <summary>
+    /// Describes the state and settings of a compute pipeline
+    /// </summary>
+    public unsafe partial struct NativeComputePipelineDesc
+    {
+        /// <summary>
+        /// The <see cref="RootSignatureHandle"/> for this pipeline
+        /// </summary>
+        public RootSignatureHandle RootSignature;
+
+        /// <summary>
+        /// The compute shader for the pipeline
+        /// </summary>
+        public CompiledShader ComputeShader;
+
+        /// <summary>
+        /// Which nodes this pipeline is valid to be used on
+        /// </summary>
+        public uint NodeMask;
+    }
+
+    public struct TriangleHitGroup
+    {
+        public string Name;
+        public string? ClosestHitShader;
+        public string? AnyHitShader;
+    }
+
+    public struct ProceduralPrimitiveHitGroup
+    {
+        public string Name;
+        public string? ClosestHitShader;
+        public string? AnyHitShader;
+        public string? IntersectionShader;
+    }
+
+    public struct LocalRootSignatureAssociation
+    {
+        public LocalRootSignatureHandle RootSignature;
+        public ReadOnlyMemory<string> Associations;
+    }
+
+    public struct ShaderLibrary
+    {
+        public CompiledShader Library;
+        public ReadOnlyMemory<ShaderExport> Exports;
+    }
+
+    /// <summary>
+    /// Describes the state and settings of a compute pipeline
+    /// </summary>
+    public unsafe partial struct NativeRaytracingPipelineDesc
+    {
+        public ReadOnlyMemory<ShaderLibrary> Libraries;
+        public ReadOnlyMemory<LocalRootSignatureAssociation> LocalRootSignatures;
+        public ReadOnlyMemory<ProceduralPrimitiveHitGroup> ProceduralPrimitiveHitGroups;
+        public ReadOnlyMemory<TriangleHitGroup> TriangleHitGroups;
+
+        public RootSignatureHandle RootSignature;
+
+        public uint MaxPayloadSize;
+        public uint MaxAttributeSize;
+        public uint MaxRecursionDepth;
+
+        /// <summary>
+        /// Which nodes this pipeline is valid to be used on
+        /// </summary>
+        public uint NodeMask;
     }
 }

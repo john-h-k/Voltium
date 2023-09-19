@@ -2,11 +2,11 @@ using System;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using TerraFX.Interop;
+using TerraFX.Interop.DirectX;
 using Voltium.Common;
 using Voltium.Core;
 using Voltium.Core.Memory;
-using static TerraFX.Interop.DXGI_FORMAT;
+using static TerraFX.Interop.DirectX.DXGI_FORMAT;
 
 // life savers:
 // - http://www.opennet.ru/docs/formats/targa.pdf

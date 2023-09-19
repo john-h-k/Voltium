@@ -1,4 +1,4 @@
-using static TerraFX.Interop.D3D12_DESCRIPTOR_RANGE_TYPE;
+using static TerraFX.Interop.DirectX.D3D12_DESCRIPTOR_RANGE_TYPE;
 
 namespace Voltium.Core
 {

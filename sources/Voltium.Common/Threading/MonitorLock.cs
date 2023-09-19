@@ -11,11 +11,11 @@ namespace Voltium.Common.Threading
     {
         private object _lock;
 
-        public static MonitorLock Create()
+        public static MonitorLock Create(object? obj = null)
         {
             return new MonitorLock
             {
-                _lock = new()
+                _lock = obj ?? new()
             };
         }
 
