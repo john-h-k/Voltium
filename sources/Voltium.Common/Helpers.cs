@@ -9,7 +9,7 @@ using System.Runtime.Intrinsics.X86;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Collections.Extensions;
-using TerraFX.Interop;
+using TerraFX.Interop.Windows;
 
 namespace Voltium.Common
 {
@@ -82,7 +82,7 @@ namespace Voltium.Common
 
     internal unsafe static class Helpers
     {
-        public static IntPtr Heap { get; } = Windows.GetProcessHeap();
+        public static HANDLE Heap { get; } = Windows.GetProcessHeap();
 
         public static void Copy(void* src, void* dest, int length, int destLength)
         {

@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using TerraFX.Interop;
+using TerraFX.Interop.DirectX;
 using Voltium.Common;
 
 namespace Voltium.Core.Pipeline
@@ -21,8 +21,8 @@ namespace Voltium.Core.Pipeline
             DepthWriteMask = DepthWriteMask.All,
             DepthComparison = Comparison.LessThan,
             EnableStencilTesting = false,
-            StencilReadMask = Windows.D3D12_DEFAULT_STENCIL_READ_MASK,
-            StencilWriteMask = Windows.D3D12_DEFAULT_STENCIL_WRITE_MASK,
+            StencilReadMask = D3D12.D3D12_DEFAULT_STENCIL_READ_MASK,
+            StencilWriteMask = D3D12.D3D12_DEFAULT_STENCIL_WRITE_MASK,
             FrontFace = StencilFuncDesc.Default,
             BackFace = StencilFuncDesc.Default
         };

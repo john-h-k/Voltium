@@ -10,10 +10,9 @@ using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
 using System.Text;
 using System.Threading.Tasks;
-using MathSharp;
 using Microsoft.Collections.Extensions;
 using SixLabors.ImageSharp;
-using TerraFX.Interop;
+using TerraFX.Interop.DirectX;
 using Voltium.Common;
 using Voltium.Common.Pix;
 using Voltium.Core.Devices;
@@ -21,7 +20,8 @@ using Voltium.Core.Memory;
 using Voltium.Core.NativeApi;
 using Voltium.Core.Pipeline;
 using Voltium.Core.Queries;
-using Vector = MathSharp.Vector;
+using TerraFX.Interop.Windows;
+
 namespace Voltium.Core.NativeApi.D3D12
 {
     internal unsafe struct D3D12View

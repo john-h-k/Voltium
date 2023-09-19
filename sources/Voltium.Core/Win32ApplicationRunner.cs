@@ -3,9 +3,15 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Threading;
-using TerraFX.Interop;
+using TerraFX.Interop.Windows;
+using static TerraFX.Interop.Windows.Windows;
+using static TerraFX.Interop.Windows.CS;
+using static TerraFX.Interop.Windows.WS;
+using static TerraFX.Interop.Windows.SW;
+using static TerraFX.Interop.Windows.WM;
+using static TerraFX.Interop.Windows.PM;
+using static TerraFX.Interop.Windows.VK;
 using Voltium.Core.Devices;
-using static TerraFX.Interop.Windows;
 
 namespace Voltium.Core
 {
@@ -14,7 +20,7 @@ namespace Voltium.Core
     /// </summary>
     internal unsafe static class Win32ApplicationRunner
     {
-        private static readonly delegate* unmanaged<IntPtr, uint, nuint, nint, nint> WindowProcHandle = &WindowProc;
+        private static readonly delegate* unmanaged<HWND, uint, WPARAM, LPARAM, LRESULT> WindowProcHandle = &WindowProc;
 
         private static bool _isResizing = false;
         private static bool _isPaused = false;
@@ -37,7 +43,7 @@ namespace Voltium.Core
                     style = CS_HREDRAW | CS_VREDRAW,
                     lpfnWndProc = WindowProcHandle,
                     hInstance = hInstance,
-                    hCursor = LoadCursorW(IntPtr.Zero, MAKEINTRESOURCE(32512)),
+                    hCursor = LoadCursorW(HINSTANCE.NULL, MAKEINTRESOURCE(32512)),
                     lpszClassName = (ushort*)name
                 };
                 _ = RegisterClassExW(&windowClass);
@@ -138,7 +144,7 @@ namespace Voltium.Core
 
         // Main message handler
         [UnmanagedCallersOnly]
-        private static nint WindowProc(IntPtr hWnd, uint message, nuint wParam, nint lParam)
+        private static LRESULT WindowProc(HWND hWnd, uint message, WPARAM wParam, LPARAM lParam)
         {
             switch (message)
             {
@@ -158,7 +164,7 @@ namespace Voltium.Core
 
                 case WM_KEYDOWN:
                 {
-                    if ((ConsoleKey)wParam == ConsoleKey.Escape)
+                    if ((ConsoleKey)(int)wParam == ConsoleKey.Escape)
                     {
 
                         if (_isPaused)
@@ -249,7 +255,7 @@ namespace Voltium.Core
                     var sz = (uint)lParam;
                     _screenData = new Size(LOWORD(sz), HIWORD(sz));
 
-                    if (!_isResizing && wParam != SIZE_MINIMIZED)
+                    if (!_isResizing && wParam != (ushort)SIZE_MINIMIZED)
                     {
                         _application.OnResize(_screenData);
                     }
@@ -265,7 +271,7 @@ namespace Voltium.Core
             }
 
             // Handle any messages the switch statement didn't.
-            return DefWindowProcW(hWnd, message, wParam, lParam);
+            return DefWindowProcW((HWND)hWnd, message, wParam, lParam);
         }
     }
 }

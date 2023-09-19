@@ -1,4 +1,4 @@
-using static TerraFX.Interop.D3D12_COLOR_WRITE_ENABLE;
+using static TerraFX.Interop.DirectX.D3D12_COLOR_WRITE_ENABLE;
 
 
 namespace Voltium.Core.Pipeline

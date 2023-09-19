@@ -8,7 +8,7 @@ using Voltium.Core.Configuration.Graphics;
 using Voltium.Core.Memory;
 using Voltium.Core.Infrastructure;
 using Voltium.Core.Pipeline;
-using static TerraFX.Interop.Windows;
+using static TerraFX.Interop.Windows.Windows;
 using Voltium.Core.Contexts;
 using System.Runtime.InteropServices;
 using Voltium.Common.Threading;

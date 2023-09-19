@@ -5,7 +5,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics.X86;
-using TerraFX.Interop;
+using TerraFX.Interop.DirectX;
 using Voltium.Allocators;
 using Voltium.Common;
 using Voltium.Core.Devices;

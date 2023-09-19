@@ -1,4 +1,4 @@
-﻿using static TerraFX.Interop.D3D12_LOGIC_OP;
+﻿using static TerraFX.Interop.DirectX.D3D12_LOGIC_OP;
 
 
 

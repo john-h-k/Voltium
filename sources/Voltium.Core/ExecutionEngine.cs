@@ -1,4 +1,4 @@
-using static TerraFX.Interop.D3D12_COMMAND_LIST_TYPE;
+using static TerraFX.Interop.DirectX.D3D12_COMMAND_LIST_TYPE;
 
 namespace Voltium.Core
 {

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using static TerraFX.Interop.D3D12_MESSAGE_ID;
+using static TerraFX.Interop.DirectX.D3D12_MESSAGE_ID;
 
 namespace Voltium.Core.Devices
 {

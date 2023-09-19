@@ -1,4 +1,5 @@
-﻿using TerraFX.Interop;
+﻿using System.Runtime.Versioning;
+using TerraFX.Interop.DirectX;
 using Voltium.Common;
 
 namespace Voltium.Core.Devices
@@ -6,6 +7,7 @@ namespace Voltium.Core.Devices
     /// <summary>
     /// Exposes methods for interfacing with tooling captures
     /// </summary>
+    [SupportedOSPlatform("windows8.1")]
     public static unsafe class CaptureApi
     {
         private static UniqueComPtr<IDXGraphicsAnalysis> _capture = GetPixCapture();
@@ -13,7 +15,7 @@ namespace Voltium.Core.Devices
         private static UniqueComPtr<IDXGraphicsAnalysis> GetPixCapture()
         {
             UniqueComPtr<IDXGraphicsAnalysis> capture = default;
-            _ = Windows.DXGIGetDebugInterface1(0, capture.Iid, (void**)&capture);
+            _ = DirectX.DXGIGetDebugInterface1(0, capture.Iid, (void**)&capture);
             return capture;
         }
 

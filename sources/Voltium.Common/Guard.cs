@@ -4,7 +4,13 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Runtime.CompilerServices;
-using static TerraFX.Interop.Windows;
+using static TerraFX.Interop.Windows.FACILITY;
+using static TerraFX.Interop.Windows.Windows;
+using static TerraFX.Interop.Windows.E;
+using static TerraFX.Interop.Windows.ERROR;
+using static TerraFX.Interop.DirectX.DXGI;
+using static TerraFX.Interop.DirectX.D3D12;
+
 
 namespace Voltium.Common
 {
@@ -12,14 +18,14 @@ namespace Voltium.Common
     {
         [MethodImpl(MethodTypes.Validates)]
         public static void NotNull<T>(
-            [AllowNull] T val,
-            [CallerArgumentExpression("val")] string name = null!,
+            [AllowNull] T value,
+            [CallerArgumentExpression("value")] string name = null!,
             [CallerMemberName] string member = null!,
             [CallerLineNumber] int line = default,
             [CallerFilePath] string filePath = null!
         )
         {
-            if (val is null)
+            if (value is null)
             {
                 ThrowHelper.ThrowArgumentNullException(name,
                     FormatExtendedErrorInformation($"Object '{name}' null", name, member, line, filePath));
@@ -28,7 +34,7 @@ namespace Voltium.Common
 
         [MethodImpl(MethodTypes.Validates)]
         public static void Positive(int value,
-            [CallerArgumentExpression("val")] string name = null!,
+            [CallerArgumentExpression("value")] string name = null!,
             [CallerMemberName] string member = null!,
             [CallerLineNumber] int line = default,
             [CallerFilePath] string filePath = null!
@@ -44,7 +50,7 @@ namespace Voltium.Common
 
         [MethodImpl(MethodTypes.Validates)]
         public static void InRangeExclusive(int value, int lo, int hi,
-                [CallerArgumentExpression("val")] string name = null!,
+                [CallerArgumentExpression("value")] string name = null!,
                 [CallerMemberName] string member = null!,
                 [CallerLineNumber] int line = default,
                 [CallerFilePath] string filePath = null!
@@ -70,7 +76,7 @@ namespace Voltium.Common
 
         [MethodImpl(MethodTypes.Validates)]
         public static void Initialized(bool initialized,
-            [CallerArgumentExpression("val")] string name = null!,
+            [CallerArgumentExpression("initialized")] string name = null!,
             [CallerMemberName] string member = null!,
             [CallerLineNumber] int line = default,
             [CallerFilePath] string filePath = null!

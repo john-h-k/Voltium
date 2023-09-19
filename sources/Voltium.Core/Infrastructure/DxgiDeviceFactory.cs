@@ -1,11 +1,15 @@
 using System;
 using TerraFX.Interop;
 using Voltium.Common;
-
-using static TerraFX.Interop.Windows;
+using TerraFX.Interop.DirectX;
+using TerraFX.Interop.Windows;
+using static TerraFX.Interop.DirectX.DirectX;
+using static TerraFX.Interop.Windows.IID;
+using System.Runtime.Versioning;
 
 namespace Voltium.Core.Infrastructure
 {
+    [SupportedOSPlatform("windows10.0.17763.0")]
     internal sealed unsafe class DxgiDeviceFactory : AdapterFactory
     {
         private UniqueComPtr<IDXGIFactory6> _factory;

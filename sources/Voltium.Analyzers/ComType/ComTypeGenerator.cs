@@ -91,7 +91,7 @@ namespace Voltium.Analyzers.ComType
         using System;
         using System.Runtime.CompilerServices;
         using System.Runtime.InteropServices;
-        using static TerraFX.Interop.Windows;
+        using static TerraFX.Interop.Windows.Windows;
 
         namespace {0}
         {{

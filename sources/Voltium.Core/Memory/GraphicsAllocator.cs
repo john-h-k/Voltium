@@ -1,6 +1,6 @@
 using System;
 using System.Runtime.CompilerServices;
-using TerraFX.Interop;
+using TerraFX.Interop.DirectX;
 using Voltium.Core.Devices;
 using Voltium.Common;
 

@@ -4,13 +4,15 @@ using System.Drawing;
 using System.Numerics;
 using Microsoft.Extensions.Logging;
 using TerraFX.Interop;
+using TerraFX.Interop.DirectX;
+using TerraFX.Interop.Windows;
 using Voltium.Common;
 using Voltium.Core;
-using Voltium.Core.CommandBuffer;
 using Voltium.Core.Configuration.Graphics;
 using Voltium.Core.Contexts;
 using Voltium.Core.Devices;
 using Voltium.Core.Devices.Shaders;
+using Voltium.Core.NativeApi;
 using Voltium.Core.Pipeline;
 using Buffer = Voltium.Core.Memory.Buffer;
 
@@ -50,7 +52,7 @@ namespace Voltium.Interactive.HelloTriangle
                          PreserveBackBuffers = false,
                          VrStereo = false
                     },
-                    output.GetOutput()
+                    new HWND((void*)output.GetOutput())
                 )
             );
 

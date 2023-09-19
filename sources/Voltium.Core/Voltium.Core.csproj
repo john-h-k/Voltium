@@ -2,9 +2,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-      <TargetFramework>net5.0</TargetFramework>
+      <TargetFramework>net7.0</TargetFramework>
       <LangVersion>preview</LangVersion>
-      <!--<OutputType>Exe</OutputType>-->
+      <EnablePreviewFeatures>true</EnablePreviewFeatures>
+      <!--<OutputType>Exe</OutputType>--> 
       <PackageLicenseExpression>AGPLV3</PackageLicenseExpression>
   </PropertyGroup>
 
@@ -33,8 +34,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="MathSharp" Version="2.0.0-pre" />
     <PackageReference Include="NonCopyableAnalyzer" Version="0.6.0" />
-    <PackageReference Include="TerraFX.Interop.Vulkan" Version="1.2.170-beta1-713660587" />
+    <PackageReference Include="TerraFX.Interop.Windows" Version="10.0.22000-rc1" />
   </ItemGroup>
 </Project>

@@ -24,7 +24,7 @@ namespace Voltium.Common
 
         public int Count => _underlyingQueue.Count;
 
-        public ScopedIValueLockEntry<TLock> Lock() => _lock.EnterScoped();
+        // public ScopedIValueLockEntry<TLock> Lock() => _lock.EnterScoped();
 
         public Queue<T>.Enumerator GetEnumerator()
         {

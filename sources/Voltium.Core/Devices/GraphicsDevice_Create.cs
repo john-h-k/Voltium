@@ -24,7 +24,7 @@ namespace Voltium.Core.Devices
             EmptyRootSignatureWithInputAssembler = CreateRootSignature(default, default, RootSignatureFlags.AllowInputAssembler);
 
 
-            if (_device is D3D12NativeDevice d3d12)
+            if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 17763, 0) && _device is D3D12NativeDevice d3d12)
             {
                 GraphicsQueue = new CommandQueue(new D3D12NativeQueue(d3d12, ExecutionEngine.Graphics), ExecutionEngine.Graphics);
                 ComputeQueue = new CommandQueue(new D3D12NativeQueue(d3d12, ExecutionEngine.Compute), ExecutionEngine.Compute);

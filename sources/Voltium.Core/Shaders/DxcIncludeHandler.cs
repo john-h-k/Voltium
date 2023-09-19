@@ -4,7 +4,9 @@ using System.Runtime.CompilerServices;
 using TerraFX.Interop;
 using Voltium.Annotations;
 using Voltium.Common;
-using static TerraFX.Interop.Windows;
+using TerraFX.Interop.DirectX;
+using static TerraFX.Interop.Windows.E;
+using static TerraFX.Interop.Windows.Windows;
 
 namespace Voltium.Core.Devices
 {

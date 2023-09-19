@@ -1,5 +1,5 @@
 using TerraFX.Interop;
-using static TerraFX.Interop.D3D12_CONSERVATIVE_RASTERIZATION_MODE;
+using static TerraFX.Interop.DirectX.D3D12_CONSERVATIVE_RASTERIZATION_MODE;
 using Voltium.Common;
 using System.Runtime.InteropServices;
 

@@ -2,7 +2,9 @@ using System;
 using TerraFX.Interop;
 using Voltium.Annotations;
 using Voltium.Common;
-using static TerraFX.Interop.Windows;
+using TerraFX.Interop.DirectX;
+using static TerraFX.Interop.Windows.S;
+using static TerraFX.Interop.Windows.Windows;
 
 namespace Voltium.Core.Devices
 {

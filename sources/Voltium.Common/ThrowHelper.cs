@@ -9,7 +9,7 @@ using System.Net;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Threading;
-using TerraFX.Interop;
+using TerraFX.Interop.DirectX;
 using Voltium.Common.Tracing;
 
 namespace System.Diagnostics

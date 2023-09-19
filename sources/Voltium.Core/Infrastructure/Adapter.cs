@@ -1,7 +1,8 @@
 using System;
 using System.Runtime.CompilerServices;
 using System.Text;
-using TerraFX.Interop;
+using TerraFX.Interop.Windows;
+using TerraFX.Interop.DirectX;
 using Voltium.Common;
 
 namespace Voltium.Core.Infrastructure
@@ -242,12 +243,12 @@ namespace Voltium.Core.Infrastructure
         /// <summary>
         /// The local memory segment, which is closest to the adapter and fastest to work with
         /// </summary>
-        Local = DXCoreSegmentGroup.Local,
+        Local = 0,
 
 
         /// <summary>
         /// The nonlocal memory segment, which is CPU accessible and slower to access from the adapter
         /// </summary>
-        NonLocal = DXCoreSegmentGroup.NonLocal,
+        NonLocal = 1,
     }
 }

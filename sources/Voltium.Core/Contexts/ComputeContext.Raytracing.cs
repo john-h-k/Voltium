@@ -7,6 +7,7 @@ using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Contexts;
 using Voltium.Core.Memory;
+using Voltium.Core.NativeApi;
 using Buffer = Voltium.Core.Memory.Buffer;
 
 namespace Voltium.Core
@@ -32,8 +33,8 @@ namespace Voltium.Core
             in Buffer instances,
             uint instanceCount,
             LayoutType layout,
-            [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer scratch,
-            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure dest,
+            in Buffer scratch,
+            in RaytracingAccelerationStructure dest,
             BuildAccelerationStructureFlags flags = BuildAccelerationStructureFlags.None
         )
         {
@@ -55,8 +56,8 @@ namespace Voltium.Core
         [IllegalBundleMethod, IllegalRenderPassMethod]
         public void BuildBottomLevelAccelerationStructure(
             in GeometryDesc geometry,
-            [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer scratch,
-            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure dest,
+            in Buffer scratch,
+            in RaytracingAccelerationStructure dest,
             BuildAccelerationStructureFlags flags = BuildAccelerationStructureFlags.None
         )
             => BuildBottomLevelAccelerationStructure(stackalloc[] { geometry }, scratch, dest, flags);
@@ -71,8 +72,8 @@ namespace Voltium.Core
         [IllegalBundleMethod, IllegalRenderPassMethod]
         public void BuildBottomLevelAccelerationStructure(
             ReadOnlySpan<GeometryDesc> geometry,
-            [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer scratch,
-            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure dest,
+            in Buffer scratch,
+            in RaytracingAccelerationStructure dest,
             BuildAccelerationStructureFlags flags = BuildAccelerationStructureFlags.None
         )
         {
@@ -99,8 +100,8 @@ namespace Voltium.Core
         /// <param name="compact">Whether to compact the acceleration structure</param>
         [IllegalBundleMethod, IllegalRenderPassMethod]
         public void CopyAccelerationStructure(
-            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure source,
-            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure destination,
+            in RaytracingAccelerationStructure source,
+            in RaytracingAccelerationStructure destination,
             bool compact = false
         )
         {
@@ -123,8 +124,8 @@ namespace Voltium.Core
         /// <param name="serialized">The output to contain the opaque serialized data</param>
         [IllegalBundleMethod, IllegalRenderPassMethod]
         public void SerializeAccelerationStructure(
-            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure accelerationStructure,
-            [RequiresResourceState(ResourceState.UnorderedAccess)] in Buffer serialized
+            in RaytracingAccelerationStructure accelerationStructure,
+            in Buffer serialized
         )
         {
             var command = new CommandSerializeAccelerationStructure
@@ -145,8 +146,8 @@ namespace Voltium.Core
         /// <param name="serialized">The output to contain the acceleration structure</param>
         [IllegalBundleMethod, IllegalRenderPassMethod]
         public void DeserializeAccelerationStructure(
-            [RequiresResourceState(ResourceState.NonPixelShaderResource)] in Buffer serialized,
-            [RequiresResourceState(ResourceState.RaytracingAccelerationStructure)] in RaytracingAccelerationStructure accelerationStructure
+            in Buffer serialized,
+            in RaytracingAccelerationStructure accelerationStructure
         )
         {
             var command = new CommandDeserializeAccelerationStructure
@@ -160,12 +161,15 @@ namespace Voltium.Core
         /// <summary>
         /// Dispatches a raytracing operation
         /// </summary>
+        /// <param name="x"></param>
         /// <param name="desc">The <see cref="RayTables"/> which describes the raytracing operation</param>
         [IllegalRenderPassMethod]
         public void DispatchRays(uint x, in RayTables desc) => DispatchRays(x, 1, 1, desc);
         /// <summary>
         /// Dispatches a raytracing operation
         /// </summary>
+        /// <param name="x"></param>
+        /// <param name="y"></param>
         /// <param name="desc">The <see cref="RayTables"/> which describes the raytracing operation</param>
         [IllegalRenderPassMethod]
         public void DispatchRays(uint x, uint y, in RayTables desc) => DispatchRays(x, y, 1, desc);
@@ -173,6 +177,9 @@ namespace Voltium.Core
         /// <summary>
         /// Dispatches a raytracing operation
         /// </summary>
+        /// <param name="x"></param>
+        /// <param name="y"></param>
+        /// <param name="z"></param>
         /// <param name="desc">The <see cref="RayTables"/> which describes the raytracing operation</param>
         [IllegalRenderPassMethod]
         public void DispatchRays(uint x, uint y, uint z, in RayTables desc)

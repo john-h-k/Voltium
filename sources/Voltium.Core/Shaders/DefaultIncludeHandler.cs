@@ -4,9 +4,12 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
-using TerraFX.Interop;
+using TerraFX.Interop.DirectX;
 using Voltium.Common;
-using static TerraFX.Interop.Windows;
+using static TerraFX.Interop.Windows.E;
+using static TerraFX.Interop.Windows.S;
+using static TerraFX.Interop.Windows.ERROR;
+using static TerraFX.Interop.Windows.Windows;
 
 namespace Voltium.Core.Devices
 {

@@ -7,7 +7,8 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using TerraFX.Interop;
+using TerraFX.Interop.Windows;
+using static TerraFX.Interop.Windows.WAIT;
 
 namespace Voltium.Common
 {
@@ -18,12 +19,12 @@ namespace Voltium.Common
 
 
         [DllImport("libc")]
-        public static extern int poll(pollfd *fds, nuint nfds, int timeout);
+        public static extern int poll(Pollfd *fds, nuint nfds, int timeout);
 
         public const int POLLIN = 0x1, POLLRDNORM = 0x40;
     }
 
-    struct pollfd
+    struct Pollfd
     {
         public int fd;         /* file descriptor */
         public short events;     /* requested events */
@@ -61,7 +62,7 @@ namespace Voltium.Common
             }
             else
             {
-                _ = Windows.WaitForSingleObjectEx(Handle, Windows.INFINITE, Windows.FALSE);
+                _ = Windows.WaitForSingleObjectEx((HANDLE)Handle, Windows.INFINITE, Windows.FALSE);
             }
         }
 
@@ -77,7 +78,7 @@ namespace Voltium.Common
             {
                 const int fdRead = Linux.POLLIN | Linux.POLLRDNORM;
 
-                var pollfd = new pollfd
+                var pollfd = new Pollfd
                 {
                     fd = FileDescriptor,
                     events = fdRead
@@ -94,7 +95,7 @@ namespace Voltium.Common
             }
             else
             {
-                return Windows.WaitForSingleObjectEx(Handle, 0, Windows.FALSE) == Windows.WAIT_OBJECT_0;
+                return Windows.WaitForSingleObjectEx((HANDLE)Handle, 0, Windows.FALSE) == WAIT_OBJECT_0;
             }
         }
 

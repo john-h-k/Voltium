@@ -3,7 +3,7 @@ using System.Diagnostics;
 using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Memory;
-using static TerraFX.Interop.Windows;
+using TerraFX.Interop.Windows;
 using Buffer = Voltium.Core.Memory.Buffer;
 using Voltium.Core.NativeApi;
 

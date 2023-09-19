@@ -1,6 +1,4 @@
-using TerraFX.Interop;
-
-
+using TerraFX.Interop.DirectX;
 
 //  DXC Compiler flags
 // Common Options:

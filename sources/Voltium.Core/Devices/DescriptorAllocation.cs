@@ -8,8 +8,6 @@ using Voltium.Common;
 using Voltium.Core.Devices;
 using Voltium.Core.Memory;
 using Voltium.Core.NativeApi;
-using static TerraFX.Interop.D3D12_DESCRIPTOR_HEAP_FLAGS;
-using static TerraFX.Interop.D3D12_DESCRIPTOR_HEAP_TYPE;
 
 namespace Voltium.Core
 {

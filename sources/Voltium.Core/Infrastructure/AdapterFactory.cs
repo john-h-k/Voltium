@@ -19,7 +19,7 @@ namespace Voltium.Core.Infrastructure
         /// Creates a new <see cref="AdapterFactory"/>
         /// </summary>
         /// <returns>A new <see cref="AdapterFactory"/></returns>
-        public static AdapterFactory Create() => /* DXCore is a bit more flexible than DXGI */ new DxCoreDeviceFactory();
+        public static AdapterFactory Create() => Create(DeviceType.GraphicsAndCompute);
 
         /// <summary>
         /// Creates a new <see cref="AdapterFactory"/> using a specific <see cref="DeviceEnumerationLayer"/>
@@ -28,8 +28,8 @@ namespace Voltium.Core.Infrastructure
         public static AdapterFactory Create(DeviceEnumerationLayer layer)
             => layer switch
             {
-                DeviceEnumerationLayer.Dxgi => new DxgiDeviceFactory(),
-                DeviceEnumerationLayer.DxCore => new DxCoreDeviceFactory(),
+                DeviceEnumerationLayer.Dxgi when OperatingSystem.IsWindowsVersionAtLeast(10, 0, 17763, 0) => new DxgiDeviceFactory(),
+                DeviceEnumerationLayer.DxCore when OperatingSystem.IsWindowsVersionAtLeast(10, 0, 19041, 0) => new DxCoreDeviceFactory(),
                 _ => throw new ArgumentException("Invalid DeviceEnumerationLayer", nameof(layer))
             };
 
@@ -38,7 +38,14 @@ namespace Voltium.Core.Infrastructure
         /// </summary>
         /// <returns>A new <see cref="AdapterFactory"/></returns>
         public static AdapterFactory Create(DeviceType type)
-            => new DxCoreDeviceFactory(type); // only DXCore supports non-graphics devices
+        {
+            if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 19041, 0))
+            {
+                throw new PlatformNotSupportedException();
+            }
+
+            return new DxCoreDeviceFactory(type); // only DXCore supports non-graphics devices
+        }
 
         /// <summary>
         /// Try and enable the <see cref="AdapterFactory"/> into enumerating devices by a <see cref="DevicePreference"/>

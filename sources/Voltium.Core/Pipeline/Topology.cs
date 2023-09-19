@@ -1,5 +1,5 @@
 using Voltium.Core.Pipeline;
-using static TerraFX.Interop.D3D_PRIMITIVE_TOPOLOGY;
+using static TerraFX.Interop.DirectX.D3D_PRIMITIVE_TOPOLOGY;
 
 namespace Voltium.Core
 {
