@@ -1,13 +1,7 @@
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Runtime.CompilerServices;
-using TerraFX.Interop;
-using Voltium.Common;
 using Voltium.Core.Memory;
 using Voltium.Core.NativeApi;
-using static TerraFX.Interop.Windows;
-using Buffer = Voltium.Core.Memory.Buffer;
 
 namespace Voltium.Core.Devices
 {

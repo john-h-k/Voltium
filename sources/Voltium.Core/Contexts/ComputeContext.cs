@@ -2,7 +2,7 @@ using System;
 using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Runtime.Intrinsics;
-using TerraFX.Interop;
+using TerraFX.Interop.DirectX;
 using Voltium.Common;
 using Voltium.Core.Contexts;
 using Voltium.Core.Devices;
@@ -199,14 +199,14 @@ namespace Voltium.Core
         }
         public void ExecuteIndirect(
             in IndirectCommand command,
-            [RequiresResourceState(ResourceState.IndirectArgument)] in Buffer commandBuffer,
+            in Buffer commandBuffer,
             uint maxCommandCount = 1
         ) => ExecuteIndirect(command, commandBuffer, 0, maxCommandCount);
 
 
         public void ExecuteIndirect(
             in IndirectCommand command,
-            [RequiresResourceState(ResourceState.IndirectArgument)] in Buffer commandBuffer,
+            in Buffer commandBuffer,
             uint commandBufferOffset,
             uint maxCommandCount = 1
         )
@@ -224,32 +224,32 @@ namespace Voltium.Core
 
         public void ExecuteIndirect(
             in IndirectCommand command,
-           [RequiresResourceState(ResourceState.IndirectArgument)] in Buffer commandBuffer,
-            [RequiresResourceState(ResourceState.IndirectArgument)] in Buffer commandCountBuffer,
+           in Buffer commandBuffer,
+            in Buffer commandCountBuffer,
             uint maxCommandCount = 1
         ) => ExecuteIndirect(command, commandBuffer, 0, commandCountBuffer, 0, maxCommandCount);
 
         public void ExecuteIndirect(
             in IndirectCommand command,
-            [RequiresResourceState(ResourceState.IndirectArgument)] in Buffer commandBuffer,
+            in Buffer commandBuffer,
             uint commandBufferOffset,
-            [RequiresResourceState(ResourceState.IndirectArgument)] in Buffer commandCountBuffer,
+            in Buffer commandCountBuffer,
             uint maxCommandCount = 1
         ) => ExecuteIndirect(command, commandBuffer, commandBufferOffset, commandCountBuffer, 0, maxCommandCount);
 
         public void ExecuteIndirect(
             in IndirectCommand command,
-           [RequiresResourceState(ResourceState.IndirectArgument)] in Buffer commandBuffer,
-            [RequiresResourceState(ResourceState.IndirectArgument)] in Buffer commandCountBuffer,
+           in Buffer commandBuffer,
+            in Buffer commandCountBuffer,
             uint commandCountBufferOffset,
             uint maxCommandCount = 1
         ) => ExecuteIndirect(command, commandBuffer, 0, commandCountBuffer, commandCountBufferOffset, maxCommandCount);
 
         public void ExecuteIndirect(
             in IndirectCommand command,
-            [RequiresResourceState(ResourceState.IndirectArgument)] in Buffer commandBuffer,
+            in Buffer commandBuffer,
             uint commandBufferOffset,
-            [RequiresResourceState(ResourceState.IndirectArgument)] in Buffer commandCountBuffer,
+            in Buffer commandCountBuffer,
             in uint commandCountBufferOffset,
             uint maxCommandCount = 1
         )
@@ -302,7 +302,7 @@ namespace Voltium.Core
         public void ClearTexture(
             in View shaderOpaque,
             DescriptorHandle shaderVisible,
-            [RequiresResourceState(ResourceState.UnorderedAccess)] in Texture tex,
+            in Texture tex,
             Rgba128 values = default
         )
         {

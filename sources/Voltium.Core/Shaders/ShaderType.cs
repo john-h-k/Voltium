@@ -1,4 +1,4 @@
-using static TerraFX.Interop.D3D12_PIPELINE_STATE_SUBOBJECT_TYPE;
+using static TerraFX.Interop.DirectX.D3D12_PIPELINE_STATE_SUBOBJECT_TYPE;
 
 namespace Voltium.Core.Devices
 {

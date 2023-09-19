@@ -19,8 +19,8 @@ namespace Voltium.Common.Threading
         public object SyncRoot => ((ICollection)UnderlyingList).SyncRoot;
         public int Count => UnderlyingList.Count;
 
-        public ScopedIValueLockEntry<TLock> EnterScopedLock()
-            => _lock.EnterScoped();
+        // public ScopedIValueLockEntry<TLock> EnterScopedLock()
+        //     => _lock.EnterScoped();
 
         public T this[int index]
         {

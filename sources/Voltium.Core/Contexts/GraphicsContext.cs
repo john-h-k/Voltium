@@ -4,15 +4,16 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using TerraFX.Interop;
+using TerraFX.Interop.DirectX;
 using Voltium.Common;
 using Voltium.Core.Contexts;
 using Voltium.Core.Devices;
 using Voltium.Core.Exceptions;
 using Voltium.Core.Memory;
+using Voltium.Core.NativeApi;
 using Voltium.Core.Pipeline;
 using Voltium.TextureLoading;
-using static TerraFX.Interop.D3D_PRIMITIVE_TOPOLOGY;
+using static TerraFX.Interop.DirectX.D3D_PRIMITIVE_TOPOLOGY;
 using Buffer = Voltium.Core.Memory.Buffer;
 
 namespace Voltium.Core
@@ -284,7 +285,7 @@ namespace Voltium.Core
             _encoder.Emit(&command);
         }
 
-        public void SetShadingRateTexture([RequiresResourceState(ResourceState.VariableShadeRateSource)] in Texture tex)
+        public void SetShadingRateTexture(in Texture tex)
         {
             var command = new CommandSetShadingRateImage
             {
@@ -302,7 +303,7 @@ namespace Voltium.Core
         [IllegalBundleMethod]
         public void SetViewportAndScissor(uint width, uint height)
         {
-            SetViewports(new Viewport(0, 0, width, height, 0, Windows.D3D12_MAX_DEPTH));
+            SetViewports(new Viewport(0, 0, width, height, 0, D3D12.D3D12_MAX_DEPTH));
             SetScissorRectangles(new Rectangle(0, 0, (int)width, (int)height));
         }
 
@@ -411,7 +412,7 @@ namespace Voltium.Core
         /// <param name="vertexResource">The vertex buffer to set</param>
         /// <param name="startSlot">The slot on the device array to set the vertex buffer to</param>
         /// <typeparam name="T">The type of the vertex in <see cref="Buffer"/></typeparam>
-        public void SetVertexBuffers<T>([RequiresResourceState(ResourceState.VertexBuffer)] in Buffer vertexResource, uint startSlot = 0)
+        public void SetVertexBuffers<T>(in Buffer vertexResource, uint startSlot = 0)
             where T : unmanaged
         => SetVertexBuffers<T>(vertexResource, (uint)vertexResource.Length / (uint)sizeof(T), startSlot);
 
@@ -422,7 +423,7 @@ namespace Voltium.Core
         /// <param name="numVertices">The number of vertices in the buffer</param>
         /// <param name="startSlot">The slot on the device array to set the vertex buffer to</param>
         /// <typeparam name="T">The type of the vertex in <see cref="Buffer"/></typeparam>
-        public void SetVertexBuffers<T>([RequiresResourceState(ResourceState.VertexBuffer)] in Buffer vertexResource, uint numVertices, uint startSlot = 0)
+        public void SetVertexBuffers<T>(in Buffer vertexResource, uint numVertices, uint startSlot = 0)
             where T : unmanaged
         {
             var command = new CommandSetVertexBuffers
@@ -447,7 +448,7 @@ namespace Voltium.Core
         /// <param name="indexResource">The index buffer to set</param>
         /// <param name="numIndices">The number of indices to bind</param>
         /// <typeparam name="T">The type of the index in <see cref="Buffer"/></typeparam>
-        public void SetIndexBuffer<T>([RequiresResourceState(ResourceState.IndexBuffer)] in Buffer indexResource, uint numIndices = uint.MaxValue)
+        public void SetIndexBuffer<T>(in Buffer indexResource, uint numIndices = uint.MaxValue)
             where T : unmanaged
             => SetIndexBuffer(indexResource, IndexFormatForT<T>(), numIndices);
 
@@ -457,7 +458,7 @@ namespace Voltium.Core
         /// <param name="indexResource">The index buffer to set</param>
         /// <param name="format">The format of the indices (either 16 or 32 bit)</param>
         /// <param name="numIndices">The number of indices to bind</param>
-        public void SetIndexBuffer([RequiresResourceState(ResourceState.IndexBuffer)] in Buffer indexResource, IndexFormat format, uint numIndices = uint.MaxValue)
+        public void SetIndexBuffer(in Buffer indexResource, IndexFormat format, uint numIndices = uint.MaxValue)
         {
             var command = new CommandSetIndexBuffer
             {

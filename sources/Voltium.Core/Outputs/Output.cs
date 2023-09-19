@@ -13,7 +13,6 @@ using Voltium.Core.Infrastructure;
 using Voltium.Core.Devices;
 using Voltium.Extensions;
 using Voltium.Core.Memory;
-using static TerraFX.Interop.Windows;
 using Rectangle = System.Drawing.Rectangle;
 using Voltium.Core.Configuration.Graphics;
 using Voltium.Core.NativeApi;
@@ -58,7 +57,7 @@ namespace Voltium.Core.Devices
             {
                 Width = _output.Width,
                 Height = _output.Height,
-                DepthOrArraySize = _output.IsVrStereo ? 2 : 1,
+                DepthOrArraySize = (ushort)(_output.IsVrStereo ? 2u : 1u),
                 ClearValue = null,
                 Dimension = TextureDimension.Tex2D,
                 Format = (DataFormat)output.Format,

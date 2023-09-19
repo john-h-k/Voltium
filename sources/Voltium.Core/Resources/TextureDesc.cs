@@ -1,5 +1,5 @@
 using System;
-using TerraFX.Interop;
+using TerraFX.Interop.DirectX;
 using Voltium.Common;
 using Voltium.Core.Configuration.Graphics;
 using Rectangle = System.Drawing.Rectangle;

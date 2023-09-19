@@ -71,7 +71,7 @@ namespace Voltium.Core.Devices
     /// <summary>
     /// The native device type used to interface with a GPU
     /// </summary>
-    public interface INativeDevice : IDisposable
+    public partial interface INativeDevice : IDisposable
     {
         /// <summary>
         /// <see cref="DeviceInfo"/> about this device
@@ -84,7 +84,8 @@ namespace Voltium.Core.Devices
         /// <param name="geometry">The <see cref="GeometryDesc"/>s in the acceleration structures</param>
         /// <param name="flags">The <see cref="BuildAccelerationStructureFlags"/> for the build</param>
         /// <returns>The size, in bytes, for the destination acceleration structure, the intermediate scratch buffer, and (if applicable) the intermediate scratch buffer used for updates</returns>
-        (ulong DestSize, ulong ScratchSize, ulong UpdateSize) GetBottomLevelAccelerationStructureBuildInfo(ReadOnlySpan<GeometryDesc> geometry, BuildAccelerationStructureFlags flags);
+        (ulong DestSize, ulong ScratchSize, ulong UpdateSize) GetBottomLevelAccelerationStructureBuildInfo(ReadOnlySpan<GeometryDesc> geometry, BuildAccelerationStructureFlags flags)
+            => throw new NotSupportedException();
 
         /// <summary>
         /// Calculates memory size information about a top-level raytracing acceleration structure build and potentially its updates
@@ -92,7 +93,8 @@ namespace Voltium.Core.Devices
         /// <param name="numInstances">The number of <see cref="GeometryInstance"/>s in the acceleration structures</param>
         /// <param name="flags">The <see cref="BuildAccelerationStructureFlags"/> for the build</param>
         /// <returns>The size, in bytes, for the destination acceleration structure, the intermediate scratch buffer, and (if applicable) the intermediate scratch buffer used for updates</returns>
-        (ulong DestSize, ulong ScratchSize, ulong UpdateSize) GetTopLevelAccelerationStructureBuildInfo(uint numInstances, BuildAccelerationStructureFlags flags);
+        (ulong DestSize, ulong ScratchSize, ulong UpdateSize) GetTopLevelAccelerationStructureBuildInfo(uint numInstances, BuildAccelerationStructureFlags flags)
+            => throw new NotSupportedException();
 
 
         /// <summary>
@@ -101,7 +103,8 @@ namespace Voltium.Core.Devices
         /// <param name="raytracingPipeline">The <see cref="PipelineHandle"/> to the pipeline that contains the shader</param>
         /// <param name="shaderName">The name of the shader to retrieve</param>
         /// <param name="identifier">The memory to write the identifier to. Must be at least as large as <see cref="DeviceInfo.RaytracingShaderIdentifierSize"/></param>
-        void GetRaytracingShaderIdentifier(PipelineHandle raytracingPipeline, ReadOnlySpan<char> shaderName, Span<byte> identifier); 
+        void GetRaytracingShaderIdentifier(PipelineHandle raytracingPipeline, ReadOnlySpan<char> shaderName, Span<byte> identifier)
+            => throw new NotSupportedException();
 
         /// <summary>
         /// Calculate memory size and alignment information about a texture
@@ -187,14 +190,16 @@ namespace Voltium.Core.Devices
         /// </summary>
         /// <param name="handle">The<see cref="BufferHandle"/> to retrieve the GPU virtual address of</param>
         /// <returns>A GPU virtual address</returns>
-        ulong GetDeviceVirtualAddress(BufferHandle handle);
+        ulong GetDeviceVirtualAddress(BufferHandle handle)
+            => throw new NotSupportedException();
 
         /// <summary>
         /// Returns the GPU virtual address of the buffer
         /// </summary>
         /// <param name="handle">The<see cref="RaytracingAccelerationStructureHandle"/> to retrieve the GPU virtual address of</param>
         /// <returns>A GPU virtual address</returns>
-        ulong GetDeviceVirtualAddress(RaytracingAccelerationStructureHandle handle);
+        ulong GetDeviceVirtualAddress(RaytracingAccelerationStructureHandle handle)
+            => throw new NotSupportedException();
 
         /// <summary>
         /// Allocates a new buffer, using a driver dedicated allocation
@@ -248,7 +253,8 @@ namespace Voltium.Core.Devices
         /// </summary>
         /// <param name="length">The length, in bytes, of the raytracing acceleration structure</param>
         /// <returns>A new <see cref="RaytracingAccelerationStructureHandle"/></returns>
-        RaytracingAccelerationStructureHandle AllocateRaytracingAccelerationStructure(ulong length);
+        RaytracingAccelerationStructureHandle AllocateRaytracingAccelerationStructure(ulong length)
+            => throw new NotSupportedException();
 
         /// <summary>
         /// Allocates a new raytracing acceleration structure, using a driver dedication allocation
@@ -257,13 +263,15 @@ namespace Voltium.Core.Devices
         /// <param name="heap">The heap to allocate the raytracing acceleration structure within</param>
         /// <param name="offset">The offset (in bytes) within <paramref name="heap"/> to allocate the raytracing acceleration structure at</param>
         /// <returns>A new <see cref="RaytracingAccelerationStructureHandle"/></returns>
-        RaytracingAccelerationStructureHandle AllocateRaytracingAccelerationStructure(ulong length, HeapHandle heap, ulong offset);
+        RaytracingAccelerationStructureHandle AllocateRaytracingAccelerationStructure(ulong length, HeapHandle heap, ulong offset)
+            => throw new NotSupportedException();
 
         /// <summary>
         /// Destroys a given <see cref="RaytracingAccelerationStructureHandle"/>
         /// </summary>
         /// <param name="handle">The <see cref="RaytracingAccelerationStructureHandle"/> to destroy</param>
-        void DisposeRaytracingAccelerationStructure(RaytracingAccelerationStructureHandle handle);
+        void DisposeRaytracingAccelerationStructure(RaytracingAccelerationStructureHandle handle)
+            => throw new NotSupportedException();
 
         /// <summary>
         /// Creates a new query set
@@ -323,14 +331,16 @@ namespace Voltium.Core.Devices
         /// <returns>A new <see cref="PipelineHandle"/></returns>
         PipelineHandle CreatePipeline(in NativeGraphicsPipelineDesc desc);
 
-        PipelineHandle CreatePipeline(in NativeRaytracingPipelineDesc desc);
+        PipelineHandle CreatePipeline(in NativeRaytracingPipelineDesc desc)
+            => throw new NotSupportedException();
 
         /// <summary>
         /// Creates a new <see cref="PipelineHandle"/> for a mesh pipeline
         /// </summary>
         /// <param name="desc">The <see cref="NativeMeshPipelineDesc"/> for this pipeline</param>
         /// <returns>A new <see cref="PipelineHandle"/></returns>
-        PipelineHandle CreatePipeline(in NativeMeshPipelineDesc desc);
+        PipelineHandle CreatePipeline(in NativeMeshPipelineDesc desc)
+            => throw new NotSupportedException();
 
         /// <summary>
         /// Destroys a given <see cref="PipelineHandle"/>
@@ -382,13 +392,15 @@ namespace Voltium.Core.Devices
         /// </summary>
         /// <param name="buffer">The <see cref="RaytracingAccelerationStructureHandle"/> to create this dynamic descriptor for</param>
         /// <returns>A new <see cref="RaytracingAccelerationStructureHandle"/></returns>
-        DynamicRaytracingAccelerationStructureDescriptorHandle CreateDynamicDescriptor(RaytracingAccelerationStructureHandle buffer);
+        DynamicRaytracingAccelerationStructureDescriptorHandle CreateDynamicDescriptor(RaytracingAccelerationStructureHandle buffer)
+            => throw new NotSupportedException();
 
         /// <summary>
         /// Destroys a given <see cref="DynamicRaytracingAccelerationStructureDescriptorHandle"/>
         /// </summary>
         /// <param name="handle">The <see cref="DynamicRaytracingAccelerationStructureDescriptorHandle"/> to destroy</param>
-        void DisposeDynamicDescriptor(DynamicRaytracingAccelerationStructureDescriptorHandle handle);
+        void DisposeDynamicDescriptor(DynamicRaytracingAccelerationStructureDescriptorHandle handle)
+            => throw new NotSupportedException();
 
         /// <summary>
         /// Creates a <see cref="DescriptorSetHandle"/>
@@ -482,7 +494,8 @@ namespace Voltium.Core.Devices
         /// <param name="index">The index within <paramref name="viewHeap"/> to create the view at</param>
         /// <param name="handle">The <see cref="RaytracingAccelerationStructureHandle"/> to create the view to</param>
         /// <returns>A new <see cref="ViewHandle"/></returns>
-        ViewHandle CreateView(ViewSetHandle viewHeap, uint index, RaytracingAccelerationStructureHandle handle);
+        ViewHandle CreateView(ViewSetHandle viewHeap, uint index, RaytracingAccelerationStructureHandle handle)
+            => throw new NotSupportedException();
 
     }
 

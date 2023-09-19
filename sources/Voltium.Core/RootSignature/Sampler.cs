@@ -1,7 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using TerraFX.Interop;
+using TerraFX.Interop.DirectX;
 
 namespace Voltium.Core
 {

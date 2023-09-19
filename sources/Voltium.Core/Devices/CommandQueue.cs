@@ -13,7 +13,7 @@ using Voltium.Core.Contexts;
 using Voltium.Core.Devices;
 using Voltium.Core.Memory;
 using Voltium.Core.NativeApi;
-using static TerraFX.Interop.Windows;
+using static TerraFX.Interop.Windows.Windows;
 using Buffer = Voltium.Core.Memory.Buffer;
 
 namespace Voltium.Core.Devices

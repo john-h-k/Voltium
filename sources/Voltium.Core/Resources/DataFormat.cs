@@ -1,5 +1,5 @@
 using System;
-using static TerraFX.Interop.DXGI_FORMAT;
+using static TerraFX.Interop.DirectX.DXGI_FORMAT;
 using static Voltium.Core.DataFormat;
 
 namespace Voltium.Core

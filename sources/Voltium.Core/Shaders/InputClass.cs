@@ -1,5 +1,5 @@
 using Voltium.Core.Devices.Shaders;
-using static TerraFX.Interop.D3D12_INPUT_CLASSIFICATION;
+using static TerraFX.Interop.DirectX.D3D12_INPUT_CLASSIFICATION;
 
 namespace Voltium.Core
 {

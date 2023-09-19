@@ -1,7 +1,9 @@
 using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using TerraFX.Interop;
+using TerraFX.Interop.DirectX;
+using static TerraFX.Interop.DirectX.DXGI;
+using static TerraFX.Interop.DirectX.DirectX;
 
 namespace Voltium.Common
 {
@@ -12,7 +14,7 @@ namespace Voltium.Common
     {
         [Conditional("DEBUG")]
         [Conditional("EXTENDED_ERROR_INFORMATION")]
-        internal static unsafe void SetName<T>(T* obj, [CallerArgumentExpression("obj")] string name) where T : unmanaged
+        internal static unsafe void SetName<T>(T* obj, [CallerArgumentExpression("obj")] string name = "") where T : unmanaged
         {
             fixed (char* p = name)
             {
@@ -24,7 +26,7 @@ namespace Voltium.Common
 
         internal static unsafe string GetName<T>(T* obj) where T : unmanaged
         {
-            var guid = Windows.WKPDID_D3DDebugObjectNameW;
+            var guid = WKPDID_D3DDebugObjectNameW;
 
             if (!ComPtr.TryQueryInterface(obj, out ID3D12Object* result))
             {
@@ -34,7 +36,7 @@ namespace Voltium.Common
             uint size;
             int hr = result->GetPrivateData(&guid, &size, null);
 
-            if (hr == Windows.DXGI_ERROR_NOT_FOUND)
+            if (hr == DXGI_ERROR_NOT_FOUND)
             {
                 return "<Unnamed>";
             }
@@ -43,7 +45,7 @@ namespace Voltium.Common
 
             return string.Create((int)size, (UniqueComPtr<ID3D12Object>)result, static (buff, ptr) =>
             {
-                var guid = Windows.WKPDID_D3DDebugObjectNameW;
+                var guid = WKPDID_D3DDebugObjectNameW;
                 int size = buff.Length * sizeof(char);
                 fixed (char* pBuff = buff)
                 {
@@ -86,7 +88,7 @@ namespace Voltium.Common
             fixed (Guid* piid = &did)
             {
                 int hr = unknown->GetPrivateData(piid, &size, &data);
-                if (hr == Windows.DXGI_ERROR_NOT_FOUND)
+                if (hr == DXGI_ERROR_NOT_FOUND)
                 {
                     ThrowHelper.ThrowKeyNotFoundException($"Key '{did}' had not been set");
                 }

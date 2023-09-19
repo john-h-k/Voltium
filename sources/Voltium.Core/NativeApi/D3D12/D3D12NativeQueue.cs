@@ -4,16 +4,19 @@ using TerraFX.Interop;
 using Voltium.Common;
 using Voltium.Core.Contexts;
 using Voltium.Core.Memory;
-using static TerraFX.Interop.Windows;
+using TerraFX.Interop.Windows;
+using TerraFX.Interop.DirectX;
 using System.Diagnostics;
 using Microsoft.Toolkit.HighPerformance.Extensions;
 using System.Runtime.CompilerServices;
 using Voltium.Core.NativeApi;
 using Voltium.Core.NativeApi.D3D12;
+using System.Runtime.Versioning;
+using static TerraFX.Interop.Windows.Windows;
 
 namespace Voltium.Core.Devices
 {
-    /// <inheritdoc />
+    [SupportedOSPlatform("windows10.0.17763.0")]
     public unsafe class D3D12NativeQueue : INativeQueue
     {
         private struct InFlightAllocator
@@ -365,7 +368,7 @@ namespace Voltium.Core.Devices
                                     pTextureCopy->HasBox ? (D3D12_BOX*)pTextureCopy->Box : null
                                 );
 
-                                AdvanceVariableCommand(pTextureCopy, pTextureCopy->Box, pTextureCopy->HasBox ? 1 : 0);
+                                AdvanceVariableCommand(pTextureCopy, pTextureCopy->Box, pTextureCopy->HasBox ? 1u : 0u);
                                 break;
 
                             case CommandType.BufferToTextureCopy:
@@ -405,7 +408,7 @@ namespace Voltium.Core.Devices
                                     pBufToTexCopy->HasBox ? (D3D12_BOX*)pBufToTexCopy->Box : null
                                 );
 
-                                AdvanceVariableCommand(pBufToTexCopy, pBufToTexCopy->Box, pBufToTexCopy->HasBox ? 1 : 0);
+                                AdvanceVariableCommand(pBufToTexCopy, pBufToTexCopy->Box, pBufToTexCopy->HasBox ? 1u : 0u);
                                 break;
 
                             case CommandType.TextureToBufferCopy:
@@ -915,7 +918,7 @@ namespace Voltium.Core.Devices
                                     hasGpuCount ? pExecuteIndirect->CountSpecifier->Offset : 0
                                 );
 
-                                AdvanceVariableCommand(pExecuteIndirect, pExecuteIndirect->CountSpecifier, hasGpuCount ? 1 : 0);
+                                AdvanceVariableCommand(pExecuteIndirect, pExecuteIndirect->CountSpecifier, hasGpuCount ? 1u : 0u);
                                 break;
 
                             case CommandType.WriteConstants:

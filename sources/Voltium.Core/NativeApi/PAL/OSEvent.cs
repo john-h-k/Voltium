@@ -1,9 +1,12 @@
 using System;
 using System.Runtime.InteropServices;
-using TerraFX.Interop;
+using TerraFX.Interop.Windows;
+using TerraFX.Interop.LibC;
 using Voltium.Common;
 using Voltium.Common.Pix;
-using static TerraFX.Interop.Windows;
+using static TerraFX.Interop.Windows.Windows;
+using static TerraFX.Interop.Windows.WAIT;
+using static TerraFX.Interop.Windows.E;
 
 namespace Voltium.Core.Devices
 {
@@ -41,7 +44,7 @@ namespace Voltium.Core.Devices
             {
                 if (OperatingSystem.IsWindows())
                 {
-                    return WaitForSingleObject(_hEvent, 0) == WAIT_OBJECT_0;
+                    return WaitForSingleObject((HANDLE)_hEvent, 0) == WAIT_OBJECT_0;
                 }
                 else
                 {
@@ -62,13 +65,13 @@ namespace Voltium.Core.Devices
 
             if (OperatingSystem.IsWindows())
             {
-                _ = WaitForSingleObject(_hEvent, INFINITE);
+                _ = WaitForSingleObject((HANDLE)_hEvent, INFINITE);
             }
             else if (OperatingSystem.IsLinux())
             {
                 fd_set set;
                 FD_SET((int)_hEvent, &set);
-                Libc.select(1, &set, null, null, null);
+                LibC.select(1, &set, null, null, null);
 
 
                 static void FD_SET(int n, fd_set* p)
@@ -124,8 +127,8 @@ namespace Voltium.Core.Devices
                 IntPtr newHandle;
 
                 int err = RegisterWaitForSingleObject(
-                    &newHandle,
-                    _hEvent,
+                    (HANDLE*)&newHandle,
+                    (HANDLE)_hEvent,
                     &CallbackWrapper,
                     context,
                     INFINITE,
@@ -170,7 +173,7 @@ namespace Voltium.Core.Devices
             Helpers.Free(context);
 
             // is this ok ???
-            UnregisterWait(context->WaitHandle);
+            UnregisterWait((HANDLE)context->WaitHandle);
         }
     }
 }

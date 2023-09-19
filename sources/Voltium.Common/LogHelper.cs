@@ -117,7 +117,8 @@ namespace Voltium.Common
 
         private static void FlushBuffer()
         {
-            using (ThreadBuffers.EnterScopedLock())
+            // FIXME: fix
+            // using (ThreadBuffers.EnterScopedLock())
             {
                 foreach (var buffer in ThreadBuffers.UnderlyingList)
                 {

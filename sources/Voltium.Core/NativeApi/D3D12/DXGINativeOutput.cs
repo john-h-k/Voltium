@@ -3,13 +3,18 @@ using System.Drawing;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using TerraFX.Interop;
+using TerraFX.Interop.DirectX;
+using TerraFX.Interop.Windows;
 using Voltium.Common;
 using Voltium.Core.Memory;
-using static TerraFX.Interop.Windows;
-using static TerraFX.Interop.DXGI_SWAP_CHAIN_FLAG;
-using static TerraFX.Interop.DXGI_SWAP_EFFECT;
+using static TerraFX.Interop.Windows.Windows;
+using static TerraFX.Interop.DirectX.DirectX;
+using static TerraFX.Interop.DirectX.DXGI;
+using static TerraFX.Interop.Windows.WAIT;
+using static TerraFX.Interop.DirectX.DXGI_SWAP_CHAIN_FLAG;
+using static TerraFX.Interop.DirectX.DXGI_SWAP_EFFECT;
 using Voltium.Core.NativeApi;
+using System.Runtime.Versioning;
 
 namespace Voltium.Core.Devices
 {
@@ -23,6 +28,7 @@ namespace Voltium.Core.Devices
         public bool VrStereo;
     }
 
+    [SupportedOSPlatform("windows10.0.17763.0")]
     public unsafe partial class DXGINativeOutput : INativeOutput
     {
         private static readonly UniqueComPtr<IDXGIFactory2> _factory = GetFactory();
@@ -32,7 +38,7 @@ namespace Voltium.Core.Devices
             UniqueComPtr<IDXGIFactory2> factory = default;
 
             Guard.ThrowIfFailed(CreateDXGIFactory2(
-                ConfigVars.IsDebug ? DXGI_CREATE_FACTORY_DEBUG : 0,
+                ConfigVars.IsDebug ? (uint)DXGI_CREATE_FACTORY_DEBUG : 0,
                 factory.Iid,
                 (void**)&factory
             ));
@@ -49,7 +55,7 @@ namespace Voltium.Core.Devices
         private uint _backBufferIndex;
         private uint _backBufferCount;
         private readonly object _presentLock;
-        private IntPtr _presentWait;
+        private HANDLE _presentWait;
 
         public uint BackBufferIndex => _backBufferIndex;
         public uint BackBufferCount => _backBufferCount;

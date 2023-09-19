@@ -1,5 +1,5 @@
 using System;
-using TerraFX.Interop;
+using static TerraFX.Interop.DirectX.DXGI;
 
 namespace Voltium.Core.Devices
 {
@@ -43,7 +43,7 @@ namespace Voltium.Core.Devices
         /// <summary>
         /// Allow render-target access to the back buffer. This is the same as <see cref="Default"/>
         /// </summary>
-        AllowRenderTarget = Windows.DXGI_USAGE_RENDER_TARGET_OUTPUT,
+        AllowRenderTarget = DXGI_USAGE_RENDER_TARGET_OUTPUT,
 
         ///// <summary>
         ///// Allow unordered-access to the back buffer
@@ -53,7 +53,7 @@ namespace Voltium.Core.Devices
         /// <summary>
         /// Allow shader-resoure access to the back buffer
         /// </summary>
-        AllowShaderResorce = Windows.DXGI_USAGE_SHADER_INPUT,
+        AllowShaderResorce = DXGI_USAGE_SHADER_INPUT,
 
         /// <summary>
         /// Preserve the back buffer, so that every n frames it is reused

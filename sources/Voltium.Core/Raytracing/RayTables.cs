@@ -1,4 +1,4 @@
-using TerraFX.Interop;
+using TerraFX.Interop.DirectX;
 using Voltium.Core.Contexts;
 using Buffer = Voltium.Core.Memory.Buffer;
 
@@ -15,27 +15,27 @@ namespace Voltium.Core
 
         internal struct RangeAndStride { public uint Range, Stride; }
 
-        public void SetRayGenerationShaderRecord([RequiresResourceState(ResourceState.NonPixelShaderResource)] in Buffer buffer, uint length)
+        public void SetRayGenerationShaderRecord(in Buffer buffer, uint length)
         {
             RayGenBuffer = buffer;
             RayGenLength = length;
         }
 
-        public void SetMissShaderTable([RequiresResourceState(ResourceState.NonPixelShaderResource)] in Buffer buffer, uint size, uint count)
+        public void SetMissShaderTable(in Buffer buffer, uint size, uint count)
         {
             MissShaderBuffer = buffer;
             MissShaderLength = size;
             MissShaderCount = count;
         }
 
-        public void SetHitGroupTable([RequiresResourceState(ResourceState.NonPixelShaderResource)] in Buffer buffer, uint size, uint count)
+        public void SetHitGroupTable(in Buffer buffer, uint size, uint count)
         {
             HitGroupBuffer = buffer;
             HitGroupLength = size;
             HitGroupCount = count;
         }
 
-        public void SetCallableShaderTable([RequiresResourceState(ResourceState.NonPixelShaderResource)] in Buffer buffer, uint size, uint count)
+        public void SetCallableShaderTable(in Buffer buffer, uint size, uint count)
         {
             CallableShaderBuffer = buffer;
             CallableShaderLength = size;

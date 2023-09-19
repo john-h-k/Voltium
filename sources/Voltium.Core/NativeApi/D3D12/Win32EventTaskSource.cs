@@ -5,7 +5,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
 using Voltium.Common;
-using static TerraFX.Interop.Windows;
+using TerraFX.Interop.Windows;
+using static TerraFX.Interop.Windows.Windows;
+using static TerraFX.Interop.Windows.WAIT;
 
 namespace Voltium.Core.Devices
 {
@@ -18,7 +20,7 @@ namespace Voltium.Core.Devices
 
     internal unsafe class Win32EventTaskSource : IValueTaskSource
     {
-        private (IntPtr Event, TimeSpan TimeOut)[] _hEvents = new (IntPtr, TimeSpan)[ushort.MaxValue];
+        private (HANDLE Event, TimeSpan TimeOut)[] _hEvents = new (HANDLE, TimeSpan)[ushort.MaxValue];
         private uint _nextFree = 0;
         private bool _wrapAround;
 
@@ -29,10 +31,10 @@ namespace Voltium.Core.Devices
 
         public uint TokensFree => (uint)_hEvents.Length - _nextFree;
 
-        public TokenAllocationResult AllocateToken(IntPtr hEvent, out short token)
+        public TokenAllocationResult AllocateToken(HANDLE hEvent, out short token)
             => AllocateToken(hEvent, Timeout.InfiniteTimeSpan, out token);
 
-        public TokenAllocationResult AllocateToken(IntPtr hEvent, TimeSpan timeout, out short token)
+        public TokenAllocationResult AllocateToken(HANDLE hEvent, TimeSpan timeout, out short token)
         {
             var tk = Interlocked.Increment(ref _nextFree);
             var result = TokenAllocationResult.Success;
@@ -106,7 +108,7 @@ namespace Voltium.Core.Devices
                 callbackContext->ExecutionContext = GCHandle.ToIntPtr(GCHandle.Alloc(null));
             }
 
-            IntPtr newWait;
+            HANDLE newWait;
             if (RegisterWaitForSingleObject(&newWait, hEvent, &Callback, &callbackContext, (uint)timeout.TotalMilliseconds, 0) == 0)
             {
                 ThrowHelper.ThrowWin32Exception("RegisterWaitForSingleObject failed [unexpected]");

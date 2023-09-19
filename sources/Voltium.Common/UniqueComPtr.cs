@@ -4,7 +4,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using RaiiSharp.Annotations;
-using TerraFX.Interop;
+using TerraFX.Interop.Windows;
 
 namespace Voltium.Common
 {
@@ -134,7 +134,7 @@ namespace Voltium.Common
             if (p is null)
             {
                 result = default;
-                return Windows.E_POINTER;
+                return E.E_POINTER;
             }
 
             Guid* iid = UniqueComPtr<TInterface>.StaticIid;

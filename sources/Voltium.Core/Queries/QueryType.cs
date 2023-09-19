@@ -1,4 +1,4 @@
-using static TerraFX.Interop.D3D12_QUERY_TYPE;
+using static TerraFX.Interop.DirectX.D3D12_QUERY_TYPE;
 
 namespace Voltium.Core
 {

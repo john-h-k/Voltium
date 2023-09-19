@@ -10,20 +10,27 @@ using Voltium.Core.Contexts;
 using Voltium.Core.Memory;
 using Voltium.Core.Pipeline;
 using Voltium.Core.Queries;
-using static TerraFX.Interop.Windows;
-using static TerraFX.Interop.D3D12_FEATURE;
-using static TerraFX.Interop.D3D12_PIPELINE_STATE_SUBOBJECT_TYPE;
+using TerraFX.Interop.Windows;
+using TerraFX.Interop.DirectX;
+using static TerraFX.Interop.Windows.Windows;
+using static TerraFX.Interop.DirectX.DirectX;
+using static TerraFX.Interop.DirectX.DXGI;
+using static TerraFX.Interop.DirectX.D3D12;
+using static TerraFX.Interop.DirectX.D3D12_FEATURE;
+using static TerraFX.Interop.DirectX.D3D12_PIPELINE_STATE_SUBOBJECT_TYPE;
 using System.Runtime.InteropServices;
 using System.Collections.Immutable;
 using Voltium.Core.NativeApi;
 using Voltium.Core.NativeApi.D3D12;
 using Voltium.Allocators;
+using System.Runtime.Versioning;
 
 namespace Voltium.Core.Devices
 {
     /// <summary>
     /// The native device type used to interface with a GPU
     /// </summary>
+    [SupportedOSPlatform("windows10.0.17763.0")]
     public unsafe class D3D12NativeDevice : INativeDevice
     {
         private const uint ShaderVisibleDescriptorCount = 1024 * 512, ShaderVisibleSamplerCount = 1024;
@@ -57,7 +64,7 @@ namespace Voltium.Core.Devices
 
             {
                 using UniqueComPtr<ID3D12Debug> debug = default;
-                Windows.D3D12GetDebugInterface(debug.Iid, (void**)&debug);
+                DirectX.D3D12GetDebugInterface(debug.Iid, (void**)&debug);
                 debug.Ptr->EnableDebugLayer();
             }
 
@@ -194,7 +201,7 @@ namespace Voltium.Core.Devices
             return OSEvent.FromWin32Handle(@event);
         }
 
-        private void SetEvent(IntPtr hEvent, ReadOnlySpan<FenceHandle> fences, ReadOnlySpan<ulong> values, WaitMode mode)
+        private void SetEvent(HANDLE hEvent, ReadOnlySpan<FenceHandle> fences, ReadOnlySpan<ulong> values, WaitMode mode)
         {
             if (fences.Length == 1)
             {

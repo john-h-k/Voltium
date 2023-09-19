@@ -1,6 +1,6 @@
 using System;
 using System.Runtime.CompilerServices;
-using TerraFX.Interop;
+using TerraFX.Interop.DirectX;
 using Voltium.Core.Devices.Shaders;
 using Voltium.Core.Infrastructure;
 using Voltium.Core.Memory;
@@ -13,8 +13,9 @@ using Voltium.Core.Exceptions;
 using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics;
 using Voltium.Core.NativeApi;
+using Voltium.Core.Devices;
 
-namespace Voltium.Core.NativeApi
+namespace Voltium.Core.Devices
 {
     public struct CommandBuffer
     {

@@ -6,7 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.Intrinsics;
 using System.Text;
 using System.Threading.Tasks;
-using TerraFX.Interop;
+using TerraFX.Interop.DirectX;
 
 namespace Voltium.Core.Raytracing
 {

@@ -6,12 +6,13 @@ using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
-using TerraFX.Interop;
+using TerraFX.Interop.DirectX;
 using Voltium.Common;
 using Voltium.Core.Contexts;
 using Voltium.Core.Devices;
 using Voltium.Core.Exceptions;
 using Voltium.Core.Memory;
+using Voltium.Core.NativeApi;
 using Voltium.Core.Queries;
 using Voltium.TextureLoading;
 using Buffer = Voltium.Core.Memory.Buffer;
@@ -125,7 +126,7 @@ namespace Voltium.Core
         /// <param name="buff">The <see cref="Buffer"/> to read the predication value from</param>
         /// <param name="offset">The offset, in bytes, the predication value</param>
         [IllegalBundleMethod]
-        public void BeginConditionalRendering(bool predicate, [RequiresResourceState(ResourceState.Predication)] in Buffer buff, uint offset = 0)
+        public void BeginConditionalRendering(bool predicate, in Buffer buff, uint offset = 0)
         {
             var command = new CommandBeginConditionalRendering
             {
@@ -254,7 +255,7 @@ namespace Voltium.Core
         /// <param name="dest">The buffer to resolve the queries to</param>
         /// <param name="offset">The offset, in bytes, where the queries should be resolved to</param>
         [IllegalBundleMethod]
-        public void ResolveQuery<TQuery>(in QuerySet heap, Range queries, [RequiresResourceState(ResourceState.CopyDestination)] in Buffer dest, uint offset = 0) where TQuery : struct, IQueryType
+        public void ResolveQuery<TQuery>(in QuerySet heap, Range queries, in Buffer dest, uint offset = 0) where TQuery : struct, IQueryType
             => ResolveQuery(heap, default(TQuery).Type, queries, dest, offset);
 
 
@@ -267,7 +268,7 @@ namespace Voltium.Core
         /// <param name="dest">The buffer to resolve the queries to</param>
         /// <param name="offset">The offset, in bytes, where the queries should be resolved to</param>
         [IllegalBundleMethod]
-        public void ResolveQuery(in QuerySet heap, QueryType type, Range queries, [RequiresResourceState(ResourceState.CopyDestination)] in Buffer dest, uint offset = 0)
+        public void ResolveQuery(in QuerySet heap, QueryType type, Range queries, in Buffer dest, uint offset = 0)
         {
             FlushBarriers();
 
@@ -291,8 +292,8 @@ namespace Voltium.Core
         /// <param name="subresource">The index of the subresource to copy</param>
         [IllegalBundleMethod, IllegalRenderPassMethod]
         public void CopyBufferToTexture(
-            [RequiresResourceState(ResourceState.CopySource)] in Buffer source,
-            [RequiresResourceState(ResourceState.CopyDestination)] in Texture dest,
+            in Buffer source,
+            in Texture dest,
             uint subresource = 0
         )
         {
@@ -306,8 +307,8 @@ namespace Voltium.Core
         /// <param name="subresource">The index of the subresource to copy</param>
         [IllegalBundleMethod, IllegalRenderPassMethod]
         public void CopyTextureToBuffer(
-            [RequiresResourceState(ResourceState.CopySource)] in Texture source,
-            [RequiresResourceState(ResourceState.CopyDestination)] in Buffer dest,
+            in Texture source,
+            in Buffer dest,
             uint subresource = 0
         )
         {
@@ -321,8 +322,8 @@ namespace Voltium.Core
         /// <param name="subresource">The index of the subresource to copy</param>
         [IllegalBundleMethod, IllegalRenderPassMethod]
         public void CopyTexture(
-            [RequiresResourceState(ResourceState.CopySource)] in Texture source,
-            [RequiresResourceState(ResourceState.CopyDestination)] in Texture dest,
+            in Texture source,
+            in Texture dest,
             uint subresource
         ) => CopyTexture(source, dest, subresource, subresource);
 
@@ -335,8 +336,8 @@ namespace Voltium.Core
         /// <param name="destSubresource">The index of the subresource to copy to</param>
         [IllegalBundleMethod, IllegalRenderPassMethod]
         public void CopyTexture(
-            [RequiresResourceState(ResourceState.CopySource)] in Texture source,
-            [RequiresResourceState(ResourceState.CopyDestination)] in Texture dest,
+            in Texture source,
+            in Texture dest,
             uint sourceSubresource,
             uint destSubresource
         )
@@ -364,9 +365,9 @@ namespace Voltium.Core
         /// <param name="numBytes">The number of bytes to copy</param>
         [IllegalBundleMethod, IllegalRenderPassMethod]
         public void CopyBufferRegion(
-            [RequiresResourceState(ResourceState.CopySource)] in Buffer source,
+            in Buffer source,
             uint sourceOffset,
-            [RequiresResourceState(ResourceState.CopyDestination)] in Buffer dest,
+            in Buffer dest,
             uint destOffset,
             uint numBytes
         )
@@ -394,8 +395,8 @@ namespace Voltium.Core
         /// <param name="numBytes">The number of bytes to copy</param>
         [IllegalBundleMethod, IllegalRenderPassMethod]
         public void CopyBufferRegion(
-            [RequiresResourceState(ResourceState.CopySource)] in Buffer source,
-            [RequiresResourceState(ResourceState.CopyDestination)] in Buffer dest,
+            in Buffer source,
+            in Buffer dest,
             int numBytes
         )
             => CopyBufferRegion(source, dest, (uint)numBytes);
@@ -403,8 +404,8 @@ namespace Voltium.Core
         /// <inheritdoc cref="CopyBufferRegion(in Buffer, in Buffer, uint)"/>
         [IllegalBundleMethod, IllegalRenderPassMethod]
         public void CopyBufferRegion(
-            [RequiresResourceState(ResourceState.CopySource)] in Buffer source,
-            [RequiresResourceState(ResourceState.CopyDestination)] in Buffer dest,
+            in Buffer source,
+            in Buffer dest,
             uint numBytes
         ) => CopyBufferRegion(source, 0, dest, 0, numBytes);
 

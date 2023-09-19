@@ -3,7 +3,7 @@ using System.IO;
 using System.Numerics;
 using Voltium.Core.Devices;
 using Voltium.Core.Pipeline;
-using static TerraFX.Interop.D3D12_RESOURCE_STATES;
+using static TerraFX.Interop.DirectX.D3D12_RESOURCE_STATES;
 
 namespace Voltium.Core
 {

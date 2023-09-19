@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Voltium.Common;
 using Voltium.Core.Contexts;
 using Voltium.Core.Memory;
+using Voltium.Core.NativeApi;
 using Voltium.Extensions;
 using Buffer = Voltium.Core.Memory.Buffer;
 
@@ -17,8 +18,8 @@ namespace Voltium.Core.Devices
     {
         private ContextEncoder<Devirt_ArrayBufferWriter<byte>> _writer;
 
-        private Func<int, MemoryAccess, Buffer> _allocateBuffer;
-        private Func<TextureDesc, Texture> _allocateTexture;
+        private Func<int, MemoryAccess, Buffer> _allocateBuffer = null!;
+        //private Func<TextureDesc, Texture> _allocateTexture;
 
         public unsafe Buffer UploadBuffer<T>(T[] data) where T : unmanaged => UploadBuffer<T>(data);
         public unsafe Buffer UploadBuffer<T>(ReadOnlySpan<T> data) where T : unmanaged

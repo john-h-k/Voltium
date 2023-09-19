@@ -4,8 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Voltium.Common;
-
-using static TerraFX.Interop.Windows;
+using static TerraFX.Interop.DirectX.DirectX;
 
 namespace Voltium
 {
@@ -13,13 +12,16 @@ namespace Voltium
     {
         public static void DeclareDeviceRemovalSupport()
         {
-            try
+            if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 17143, 0))
             {
-                Guard.ThrowIfFailed(DXGIDeclareAdapterRemovalSupport());
-            }
-            catch (EntryPointNotFoundException)
-            {
+                try
+                {
+                    Guard.ThrowIfFailed(DXGIDeclareAdapterRemovalSupport());
+                }
+                catch (EntryPointNotFoundException)
+                {
 
+                }
             }
         }
     }

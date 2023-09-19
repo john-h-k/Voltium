@@ -1,4 +1,4 @@
-using TerraFX.Interop;
+using TerraFX.Interop.DirectX;
 using Voltium.Common;
 using Buffer = Voltium.Core.Memory.Buffer;
 
