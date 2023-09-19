@@ -6,7 +6,7 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
-using TerraFX.Interop;
+using TerraFX.Interop.DirectX;
 using Voltium.Common;
 using Voltium.Core;
 using Voltium.Core.Contexts;
@@ -17,6 +17,7 @@ using Voltium.Core.Memory;
 using Buffer = Voltium.Core.Memory.Buffer;
 using Voltium.Extensions;
 using Voltium.Core.Raytracing;
+using TerraFX.Interop.Windows;
 
 namespace Voltium.Interactive.HelloTriangleRaytracing
 {
@@ -83,7 +84,7 @@ namespace Voltium.Interactive.HelloTriangleRaytracing
                         PreserveBackBuffers = false,
                         VrStereo = false
                     },
-                    output.GetOutput()
+                    new HWND((void*)output.GetOutput())
                 )
             );
 

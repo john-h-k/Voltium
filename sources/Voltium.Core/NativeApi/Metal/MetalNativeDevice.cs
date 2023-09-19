@@ -75,13 +75,13 @@ namespace Voltium.Core.Devices
         public PipelineHandle CreatePipeline(in NativeComputePipelineDesc desc) => throw new NotImplementedException();
         public PipelineHandle CreatePipeline(in NativeGraphicsPipelineDesc desc)
         {
-            var lib = _device.newLibraryWithSource();
-
             var nativeDesc = new MTLRenderPipelineDescriptor();
             nativeDesc.alphaToCoverageEnabled = desc.Blend.UseAlphaToCoverage;
             // nativeDesc.vertexFunction = MTLFunction. desc.VertexShader;
 
-            _device.newRenderPipelineStateWithDescriptor();
+            // _device.newRenderPipelineStateWithDescriptor();
+
+            throw new NotImplementedException();
         }
 
         public QuerySetHandle CreateQuerySet(QuerySetType type, uint length) => throw new NotImplementedException();

@@ -6,7 +6,9 @@ using System.Threading.Tasks;
 using BenchmarkDotNet.Attributes;
 using TerraFX.Interop;
 using Voltium.Core.Devices;
-using static TerraFX.Interop.Windows;
+using TerraFX.Interop.DirectX;
+using static TerraFX.Interop.Windows.Windows;
+using static TerraFX.Interop.DirectX.D3D12;
 
 namespace Voltium.Interactive
 {
@@ -30,20 +32,20 @@ namespace Voltium.Interactive
         {
 #if DEBUG
             ID3D12Debug* pDebug = null;
-            D3D12GetDebugInterface(__uuidof(pDebug), (void**)&pDebug);
+            DirectX.D3D12GetDebugInterface(__uuidof(pDebug), (void**)&pDebug);
             pDebug->EnableDebugLayer();
 #endif
 
             fixed (ID3D12Device** ppDevice = &pDevice)
             {
-                D3D12CreateDevice(null, D3D_FEATURE_LEVEL.D3D_FEATURE_LEVEL_11_0, __uuidof(pDevice), (void**)ppDevice);
+                DirectX.D3D12CreateDevice(null, D3D_FEATURE_LEVEL.D3D_FEATURE_LEVEL_11_0, __uuidof(pDevice), (void**)ppDevice);
             }
 
             var desc = new D3D12_ROOT_SIGNATURE_DESC();
 
             ID3DBlob* pBlob;
             ID3DBlob* pError;
-            if (FAILED(D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION.D3D_ROOT_SIGNATURE_VERSION_1_0, &pBlob, &pError)))
+            if (FAILED(DirectX.D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION.D3D_ROOT_SIGNATURE_VERSION_1_0, &pBlob, &pError)))
             {
                 Console.WriteLine(new string((sbyte*)pError->GetBufferPointer(), 0, (int)pError->GetBufferSize()));
             }

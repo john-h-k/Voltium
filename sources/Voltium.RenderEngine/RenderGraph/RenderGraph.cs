@@ -166,7 +166,7 @@ namespace Voltium.RenderEngine
         /// <param name="initialState">The initial <see cref="ResourceState"/> of the resource</param>
         /// <param name="debugName">The <see cref="string"/> to set the resource name to in debug mode</param>
         /// <returns>A new <see cref="TextureHandle"/> representing the resource that can be later resolved to a <see cref="Buffer"/></returns>
-        public TextureHandle CreateTexture(in TextureDesc desc, string? debugName = null)
+        public TextureHandle CreateTexture(in TextureDesc desc, ResourceState initialState, string? debugName = null)
             => AddResource(new ResourceDesc { Type = ResourceType.Texture, TextureDesc = desc, InitialState = initialState, DebugName = debugName }, _passIndex).AsTextureHandle();
 
         public ViewHandle CreateView(BufferHandle resource, BufferViewDesc? view = null)

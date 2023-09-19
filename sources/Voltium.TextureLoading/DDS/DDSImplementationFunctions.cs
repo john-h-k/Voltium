@@ -1,7 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using TerraFX.Interop;
+using TerraFX.Interop.DirectX;
 using Voltium.Common;
 using Voltium.Core;
 using Voltium.Core.Memory;
@@ -49,9 +49,9 @@ namespace Voltium.TextureLoading.DDS
                 ValidateHeader(in header, out arraySize, out format, ref depth, out isCubeMap, out resDim);
             }
 
-            if (mipCount > Windows.D3D12_REQ_MIP_LEVELS)
+            if (mipCount > D3D12.D3D12_REQ_MIP_LEVELS)
             {
-                ThrowHelper.ThrowNotSupportedException($"{Windows.D3D12_REQ_MIP_LEVELS} MIP levels are required");
+                ThrowHelper.ThrowNotSupportedException($"{D3D12.D3D12_REQ_MIP_LEVELS} MIP levels are required");
             }
 
             var size = new Size3(height, width, depth);
@@ -72,7 +72,7 @@ namespace Voltium.TextureLoading.DDS
             if (loaderFlags.HasFlag(LoaderFlags.ReserveMips))
             {
                 ThrowHelper.ThrowNotSupportedException("TODO");
-                //mipCount = Math.Min(Windows.D3D12_REQ_MIP_LEVELS, CountMips(width, height));
+                //mipCount = Math.Min(D3D12.D3D12_REQ_MIP_LEVELS, CountMips(width, height));
             }
 
             var desc = new TextureDesc
@@ -250,8 +250,8 @@ namespace Voltium.TextureLoading.DDS
             switch (resDim)
             {
                 case D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_TEXTURE1D:
-                    if (arraySize > Windows.D3D12_REQ_TEXTURE1D_ARRAY_AXIS_DIMENSION
-                        || size.Width > Windows.D3D12_REQ_TEXTURE1D_U_DIMENSION)
+                    if (arraySize > D3D12.D3D12_REQ_TEXTURE1D_ARRAY_AXIS_DIMENSION
+                        || size.Width > D3D12.D3D12_REQ_TEXTURE1D_U_DIMENSION)
                     {
                         ThrowHelper.ThrowNotSupportedException("Not supported arraySize or width");
                     }
@@ -261,9 +261,9 @@ namespace Voltium.TextureLoading.DDS
                 case D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_TEXTURE2D:
                     if (isCubeMap)
                     {
-                        if (arraySize > Windows.D3D12_REQ_TEXTURE2D_ARRAY_AXIS_DIMENSION
-                            || size.Width > Windows.D3D12_REQ_TEXTURECUBE_DIMENSION
-                            || size.Height > Windows.D3D12_REQ_TEXTURECUBE_DIMENSION)
+                        if (arraySize > D3D12.D3D12_REQ_TEXTURE2D_ARRAY_AXIS_DIMENSION
+                            || size.Width > D3D12.D3D12_REQ_TEXTURECUBE_DIMENSION
+                            || size.Height > D3D12.D3D12_REQ_TEXTURECUBE_DIMENSION)
                         {
                             ThrowHelper.ThrowNotSupportedException("Not supported arraySize, width, or height");
                         }
@@ -272,9 +272,9 @@ namespace Voltium.TextureLoading.DDS
                     break;
                 case D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_TEXTURE3D:
                     if (arraySize > 1
-                        || size.Width > Windows.D3D12_REQ_TEXTURE3D_U_V_OR_W_DIMENSION
-                        || size.Height > Windows.D3D12_REQ_TEXTURE3D_U_V_OR_W_DIMENSION
-                        || size.Depth > Windows.D3D12_REQ_TEXTURE3D_U_V_OR_W_DIMENSION)
+                        || size.Width > D3D12.D3D12_REQ_TEXTURE3D_U_V_OR_W_DIMENSION
+                        || size.Height > D3D12.D3D12_REQ_TEXTURE3D_U_V_OR_W_DIMENSION
+                        || size.Depth > D3D12.D3D12_REQ_TEXTURE3D_U_V_OR_W_DIMENSION)
                     {
                         ThrowHelper.ThrowNotSupportedException("Not supported arraySize, width, height, or depth");
                     }

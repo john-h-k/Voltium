@@ -3,7 +3,6 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Numerics;
 using Microsoft.Extensions.Logging;
-using TerraFX.Interop;
 using TerraFX.Interop.DirectX;
 using TerraFX.Interop.Windows;
 using Voltium.Common;

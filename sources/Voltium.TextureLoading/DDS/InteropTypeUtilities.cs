@@ -4,7 +4,8 @@ using System.Runtime.CompilerServices;
 using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
 using TerraFX.Interop;
-using static TerraFX.Interop.DXGI_FORMAT;
+using TerraFX.Interop.DirectX;
+using static TerraFX.Interop.DirectX.DXGI_FORMAT;
 using static Voltium.TextureLoading.DDS.PixelFormatFlags;
 
 // ReSharper disable CommentTypo
