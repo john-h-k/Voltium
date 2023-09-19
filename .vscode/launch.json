@@ -10,7 +10,7 @@
             "request": "launch",
             "preLaunchTask": "build",
             // If you have changed target frameworks, make sure to update the program path.
-            "program": "${workspaceFolder}/interactive/Voltium.Interactive/bin/Debug/netcoreapp5.0/Voltium.Interactive.dll",
+            "program": "${workspaceFolder}/interactive/Voltium.Interactive/bin/Debug/net7.0/Voltium.Interactive.dll",
             "args": [],
             "cwd": "${workspaceFolder}/interactive/Voltium.Interactive",
             // For more information about the 'console' field, see https://aka.ms/VSCode-CS-LaunchJson-Console
