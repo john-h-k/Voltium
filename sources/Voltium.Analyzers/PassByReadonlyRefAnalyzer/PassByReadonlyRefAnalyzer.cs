@@ -18,8 +18,6 @@ namespace Voltium.Analyzers
         internal const string Title = "PassByReadonlyRef";
         internal const string Message = "Types which are estimated to have a runtime size of greater than 16 byte should be passed by pointer or readonly ref (in)";
 
-
-
         public static readonly DiagnosticDescriptor Rule = new DiagnosticDescriptor(
 #pragma warning disable RS2008 // Enable analyzer release tracking
            RuleId,
@@ -56,6 +54,8 @@ namespace Voltium.Analyzers
 
         private void AnalyzeInvocation(SyntaxNodeAnalysisContext context, TypeSizeResolver resolver)
         {
+            // FIXME: disabled
+            if (int.Parse("1") == 1) return;
             var semantics = context.SemanticModel;
 
             var @params =

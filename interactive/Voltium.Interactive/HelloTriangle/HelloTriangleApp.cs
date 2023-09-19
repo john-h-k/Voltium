@@ -3,7 +3,8 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Numerics;
 using Microsoft.Extensions.Logging;
-using TerraFX.Interop;
+using TerraFX.Interop.DirectX;
+using TerraFX.Interop.Windows;
 using Voltium.Common;
 using Voltium.Core;
 using Voltium.Core.CommandBuffer;
@@ -45,10 +46,10 @@ namespace Voltium.Interactive.HelloTriangle
                     _device.GraphicsQueue.Native,
                     new NativeOutputDesc
                     {
-                         Format = BackBufferFormat.B8G8R8A8UnsignedNormalized,
-                         BackBufferCount = 3,
-                         PreserveBackBuffers = false,
-                         VrStereo = false
+                        Format = BackBufferFormat.B8G8R8A8UnsignedNormalized,
+                        BackBufferCount = 3,
+                        PreserveBackBuffers = false,
+                        VrStereo = false
                     },
                     output.GetOutput()
                 )
