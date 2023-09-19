@@ -1,9 +1,17 @@
+<h1 align="center">Voltium</h1>
+<div align="center">
+ <strong>
+    Voltium is a DirectX 12 C# 3D render engine written purely in C#, with a focus on performance and usability
+ </strong>
+</div>
+
+<div align="center">
+  ![GitHub License](https://img.shields.io/github/license/john-h-k/Voltium)
+</div>
+
+<br />
+
 # Contributing to Voltium
-
-![GitHub License](https://img.shields.io/github/license/john-h-k/Voltium)
-[![Discord](https://img.shields.io/discord/807677088063946762.svg?label=Discord)](https://discord.gg/mvayb38uTZ)
-
-Voltium is a DirectX 12 C# 3D render engine written purely in C#, with a focus on performance and usability
 
 ## Table of Contents
 
